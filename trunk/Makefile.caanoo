@@ -1,0 +1,125 @@
+
+TARGET = pcsx4all_caanoo
+PORT   = caanoo
+#GPU   = gpu_dfxvideo
+#GPU   = gpu_drhell
+#GPU    = gpu_null
+GPU    = gpu_unai
+#SPU   = spu_dfxsound
+#SPU    = spu_null
+SPU   = spu_franxis
+#INTERPRETER = interpreter_pcsx
+INTERPRETER = interpreter_new
+#INTERPRETER = interpreter_none
+#RECOMPILER = arm_old
+RECOMPILER = arm
+#GTE   = gte_pcsx
+GTE    = gte_new
+#GTE    = gte_none
+
+RM     = rm -f
+CC     = @arm-none-linux-gnueabi-gcc
+CPP    = @arm-none-linux-gnueabi-g++
+LD     = @arm-none-linux-gnueabi-g++
+MD     = @mkdir
+RM     = @rm -f
+DEVLIBS =
+
+BIOS_FILE = \"scph1001.bin\"
+MCD1_FILE = \"mcd001.mcr\"
+MCD2_FILE = \"mcd002.mcr\"
+
+CFLAGS = -mcpu=arm926ej-s -mtune=arm926ej-s $(DEVLIBS) \
+    -O3 -msoft-float -ffast-math -fomit-frame-pointer -fstrict-aliasing \
+	-mstructure-size-boundary=32 -fexpensive-optimizations \
+	-fweb -frename-registers -falign-functions=32 -falign-loops -falign-labels -falign-jumps \
+	-finline -finline-functions -fno-common -fno-builtin \
+	-Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
+    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
+    -DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
+    -D__arm__ -DWIZ -DMMUHACK -DINLINE="static __inline" -Dasm="__asm__ __volatile__" -Wshadow -DPSXREC
+	# -fsigned-char 
+	# -Wstrict-prototypes -Wbad-function-cast
+    # -Wshadow
+
+#CFLAGS += -DPROFILER_PCSX4ALL
+#CFLAGS += -DPROFILER_PCSX4ALL_RESET=8000
+#CFLAGS += -DDEBUG_PCSX4ALL
+#CFLAGS += -DDEBUG_PCSX4ALL_FFLUSH
+#CFLAGS += -DDEBUG_START=3438
+#CFLAGS += -DDEBUG_START=0
+#CFLAGS += -DDEBUG_CPU
+#CFLAGS += -DDEBUG_CPU_OPCODES
+#CFLAGS += -DDEBUG_FRAME
+#CFLAGS += -DAUTOEVENTS
+#CFLAGS += -DAUTOEVENTS_MAX=8500
+
+LDFLAGS = -s
+
+OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/interpreter/$(INTERPRETER) obj/recompiler obj/recompiler/$(RECOMPILER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+
+all: maketree $(TARGET) pcsx4all_caanoo.gpe
+
+OBJS = obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o obj/psxcounters.o \
+	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o obj/recompiler/$(RECOMPILER)/recompiler.o obj/recompiler/$(RECOMPILER)/run.o obj/gte/$(GTE)/gte.o  obj/mdec.o \
+	obj/decode_xa.o obj/cdriso.o obj/cdrom.o obj/sio.o obj/pad.o
+
+OBJS += obj/gpu/$(GPU)/gpu.o
+
+ifneq ($(strip $(findstring arm,$(CFLAGS))),)
+ifneq ($(strip $(findstring gpu_unai,$(GPU))),)
+CFLAGS += -DUSE_BGR15
+OBJS += obj/gpu/$(GPU)/gpu_arm.o
+endif
+endif
+
+OBJS += obj/spu/$(SPU)/spu.o
+
+OBJS += obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o obj/zlib/gzio.o \
+    obj/zlib/uncompr.o obj/zlib/deflate.o obj/zlib/trees.o obj/zlib/zutil.o \
+    obj/zlib/inflate.o obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
+    obj/zlib/inffast.o obj/zlib/infutil.o
+
+OBJS += obj/port/caanoo/port.o obj/port/caanoo/wiz_lib.o obj/port/caanoo/warm.o \
+    obj/port/caanoo/pollux_set.o obj/port/caanoo/sys_cacheflush.o \
+    obj/port/caanoo/memcmp.o obj/port/caanoo/memcpy.o obj/port/caanoo/memset.o \
+	obj/port/caanoo/strcmp.o obj/port/caanoo/strlen.o obj/port/caanoo/strncmp.o \
+	obj/port/caanoo/div.o
+
+OBJS += obj/profiler.o obj/debug.o
+
+$(TARGET): $(OBJS) 
+	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -lm -lpthread -o $@
+
+obj/recompiler/arm/recompiler.o: src/recompiler/arm/arm.h src/recompiler/arm/opcodes.h \
+	src/recompiler/arm/rec_alu.h src/recompiler/arm/rec_branch.h src/recompiler/arm/rec_gte.h \
+	src/recompiler/arm/rec_mem.h src/recompiler/arm/rec_misc.h src/recompiler/arm/recompiler.cpp \
+	src/recompiler/arm/risc_armv4le.h
+
+obj/%.o: src/%.c
+	@echo Compiling $<...
+	$(CC) $(CFLAGS) -c $< -o $@
+
+obj/%.o: src/%.cpp
+	@echo Compiling $<...
+	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+
+obj/%.o: src/%.s
+	@echo Compiling $<...
+	$(CPP) $(CFLAGS) -c $< -o $@
+
+obj/%.o: src/%.S
+	@echo Compiling $<...
+	$(CPP) $(CFLAGS) -c $< -o $@
+
+$(sort $(OBJDIRS)):
+	$(MD) $@
+
+maketree: $(sort $(OBJDIRS))
+
+clean:
+	$(RM) -r obj
+	$(RM) $(TARGET) pcsx4all_caanoo.gpe
+
+pcsx4all_caanoo.gpe:
+	$(LD) $(CFLAGS) $(LDFLAGS) -UMMUHACK -UUSE_BGR15 src/port/caanoo/wiz_lib.cpp src/port/caanoo/pollux_set.cpp src/port/caanoo/sys_cacheflush.S src/port/caanoo/frontend.cpp -lm -lpthread -o $@
