@@ -1,3 +1,22 @@
+/***********************************************************
+ Copyright (C) 2013 AndreBotelho(andrebotelhomail@gmail.com)
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of 
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+See the GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the
+ Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.
+ ***********************************************************/
+ 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "emuinterface.h"
@@ -1008,7 +1027,7 @@ void MainWindow::softEventCreator( QPoint bPoint, QEvent::Type type, int press, 
     QMap<Buttons, VirtualKey*>::iterator i;
     for (i = iKeys.begin(); i != iKeys.end(); ++i){
         if( i.value()->isOver(bPoint, bLandscape) ){
-            if( i.value()->iPressed == 0 || type == QEvent::KeyRelease){ //se estava solto ou é evento de soltar botão
+            if( i.value()->iPressed == 0 || type == QEvent::KeyRelease){ //se estava solto ou Ã© evento de soltar botÃ£o
                 QApplication::sendEvent(this, new QKeyEvent (type, i.value()->key, Qt::NoModifier));
                 if( type == QEvent::KeyRelease)
                     i.value()->iPressed = 0;
