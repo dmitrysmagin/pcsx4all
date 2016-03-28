@@ -322,7 +322,7 @@ int main (int argc, char **argv)
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=1; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	Config.HLE=1; /* 0=BIOS, 1=HLE */
-#ifdef ANDROID
+#if defined(ANDROID) || defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 #else
 	Config.Cpu=1; /* 0=recompiler, 1=interpreter */
