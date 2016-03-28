@@ -24,7 +24,7 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
+CFLAGS = -g -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
 	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
