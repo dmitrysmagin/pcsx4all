@@ -1,0 +1,1 @@
+PSX emulator for Symbian OS built with Qt toolkit
