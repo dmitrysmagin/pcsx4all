@@ -3,6 +3,7 @@
 #include "common.h"
 #include "recompiler.h"
 
+#include "interpreter_old.cpp"
 #include "mips_std_rec_calls.cpp"
 #include "mips_std_rec_globals.cpp"
 #include "mips_std_rec_debug.cpp"
