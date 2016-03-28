@@ -9,9 +9,10 @@ GPU    = gpu_unai
 #SPU    = spu_null
 SPU   = spu_franxis
 #INTERPRETER = interpreter_pcsx
-INTERPRETER = interpreter_new
+INTERPRETER = interpreter_old
+#RECOMPILER = mips
 #GTE   = gte_pcsx
-GTE    = gte_new
+GTE    = gte_old
 
 RM     = rm -f
 CC     = @mipsel-linux-gcc
@@ -26,7 +27,7 @@ MCD2_FILE = \"mcd002.mcr\"
 
 CFLAGS = -g -O2 \
 	 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align \
-	 -Waggregate-return \
+	 -Waggregate-return -Wno-cast-align \
 	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
@@ -34,6 +35,10 @@ CFLAGS = -g -O2 \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
 	`sdl-config --cflags`
+
+ifdef RECOMPILER
+CFLAGS += -DPSXREC -D$(RECOMPILER)
+endif
 
 #CFLAGS += -DDEBUG_IO_CYCLE_COUNTER
 #CFLAGS += -DDEBUG_FAST_MEMORY
@@ -51,24 +56,37 @@ CFLAGS = -g -O2 \
 
 LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image
 
-OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter \
-	obj/interpreter/$(INTERPRETER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
+	  obj/interpreter obj/interpreter/$(INTERPRETER) \
+	  obj/recompiler obj/recompiler/$(RECOMPILER) \
+	  obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
 all: maketree $(TARGET)
 
-OBJS = obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o obj/psxcounters.o \
-	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
+OBJS = \
+	obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o \
+	obj/psxcounters.o obj/psxdma.o obj/psxbios.o obj/psxhle.o \
+	obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
 	obj/gte/$(GTE)/gte.o obj/mdec.o \
 	obj/decode_xa.o obj/cdriso.o obj/cdrom.o obj/sio.o obj/pad.o
+
+ifdef RECOMPILER
+OBJS += \
+	obj/recompiler/mips/recompiler.o \
+	obj/recompiler/mips/mips_disasm.o \
+	obj/recompiler/mips/mips.o
+endif
 
 OBJS += obj/gpu/$(GPU)/gpu.o
 
 OBJS += obj/spu/$(SPU)/spu.o
 
-OBJS += obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o obj/zlib/gzio.o \
-    obj/zlib/uncompr.o obj/zlib/deflate.o obj/zlib/trees.o obj/zlib/zutil.o \
-    obj/zlib/inflate.o obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
-    obj/zlib/inffast.o obj/zlib/infutil.o
+OBJS += \
+	obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o \
+	obj/zlib/gzio.o obj/zlib/uncompr.o obj/zlib/deflate.o \
+	obj/zlib/trees.o obj/zlib/zutil.o obj/zlib/inflate.o \
+	obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
+	obj/zlib/inffast.o obj/zlib/infutil.o
 
 OBJS += obj/port/$(PORT)/port.o
 
