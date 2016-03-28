@@ -45,7 +45,7 @@ CFLAGS = -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image
+LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image -lpthread
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter \
 	obj/interpreter/$(INTERPRETER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
