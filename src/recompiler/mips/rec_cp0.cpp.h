@@ -24,6 +24,8 @@ static void recMTC0()
 	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 	MIPS_STR_IMM(MIPS_POINTER, rt, PERM_REG_1, CalcDispCP0(_Rd_));
 	regBranchUnlock(rt);
+	LoadImmediate32(_Rd_, MIPSREG_A0);
+	CALLFunc((u32)psx_interrupt);
 }
 
 static void recCTC0()

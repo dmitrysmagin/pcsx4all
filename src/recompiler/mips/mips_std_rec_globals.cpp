@@ -1,7 +1,6 @@
-#include "../common.h"
+#include "common.h"
 
 psxRegisters 	recRegs;
-psxRegisters* 	psxRegs;
 RecRegisters 	regcache;
 
 u32 psxRecLUT[0x010000];

@@ -27,7 +27,7 @@ typedef struct {
 
 
 extern psxRegisters 	recRegs;
-extern psxRegisters* 	psxRegs;
+extern psxRegisters 	psxRegs;
 extern RecRegisters 	regcache;
 
 extern u32 psxRecLUT[0x010000];
@@ -59,6 +59,7 @@ extern "C" void clear_insn_cache(u32 BEG, u32 END, u32 FLAG);
 
 extern u32 recIntExecuteBlock(u32 newpc);
 extern u32 psxBranchTest_rec(u32 cycles, u32 pc);
+extern u32 psx_interrupt(u32 reg);
 
 //extern void regReset();
 //extern void regClearJump();

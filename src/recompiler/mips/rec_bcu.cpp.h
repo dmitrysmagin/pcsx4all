@@ -28,22 +28,24 @@ static void recSYSCALL()
 static INLINE void SetBranch()
 {
 	branch = 1;
-	psxRegs->code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
 
-	recBSC[psxRegs->code>>26]();
+	recBSC[psxRegs.code>>26]();
 	branch = 0;
 }
 
 static INLINE void iJumpNormal(u32 branchPC)
 {
 	branch = 1;
-	psxRegs->code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
 
-	recBSC[psxRegs->code>>26]();
+	recBSC[psxRegs.code>>26]();
 
 	branch = 0;
 
@@ -59,11 +61,12 @@ static INLINE void iJumpNormal(u32 branchPC)
 static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 {
 	branch = 1;
-	psxRegs->code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
 
-	recBSC[psxRegs->code>>26]();
+	recBSC[psxRegs.code>>26]();
 
 	branch = 0;
 
@@ -82,11 +85,12 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 static INLINE void iJump(u32 branchPC)
 {
 	branch = 1;
-	psxRegs->code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
+	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
 
-	recBSC[psxRegs->code>>26]();
+	recBSC[psxRegs.code>>26]();
 
 	branch = 0;
 	
@@ -338,7 +342,7 @@ static void recBNE()
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 br2 = regMipsToArm(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	//DEBUGG("emitting beq %d(%d), %d(%d) (code 0x%x)\n", br1, _Rs_, br2, _Rt_, psxRegs->code);
+	//DEBUGG("emitting beq %d(%d), %d(%d) (code 0x%x)\n", br1, _Rs_, br2, _Rt_, psxRegs.code);
 	SetBranch();
 	u32* backpatch = (u32*)recMem;
 	//DEBUGG("encore br1 %d br2 %d\n", br1, br2);
@@ -438,7 +442,7 @@ static void recHLE()
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, 648);
 
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
-	CALLFunc((u32)psxHLEt[psxRegs->code & 0xffff]);
+	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
 	end_block = 1;
 }

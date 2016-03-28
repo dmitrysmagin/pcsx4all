@@ -1,16 +1,15 @@
 //#define NO_ZERO_REGISTER_OPTIMISATION	1
 
-#include "../common.h"
+#include "common.h"
 #include "recompiler.h"
-
 
 #include "mips_std_rec_calls.cpp"
 #include "mips_std_rec_globals.cpp"
 #include "mips_std_rec_debug.cpp"
 #include "mips_std_rec_regcache.cpp"
 
-#include "../../evaluator/evaluator.cpp.h"
-#include "../../generator/mips/generator.cpp.h"
+#include "evaluator/evaluator.cpp.h"
+#include "generator/mips/generator.cpp.h"
 
 static void recReset();
 static u32 recRecompile();
@@ -81,7 +80,8 @@ disasm_label stub_labels[] =
   make_stub_label(psxMemWrite16),
   make_stub_label(psxMemWrite32),
   make_stub_label(psxException),
-  make_stub_label(psxBranchTest_rec)
+  make_stub_label(psxBranchTest_rec),
+  make_stub_label(psx_interrput)
 };
 
 const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
@@ -92,9 +92,9 @@ const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
    		recMemStart);                                          	        \
 
 #define DISASM_PSX								\
-		disasm_mips_instruction(psxRegs->code,disasm_buffer,pc, 0, 0);	\
+		disasm_mips_instruction(psxRegs.code,disasm_buffer,pc, 0, 0);	\
     		DEBUGG(/*translation_log_fp, */"%08x: %08x %s\n", pc, 		\
-			psxRegs->code, disasm_buffer);   			\
+			psxRegs.code, disasm_buffer);   			\
 
 #define DISASM_HOST								\
 	DEBUGG(/*translation_log_fp, */"\n");                                      \
@@ -132,7 +132,7 @@ void rec##f() 																	\
 	regClearJump();																\
 	LoadImmediate32(pc, TEMP_1); 												\
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, 648); 							\
-	LoadImmediate32(psxRegs->code, TEMP_1); 									\
+	LoadImmediate32(psxRegs.code, TEMP_1); 									\
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, 652); 							\
 	CALLFunc((u32)psx##f); 														\
 }
@@ -148,7 +148,7 @@ void rec##f() 																	\
 {																				\
 		if( loadedpermregs == 0 ) 												\
 		{ 																		\
-			LoadImmediate32((u32)psxRegs, PERM_REG_1); 							\
+			LoadImmediate32((u32)&psxRegs, PERM_REG_1); 							\
 			loadedpermregs = 1; 												\
 		} 																		\
 }
@@ -286,8 +286,8 @@ static u32 recRecompile()
 
 	blockcycles = 0;
 
-	PC_REC32(psxRegs->pc) = (u32)recMem;
-	oldpc = pc = psxRegs->pc;
+	PC_REC32(psxRegs.pc) = (u32)recMem;
+	oldpc = pc = psxRegs.pc;
 	ibranch = 0;
 
 	DISASM_INIT
@@ -308,9 +308,9 @@ static u32 recRecompile()
 			MIPS_PUSH(MIPS_POINTER, MIPSREG_S1);
 			MIPS_PUSH(MIPS_POINTER, MIPSREG_S0);
 		}
-		else if( isInBios == 2 && psxRegs->pc == 0x80030000 )
+		else if( isInBios == 2 && psxRegs.pc == 0x80030000 )
 		{
-			PC_REC32(psxRegs->pc) = 0;
+			PC_REC32(psxRegs.pc) = 0;
 			isInBios = 0;
 			MIPS_POP(MIPS_POINTER, MIPSREG_S0);
 			MIPS_POP(MIPS_POINTER, MIPSREG_S1);
@@ -329,14 +329,15 @@ static u32 recRecompile()
 	}
 
 	rec_recompile_start();
-	memset(psxRegs->iRegs, 0xff, 32*4);
+	memset(psxRegs.iRegs, 0xff, 32*4);
 
 	for (;;)
 	{
-		psxRegs->code = *(u32*)((psxMemRLUT[pc>>16] + (pc&0xffff)));
+		//psxRegs.code = *(u32*)((psxMemRLUT[pc>>16] + (pc&0xffff)));
+		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 		DISASM_PSX
 		pc+=4;
-		recBSC[psxRegs->code>>26]();
+		recBSC[psxRegs.code>>26]();
 		int ilock;
 		for(ilock = REG_CACHE_START; ilock < REG_CACHE_END; ilock++)
 		{					
@@ -366,7 +367,7 @@ static int recInit()
 {
 	int i;
 
-	psxRegs = &recRegs;
+	psxRegs = recRegs;
 
 	recMem = (u32*)recMemBase;	
 	loadedpermregs = 0;	
@@ -375,7 +376,7 @@ static int recInit()
 	//recRAM = (char*) malloc(0x200000);
 	//recROM = (char*) malloc(0x080000);
 	if (recRAM == NULL || recROM == NULL || recMemBase == NULL || psxRecLUT == NULL) {
-		SysMessage("Error allocating memory"); return -1;
+		printf("Error allocating memory\n"); return -1;
 	}
 
 	for (i=0; i<0x80; i++) psxRecLUT[i + 0x0000] = (u32)&recRAM[(i & 0x1f) << 16];
@@ -478,7 +479,7 @@ static void recExecute()
 {
 	loadedpermregs = 0;	
 
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs->pc);
+	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
 
 	if (*recFunc == 0) 
 		recRecompile();
@@ -486,12 +487,12 @@ static void recExecute()
 	(*recFunc)();
 }
 
-static void recExecuteBlock()
+static void recExecuteBlock(unsigned target_pc)
 {
 	isInBios = 1;
 	loadedpermregs = 0;	
 
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs->pc);
+	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
 
 	if (*recFunc == 0) 
 		recRecompile();

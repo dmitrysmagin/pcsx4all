@@ -13,7 +13,7 @@ void gte##f(u32 code, u32 pc); void rec##f() \
 	CP2_REGCACHE \
 	{ \
 		/* TODO: Remove */regClearJump();	/**/ \
-		LoadImmediate32(psxRegs->code, MIPSREG_A0); \
+		LoadImmediate32(psxRegs.code, MIPSREG_A0); \
 		LoadImmediate32(pc, MIPSREG_A1); \
 		CP2_CALLFunc_##n((u32)gte##f); \
 	} \
@@ -26,7 +26,7 @@ void gte##f(u32 code); void rec##f() \
 	CP2_REGCACHE \
 	{ \
 		/* TODO: Remove */regClearJump();	/**/ \
-		LoadImmediate32(psxRegs->code, MIPSREG_A0); \
+		LoadImmediate32(psxRegs.code, MIPSREG_A0); \
 		CP2_CALLFunc_##n((u32)gte##f); \
 	} \
 }

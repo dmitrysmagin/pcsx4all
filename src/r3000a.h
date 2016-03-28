@@ -152,6 +152,9 @@ typedef struct {
 	u32 cycle;
 	u32 interrupt;
 	u32 intCycle[32];
+#if defined(mips) && defined(PSXREC)
+	u32 iRegs[32];	/* used for imm caching and back up of regs in dynarec */
+#endif
 // CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
 // CHUI: Añado el puntero a la memoria PSX

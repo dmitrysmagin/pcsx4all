@@ -24,8 +24,8 @@ static INLINE void iPushOfB()
 }
 
 #define EMITDIRECTLOAD(insn) \
-	if (psxRegs->iRegs[_Rs_] != -1) { \
-	  u32 addr = psxRegs->iRegs[_Rs_] + ((s32)(s16)_Imm_); \
+	if (psxRegs.iRegs[_Rs_] != -1) { \
+	  u32 addr = psxRegs.iRegs[_Rs_] + ((s32)(s16)_Imm_); \
 	  /* DEBUGF("known address 0x%x", addr); */ \
 	  if ((addr >= 0x80000000 && addr < 0x80200000) || \
 	      (addr >= 0xa0000000 && addr < 0xa0200000) ||  \
@@ -45,14 +45,14 @@ static INLINE void iPushOfB()
 	    regMipsChanged(rt); \
 	    regBranchUnlock(r1); \
 	    regBranchUnlock(r2); \
-            psxRegs->iRegs[_Rt_] = -1; \
+            psxRegs.iRegs[_Rt_] = -1; \
 	    return; \
 	  } \
 	}
 
 #define EMITDIRECTSTORE(insn) \
-	if (psxRegs->iRegs[_Rs_] != -1) { \
-	  u32 addr = psxRegs->iRegs[_Rs_] + ((s32)(s16)_Imm_); \
+	if (psxRegs.iRegs[_Rs_] != -1) { \
+	  u32 addr = psxRegs.iRegs[_Rs_] + ((s32)(s16)_Imm_); \
 	  /* DEBUGF("known address 0x%x", addr); */ \
 	  if ((addr >= 0x80000000 && addr < 0x80200000) || \
 	      (addr >= 0xa0000000 && addr < 0xa0200000) ||  \
@@ -82,7 +82,7 @@ static void recLB()
 
 	EMITDIRECTLOAD(0x80000000)
 	iPushOfB();
-	psxRegs->iRegs[_Rt_] = -1;
+	psxRegs.iRegs[_Rt_] = -1;
 	CALLFunc_NoFlush((u32)psxMemReadS8);
 	if (rt)
 	{
@@ -100,7 +100,7 @@ static void recLBU()
 
 	EMITDIRECTLOAD(0x90000000)
 	iPushOfB();
-	psxRegs->iRegs[_Rt_] = -1;
+	psxRegs.iRegs[_Rt_] = -1;
 
 	CALLFunc_NoFlush((u32)psxMemRead8);
 	if (rt)
@@ -119,7 +119,7 @@ static void recLH()
 
 	EMITDIRECTLOAD(0x84000000)
 	iPushOfB();
-	psxRegs->iRegs[_Rt_] = -1;
+	psxRegs.iRegs[_Rt_] = -1;
 	CALLFunc_NoFlush((u32)psxMemReadS16);
 	if (rt)
 	{
@@ -137,7 +137,7 @@ static void recLHU()
 
 	EMITDIRECTLOAD(0x94000000)
 	iPushOfB();
-	psxRegs->iRegs[_Rt_] = -1;
+	psxRegs.iRegs[_Rt_] = -1;
 	CALLFunc_NoFlush((u32)psxMemRead16);
 	if (rt)
 	{
@@ -154,7 +154,7 @@ static void recLW()
 	u32 rt = _Rt_;
 
 	EMITDIRECTLOAD(0x8c000000)
-	psxRegs->iRegs[_Rt_] = -1;
+	psxRegs.iRegs[_Rt_] = -1;
 	iPushOfB();
 	CALLFunc_NoFlush((u32)psxMemRead32);
 	if (rt)

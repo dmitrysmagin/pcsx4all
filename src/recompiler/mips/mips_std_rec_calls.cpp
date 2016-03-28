@@ -1,30 +1,31 @@
-#include "../common.h"
+#include "common.h"
+
+extern void psxBranchTest();
 
 u32 psxBranchTest_rec(u32 cycles, u32 pc)
 {
-	static u32 cum = 0;
 	/* Misc helper */
-	psxRegs->pc = pc;
-	psxRegs->cycle += cycles;
-	cum += cycles;
+	psxRegs.pc = pc;
+	psxRegs.cycle += cycles;
 
-	/* Make sure interrupts  always when mcd is active */
-	//if( mcdst != 0 || (psxRegs->cycle - psxRegs->psx_next_io_base)  >= psxRegs->psx_next_io_count )
-	if (cum > 100)
-	{
-		update_hw(cum);
-		cum = 0;
-	}
+	psxBranchTest();
 
-	u32 compiledpc = (u32)PC_REC32(psxRegs->pc);
+	u32 compiledpc = (u32)PC_REC32(psxRegs.pc);
 	if( compiledpc != 0 )
 	{
-		//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", compiledpc, psxRegs->GPR.n.t2, psxRegs->GPR.n.t3);
+		//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", compiledpc, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
 		return compiledpc;
 	}
 	u32 a = recRecompile();
-	//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", a, psxRegs->GPR.n.t2, psxRegs->GPR.n.t3);
+	//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", a, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
 	return a;
+}
+
+u32 psx_interrupt(u32 reg)
+{
+	if(reg == 12)
+		psxRegs.interrupt |= 0x80000000;
+	return 0;
 }
 
 #ifdef IPHONE
