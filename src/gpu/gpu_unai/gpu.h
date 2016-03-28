@@ -45,9 +45,7 @@ typedef unsigned long long	u64;
 ///////////////////////////////////////////////////////////////////////////////
 //  Tweaks and Hacks
 extern  int  skipCount;
-extern  bool enableAbbeyHack;
 extern  bool show_fps;
-extern  bool alt_fps;
 
 ///////////////////////////////////////////////////////////////////////////////
 //  interlaced rendering
@@ -82,6 +80,7 @@ struct  GPUPacket
 
 //#define ENABLE_GPU_NULL_SUPPORT   // Enables NullGPU support
 //#define ENABLE_GPU_LOG_SUPPORT    // Enables gpu logger, very slow only for windows debugging
+//#define ENABLE_GPU_ARMV7			// Enables ARMv7 optimized assembly
 
 ///////////////////////////////////////////////////////////////////////////////
 #endif  // NEW_GPU_H

@@ -75,6 +75,46 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 	DMA_INTERRUPT(4);
 }
 
+// Taken from PEOPS SOFTGPU
+static inline boolean CheckForEndlessLoop(u32 laddr, u32 *lUsedAddr) {
+	if (laddr == lUsedAddr[1]) return TRUE;
+	if (laddr == lUsedAddr[2]) return TRUE;
+
+	if (laddr < lUsedAddr[0]) lUsedAddr[1] = laddr;
+	else lUsedAddr[2] = laddr;
+
+	lUsedAddr[0] = laddr;
+
+	return FALSE;
+}
+
+static u32 gpuDmaChainSize(u32 addr) {
+	u32 size;
+	u32 DMACommandCounter = 0;
+	u32 lUsedAddr[3];
+
+	lUsedAddr[0] = lUsedAddr[1] = lUsedAddr[2] = 0xffffff;
+
+	// initial linked list ptr (word)
+	size = 1;
+
+	do {
+		addr &= 0x1ffffc;
+
+		if (DMACommandCounter++ > 2000000) break;
+		if (CheckForEndlessLoop(addr, lUsedAddr)) break;
+
+		// # 32-bit blocks to transfer
+		size += psxMu8( addr + 3 );
+
+		// next 32-bit pointer
+		addr = psxMu32( addr & ~0x3 ) & 0xffffff;
+		size += 1;
+	} while (addr != 0xffffff);
+
+	return size;
+}
+
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxDma2++;
@@ -109,8 +149,18 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #ifdef PSXDMA_LOG
 			PSXDMA_LOG("*** DMA 2 - GPU dma chain *** %x addr = %x size = %x\n", chcr, madr, bcr);
 #endif
-			GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
-			break;
+			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
+			if ((int)size <= 0)
+				size = gpuDmaChainSize(madr);
+			
+			// Tekken 3 = use 1.0 only (not 1.5x)
+
+			// Einhander = parse linked list in pieces (todo)
+			// Final Fantasy 4 = internal vram time (todo)
+			// Rebel Assault 2 = parse linked list in pieces (todo)
+			// Vampire Hunter D = allow edits to linked list (todo)
+			GPUDMA_INT(size);
+			return;
 
 #ifdef PSXDMA_LOG
 		default:

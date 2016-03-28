@@ -5,6 +5,8 @@
 #define FB1_0 (0x2A00000+320*240*4)
 #define FB1_1 (0x2A00000+320*240*6)
 #define FBX_L (320*240*2)
+unsigned char *upper_fb;
+
 unsigned char *uppermem;
 
 /* register access */
@@ -13,6 +15,7 @@ static volatile unsigned int *memregs32;
 static volatile unsigned short *memregs16;
 static volatile unsigned char *memregs8;
 static unsigned int bkregs32[15];	/* backing up values */
+static unsigned int sec_bkregs32[15];	/* backing up values */
 
 /* library variables */
 static int layer_width[2];
@@ -25,14 +28,13 @@ static unsigned short *fb1_0, *fb1_1; /* layer 1, buffer 0 : layer 1, buffer 1 (
 int	wiz_sound_rate=22050;
 int	wiz_sound_stereo=0;
 int wiz_clock=533;
-int rotate_controls=0;
 int	wiz_ram_tweaks=0;
 int wiz_rotated_video=0;
 int master_volume = 100;
 
 static void lc_setfb(int layer, unsigned short *set_to);
 static void lc_flipfb(int layer,int single);
-static void lc_setlayer(int layer, unsigned char onoff, unsigned char alpha, unsigned char invert, unsigned char trans, unsigned int mode);
+static void lc_setlayer(int layer, bool onoff, bool alpha, bool invert, bool trans, unsigned int mode);
 static void lc_layerpos(int layer, int x1, int y1, int x2, int y2);
 /*
 static void lc_setalpha(int layer, int value);
@@ -51,15 +53,15 @@ static void lc_setfb(int layer, unsigned short *set_to)
 	/* set absolute address for framebuffers */
 	if(layer == 0) {
 		if(set_to == fb0_0) {
-			MLCADDRESS0 = FB0_0;
+			MLCADDRESS0 = MLC2ADDRESS0 = FB0_0;
 		} else {
-			MLCADDRESS0 = FB0_1;
+			MLCADDRESS0 = MLC2ADDRESS0 = FB0_1;
 		}
 	} else {
 		if(set_to == fb1_0) {
-			MLCADDRESS1 = FB1_0;
+			MLCADDRESS1 = MLC2ADDRESS1 = FB1_0;
 		} else {
-			MLCADDRESS1 = FB1_1;
+			MLCADDRESS1 = MLC2ADDRESS1 = FB1_1;
 		}
 	}
 	lc_dirtylayer(layer);
@@ -106,7 +108,7 @@ static void lc_flipfb(int layer,int single)
 }
 
 /* Sets layer properties */
-static void lc_setlayer(int layer, unsigned char onoff, unsigned char alpha, unsigned char invert, unsigned char trans, unsigned int mode)
+static void lc_setlayer(int layer, bool onoff, bool alpha, bool invert, bool trans, unsigned int mode)
 {
 	/* set layer properties register */
 	unsigned int temp;
@@ -122,9 +124,9 @@ static void lc_setlayer(int layer, unsigned char onoff, unsigned char alpha, uns
 	if(mode) temp |= (mode<<16);
 
 	if(layer == 0) {
-		MLCCONTROL0 = temp;
+		MLCCONTROL0 = MLC2CONTROL0 = temp;
 	} else {
-		MLCCONTROL1= temp;
+		MLCCONTROL1 = MLC2CONTROL1 = temp;
 	}
 	lc_dirtylayer(layer);
 
@@ -171,11 +173,11 @@ static void lc_layerpos(int layer, int x1, int y1, int x2, int y2)
 	temp_tb = (y1 << 16) | y2;
 
 	if(layer == 0) {
-		MLCLEFTRIGHT0 = temp_lr;
-		MLCTOPBOTTOM0 = temp_tb;
+		MLCLEFTRIGHT0 = MLC2LEFTRIGHT0 = temp_lr;
+		MLCTOPBOTTOM0 = MLC2TOPBOTTOM0 = temp_tb;
 	} else {
-		MLCLEFTRIGHT1 = temp_lr;
-		MLCTOPBOTTOM1 = temp_tb;
+		MLCLEFTRIGHT1 = MLC2LEFTRIGHT1 = temp_lr;
+		MLCTOPBOTTOM1 = MLC2TOPBOTTOM1 = temp_tb;
 	}
 	lc_dirtylayer(layer);
 
@@ -228,8 +230,10 @@ static void lc_dirtylayer(int layer)
 {
 	if(layer == 0) {
 		MLCCONTROL0 |= BIT(4);
+		MLC2CONTROL0 |= BIT(4);
 	} else {
 		MLCCONTROL1 |= BIT(4);
+		MLC2CONTROL1 |= BIT(4);
 	}
 }
 
@@ -295,11 +299,11 @@ static void lc_setstride(int layer, int hs, int vs)
 {
 	/* set how many bytes the MLC is supposed to read */
 	if(layer == 0) {
-		MLCHSTRIDE0 = hs;
-		MLCVSTRIDE0 = vs;
+		MLCHSTRIDE0 = MLC2HSTRIDE0 = hs;
+		MLCVSTRIDE0 = MLC2VSTRIDE0 = vs;
 	} else {
-		MLCHSTRIDE1 = hs;
-		MLCVSTRIDE1 = vs;
+		MLCHSTRIDE1 = MLC2HSTRIDE1 = hs;
+		MLCVSTRIDE1 = MLC2VSTRIDE1 = vs;
 	}
 	lc_dirtylayer(layer);
 }
@@ -329,11 +333,19 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	bkregs32[5] = MLCTOPBOTTOM0; bkregs32[6] = MLCLEFTRIGHT1; bkregs32[7] = MLCTOPBOTTOM1; bkregs32[8] = MLCBGCOLOR; bkregs32[9] = MLCHSTRIDE0;
 	bkregs32[10] = MLCVSTRIDE0; bkregs32[11] = MLCHSTRIDE1; bkregs32[12] = MLCVSTRIDE1; bkregs32[13] = DPCCTRL1; bkregs32[14] = MLCSCREENSIZE;
     
+	sec_bkregs32[0] = MLC2ADDRESS0; sec_bkregs32[1] = MLC2ADDRESS1; sec_bkregs32[2] = MLC2CONTROL0; sec_bkregs32[3] = MLC2CONTROL1; sec_bkregs32[4] = MLC2LEFTRIGHT0;
+	sec_bkregs32[5] = MLC2TOPBOTTOM0; sec_bkregs32[6] = MLC2LEFTRIGHT1; sec_bkregs32[7] = MLC2TOPBOTTOM1; sec_bkregs32[9] = MLC2HSTRIDE0;
+	sec_bkregs32[10] = MLC2VSTRIDE0; sec_bkregs32[11] = MLC2HSTRIDE1; sec_bkregs32[12] = MLC2VSTRIDE1;
+
 	/* Set Wiz Clock */
 	wiz_set_clock(wiz_clock);
 
-	uppermem=(unsigned char  *)mmap(0, 0x4000000-0x2A00000, PROT_READ|PROT_WRITE, MAP_SHARED, wiz_dev[0], 0x2A00000);
+	/* Video frame buffers */
+	upper_fb=(unsigned char  *)mmap(0, FBX_L*4, PROT_READ|PROT_WRITE, MAP_SHARED, wiz_dev[0], 0x2A00000);
 
+	/* Upper memory */
+	uppermem=(unsigned char  *)mmap(0, 0x4000000-0x3000000, PROT_READ|PROT_WRITE, MAP_PRIVATE, wiz_dev[0], 0x3000000);
+	
 #ifdef MMUHACK
 	warm_init();
     warm_change_cb_upper(WCB_C_BIT|WCB_B_BIT, 1);
@@ -342,11 +354,10 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	upper_malloc_init(uppermem);
 
 	/* assign framebuffers */
-	fb0_0 = (unsigned short *)upper_take(FB0_0,FBX_L); // do not use video buffer memory
-	fb0_1 = (unsigned short *)upper_take(FB0_1,FBX_L); // do not use video buffer memory
-	fb1_0 = (unsigned short *)upper_take(FB1_0,FBX_L); // do not use video buffer memory
-	fb1_1 = (unsigned short *)upper_take(FB1_1,FBX_L); // do not use video buffer memory
-	upper_take(FB1_1+FBX_L,(0x3000000-0x2A00000)-(FBX_L*4)); // do not use kernel memory
+	fb0_0 = (unsigned short *)(upper_fb);
+	fb0_1 = (unsigned short *)(upper_fb+FBX_L);
+	fb1_0 = (unsigned short *)(upper_fb+FBX_L*2);
+	fb1_1 = (unsigned short *)(upper_fb+FBX_L*3);
 	
     /* assign initial framebuffers */
 	fb0_16bit = fb0_1; fb0_8bit=(unsigned char *)fb0_16bit;
@@ -367,17 +378,17 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	if (bpp==16)
 	{
 		#ifndef USE_BGR15
-	    lc_setlayer(0, 0, 0, 0, 0, RGB565); /* set default layer settings */
-	    lc_setlayer(1, 1, 0, 0, 0, RGB565);
+	    lc_setlayer(0, false, false, false, false, RGB565); /* set default layer settings */
+	    lc_setlayer(1, true, false, false, false, RGB565);
 		#else
-	    lc_setlayer(0, 0, 0, 0, 0, XBGR1555);
-	    lc_setlayer(1, 1, 0, 0, 0, XBGR1555);
+	    lc_setlayer(0, false, false, false, false, XBGR1555);
+	    lc_setlayer(1, true, false, false, false, XBGR1555);
 		#endif
 	}
 	else
 	{
-	    lc_setlayer(0, 0, 0, 0, 0, PTRGB565); /* set default layer settings */
-	    lc_setlayer(1, 1, 0, 0, 0, PTRGB565);
+	    lc_setlayer(0, false, false, false, false, PTRGB565); /* set default layer settings */
+	    lc_setlayer(1, true, false, false, false, PTRGB565);
         int i;
         for (i=0; i<256; i++)
         {
@@ -388,7 +399,7 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	}
 	lc_flipfb(0,1);	/* set initial addresses in hardware */
 	lc_flipfb(1,1);
-	usleep(100000);
+	usleep(200000);
 
 	/* open /dev/dsp to access sound card */
   	wiz_dev[1] = open("/dev/dsp",   O_WRONLY);
@@ -452,10 +463,16 @@ void wiz_deinit(void)
 	MLCADDRESS0 = bkregs32[0]; MLCADDRESS1 = bkregs32[1]; MLCCONTROL0 = bkregs32[2]; MLCCONTROL1 = bkregs32[3]; MLCLEFTRIGHT0 = bkregs32[4];
 	MLCTOPBOTTOM0 = bkregs32[5]; MLCLEFTRIGHT1 = bkregs32[6]; MLCTOPBOTTOM1 = bkregs32[7]; MLCBGCOLOR = bkregs32[8]; MLCHSTRIDE0 = bkregs32[9];
 	MLCVSTRIDE0 = bkregs32[10]; MLCHSTRIDE1 = bkregs32[11]; MLCVSTRIDE1 = bkregs32[12]; DPCCTRL1 = bkregs32[13]; MLCSCREENSIZE = bkregs32[14];
+	MLC2ADDRESS0 = sec_bkregs32[0]; MLC2ADDRESS1 = sec_bkregs32[1]; MLC2CONTROL0 = sec_bkregs32[2]; MLC2CONTROL1 = sec_bkregs32[3]; MLC2LEFTRIGHT0 = sec_bkregs32[4];
+	MLC2TOPBOTTOM0 = sec_bkregs32[5]; MLC2LEFTRIGHT1 = sec_bkregs32[6]; MLC2TOPBOTTOM1 = sec_bkregs32[7]; MLC2HSTRIDE0 = sec_bkregs32[9];
+	MLC2VSTRIDE0 = sec_bkregs32[10]; MLC2HSTRIDE1 = sec_bkregs32[11]; MLC2VSTRIDE1 = sec_bkregs32[12];
+
 	lc_dirtylayer(0);
 	lc_dirtylayer(1);
 	lc_dirtymlc();
 
+	munmap((void *)uppermem, 0x1000000);
+	munmap((void *)upper_fb, FBX_L*4);
    	munmap((void *)memregs32, 0x20000);
 
  	close(wiz_dev[2]);
@@ -492,7 +509,6 @@ unsigned int wiz_joystick_read(int n)
    		if ( (res & WIZ_VOLUP) &&  (res & WIZ_VOLDOWN)) wiz_sound_volume(100,100);
    		if ( (res & WIZ_VOLUP) && !(res & WIZ_VOLDOWN)) wiz_sound_volume(master_volume+1,master_volume+1);
    		if (!(res & WIZ_VOLUP) &&  (res & WIZ_VOLDOWN)) wiz_sound_volume(master_volume-1,master_volume-1);
-   		if ((rotate_controls) && (res & WIZ_MENU)) res |= WIZ_B;
     }
 	return res;
 }
@@ -517,10 +533,12 @@ void wiz_video_setpalette(void)
         if (wiz_video_RGB_palette[i].dirty)
         {
             MLCPALETTE1 = i<<24 | wiz_video_RGB_palette[i].color;
+            MLC2PALETTE1 = i<<24 | wiz_video_RGB_palette[i].color;
             wiz_video_RGB_palette[i].dirty = 0;
         }
     }
     MLCCONTROL1 |= 0x10; // Apply changes
+    MLC2CONTROL1 |= 0x10; // Apply changes
 	//lc_dirtylayer(1);
 }
 
@@ -711,17 +729,17 @@ void wiz_set_video_mode(int bpp,int width,int height)
 	if (bpp==16)
 	{
 		#ifndef USE_BGR15
-	    lc_setlayer(0, 0, 0, 0, 0, RGB565); /* set default layer settings */
-	    lc_setlayer(1, 1, 0, 0, 0, RGB565);
+	    lc_setlayer(0, false, false, false, false, RGB565); /* set default layer settings */
+	    lc_setlayer(1, true, false, false, false, RGB565);
 		#else
-	    lc_setlayer(0, 0, 0, 0, 0, XBGR1555);
-	    lc_setlayer(1, 1, 0, 0, 0, XBGR1555);
+	    lc_setlayer(0, false, false, false, false, XBGR1555);
+	    lc_setlayer(1, true, false, false, false, XBGR1555);
 		#endif
 	}
 	else
 	{
-	    lc_setlayer(0, 0, 0, 0, 0, PTRGB565); /* set default layer settings */
-	    lc_setlayer(1, 1, 0, 0, 0, PTRGB565);
+	    lc_setlayer(0, false, false, false, false, PTRGB565); /* set default layer settings */
+	    lc_setlayer(1, true, false, false, false, PTRGB565);
         int i;
         for (i=0; i<256; i++)
         {
@@ -732,7 +750,7 @@ void wiz_set_video_mode(int bpp,int width,int height)
 	}
 	lc_flipfb(0,1);	/* set initial addresses in hardware */
 	lc_flipfb(1,1);
-	usleep(100000);
+	usleep(200000);
 }
 
 static const unsigned char fontdata8x8[] =

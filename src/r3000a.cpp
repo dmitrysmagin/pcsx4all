@@ -104,7 +104,7 @@ void psxShutdown() {
 
 void psxException(u32 code, u32 bd) {
 #ifdef DEBUG_CPU_OPCODES
-	dbgf("psxException %X %X\n",code,bd);
+	dbgf("psxException %X %X PC=%p\n",code,bd,psxRegs.pc);
 	dbgregs((void *)&psxRegs);
 #endif
 #ifdef DEBUG_ANALYSIS
@@ -117,10 +117,9 @@ void psxException(u32 code, u32 bd) {
 
 	// Set the EPC & PC
 	if (bd) {
-#ifdef PSXCPU_LOG
-		PSXCPU_LOG("bd set!!!\n");
+#ifdef DEBUG_CPU
+		dbg("bd set!!!");
 #endif
-		printf("bd set!!!\n");
 		psxRegs.CP0.n.Cause|= 0x80000000;
 		psxRegs.CP0.n.EPC = (psxRegs.pc - 4);
 	} else
@@ -142,11 +141,33 @@ void psxException(u32 code, u32 bd) {
 		PSXMu32ref(psxRegs.CP0.n.EPC)&= SWAPu32(~0x02000000);
 	}
 
-	if (Config.HLE) psxBiosException();
-	if (autobias) psxRegs.cycle += 11;
+#ifdef DEBUG_BIOS
+	dbgf("!psxException 0x%X\n",psxRegs.CP0.n.Cause & 0x3c);
+	if (!dbg_biosin() && isdbg() && (!Config.HLE || !(psxRegs.CP0.n.Cause & 0x3c))){
+		if ((!Config.HLE) && !(psxRegs.CP0.n.Cause &0x3c))
+			dbg_biosset(psxRegs.CP0.n.EPC);
+		else
+			dbg_biosset(psxRegs.CP0.n.EPC+4);
+		dbg_disable();
+	}
+#endif
+	if (autobias)
+		psxRegs.cycle += 11;
+	if (Config.HLE) {
+		psxBiosException();
+#ifdef DEBUG_BIOS
+		if (!dbg_biosin() && isdbg() && (psxRegs.CP0.n.Cause & 0x3c)){
+			dbg("RETURN BIOS");
+			dbgpsxregs();
+			fflush(stdout);
+			psxRegs.cycle-=autobias?2:3;
+//			psxBranchTest();
+		}
+#endif
+	}
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
 //	pcsx4all_prof_start(PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_CPU_OPCODES
+#if defined(DEBUG_CPU_OPCODES) && !defined(DEBUG_BIOS)
 	dbgf("!psxException PC=%p\n",psxRegs.pc);
 	dbgregs((void *)&psxRegs);
 #endif
@@ -161,7 +182,7 @@ INLINE void psxCalculateIoCycle() {
 #endif
 
 	if (psxRegs.interrupt) {
-		if ((psxRegs.interrupt & 0x80) && (!Config.Sio)) {
+		if (psxRegs.interrupt & 0x80) {
 			unsigned n=psxRegs.intCycle[7]+psxRegs.intCycle[7+1];
 #ifdef DEBUG_CPU_OPCODES
 			dbgf("\t%u iC[7]=%u+ iC[8]=%u\n",n,psxRegs.intCycle[7],psxRegs.intCycle[7+1]);
@@ -256,7 +277,7 @@ void psxBranchTest() {
 			printf("ERROR: cycle (%i) - nexts (%i) >= next (%i). io=%i\n",psxRegs.cycle,psxNextsCounter,psxNextCounter,psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if ((psxRegs.interrupt & 0x80) && (!Config.Sio)) // sio
+		if (psxRegs.interrupt & 0x80) // sio
 			if ((psxRegs.cycle - psxRegs.intCycle[7]) >= psxRegs.intCycle[7+1])
 		{
 			printf("ERROR: cycle (%i) - intCycle[7] (%i) >= intCycle[8] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[7],psxRegs.intCycle[7+1],psxRegs.io_cycle_counter);
@@ -327,9 +348,17 @@ void psxBranchTest() {
 #ifndef USE_BRANCH_TEST_CALCULATE
 	unsigned value=psxNextCounter+psxNextsCounter;
 #endif
+#ifdef DEBUG_BIOS
+	dbgf("Counters %u %u, IntCycle:",psxNextCounter,psxNextsCounter);
+	for(unsigned i=0;i<32;i++){
+		if (!(i&7)) dbgf("\n\t%.2u:",i);
+		dbgf(" %u", psxRegs.intCycle[i]);
+	}
+	dbg("");
+#endif
 
 	if (psxRegs.interrupt) {
-		if ((psxRegs.interrupt & 0x80) && (!Config.Sio)) { // sio
+		if (psxRegs.interrupt & 0x80) { // sio
 			if ((psxRegs.cycle - psxRegs.intCycle[7]) >= psxRegs.intCycle[7+1]) {
 				psxRegs.interrupt&=~0x80;
 				sioInterrupt();
@@ -400,8 +429,8 @@ void psxBranchTest() {
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {
 		if ((psxRegs.CP0.n.Status & 0x401) == 0x401) {
-#ifdef PSXCPU_LOG
-			PSXCPU_LOG("Interrupt: %x %x\n", psxHu32(0x1070), psxHu32(0x1074));
+#ifdef DEBUG_CPU
+			dbgf("Interrupt: %x %x\n", psxHu32(0x1070), psxHu32(0x1074));
 #endif
 //			SysPrintf("Interrupt (%x): %x %x\n", psxRegs.cycle, psxHu32(0x1070), psxHu32(0x1074));
 			psxException(0x400, 0);
@@ -466,10 +495,18 @@ void psxBranchTestCalculate() {
 #endif
 
 void psxExecuteBios() {
+#ifdef DEBUG_CPU
+	int back=isdbg();
+	dbg_disable();
+#endif
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxExecuteBios++;
 #endif
 	while (psxRegs.pc != 0x80030000)
 		psxCpu->ExecuteBlock(0x80030000);
+#ifdef DEBUG_CPU
+	if (back)
+		dbg_enable();
+#endif
 }
 

@@ -12,6 +12,13 @@
 #include <sys/types.h>
 #include <assert.h>
 
+#if defined(ANDROID) || defined(__SYMBIAN32__)
+#include "div.h"
+#else
+#define UDIV(n,d) ((n)/(d))
+#define SDIV(n,d) ((n)/(d))
+#endif
+
 extern unsigned get_ticks(void);
 extern void wait_ticks(unsigned s);
 extern void pad_update(void);

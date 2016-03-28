@@ -79,13 +79,11 @@ INLINE void SIO_INT(void) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_SIO_Int++;
 #endif
-	if (!Config.Sio) {
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-		ResetIoCycle();
-		psxRegs.interrupt |= 0x80;
-		psxRegs.intCycle[7 + 1] = sio_cycle;
-		psxRegs.intCycle[7] = psxRegs.cycle;
-	}
+	ResetIoCycle();
+	psxRegs.interrupt |= 0x80;
+	psxRegs.intCycle[7 + 1] = sio_cycle;
+	psxRegs.intCycle[7] = psxRegs.cycle;
 }
 
 void sioWrite8(unsigned char value) {

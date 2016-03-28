@@ -10,10 +10,12 @@ GPU    = gpu_unai
 SPU   = spu_franxis
 #INTERPRETER = interpreter_pcsx
 INTERPRETER = interpreter_new
+#INTERPRETER = interpreter_none
 #RECOMPILER = arm_old
 RECOMPILER = arm
 #GTE   = gte_pcsx
 GTE    = gte_new
+#GTE    = gte_none
 
 RM     = rm -f
 CC     = @arm-linux-gcc
@@ -70,6 +72,7 @@ OBJS += obj/gpu/$(GPU)/gpu.o
 
 ifneq ($(strip $(findstring arm,$(CFLAGS))),)
 ifneq ($(strip $(findstring gpu_unai,$(GPU))),)
+OBJS += obj/gpu/$(GPU)/gpu_arm.o
 CFLAGS += -DUSE_BGR15
 endif
 endif
@@ -84,7 +87,8 @@ OBJS += obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o obj/zlib/gzio.o 
 OBJS += obj/port/wiz/port.o obj/port/wiz/wiz_lib.o obj/port/wiz/uppermem.o obj/port/wiz/warm.o \
     obj/port/wiz/pollux_set.o obj/port/wiz/sys_cacheflush.o \
     obj/port/wiz/memcmp.o obj/port/wiz/memcpy.o obj/port/wiz/memset.o \
-	obj/port/wiz/strcmp.o obj/port/wiz/strlen.o obj/port/wiz/strncmp.o
+	obj/port/wiz/strcmp.o obj/port/wiz/strlen.o obj/port/wiz/strncmp.o \
+	obj/port/wiz/div.o
 
 OBJS += obj/profiler.o obj/debug.o
 
@@ -119,7 +123,7 @@ maketree: $(sort $(OBJDIRS))
 
 clean:
 	$(RM) -r obj
-	$(RM) $(TARGET)
+	$(RM) $(TARGET) pcsx4all_wiz.gpe
 
 run: maketree $(TARGET)
 	./ftp.expect $(TARGET) &>/dev/null

@@ -30,11 +30,10 @@ INLINE void SoundOn(int start,int end,unsigned short val)     // SOUND ON PSX CO
 	{
 		if((val&1) && s_chan[ch].pStart)                    // mmm... start has to be set before key on !?!
 		{
-			s_chan[ch].bIgnoreLoop=false;
-			s_chan[ch].bNew=true;
 			s_chan[ch].bStop=false;
-			s_chan[ch].bOn=true;
 			s_chan[ch].pCurr=s_chan[ch].pStart;
+			dwNewChannel|=(1<<ch);
+			dwChannelOn|=1<<ch;
 		}
 	}
 }
@@ -51,7 +50,7 @@ INLINE void SoundOff(int start,int end,unsigned short val)    // SOUND OFF PSX C
 		if(val&1)                                           // && s_chan[i].bOn)  mmm...
 		{
 			s_chan[ch].bStop=true;
-			s_chan[ch].bNew=false;
+			dwNewChannel &= ~(1<<ch);
 		}                                                  
 	}
 }
@@ -77,6 +76,7 @@ INLINE void FModOn(int start,int end,unsigned short val)      // FMOD ON PSX COM
 		else
 		{
 			s_chan[ch].bFMod=0;                               // --> turn off fmod
+			if(ch>0&&s_chan[ch-1].bFMod==2) s_chan[ch-1].bFMod=0;
 		}
 	}
 }
@@ -91,14 +91,7 @@ INLINE void NoiseOn(int start,int end,unsigned short val)     // NOISE ON PSX CO
 
 	for(ch=start;ch<end;ch++,val>>=1)                     // loop channels
 	{
-		if(val&1)                                           // -> noise on/off
-		{
-			s_chan[ch].bNoise=true;
-		}
-		else 
-		{
-			s_chan[ch].bNoise=false;
-		}
+		s_chan[ch].bNoise=((val&1)!=0);                            // -> noise on/off
 	}
 }
 
@@ -138,13 +131,14 @@ INLINE void SetVolumeL(unsigned char ch,short vol)            // LEFT VOLUME
 		if(vol&0x2000) sInc=-1;                             // -> or down?
 		if(vol&0x1000) vol^=0xffff;                         // -> mmm... phase inverted? have to investigate this
 		vol=((vol&0x7f)+1)/2;                               // -> sweep: 0..127 -> 0..64
-		vol+=vol/(2*sInc);                                  // -> we just raise/lower the volume by the half!
+		if (sInc==1) vol+=vol>>1;
+		else vol-=vol>>1;
+		//vol+=vol/(2*sInc);                                  // -> we just raise/lower the volume by the half!
 		vol*=128;
 	}
 	else                                                  // no sweep:
 	{
-		if(vol&0x4000)                                      // -> mmm... phase inverted? have to investigate this
-		vol=0x3fff-(vol&0x3fff);
+		if(vol&0x4000) vol=0x3fff-(vol&0x3fff);
 	}
 
 	vol&=0x3fff;
@@ -177,9 +171,9 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_SPU_writeRegister++;
 #endif
-
 	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 	const unsigned long r=reg&0xfff;
 	regArea[(r-0xc00)>>1] = val;
 
@@ -214,7 +208,6 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 				break;
 			case 14: // loop?
 				s_chan[ch].pLoop=spuMemC+((unsigned long)((val<<3)&~0xf));
-				s_chan[ch].bIgnoreLoop=true;
 				break;
 			}
 		}
@@ -263,8 +256,9 @@ unsigned short SPU_readRegister(unsigned long reg)
 				if (!nullspu)
 				{
 					const int ch=(r>>4)-0xc0;
-					if(s_chan[ch].bNew) return 1;                   // we are started, but not processed? return 1
-					if(s_chan[ch].ADSRX.lVolume && !s_chan[ch].ADSRX.EnvelopeVol) return 1;
+					if(dwNewChannel&(1<<ch)) return 1;              // we are started, but not processed? return 1
+					if((dwChannelOn&(1<<ch)) &&                     // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
+						!s_chan[ch].ADSRX.EnvelopeVol) return 1;
 					unsigned short ret=(unsigned short)(s_chan[ch].ADSRX.EnvelopeVol>>16);
 					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 					return ret;
@@ -285,8 +279,7 @@ unsigned short SPU_readRegister(unsigned long reg)
 				{
 					const int ch=(r>>4)-0xc0;
 					unsigned short ret;
-					if(s_chan[ch].pLoop==NULL) ret=0;
-					else ret=(unsigned short)((s_chan[ch].pLoop-spuMemC)>>3);
+					ret=(unsigned short)((s_chan[ch].pLoop-spuMemC)>>3);
 					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 					return ret;
 				}

@@ -26,6 +26,7 @@
 #include "psxmem.h"
 #include "profiler.h"
 // #define USE_GTE_FLAG
+// #define USE_OLD_GTE_WITHOUT_PATCH
 
 #define VX(n) (n < 3 ? regs->CP2D.p[n << 1].sw.l : regs->CP2D.p[9].sw.l)
 #define VY(n) (n < 3 ? regs->CP2D.p[n << 1].sw.h : regs->CP2D.p[10].sw.l)
@@ -174,44 +175,7 @@
 
 #define gteop (regs->code & 0x1ffffff)
 
-#if defined(__arm__) && !defined(USE_GTE_EXTRA_EXACT)
-#ifdef USE_GTE_MUL_TABLE
-static s32 *mul_table[1024];
-void MUL_INIT(void)
-{
-	for (int i=0;i<1024;i++)
-	{
-		mul_table[i]=(s32 *)malloc(1024*4);
-		for (int j=0;j<1024;j++)
-		{
-			mul_table[i][j]=i*j;
-		}
-	}
-}
-void MUL_CLOSE(void)
-{
-	for (int i=0;i<1024;i++) free(mul_table[i]);
-}
-INLINE s32 MUL(s32 a, s32 b)
-{
-	if ((a>-1024) && (a<1024) && (b>-1024) && (b<1024)) {
-		if (a>=0) {
-			if (b>=0) a=mul_table[a][b]; else a=-mul_table[a][-b];
-		} else {
-			if (b>=0) a=-mul_table[-a][b]; else a=mul_table[-a][-b];
-		}
-	}
-	else a=a*b;
-}
-#else
-#ifdef USE_GTE_MUL_FILTERED
-//INLINE s32 MUL(s32 a, s32 b) { if ((a==0) || (b==0)) a=0; else a=a*b; return a; }
-#define MUL(a,b) (((!a)||(!b))?0:((a)*(b)))
-#else
 #define MUL(a,b) ((a)*(b))
-#endif
-#endif
-#endif
 
 INLINE s32 _A1(psxRegisters *regs, s64 n_value) {
 #ifdef USE_GTE_FLAG
@@ -766,11 +730,19 @@ INLINE s32 _limG2_FLAG(psxRegisters *regs,s32 value) {
 #define limG2_FLAG(VALUE) _limG2_FLAG(regs,VALUE)
 
 INLINE s32 _limH(psxRegisters *regs,s32 value) {
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	if (value > 0xfff) {
+#else
+	if (value > 0x1000) {
+#endif
 #ifdef USE_GTE_FLAG
 		gteFLAG |= (1 << 12);
 #endif
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		value = 0xfff;
+#else
+		value = 0x1000;
+#endif
 	} else if (value < 0x000) {
 #ifdef USE_GTE_FLAG
 		gteFLAG |= (1 << 12);
@@ -803,20 +775,37 @@ INLINE s32 _limMCFC2(psxRegisters *regs,s32 value) {
 }
 #define limMCFC2(VALUE) _limMCFC2(regs,VALUE)
 
-#ifndef USE_GTE_NO_DIVIDE_TABLE
+#ifndef NO_USE_GTE_DIVIDE_TABLE
 #include "gte_divide.h"
 #else
-#if defined(__arm__) && !defined(USE_GTE_EXTRA_EXACT)
-extern "C" { u32 gte_divide(s16 n, u16 d); }
-#define DIVIDE(N,D) gte_divide(N,D)
-#else
+/*
 INLINE u32 DIVIDE(s16 n, u16 d){
 	if (n>=0 && n<d*2){
 		return ((u32)n<<16)/d;
 	}
 	return 0xffffffff;
-} 
+}
+*/
+
+#ifndef __arm__
+INLINE u32 DIVIDE(s16 n, u16 d) {
+	if (n >= 0 && n < d * 2) {
+		s32 n_ = n;
+		return ((n_ << 16) + d / 2) / d;
+		//return (u32)((float)(n_ << 16) / (float)d + (float)0.5);
+	}
+	return 0xffffffff;
+}
+#else
+INLINE u32 DIVIDE(s16 n, u16 d) {
+	if (n >= 0 && n < d * 2) {
+		s32 n_ = n;
+		return SDIV(((n_ << 16) + d / 2),d);
+	}
+	return 0xffffffff;
+}
 #endif
+
 #endif
 
 u32 _gtecalcMFC2(int reg, psxRegisters *regs) {
@@ -845,9 +834,11 @@ u32 _gtecalcMFC2(int reg, psxRegisters *regs) {
 			break;
 
 		case 28:
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 30:
 			pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 			return 0;
+#endif
 
 		case 29:
 			regs->CP2D.r[reg] = limMCFC2(gteIR1 >> 7) |
@@ -904,8 +895,10 @@ void _gtecalcMTC2(u32 value, int reg, psxRegisters *regs) {
 			}
 			break;
 
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 7:
 		case 29:
+#endif
 		case 31:
 			pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 			return;
@@ -1067,11 +1060,19 @@ void _gteRTPS(psxRegisters *regs) {
 	#endif
 
 	#if !defined(__arm__) || defined(USE_GTE_EXTRA_EXACT)
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)) >> 12);
+#else
+		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)));
+#endif
 	#else
 		aux=MUL(gteDQA,quotient);
 		asm ("qadd %0, %1, %2" : "=r" (aux) : "r"(gteDQB) , "r"(aux));
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		gteMAC0 = F_32(aux>>12);
+#else
+		gteMAC0 = F_32(aux);
+#endif
 	#endif
 	
 	gteIR0 = limH_FLAG(gteMAC0);
@@ -1295,12 +1296,20 @@ void _gteRTPT_(psxRegisters *regs) {
 	}
 	
 	#if !defined(__arm__) || defined(USE_GTE_EXTRA_EXACT)
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)) >> 12);
+#else
+		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)));
+#endif
 	#else
 		{
 			int aux=MUL(gteDQA,quotient);
 			asm ("qadd %0, %1, %2" : "=r" (aux) : "r"(gteDQB) , "r"(aux));
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 			gteMAC0 = F_32(aux >> 12);
+#else
+			gteMAC0 = F_32(aux);
+#endif
 		}
 	#endif
 
@@ -1386,11 +1395,18 @@ void _gteRTPT(psxRegisters *regs) {
 	}
 	
 	#if !defined(__arm__) || defined(USE_GTE_EXTRA_EXACT)
-		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)) >> 12);
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
+		gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)));
+#else
+#endif
 	#else
 		int aux=MUL(gteDQA,quotient);
 		asm ("qadd %0, %1, %2" : "=r" (aux) : "r"(gteDQB) , "r"(aux));
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		gteMAC0 = F_32(aux >> 12);
+#else
+		gteMAC0 = F_32(aux);
+#endif
 	#endif
 
 #ifndef USE_GTE_FLAG
@@ -1765,9 +1781,15 @@ void _gteSQR(psxRegisters *regs) {
 		gteMAC2 = A2_32((MUL(gteIR2,gteIR2)) >> shift);
 		gteMAC3 = A3_32((MUL(gteIR3,gteIR3)) >> shift);
 	#endif
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	gteIR1 = limB1(gteMAC1 >> shift, lm);
 	gteIR2 = limB2(gteMAC2 >> shift, lm);
 	gteIR3 = limB3(gteMAC3 >> shift, lm);
+#else
+	gteIR1 = limB1(gteMAC1, lm);
+	gteIR2 = limB2(gteMAC2, lm);
+	gteIR3 = limB3(gteMAC3, lm);
+#endif
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 

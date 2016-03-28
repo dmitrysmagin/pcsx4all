@@ -606,10 +606,6 @@ static void recMULTU() {
 	}
 }
 
-extern "C"{
-extern int signed_division(int a, int b);
-}
-
 //REC_FUNC(DIV);
 static void recDIV() {
 // Lo/Hi = Rs / Rt (signed)
@@ -621,8 +617,14 @@ static void recDIV() {
 	if (autobias) cycles_pending+=34;
 	if (IsConst(_Rt_) && IsConst(_Rs_)) {
 		if (iRegs[_Rt_].k) {
-			MapConst(32, (s32)iRegs[_Rs_].k / (s32)iRegs[_Rt_].k); // psxRegs.GPR.n.lo
-			MapConst(33, (s32)iRegs[_Rs_].k % (s32)iRegs[_Rt_].k); // psxRegs.GPR.n.hi
+			#ifndef __arm__
+				MapConst(32, (s32)iRegs[_Rs_].k / (s32)iRegs[_Rt_].k); // psxRegs.GPR.n.lo
+				MapConst(33, (s32)iRegs[_Rs_].k % (s32)iRegs[_Rt_].k); // psxRegs.GPR.n.hi
+			#else
+				s64 res=LSDIV((s32)iRegs[_Rs_].k,(s32)iRegs[_Rt_].k);
+				MapConst(32,(u32)res); // psxRegs.GPR.n.lo
+				MapConst(33,(res>>32)); // psxRegs.GPR.n.hi
+			#endif
 		}
 		return;
 	}
@@ -630,30 +632,26 @@ static void recDIV() {
 	if (IsConst(_Rt_)) {
 		if (iRegs[_Rt_].k == 0) return;
 		iLockReg(3);
-		MOV32ItoR(HOST_r1, iRegs[_Rt_].k);
+		MOV32ItoR(HOST_r0, iRegs[_Rt_].k);
 	} else {
 		iLockReg(3);
 		u32 rt=ReadReg(_Rt_);
-		MOV32RtoR(HOST_r1, rt);
+		MOV32RtoR(HOST_r0, rt);
 	}
 	if (IsConst(_Rs_)) {
-		MOV32ItoR(HOST_r0, iRegs[_Rs_].k);
+		MOV32ItoR(HOST_r1, iRegs[_Rs_].k);
 	} else {
 		u32 rs=ReadReg(_Rs_);
-		MOV32RtoR(HOST_r0, rs);
+		MOV32RtoR(HOST_r1, rs);
 	}
 	
 	u32 lo=WriteReg(32);
 	u32 hi=WriteReg(33);
-	CALLFunc((u32)signed_division);
-	MOV32RtoR(lo,HOST_r2);
-	MOV32RtoR(hi,HOST_r0);
+	CALLFunc((u32)lsdiv_32by32_arm9e);
+	MOV32RtoR(lo,HOST_r0);
+	MOV32RtoR(hi,HOST_r1);
 	iUnlockReg(3);
 	r2_is_dirty=1;
-}
-
-extern "C"{
-extern int unsigned_division(int a, int b);
 }
 
 //REC_FUNC(DIVU);
@@ -667,8 +665,14 @@ static void recDIVU() {
 	if (autobias) cycles_pending+=34;
 	if (IsConst(_Rt_) && IsConst(_Rs_)) {
 		if (iRegs[_Rt_].k) {
-			MapConst(32, (u32)iRegs[_Rs_].k / (u32)iRegs[_Rt_].k); // psxRegs.GPR.n.lo
-			MapConst(33, (u32)iRegs[_Rs_].k % (u32)iRegs[_Rt_].k); // psxRegs.GPR.n.hi
+			#ifndef __arm__
+				MapConst(32, (u32)iRegs[_Rs_].k / (u32)iRegs[_Rt_].k); // psxRegs.GPR.n.lo
+				MapConst(33, (u32)iRegs[_Rs_].k % (u32)iRegs[_Rt_].k); // psxRegs.GPR.n.hi
+			#else
+				u64 res=LUDIV((u32)iRegs[_Rs_].k,(u32)iRegs[_Rt_].k);
+				MapConst(32,(u32)res); // psxRegs.GPR.n.lo
+				MapConst(33,(res>>32)); // psxRegs.GPR.n.hi
+			#endif
 		}
 		return;
 	}
@@ -676,23 +680,23 @@ static void recDIVU() {
 	if (IsConst(_Rt_)) {
 		if (iRegs[_Rt_].k == 0) return;
 		iLockReg(3);
-		MOV32ItoR(HOST_r1, iRegs[_Rt_].k);
+		MOV32ItoR(HOST_r0, iRegs[_Rt_].k);
 	} else {
 		iLockReg(3);
 		u32 rt=ReadReg(_Rt_);
-		MOV32RtoR(HOST_r1, rt);
+		MOV32RtoR(HOST_r0, rt);
 	}
 	if (IsConst(_Rs_)) {
-		MOV32ItoR(HOST_r0, iRegs[_Rs_].k);
+		MOV32ItoR(HOST_r1, iRegs[_Rs_].k);
 	} else {
 		u32 rs=ReadReg(_Rs_);
-		MOV32RtoR(HOST_r0, rs);
+		MOV32RtoR(HOST_r1, rs);
 	}
 	u32 lo=WriteReg(32);
 	u32 hi=WriteReg(33);
-	CALLFunc((u32)unsigned_division);
-	MOV32RtoR(lo,HOST_r2);
-	MOV32RtoR(hi,HOST_r0);
+	CALLFunc((u32)ludiv_32by32_arm9e);
+	MOV32RtoR(lo,HOST_r0);
+	MOV32RtoR(hi,HOST_r1);
 	iUnlockReg(3);
 	r2_is_dirty = 1;
 }

@@ -30,8 +30,6 @@
 void psxHwReset() {
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
     ResetIoCycle();
-    if (Config.Sio) psxHu32ref(0x1070) |= SWAP32(0x80);
-    if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAP32(0x200);
 
 	memset(psxH, 0, 0x10000);
 
@@ -650,8 +648,6 @@ void psxHwWrite16(u32 add, u16 value) {
 #endif
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 			ResetIoCycle();
-			if (Config.Sio) psxHu16ref(0x1070) |= SWAPu16(0x80);
-			if (Config.SpuIrq) psxHu16ref(0x1070) |= SWAPu16(0x200);
 			psxHu16ref(0x1070) &= SWAPu16((psxHu16(0x1074) & value));
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
@@ -843,8 +839,6 @@ void psxHwWrite32(u32 add, u32 value) {
 #endif
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 			ResetIoCycle();
-			if (Config.Sio) psxHu32ref(0x1070) |= SWAPu32(0x80);
-			if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAPu32(0x200);
 			psxHu32ref(0x1070) &= SWAPu32((psxHu32(0x1074) & value));
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;

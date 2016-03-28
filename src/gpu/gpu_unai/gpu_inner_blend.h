@@ -23,45 +23,12 @@
 
 //  GPU Blending operations functions
 
-#ifdef __arm__
-#define gpuBlending00(uSrc,uDst) \
-{ \
-	asm ("and  %[src], %[src], %[msk]  " : [src] "=r" (uSrc) : "0" (uSrc), [msk] "r" (uMsk)                  ); \
-	asm ("and  %[dst], %[dst], %[msk]  " : [dst] "=r" (uDst) : "0" (uDst), [msk] "r" (uMsk)                  ); \
-	asm ("add  %[src], %[dst], %[src]  " : [src] "=r" (uSrc) :             [dst] "r" (uDst), "0" (uSrc)      ); \
-	asm ("mov  %[src], %[src], lsr #1  " : [src] "=r" (uSrc) : "0" (uSrc)                                    ); \
-}
-#else
 #define gpuBlending00(uSrc,uDst) \
 { \
 	uSrc = (((uDst & uMsk) + (uSrc & uMsk)) >> 1); \
 }
-#endif
 
 //	1.0 x Back + 1.0 x Forward
-#ifdef __arm__
-#define gpuBlending01(uSrc,uDst) \
-{ \
-	u16 st,dt,out; \
-	asm ("and    %[dt],  %[dst],   #0x7C00  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x7C00  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("add    %[out], %[dt],    %[st]    " : [out] "=r" (out)  :             [dt]  "r" (dt),   [st]  "r" (st)    ); \
-	asm ("cmp    %[out], #0x7C00            " :                   :             [out] "r" (out) : "cc"              ); \
-	asm ("movhi  %[out], #0x7C00            " : [out] "=r" (out)  : "0" (out)                                       ); \
-	asm ("and    %[dt],  %[dst],   #0x03E0  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x03E0  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("add    %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st)                      ); \
-	asm ("cmp    %[dt],  #0x03E0            " :                   :             [dt]  "r" (dt) : "cc"               ); \
-	asm ("movhi  %[dt],  #0x03E0            " : [dt]  "=r" (dt)   : "0" (dt)                                        ); \
-	asm ("orr    %[out], %[out],   %[dt]    " : [out] "=r" (out)  : "0" (out),  [dt]  "r" (dt)                      ); \
-	asm ("and    %[dt],  %[dst],   #0x001F  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x001F  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("add    %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st)                      ); \
-	asm ("cmp    %[dt],  #0x001F            " :                   :             [dt]  "r" (dt) : "cc"               ); \
-	asm ("movhi  %[dt],  #0x001F            " : [dt]  "=r" (dt)   : "0" (dt)                                        ); \
-	asm ("orr    %[uSrc], %[out],   %[dt]   " : [uSrc] "=r" (uSrc)  : [out] "r" (out),  [dt]  "r" (dt)              ); \
-}
-#else
 #define gpuBlending01(uSrc,uDst) \
 { \
 	u16 rr, gg, bb; \
@@ -70,28 +37,8 @@
 	rr = (uDst & 0x001F) + (uSrc & 0x001F);   if (rr > 0x001F)  rr = 0x001F;  bb |= rr; \
 	uSrc = bb; \
 }
-#endif
 
 //	1.0 x Back - 1.0 x Forward	*/
-#ifdef __arm__
-#define gpuBlending02(uSrc,uDst) \
-{ \
-	u16 st,dt,out; \
-	asm ("and    %[dt],  %[dst],   #0x7C00  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x7C00  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("subs   %[out], %[dt],    %[st]    " : [out] "=r" (out)  : [dt]  "r" (dt),   [st]  "r" (st) : "cc"         ); \
-	asm ("movmi  %[out], #0x0000            " : [out] "=r" (out)  : "0" (out)                                       ); \
-	asm ("and    %[dt],  %[dst],   #0x03E0  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x03E0  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("subs   %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st) : "cc"               ); \
-	asm ("orrpl  %[out], %[out],   %[dt]    " : [out] "=r" (out)  : "0" (out),  [dt]  "r" (dt)                      ); \
-	asm ("and    %[dt],  %[dst],   #0x001F  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-	asm ("and    %[st],  %[src],   #0x001F  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-	asm ("subs   %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st) : "cc"               ); \
-	asm ("orrpl  %[out], %[out],   %[dt]    " : [out] "=r" (out)  : "0" (out),  [dt]  "r" (dt)                      ); \
-	asm ("mov %[uSrc], %[out]" : [uSrc] "=r" (uSrc) : [out] "r" (out) ); \
-}
-#else
 #define gpuBlending02(uSrc,uDst) \
 { \
 	s32 rr, gg, bb; \
@@ -100,33 +47,8 @@
 	rr = (uDst & 0x001F) - (uSrc & 0x001F);   if (rr > 0)  bb |= rr; \
 	uSrc = bb; \
 }
-#endif
 
 //	1.0 x Back + 0.25 x Forward	*/
-#ifdef __arm__
-#define gpuBlending03(uSrc,uDst) \
-{ \
-		u16 st,dt,out; \
-		asm ("mov    %[src], %[src],   lsr #2   " : [src] "=r" (uSrc) : "0" (uSrc)                                      ); \
-		asm ("and    %[dt],  %[dst],   #0x7C00  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-		asm ("and    %[st],  %[src],   #0x1C00  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-		asm ("add    %[out], %[dt],    %[st]    " : [out] "=r" (out)  :             [dt]  "r" (dt),   [st]  "r" (st)    ); \
-		asm ("cmp    %[out], #0x7C00            " :                   :             [out] "r" (out) : "cc"              ); \
-		asm ("movhi  %[out], #0x7C00            " : [out] "=r" (out)  : "0" (out)                                       ); \
-		asm ("and    %[dt],  %[dst],   #0x03E0  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-		asm ("and    %[st],  %[src],   #0x00E0  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-		asm ("add    %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st)                      ); \
-		asm ("cmp    %[dt],  #0x03E0            " :                   :             [dt]  "r" (dt) : "cc"               ); \
-		asm ("movhi  %[dt],  #0x03E0            " : [dt]  "=r" (dt)   : "0" (dt)                                        ); \
-		asm ("orr    %[out], %[out],   %[dt]    " : [out] "=r" (out)  : "0" (out),  [dt]  "r" (dt)                      ); \
-		asm ("and    %[dt],  %[dst],   #0x001F  " : [dt]  "=r" (dt)   :             [dst] "r" (uDst)                    ); \
-		asm ("and    %[st],  %[src],   #0x0007  " : [st]  "=r" (st)   :             [src] "r" (uSrc)                    ); \
-		asm ("add    %[dt],  %[dt],    %[st]    " : [dt]  "=r" (dt)   : "0" (dt),   [st]  "r" (st)                      ); \
-		asm ("cmp    %[dt],  #0x001F            " :                   :             [dt]  "r" (dt) : "cc"               ); \
-		asm ("movhi  %[dt],  #0x001F            " : [dt]  "=r" (dt)   : "0" (dt)                                        ); \
-		asm ("orr    %[uSrc], %[out],   %[dt]   " : [uSrc] "=r" (uSrc)  : [out] "r" (out),  [dt]  "r" (dt)              ); \
-}
-#else
 #define gpuBlending03(uSrc,uDst) \
 { \
 	u16 rr, gg, bb; \
@@ -136,6 +58,5 @@
 	rr = (uDst & 0x001F) + (uSrc & 0x0007);   if (rr > 0x001F)  rr = 0x001F;  bb |= rr; \
 	uSrc = bb; \
 }
-#endif
 
 #endif  //_OP_BLEND_H_

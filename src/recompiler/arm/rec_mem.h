@@ -253,10 +253,8 @@ static void recMemRead8(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_ip,0x02,0xa)); 		//  cmp ip, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(LDRB_REG(HOST_r0,HOST_r2,HOST_r1));	//  ldrb r0, [r2, r1]
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);				// salto:
+	write32(LDRCCB_REG(HOST_r0,HOST_r2,HOST_r1));   // ldrccb r0, [r2, r1]
+	write32(BXCC_LR());				// bxcc lr
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 	MOV32RtoM_regs((u32)&psxRegs.cycle_add,HOST_r3);
 #endif
@@ -303,7 +301,7 @@ INLINE void PSXMEMREAD16(void){
 	write32(LDRH_REG(HOST_r0,HOST_r2,HOST_r1));	//  ldrh r0, [r2, r1]
 	j32Ptr[10]=armPtr; write32(B_FWD(0));		//  b fin
 	UpdateImmediate(0);
-	armSetJ32(j32Ptr[9]);						// salto:
+	armSetJ32(j32Ptr[9]);				// salto:
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 	iPutCyclesAdd(0);
 #endif
@@ -324,10 +322,8 @@ static void recMemRead16(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_ip,0x02,0xa)); 		//  cmp ip, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(LDRH_REG(HOST_r0,HOST_r2,HOST_r1));	//  ldrh r0, [r2, r1]
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);				// salto:
+	write32(LDRCCH_REG(HOST_r0,HOST_r2,HOST_r1));   // ldrcch r0, [r2, r1]
+	write32(BXCC_LR());				// bxcc lr
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 	MOV32RtoM_regs((u32)&psxRegs.cycle_add,HOST_r3);
 #endif
@@ -397,10 +393,8 @@ static void recMemRead32(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_ip,0x02,0xa)); 		//  cmp ip, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(LDR_REG(HOST_r0,HOST_r2,HOST_r1));	//  ldr r0, [r2, r1]
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);				// salto:
+	write32(LDRCC_REG(HOST_r0,HOST_r2,HOST_r1));   // ldrcc r0, [r2, r1]
+	write32(BXCC_LR());				// bxcc lr
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 	MOV32RtoM_regs((u32)&psxRegs.cycle_add,HOST_r3);
 #endif
@@ -651,9 +645,9 @@ static void recMemWrite8(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_r3,0x02,0xa)); 		//  cmp r3, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(STRB_REG(HOST_r1,HOST_r2,HOST_ip));	//  strb r1, [r2, ip]
 	if (rec_secure_writes) {
+		j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
+		write32(STRB_REG(HOST_r1,HOST_r2,HOST_ip));	//  strb r1, [r2, ip]
 		write32(BIC_IMM(HOST_r0,HOST_r0,3,0));  // bic r0, r0, #3
 		write32(MOV_REG_LSR_IMM(HOST_ip,HOST_r0,16));// mov ip, r0, lsr #16
 		MOV32MtoR_regs(HOST_r2,(u32)&psxRegs.reserved); // r2=psxRecLUT
@@ -662,9 +656,12 @@ static void recMemWrite8(void) {
 		write32(MOV_REG_LSR_IMM(HOST_r0,HOST_ip,16));// mov r0, ip, lsr #16
 		write32(MOV_IMM(HOST_ip,0,0));          // mov ip, #0
 		write32(STR_REG(HOST_ip,HOST_r0,HOST_r2));// str ip, [r0, r2]
+		write32(BX_LR());			//  bx lr
+		armSetJ32(j32Ptr[9]);			// salto:
+	} else {
+		write32(STRCCB_REG(HOST_r1,HOST_r2,HOST_ip));   // strccb r0, [r2, r1]
+		write32(BXCC_LR());				// bxcc lr
 	}
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);						// salto:
 #ifdef REC_USE_DIRECT_MEM
 	func_MemWrite8_direct_ptr=(unsigned)armPtr;
 	recMemWrite8_direct();
@@ -741,9 +738,9 @@ static void recMemWrite16(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_r3,0x02,0xa)); 		//  cmp r3, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(STRH_REG(HOST_r1,HOST_r2,HOST_ip));	//  strh r1, [r2, ip]
 	if (rec_secure_writes) {
+		j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
+		write32(STRH_REG(HOST_r1,HOST_r2,HOST_ip));	//  strh r1, [r2, ip]
 		write32(BIC_IMM(HOST_r0,HOST_r0,3,0));  // bic r0, r0, #0
 		write32(MOV_REG_LSR_IMM(HOST_ip,HOST_r0,16));// mov ip, r0, lsr #16
 		MOV32MtoR_regs(HOST_r2,(u32)&psxRegs.reserved); // r2=psxRecLUT
@@ -752,9 +749,12 @@ static void recMemWrite16(void) {
 		write32(MOV_REG_LSR_IMM(HOST_r0,HOST_ip,16));// mov r0, ip, lsr #16
 		write32(MOV_IMM(HOST_ip,0,0));          // mov ip, #0
 		write32(STR_REG(HOST_ip,HOST_r0,HOST_r2));// str ip, [r0, r2]
+		write32(BX_LR());			//  bx lr
+		armSetJ32(j32Ptr[9]);			// salto:
+	} else {
+		write32(STRCCH_REG(HOST_r1,HOST_r2,HOST_ip));   // strcch r0, [r2, r1]
+		write32(BXCC_LR());				// bxcc lr
 	}
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);						// salto:
 #ifdef REC_USE_DIRECT_MEM
 	func_MemWrite16_direct_ptr=(unsigned)armPtr;
 	recMemWrite16_direct();
@@ -829,9 +829,9 @@ static void recMemWrite32(void) {
 	write32(BIC_IMM(HOST_r2,HOST_r0,0x7f,0x09));//  bic r2, r0, #0xff000000
 	write32(CMP_IMM(HOST_r3,0x02,0xa)); 		//  cmp r3, #0x800000
 	write32(BIC_IMM(HOST_r2,HOST_r2,0x0e,0x0c));//  bic r2, r2, #0xe00000
-	j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
-	write32(STR_REG(HOST_r1,HOST_r2,HOST_ip));	//  str r1, [r2, ip]
 	if (rec_secure_writes) {
+		j32Ptr[9]=armPtr; write32(BCS_FWD(0));		//  bcs salto
+		write32(STR_REG(HOST_r1,HOST_r2,HOST_ip));	//  str r1, [r2, ip]
 		write32(MOV_REG_LSR_IMM(HOST_ip,HOST_r0,16));// mov ip, r0, lsr #16
 		MOV32MtoR_regs(HOST_r2,(u32)&psxRegs.reserved); // r2=psxRecLUT
 		write32(LDR_REG_LSL(HOST_r2, HOST_r2, HOST_ip, 2));// ldr r2, [r2, ip, lsl #2]
@@ -839,9 +839,12 @@ static void recMemWrite32(void) {
 		write32(MOV_REG_LSR_IMM(HOST_r0,HOST_ip,16));// mov r0, ip, lsr #16
 		write32(MOV_IMM(HOST_ip,0,0));          // mov ip, #0
 		write32(STR_REG(HOST_ip,HOST_r0,HOST_r2));// str ip, [r0, r2]
+		write32(BX_LR());			//  bx lr
+		armSetJ32(j32Ptr[9]);			// salto:
+	} else {
+		write32(STRCC_REG(HOST_r1,HOST_r2,HOST_ip));   // strcc r0, [r2, r1]
+		write32(BXCC_LR());				// bxcc lr
 	}
-	write32(BX_LR());							//  bx lr
-	armSetJ32(j32Ptr[9]);						// salto:
 #ifdef REC_USE_DIRECT_MEM
 	func_MemWrite32_direct_ptr=(unsigned)armPtr;
 	recMemWrite32_direct();

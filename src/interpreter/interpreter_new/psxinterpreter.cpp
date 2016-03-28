@@ -49,7 +49,7 @@ static unsigned int branch = 0;
 static unsigned int block=0;
 
 static unsigned int autobias_read=1;
-static unsigned int autobias_write=2;
+static unsigned int autobias_write=1;
 static unsigned int autobias_mul=11;
 static unsigned int autobias_div=34;
 static unsigned int autobias_RTPS=15;
@@ -64,6 +64,10 @@ static unsigned int autobias_NCT=30;
 static unsigned int autobias_SQR=5;
 static unsigned int autobias_RTPT=23;
 static unsigned int autobias_NCCT=39;
+
+#ifdef SHOW_BIOS_CALLS
+static unsigned int show_bios_pc_last=0xFFFFFFFF;
+#endif
 
 INLINE void INSTRUCTION(u32 *regs, unsigned int code);
 
@@ -143,6 +147,12 @@ INLINE u32 _psxTestLoadDelay(u32 reg, u32 code) {
 
 // CHUI: Para no llamar a psxBranchTest mas de la cuenta
 INLINE void _psxBranchTest(void) {
+#ifdef DEBUG_BIOS
+	if (!dbg_biosin())
+	{
+		psxBranchTest();
+	}
+#else
 #ifdef DEBUG_IO_CYCLE_COUNTER
 	psxBranchTest();
 #else
@@ -151,6 +161,7 @@ INLINE void _psxBranchTest(void) {
 	else
 		if (psxRegs.cycle>=psxRegs.io_cycle_counter)
 			psxBranchTestCalculate();
+#endif
 #endif
 }
 
@@ -172,6 +183,9 @@ void _psxDelayTest(u32 *regs, u32 code, u32 bpc) {
 
 INLINE void doBranch(u32 *regs, u32 branchPC)
 {
+#ifdef SHOW_BIOS_CALLS
+	unsigned int show_bios_pc=show_bios_pc_last;
+#endif
 	u32 code;
 	branch = 1;
 	code=PSXMu32(psxRegs.pc);
@@ -186,8 +200,15 @@ INLINE void doBranch(u32 *regs, u32 branchPC)
 		default: if (L_Op_ >= 0x20 && L_Op_ <= 0x26) { _psxDelayTest(regs, code, branchPC); return; } break;
 	}
 	INSTRUCTION(regs,code);
+#ifdef SHOW_BIOS_CALLS
+	if (branchPC==0xA0 || branchPC==0xB0 || branchPC==0xC0){
+		printf("PC=%p, BIOS CALL 0x%.2X:0x%.2X\n",show_bios_pc,branchPC,psxRegs.GPR.n.t1 & 0xff);
+		fflush(stdout);
+	}
+#endif
 	branch = 0;
 	psxRegs.pc = branchPC;
+	dbg_bioscheck(branchPC);
 	_psxBranchTest();
 }
 
@@ -206,6 +227,19 @@ static const u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 INLINE void INSTRUCTION(u32 *regs, unsigned int code)
 {
+#ifdef DEBUG_BIOS_SAVE_PC
+	if ((psxRegs.pc-4)==DEBUG_BIOS_SAVE_PC){
+			psxRegs.pc-=4;
+			if (Config.HLE)
+				SaveState("dbgbios_hle");
+			else
+				SaveState("dbgbios_bios");
+			pcsx4all_exit();
+	}
+#endif
+#ifdef SHOW_BIOS_CALLS
+	show_bios_pc_last=(psxRegs.pc-4);
+#endif
 #if defined(DEBUG_CPU_OPCODES) || defined(DEBUG_ANALYSIS)
 //dbgsum("CHK",(void *)&psxM[0],0x200000);
 //if (psxRegs.pc>=0x80070000 && psxRegs.pc<=0x80090000) { dbgpsxregs(); }
@@ -393,8 +427,8 @@ static void intReset(void) { }
 
 static void setAutoBias(void) {
 	if (autobias) {
-		autobias_read=1;
-		autobias_write=2;
+		autobias_read=1;//1;
+		autobias_write=1;//2;
 		autobias_mul=11;
 		autobias_div=34;
 		autobias_RTPS=15;
@@ -413,19 +447,37 @@ static void setAutoBias(void) {
 		autobias_read=autobias_write=autobias_mul=autobias_div=autobias_RTPS=autobias_NCLIP=autobias_OP=autobias_NCDS=autobias_CDP=autobias_NCDT=autobias_NCCS=autobias_NCS=autobias_NCT=autobias_SQR=autobias_RTPT=autobias_NCCT=0;
 	}
 }
+#ifndef __SYMBIAN32__
 static void intExecute(void)
 {
-	u32 *regs=psxRegs.GPR.r;
-	u32 code;
-	setAutoBias();
-	while (1)
-	{
-		code=PSXMu32(psxRegs.pc);
-		psxRegs.pc += 4;
-		psxRegs.cycle += BIAS;
-		INSTRUCTION(regs,code);
-	}
+    u32 *regs=psxRegs.GPR.r;
+    u32 code;
+    setAutoBias();
+    while (1)
+    {
+        code=PSXMu32(psxRegs.pc);
+        psxRegs.pc += 4;
+        psxRegs.cycle += BIAS;
+        INSTRUCTION(regs,code);
+    }
 }
+#else
+static void intExecute(void)
+{
+    static int first = 0;
+    static u32 *regs;
+    static u32 code;
+    if(!first){
+        regs=psxRegs.GPR.r;
+        setAutoBias();
+        first = 1;
+    }
+    code=PSXMu32(psxRegs.pc);
+    psxRegs.pc += 4;
+    psxRegs.cycle += BIAS;
+    INSTRUCTION(regs,code);
+}
+#endif
 
 static void intExecuteBlock(unsigned target_pc)
 {

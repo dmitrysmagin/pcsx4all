@@ -56,7 +56,7 @@ INLINE void fillrow(int *blk, int val) {
 		= blk[4] = blk[5] = blk[6] = blk[7] = val;
 }
 
-void idct(int *block,int used_col) {
+static void idct(int *block,int used_col) {
 	int tmp0, tmp1, tmp2, tmp3, tmp4, tmp5, tmp6, tmp7;
 	int z5, z10, z11, z12, z13;
 	int *ptr;
@@ -158,7 +158,7 @@ void idct(int *block,int used_col) {
 // mdec0: command register
 #define MDEC0_STP			0x02000000
 #define MDEC0_RGB24			0x08000000
-#define MDEC0_SIZE_MASK		0xFFFF
+#define MDEC0_SIZE_MASK		0x0000FFFF
 
 // mdec1: status register
 #define MDEC1_BUSY			0x20000000
@@ -168,7 +168,7 @@ void idct(int *block,int used_col) {
 #define MDEC1_STP			0x00800000
 #define MDEC1_RESET			0x80000000
 
-struct {
+static struct {
     u32 reg0;
     u32 reg1;
     unsigned short *rl;
@@ -209,7 +209,7 @@ static void iqtab_init(int *iqtab, unsigned char *iqy) {
 
 #define	MDEC_END_OF_DATA	0xfe00
 
-unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
+static unsigned short *rl2blk(int *blk, unsigned short *mdec_rl) {
 	int i, k, q_scale, rl, used_col;
  	int *iqtab;
 
@@ -281,7 +281,7 @@ INLINE void putlinebw15(unsigned short *image, int *Yblk) {
 	}
 }
 
-static void putquadrgb15(unsigned short *image, int *Yblk, int Cr, int Cb) {
+INLINE void putquadrgb15(unsigned short *image, int *Yblk, int Cr, int Cb) {
 	int Y, R, G, B;
 	int A = (mdec.reg0 & MDEC0_STP) ? 0x8000 : 0;
 	R = MULR(Cr);
@@ -299,7 +299,7 @@ static void putquadrgb15(unsigned short *image, int *Yblk, int Cr, int Cb) {
 	image[17] = MAKERGB15(CLAMP_SCALE5(Y + R), CLAMP_SCALE5(Y + G), CLAMP_SCALE5(Y + B), A);
 }
 
-static void yuv2rgb15(int *blk, unsigned short *image) {
+INLINE void yuv2rgb15(int *blk, unsigned short *image) {
 	int x, y;
 	int *Yblk = blk + DSIZE2 * 2;
 	int *Crblk = blk;
@@ -333,7 +333,7 @@ INLINE void putlinebw24(unsigned char *image, int *Yblk) {
 	}
 }
 
-static void putquadrgb24(unsigned char *image, int *Yblk, int Cr, int Cb) {
+INLINE void putquadrgb24(unsigned char *image, int *Yblk, int Cr, int Cb) {
 	int Y, R, G, B;
 
 	R = MULR(Cr);

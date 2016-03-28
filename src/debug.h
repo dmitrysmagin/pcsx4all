@@ -29,6 +29,7 @@
 
 extern int dbg_now;
 extern int dbg_frame;
+extern unsigned dbg_biosptr;
 #ifdef DEBUG_FILE
 extern FILE *DEBUG_STR_FILE;
 #else
@@ -38,6 +39,7 @@ extern FILE *DEBUG_STR_FILE;
 #define isdbg() dbg_now
 #define isdbg_frame() dbg_frame
 #define dbg_enable() dbg_now=1
+#define dbg_disable() dbg_now=0
 #define dbg_enable_frame() dbg_frame=1
 
 #ifdef DEBUG_PCSX4ALL_FFLUSH
@@ -86,6 +88,33 @@ void dbgpsxregs(void);
 void dbgpsxregsCop(void);
 void dbg_opcode(unsigned _pc, unsigned _opcode, unsigned _cycle_add, unsigned block);
 void dbg_print_analysis(void);
+#ifdef DEBUG_BIOS
+#define dbg_bioscheck(BRPC) { \
+	if (isdbg() && ((BRPC)==0xA0||(BRPC)==0xB0||(BRPC)==0xC0)) \
+		dbg_bioscall((BRPC)); \
+	/*else if (dbg_biosptr==(BRPC))*/ \
+		/*dbg_biosreturn();*/ \
+	else	dbgpsxregs(); \
+}
+#define dbg_bioscheckopcode(OPPC) { \
+	if ((OPPC)==dbg_biosptr) { \
+		dbg_biosreturn(); \
+	} \
+}
+void dbg_bioscall(unsigned);
+void dbg_biosreturn();
+#define dbg_biosin() (dbg_biosptr!=0xFFFFFFFF)
+#define dbg_biosunset() dbg_biosptr=0xFFFFFFFF
+#define dbg_biosset(PTR) dbg_biosptr=(PTR)
+#else
+#define dbg_bioscheck(BRPC)
+#define dbg_bioscheckopcode(OPPC)
+#define dbg_bioscall(A)
+#define dbg_biosreturn()
+#define dbg_biosin() 0
+#define dbg_biosunset()
+#define dbg_biosset(PTR)
+#endif
 
 extern unsigned dbg_anacnt_softCall;
 extern unsigned dbg_anacnt_softCall2;
@@ -215,6 +244,7 @@ extern unsigned dbg_anacnt_Load;
 #define isdbg() 0
 #define isdbg_frame() 0
 #define dbg_enable()
+#define dbg_disable()
 #define dbg_enable_frame()
 #define dbg(TEXTO)
 #define dbgf(FORMATO, RESTO...)
@@ -225,6 +255,13 @@ extern unsigned dbg_anacnt_Load;
 #define dbgpsxregsCop()
 #define dbg_opcode(A,B,C,D)
 #define dbg_print_analysis()
+#define dbg_bioscheck(BRPC)
+#define dbg_bioscheckopcode(OPPC)
+#define dbg_bioscall(A)
+#define dbg_biosreturn()
+#define dbg_biosin() 0
+#define dbg_biosunset()
+#define dbg_biosset(PTR)
 
 #endif
 

@@ -90,6 +90,9 @@ extern void wiz_gamelist_text_out_fmt(int x, int y, char* fmt, ...);
 
 extern void wiz_video_wait_vsync(void);
 
+#ifdef MMUHACK
+#include "warm.h"
+#endif
 #include "pollux_set.h"
 #include "sys_cacheflush.h"
 

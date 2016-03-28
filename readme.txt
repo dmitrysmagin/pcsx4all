@@ -1,7 +1,7 @@
 
-=============================================================================================
-PCSX4ALL 2.0 (December 29, 2010) by Franxis (franxism@gmail.com) and Chui (sdl_gp32@yahoo.es)
-=============================================================================================
+========================================================================================
+PCSX4ALL 2.3 (May 03, 2012) by Franxis (franxism@gmail.com) and Chui (sdl_gp32@yahoo.es)
+========================================================================================
 
 
 1. INTRODUCTION
@@ -10,8 +10,9 @@ PCSX4ALL 2.0 (December 29, 2010) by Franxis (franxism@gmail.com) and Chui (sdl_g
 It is a port of PCSX Reloaded PSX emulator for GPH WIZ/CAANOO portable consoles.
 To see GPL license go to the end of this document (chapter 14).
 
-Official web page for news, additional information and donations:
+Official web pages for news, additional information and donations:
 http://chui.dcemu.co.uk/
+http://franxis.zxq.net/
 
 
 2. CONTROLS
@@ -46,9 +47,15 @@ ON: Frame-limiter is enabled.
 OFF: Frame-limiter is disabled.
 
 - Frame-Skip:
-0 to 11: Adjust video frame-skip.
-Video: The frame-skip is adjusted according to video refresh-rate (NTSC=60 Hz or PAL=50 Hz).
-Game: The frame-skip is adjusted according to game frame-rate (FPS depends on the game).
+Frame-Skip OFF: Frame-skip disabled
+Frame-Skip ON (if spd<50%): Frame-skip automatically enabled if speed < 50%
+Frame-Skip ON (if spd<60%): Frame-skip automatically enabled if speed < 60%
+Frame-Skip ON (if spd<70%): Frame-skip automatically enabled if speed < 70%
+Frame-Skip ON (if spd<80%): Frame-skip automatically enabled if speed < 80%
+Frame-Skip ON (if spd<90%): Frame-skip automatically enabled if speed < 90%
+Frame-Skip ON (minimum): Frame-skip enabled (minimum)
+Frame-Skip ON (medium): Frame-skip enabled (medium)
+Frame-Skip ON (maximum): Frame-skip enabled (maximum)
 
 - Interlace:
 OFF: Video interlace is disabled.
@@ -94,11 +101,8 @@ OFF: Auto-save feature is disabled.
 ON: The game state is loaded automatically when the game is started and saved when you exit.
 
 - Game Fixes:
-Sio Irq Always Enabled
-Spu Irq Always Enabled
 Parasite Eve 2, Vandal Hearts 1/2 fix
 InuYasha Sengoku Battle fix
-Abbe's Odyssey fix
 
 
 4. INSTALLATION
@@ -107,6 +111,7 @@ Abbe's Odyssey fix
 autorun.gpu         -> Script for auto-run (WIZ)
 mcd001.mcr          -> Memory-card #1
 mcd002.mcr          -> Memory-card #2
+pcsx4all.gpe        -> Main script to autoselect WIZ/CAANOO
 pcsx4all_wiz.gpe    -> Frontend to select games (WIZ)
 pcsx4all_wiz        -> Emulator binary (WIZ)
 pcsx4all_caanoo.gpe -> Frontend to select games (CAANOO)
@@ -154,6 +159,15 @@ save/               -> Save-states directory
 
 8. DEVELOPMENT
 --------------
+
+May 3, 2012:
+- Version 2.3. Several internal changes. Improved HLE, video frame-skip, optimizations, etc.
+
+April 10, 2011:
+- Version 2.2. Frame limit bug fixed.
+
+April 9, 2011:
+- Version 2.1. Added WIZ TV-Out support. HLE, GPU and SPU optimizations and compatibility improvements.
 
 December 29, 2010:
 - Version 2.0. Added CAANOO port. Several improvements (e.g. Auto-BIAS and idle-loop detection).

@@ -73,16 +73,18 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x02:
 			NULL_GPU();
 			gpuClearImage();    //  prim handles updateLace && skip
+			fb_dirty = true;
 			DO_LOG(("gpuClearImage(0x%x)\n",PRIM));
 			break;
 		case 0x20:
 		case 0x21:
 		case 0x22:
 		case 0x23:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
-				gpuDrawF3(gpuPolySpanDrivers [Blending_Mode | Masking | Blending | PixelMSB]);
+				gpuDrawF3(gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | Masking | Blending | PixelMSB]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawF3(0x%x)\n",PRIM));
 			}
 			break;
@@ -90,15 +92,16 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x25:
 		case 0x26:
 		case 0x27:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[4] >> 16);
 				if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-					gpuDrawFT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB]);
+					gpuDrawFT3(gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB]);
 				else
-					gpuDrawFT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB]);
+					gpuDrawFT3(gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawFT3(0x%x)\n",PRIM));
 			}
 			break;
@@ -106,15 +109,16 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x29:
 		case 0x2A:
 		case 0x2B:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
-				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [Blending_Mode | Masking | Blending | PixelMSB];
+				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | Masking | Blending | PixelMSB];
 				//--PacketBuffer.S2[6];
 				gpuDrawF3(gpuPolySpanDriver);
 				PacketBuffer.U4[1] = PacketBuffer.U4[4];
 				//--PacketBuffer.S2[2];
 				gpuDrawF3(gpuPolySpanDriver);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawF4(0x%x)\n",PRIM));
 			}
 			break;
@@ -122,22 +126,23 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x2D:
 		case 0x2E:
 		case 0x2F:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[4] >> 16);
 				PP gpuPolySpanDriver;
 				if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-					gpuPolySpanDriver = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB];
+					gpuPolySpanDriver = gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB];
 				else
-					gpuPolySpanDriver = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB];
+					gpuPolySpanDriver = gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB];
 				//--PacketBuffer.S2[6];
 				gpuDrawFT3(gpuPolySpanDriver);
 				PacketBuffer.U4[1] = PacketBuffer.U4[7];
 				PacketBuffer.U4[2] = PacketBuffer.U4[8];
 				//--PacketBuffer.S2[2];
 				gpuDrawFT3(gpuPolySpanDriver);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawFT4(0x%x)\n",PRIM));
 			}
 			break;
@@ -145,10 +150,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x31:
 		case 0x32:
 		case 0x33:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
-				gpuDrawG3(gpuPolySpanDrivers [Blending_Mode | Masking | Blending | 129 | PixelMSB]);
+				gpuDrawG3(gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | Masking | Blending | 129 | PixelMSB]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawG3(0x%x)\n",PRIM));
 			}
 			break;
@@ -156,12 +162,13 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x35:
 		case 0x36:
 		case 0x37:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[5] >> 16);
-				gpuDrawGT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB]);
+				gpuDrawGT3(gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawGT3(0x%x)\n",PRIM));
 			}
 			break;
@@ -169,16 +176,17 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x39:
 		case 0x3A:
 		case 0x3B:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
-				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [Blending_Mode | Masking | Blending | 129 | PixelMSB];
+				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | Masking | Blending | 129 | PixelMSB];
 				//--PacketBuffer.S2[6];
 				gpuDrawG3(gpuPolySpanDriver);
 				PacketBuffer.U4[0] = PacketBuffer.U4[6];
 				PacketBuffer.U4[1] = PacketBuffer.U4[7];
 				//--PacketBuffer.S2[2];
 				gpuDrawG3(gpuPolySpanDriver);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawG4(0x%x)\n",PRIM));
 			}
 			break;
@@ -186,12 +194,12 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x3D:
 		case 0x3E:
 		case 0x3F:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[5] >> 16);
-				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
+				const PP gpuPolySpanDriver  = gpuPolySpanDrivers [(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
 				//--PacketBuffer.S2[6];
 				gpuDrawGT3(gpuPolySpanDriver);
 				PacketBuffer.U4[0] = PacketBuffer.U4[9];
@@ -199,6 +207,7 @@ void gpuSendPacketFunction(const int PRIM)
 				PacketBuffer.U4[2] = PacketBuffer.U4[11];
 				//--PacketBuffer.S2[2];
 				gpuDrawGT3(gpuPolySpanDriver);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawGT4(0x%x)\n",PRIM));
 			}
 			break;
@@ -206,10 +215,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x41:
 		case 0x42:
 		case 0x43:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
 			}
 			break;
@@ -221,10 +231,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x4D:
 		case 0x4E:
 		case 0x4F:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
 			}
 			if ((PacketBuffer.U4[3] & 0xF000F000) != 0x50005000)
@@ -239,10 +250,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x51:
 		case 0x52:
 		case 0x53:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
 			}
 			break;
@@ -254,10 +266,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x5D:
 		case 0x5E:
 		case 0x5F:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
 			}
 			if ((PacketBuffer.U4[4] & 0xF000F000) != 0x50005000)
@@ -274,10 +287,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x61:
 		case 0x62:
 		case 0x63:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
 			break;
@@ -285,15 +299,16 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x65:
 		case 0x66:
 		case 0x67:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
 				if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}
 			break;
@@ -301,11 +316,12 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x69:
 		case 0x6A:
 		case 0x6B:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00010001;
 				gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
 			break;
@@ -313,11 +329,12 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x71:
 		case 0x72:
 		case 0x73:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00080008;
 				gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
 			break;
@@ -325,16 +342,17 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x75:
 		case 0x76:
 		case 0x77:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				PacketBuffer.U4[3] = 0x00080008;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
 				if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}
 			break;
@@ -342,38 +360,58 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0x79:
 		case 0x7A:
 		case 0x7B:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00100010;
 				gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
 			break;
 		case 0x7C:
 		case 0x7D:
+			#ifdef __arm__
+			/* Notaz 4bit sprites optimization */
+			if ((!skipGPU) && (!(GPU_GP1&0x180)) && (!(Masking|PixelMSB)))
+			{
+				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
+				gpuSetTexture (GPU_GP1);
+				gpuDrawS16();
+				fb_dirty = true;
+				break;
+			}
+			#endif
 		case 0x7E:
 		case 0x7F:
-			if (!isSkip)
+			if (!skipGPU)
 			{
 				NULL_GPU();
 				PacketBuffer.U4[3] = 0x00100010;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
 				if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
-					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
+				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}
 			break;
 		case 0x80:          //  vid -> vid
 			gpuMoveImage();   //  prim handles updateLace && skip
+			if ((!skipCount) && (DisplayArea[3] == 480)) // Tekken 3 hack
+			{
+				if (!skipGPU) fb_dirty = true;
+			}
+			else
+			{
+				fb_dirty = true;
+			}
 			DO_LOG(("gpuMoveImage(0x%x)\n",PRIM));
 			break;
 		case 0xA0:          //  sys ->vid
 			gpuLoadImage();   //  prim handles updateLace && skip
-			if (alt_fps) isSkip=false;
 			DO_LOG(("gpuLoadImage(0x%x)\n",PRIM));
 			break;
 		case 0xC0:          //  vid -> sys
@@ -395,12 +433,12 @@ void gpuSendPacketFunction(const int PRIM)
 					127, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7	  //
 				};
 				const u32 temp = PacketBuffer.U4[0];
+				tw=temp&0xFFFFF;
 				TextureWindow[0] = ((temp >> 10) & 0x1F) << 3;
 				TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
 				TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
 				TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
 				gpuSetTexture(GPU_GP1);
-				isSkip = false;
 				DO_LOG(("TextureWindow(0x%x)\n",PRIM));
 			}
 			break;
@@ -409,7 +447,6 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingArea[0] = temp         & 0x3FF;
 				DrawingArea[1] = (temp >> 10) & 0x3FF;
-				isSkip = false;
 				DO_LOG(("DrawingArea_Pos(0x%x)\n",PRIM));
 			}
 			break;
@@ -418,7 +455,6 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingArea[2] = (temp         & 0x3FF) + 1;
 				DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
-				isSkip = false;
 				DO_LOG(("DrawingArea_Size(0x%x)\n",PRIM));
 			}
 			break;
@@ -427,7 +463,6 @@ void gpuSendPacketFunction(const int PRIM)
 				const u32 temp = PacketBuffer.U4[0];
 				DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
 				DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
-				isSkip = false;
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));
 			}
 			break;

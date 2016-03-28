@@ -81,10 +81,14 @@ INLINE void gpuMoveImage(void)
 	if( (x0==x1) && (y0==y1) ) return;
 	if ((w0<=0) || (h0<=0)) return;
 	
+	#ifdef ENABLE_GPU_LOG_SUPPORT
+		fprintf(stdout,"gpuMoveImage(x0=%u,y0=%u,x1=%u,y1=%u,w0=%d,h0=%d)\n",x0,y0,x1,y1,w0,h0);
+	#endif
+	
 	if (((y0+h0)>512)||((x0+w0)>1024)||((y1+h0)>512)||((x1+w0)>1024))
 	{
 		u16 *psxVuw=GPU_FrameBuffer;
-		u32 i,j;
+		s32 i,j;
 	    for(j=0;j<h0;j++)
 		 for(i=0;i<w0;i++)
 		  psxVuw [(1024*((y1+j)&511))+((x1+i)&0x3ff)]=
@@ -162,6 +166,10 @@ INLINE void gpuClearImage(void)
 	h0 -= y0;
 	if (h0 <= 0) return;
 
+	#ifdef ENABLE_GPU_LOG_SUPPORT
+		fprintf(stdout,"gpuClearImage(x0=%d,y0=%d,w0=%d,h0=%d)\n",x0,y0,w0,h0);
+	#endif
+	
 	if (x0&1)
 	{
 		u16* pixel = (u16*)GPU_FrameBuffer + FRAME_OFFSET(x0, y0);

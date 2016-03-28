@@ -159,14 +159,12 @@ int main (int argc, char **argv)
 	
 	// PCSX default values
 	Config.Xa=1; /* 0=XA enabled, 1=XA disabled */
-	Config.Sio=0; /* 1=Sio Irq Always Enabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=1; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	Config.HLE=1; /* 1=HLE, 0=bios */
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
-	Config.SpuIrq=0; /* 1=Spu Irq Always Enabled */
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
 
@@ -218,8 +216,7 @@ int main (int argc, char **argv)
 	// gpu_unai
 	/*
 	#ifdef gpu_unai
-	extern int skipCount; skipCount=2; // frame skip (0,1,2,3...)
-	extern bool enableAbbeyHack; enableAbbeyHack=false; // Abe's Odyssey hack
+	extern int skipCount; skipCount=0; // frame skip (0,1,2,3...)
 	extern int linesInterlace_user; linesInterlace_user=0; // interlace
 	#endif
 	*/
@@ -243,14 +240,12 @@ int main (int argc, char **argv)
 	{
 		// PCSX
 		if (strcmp(argv[i],"-xa")==0) Config.Xa=0; // XA enabled
-		if (strcmp(argv[i],"-sioirq")==0) Config.Sio=1; // Sio Irq Always Enabled
 		if (strcmp(argv[i],"-bwmdec")==0) Config.Mdec=1; // Black & White MDEC
 		if (strcmp(argv[i],"-pal")==0) { Config.PsxAuto=0; Config.PsxType=1; } // Force PAL system
 		if (strcmp(argv[i],"-ntsc")==0) { Config.PsxAuto=0; Config.PsxType=0; } // Force NTSC system
 		if (strcmp(argv[i],"-cdda")==0) Config.Cdda=0; // CD audio enabled
 		if (strcmp(argv[i],"-bios")==0) Config.HLE=0; // BIOS enabled
 		if (strcmp(argv[i],"-interpreter")==0) Config.Cpu=1; // Interpreter enabled
-		if (strcmp(argv[i],"-spuirq")==0) Config.SpuIrq=1; // Spu Irq Always Enabled
 		if (strcmp(argv[i],"-rcntfix")==0) Config.RCntFix=1; // Parasite Eve 2, Vandal Hearts 1/2 Fix
 		if (strcmp(argv[i],"-vsyncwa")==0) Config.VSyncWA=1; // InuYasha Sengoku Battle Fix
 		if (strcmp(argv[i],"-iso")==0) SetIsoFile(argv[i+1]); // Set ISO file
@@ -271,10 +266,8 @@ int main (int argc, char **argv)
 		// GPU
 		if (strcmp(argv[i],"-framelimit")==0) { extern bool frameLimit; frameLimit=true; } // frames limit
 		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
-		if (strcmp(argv[i],"-abbey")==0) { extern bool enableAbbeyHack; enableAbbeyHack=true; } // Abe's Odyssey hack
 		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
 		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
-		if (strcmp(argv[i],"-alt_fps")==0) { extern bool alt_fps; alt_fps=true; } // alternate FPS algorithm
 		if (strcmp(argv[i],"-no_blend")==0) { extern bool blend; blend=false; } // disable blending
 		if (strcmp(argv[i],"-no_light")==0) { extern bool light; light=false; } // disable lighting
 

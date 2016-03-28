@@ -1,0 +1,15 @@
+OPTION_REPLACE GCCE -fvisibility-inlines-hidden -mcpu=arm1136jf-s -mtune=arm1136jf-s -O3 -mfloat-abi=hard -mfpu=vfp -ffast-math -fomit-frame-pointer -fstrict-aliasing -mstructure-size-boundary=32 -fexpensive-optimizations -fweb -frename-registers -falign-functions=32 -falign-loops -falign-labels -falign-jumps -finline -finline-functions -fno-common -fno-builtin
+
+SOURCEPATH 	../gpu/gpu_unai
+SOURCE		gpu_arm.s
+
+SOURCEPATH 	../recompiler/arm
+SOURCE		run.s
+
+
+SOURCEPATH 	../port/sdl
+SOURCE		div.s
+
+
+SOURCEPATH 	relocator
+SOURCE          relocator_glue.s

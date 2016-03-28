@@ -75,12 +75,10 @@ typedef uint8_t boolean;
 
 typedef struct {
 	boolean Xa; /* 0=XA enabled, 1=XA disabled */
-	boolean Sio; /* 1=Sio Irq Always Enabled */
 	boolean Mdec; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	boolean PsxAuto; /* 1=autodetect system (pal or ntsc) */
 	boolean Cdda; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	boolean HLE; /* 1=HLE, 0=bios */
-	boolean SpuIrq; /* 1=Spu Irq Always Enabled */
 	boolean RCntFix; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
 	u8 Cpu; /* 0=recompiler, 1=interpreter */

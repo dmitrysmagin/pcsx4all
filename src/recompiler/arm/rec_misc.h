@@ -254,6 +254,8 @@ static void recHLE() {
 		dbgf("\t\trecHLE(%.4X)\n",psxRegs.code&0xffff);
 	}
 #endif
+// CHUI: Disabled for security reasons
+#if 0
 	if (!block && IsConst(31) && !branch) {
 		iLockReg(3);
 		UpdateGteDelay(1);
@@ -278,7 +280,9 @@ static void recHLE() {
 		iClearRegs();
 		pcold=pc;
 		rec_skips=rec_total_opcodes;
-	} else {
+	} else
+#endif
+	{
 		iFlushRegs();
 		UpdateGteDelay(1);
 		MOV32ItoM_regs((u32)&psxRegs.pc, pc);

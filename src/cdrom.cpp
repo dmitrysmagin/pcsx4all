@@ -162,6 +162,9 @@ void AddIrqQueue(unsigned char irq, unsigned long ecycle) {
 	if (cdr.Stat) {
 		cdr.eCycle = ecycle;
 	} else {
+#ifdef DEBUG_BIOS
+//		dbgf("AddIrqQueue(%i, %u, %u)\n",irq,ecycle,psxRegs.cycle);
+#endif
 		CDR_INT(ecycle);
 	}
 }
@@ -175,6 +178,9 @@ void cdrInterrupt() {
 	signed char cdr_localTime[3];
 
 	if (cdr.Stat) {
+#ifdef DEBUG_BIOS
+//		dbgf("cdrInterrupt %u\n",psxRegs.cycle);
+#endif
 		CDR_INT(0x1000);
 		return;
 	}
@@ -1060,20 +1066,25 @@ void cdrWrite3(unsigned char rt) {
 #ifdef CDR_LOG
 	CDR_LOG("cdrWrite3() Log: CD3 write: %x\n", rt);
 #endif
-    if (rt == 0x07 && cdr.Ctrl & 0x1) {
+	if (rt == 0x07 && cdr.Ctrl & 0x1) {
 		cdr.Stat = 0;
 
 		if (cdr.Irq == 0xff) {
 			cdr.Irq = 0;
 			return;
 		}
-        if (cdr.Irq)
+		if (cdr.Irq) {
+#ifdef DEBUG_BIOS
+//			dbgf("cdrWrite3 %u\n",psxRegs.cycle);
+#endif
 			CDR_INT(cdr.eCycle);
-        if (cdr.Reading && !cdr.ResultReady) 
-            CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
-
+		}
+		if (cdr.Reading && !cdr.ResultReady) {
+			CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+		}
 		return;
 	}
+ 
 	if (rt == 0x80 && !(cdr.Ctrl & 0x1) && cdr.Readed == 0) {
 		cdr.Readed = 1;
 		cdr.pTransfer = cdr.Transfer;

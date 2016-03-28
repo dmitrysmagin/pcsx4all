@@ -22,9 +22,6 @@
 .text
 .align 4
 .globl recRun
-.globl unsigned_division
-.globl signed_division
-.globl gte_divide
 .globl _gteINTPL_s0_
 .globl _gteINTPL_s12_
 .globl _gteINTPL_block_
@@ -99,113 +96,7 @@ nop
 nop
 nop
 
-/* r0/r1: r2 = resultado, r0 = resto */
-signed_division:
-	mov	r3, r1
-	cmp     r0, #0
-	blt	.b96
-	cmp     r1, #0
-	rsblt   r1, r1, #0
-
-	cmp 	r1,#0
-	beq	.b94
-	mov	ip, r1		/* Put divisor in ip */
-	cmp	ip, r0, lsr #1	/* double it until */
-.b95:
-	movls   ip, ip, lsl #1	/* 2 * ip > r1 */
-	cmp	ip, r0, lsr #1
-	bls	.b95		/* The b means search backwards */
-	mov	r2, #0		/* Initialize quotient */
-.b93:
-	cmp	r0, ip		/* Can we subtract ip? */
-	subcs	r0, r0, ip	/* If we can, do so */
-	adc	r2, r2, r2	/* Double r2 */
-	mov	ip, ip, lsr #1	/* Halve ip, */
-	cmp	ip, r1		/* and loop until */
-	bhs	.b93		/* less than divisor */
-.b94:
-	cmp     r3, #0
-	rsblt   r2, r2, #0
-	bx lr
-.b96:
-	rsb	r0, r0, #0
-	cmp     r1, #0
-	rsblt   r1, r1, #0
-
-	cmp 	r1,#0
-	beq	.b97
-	mov	ip, r1		/* Put divisor in ip */
-	cmp	ip, r0, lsr #1	/* double it until */
-.b98:
-	movls   ip, ip, lsl #1	/* 2 * ip > r1 */
-	cmp	ip, r0, lsr #1
-	bls	.b98		/* The b means search backwards */
-	mov	r2, #0		/* Initialize quotient */
-.b99:
-	cmp	r0, ip		/* Can we subtract ip? */
-	subcs	r0, r0, ip	/* If we can, do so */
-	adc	r2, r2, r2	/* Double r2 */
-	mov	ip, ip, lsr #1	/* Halve ip, */
-	cmp	ip, r1		/* and loop until */
-	bhs	.b99		/* less than divisor */
-.b97:
-	rsblt   r0, r0, #0
-	cmp     r3, #0
-	rsbgt   r2, r2, #0
-	bx lr
-
-/* r0/r1: r2 = resultado, r0 = resto */
-unsigned_division:
-	cmp 	r1,#0
-	beq	.b82
-	mov	ip, r1		/* Put divisor in ip */
-	cmp	ip, r0, lsr #1	/* double it until */
-.b80:
-	movls   ip, ip, lsl #1	/* 2 * ip > r1 */
-	cmp	ip, r0, lsr #1
-	bls	.b80		/* The b means search backwards */
-	mov	r2, #0		/* Initialize quotient */
-.b81:
-	cmp	r0, ip		/* Can we subtract ip? */
-	subcs	r0, r0, ip	/* If we can, do so */
-	adc	r2, r2, r2	/* Double r2 */
-	mov	ip, ip, lsr #1	/* Halve ip, */
-	cmp	ip, r1		/* and loop until */
-	bhs	.b81		/* less than divisor */
-.b82:
-	bx	lr
-
-gte_divide:
-	mov	r0, r0, lsl #16
-	mov	r1, r1, lsl #16
-	movs	r2, r0, asr #16
-	mov	r3, r1, lsr #16
-	bmi	.b8a4
-	cmp	r2, r3, lsl #1
-	mov	r0, r2, lsl #16
-	mov	r1, r3
-	blt	.b8ac
-.b8a4:
-	mvn	r0, #0
-	bx	lr
-.b8ac:
-	mov	r2, r1
-	cmp	r2, r0, lsr #1
-.b90:
-	movls	r2, r2, lsl #1
-	cmp	r2, r0, lsr #1
-	bls	.b90
-	mov	r3, #0
-.b91:
-	cmp	r0, r2
-	subcs	r0, r0, r2
-	adc	r3, r3, r3
-	mov	r2, r2, lsr #1
-	cmp	r2, r1
-	bhs	.b91
-	mov	r0,r3
-	bx	lr
-
+.align 4
 _gteINTPL_s0_:
 	ldr	r1, ._gteINTPL_ffff8000
 	add	r4, r11, #392
@@ -317,6 +208,7 @@ _gteINTPL_block_:
 ._gteINTPL_ffff8000:	.long	0xffff8000
 ._gteINTPL_00007fff:	.long	0x00007fff
 
+.align 4
 _gteNCLIP_:
 	ldr	r0, [r11, #0x13c]
 	ldr	r2, [r11, #0x140]
@@ -337,6 +229,7 @@ _gteNCLIP_:
 	str	r2, [r11, #0x168]
 	bx	lr
 
+.align 4
 _gteMVMVA_cv0_mx0_s12_:
 	mov	r0, #0x188
  	add	r3, r0, #2
@@ -550,6 +443,7 @@ _gteMVMVA_cv0_mx1_s0_:
 
 ._gteMVMVA_cv0_mx1_000001ae:	.long 0x000001ae
 ._gteMVMVA_cv0_mx1_000001b2:	.long 0x000001b2
+
 _gteMVMVA_cv0_mx2_s12_:
 	mov	r0, #0x1c8
 	add	r3, r0, #2
@@ -680,7 +574,6 @@ _gteMVMVA_cv0_mx3_s0_:
 	str	r2, [r3, #0x6c]
 	bx	lr
 
-		       
 _gteMVMVA_cv1_mx0_s12_:	       
 	mov	r0, #0x188      
 	add	r3, r0, #2     
@@ -1655,6 +1548,7 @@ _gteMVMVA_cv3_mx3_s0_:
 	str	r3, [r11, #0x68]      
 	bx	lr        
 
+.align 4
 _gteOP_s12_:		     
 	stmdb	sp!,	{r4, r5, r6, r7}  
 	mov	ip,	#0x130     
@@ -1730,6 +1624,7 @@ _gteOP_s0_:
 	ldmia	sp!,	{r4, r5, r6, r7}  
 	bx	lr	     
 
+.align 4
 _gteDPCS_s12_:
 	stmdb	sp!,	{r4, r5, r6, r7}  
 	ldrb	r0,	[r11, #0x120]    
@@ -1837,6 +1732,7 @@ _gteDPCS_s0_:
 ._gteDPCS_ffff8000:	.long	0xffff8000     
 ._gteDPCS_00007fff:	.long	0x00007fff     
 			     
+.align 4
 _gteGPF_s12_:
 	mov	r2,	#0x128     
 	mov	r3,	#0x12c     
@@ -1880,6 +1776,7 @@ _gteGPF_s0_:
 	str	r2,	[r3, #0x6c]    
 	bx	lr	    
 
+.align 4
 _gteSQR_s12_:
 	mov	r3,	#0x12c     
 	ldrsh	r1,	[r11, r3]    
@@ -1899,6 +1796,7 @@ _gteSQR_s12_:
 	str	r2,	[r3, #0x6c]    
 	bx	lr	     
 			     
+.align 4
 _gteSQR_s0_:
 	mov	r3,	#0x12c     
 	ldrsh	ip,	[r11, r3]    
@@ -1915,6 +1813,7 @@ _gteSQR_s0_:
 	str	r1,	[r3, #0x6c]    
 	bx	lr	     
 
+.align 4
 _gteDCPL__:
 	stmdb	sp!,	{r4, r5, r6, r7, r8} 
 	ldrb	r2,	[r11, #0x120]    
@@ -1987,6 +1886,7 @@ _gteDCPL__:
 ._gteDCPL__ffff8000:	.long	0xffff8000     
 ._gteDCPL__00007fff:	.long	0x00007fff     
 			     
+.align 4
 _gteGPL_s12_:
 	mov	r1,	#0x12c     
 	mov	r3,	#0x128     
@@ -2013,6 +1913,7 @@ _gteGPL_s12_:
 	str	r3,	[r11, #0x174]    
 	bx	lr	     
 			     
+.align 4
 _gteGPL_s0_:
 	mov	ip,	#0x12c     
 	mov	r3,	#0x128     
@@ -2035,8 +1936,11 @@ _gteGPL_s0_:
 	qadd	r3,	r2, r1    
 	str	r3,	[r11, #0x174]    
 	bx	lr	     
-			     
+
+.align 4
 _gteRTPS__:		     
+/*			     
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	mov	r2,	#0x188     
 	sub	r3,	r2, #0x7e    
 	stmdb   sp!,	{r4, r5, r6, r7, r8, r9, r10}
@@ -2324,7 +2228,306 @@ _gteRTPS__:
 ._gteRTPS__00000142:	.long	0x00000142     
 ._gteRTPS__00000fff:	.long	0x00000fff     
 ._gteRTPS__reciprocals:	.long	__gte_reciprocals__     
+#else
+*/
+	stmdb	sp!,	{r5, r6, r7, r8, r9, lr} 
+	mov	ip,	#392
+	mov	lr,	#264
+	add	r3,	ip, #2
+	add	r2,	lr, #2
+	ldrh	r7,	[r11, lr]      
+	ldrh	r8,	[r11, ip]      
+	ldrh	r5,	[r11, r3]      
+	ldrh	lr,	[r11, r2]      
+	mov	r0,	#0
+	str	r0,	[r11, #516]      
+	smulbb	r1,	r8, r7      
+	smulbb	r9,	r5, lr      
+	qadd	r0,	r9, r1      
+	mov	r1,	#268
+	add	ip,	r2, #130
+	ldrh	r3,	[r11, ip]      
+	ldrh	ip,	[r11, r1]      
+	smulbb	r8,	r3, ip      
+	qadd	r5,	r8, r0      
+	add	r8,	r11, #392
+	mov	r9,	r5, asr #12     
+	ldr	r0,	[r8, #20]      
+	qadd	r5,	r0, r9      
+	mov	r3,	#400
+	add	r1,	r1, #130
+	ldrh	r2,	[r11, r1]      
+	ldrh	r9,	[r11, r3]      
+	smulbb	r0,	r2, r7      
+	str	r5,	[r11, #364]      
+	smulbb	r2,	r9, lr      
+	add	r9,	r11, #264
+	qadd	r2,	r2, r0      
+	add	r1,	r1, #4
+	ldrh	r3,	[r11, r1]      
+	smulbb	r0,	r3, ip      
+	qadd	r1,	r0, r2      
+	mov	r3,	r1, asr #12     
+	ldr	r0,	[r8, #24]      
+	qadd	r1,	r0, r3      
+	ldr	r3,	._gteRTPS__89d0
+	mov	r2,	#404
+	ldrh	r0,	[r11, r2]      
+	ldrh	r2,	[r11, r3]      
+	smulbb	r3,	r0, r7      
+	str	r1,	[r11, #368]      
+	smulbb	r7,	r2, lr      
+	add	lr,	r11, #368
+	qadd	r2,	r7, r3      
+	mov	r1,	#408
+	ldrh	r0,	[r11, r1]      
+	smulbb	r3,	r0, ip      
+	qadd	r7,	r3, r2      
+	mov	r1,	r7, asr #12     
+	ldr	r0,	[r8, #28]      
+	qadd	r2,	r0, r1      
+	ldr	r3,	._gteRTPS__89d4
+	str	r2,	[r11, #372]      
+	cmp	r5,	r3       
+	movgt	r2,	r3       
+	movgt	r3,	#0x81000000     
+	add	ip,	r11, #0x174    
+	strgt	r3,	[r11, #516]      
+	bgt	._gteRTPS__86bc	       
+	cmn	r5,	#0x8000     
+	movge	r3,	r5, lsl #16     
+	movlt	r3,	#0x81000000     
+	movge	r2,	r3, lsr #16     
+	movlt	r2,	#0x8000     
+	strlt	r3,	[r11, #516]      
+._gteRTPS__86bc:		       
+	mov	r7,	#0x12c     
+	strh	r2,	[r11, r7]      
+	ldr	r2,	._gteRTPS__89d4
+	ldr	r3,	[lr]       
+	cmp	r3,	r2       
+	ble	._gteRTPS__8914	       
+	ldr	lr,	[r11, #516]      
+	orr	r0,	lr, #0x80000000    
+	orr	r1,	r0, #0x800000    
+	str	r1,	[r11, #516]      
+._gteRTPS__86e4:		       
+	mov	r3,	#0x130     
+	strh	r2,	[r11, r3]      
+	ldr	r2,	._gteRTPS__89d4
+	ldr	r3,	[ip]       
+	cmp	r3,	r2       
+	ble	._gteRTPS__88f4	       
+	ldr	r7,	[r11, #516]      
+	mov	r0,	r2       
+	orr	r2,	r7, #0x400000    
+	str	r2,	[r11, #516]      
+._gteRTPS__870c:		       
+	mov	r2,	#0x14c     
+	ldrh	lr,	[r11, r2]      
+	mov	r7,	#0x150     
+	mov	r1,	#0x148     
+	strh	lr,	[r11, r1]      
+	ldrh	r3,	[r11, r7]      
+	mov	r1,	#0x154     
+	strh	r3,	[r11, r2]      
+	ldrh	r3,	[r11, r1]      
+	sub	r1,	r2, #0x18    
+	strh	r3,	[r11, r7]      
+	strh	r0,	[r11, r1]      
+	ldr	r1,	._gteRTPS__89d8
+	ldr	r3,	[ip]       
+	cmp	r3,	r1       
+	ble	._gteRTPS__8860	       
+	ldr	r7,	[r11, #516]      
+	mov	ip,	r1       
+	orr	r2,	r7, #0x80000000    
+	orr	r0,	r2, #0x40000    
+	str	r0,	[r11, #516]      
+._gteRTPS__8760:		       
+	mov	r7,	#0x1f0     
+	ldrh	r2,	[r11, r7]      
+	mov	r1,	ip, lsl #16     
+	mov	r0,	r2, lsl #16     
+	sub	r3,	r7, #0x9c    
+	movs	r2,	r0, asr #16     
+	strh	ip,	[r11, r3]      
+	mov	r1,	r1, lsr #16     
+	bmi	._gteRTPS__878c	       
+	cmp	r2,	r1, lsl #1     
+	blt	._gteRTPS__8938	       
+._gteRTPS__878c:		       
+	ldr	r7,	._gteRTPS__89dc
+._gteRTPS__8790:		       
+	mov	r1,	#0x12c     
+	ldrsh	ip,	[r11, r1]      
+	ldr	r2,	[r11, #316]      
+	ldr	r3,	[r11, #320]      
+	str	r2,	[r11, #312]      
+	str	r3,	[r11, #316]      
+	mul	r0,	r7, ip      
+	ldr	r1,	[r8, #96]      
+	qadd	ip,	r1, r0      
+	ldr	r2,	._gteRTPS__89e0
+	mov	r3,	ip, asr #16     
+	cmp	r3,	r2       
+	ble	._gteRTPS__88d0	       
+	ldr	r3,	[r11, #516]      
+	mov	r1,	r2       
+	orr	ip,	r3, #0x80000000    
+	orr	r0,	ip, #0x4000    
+	str	r0,	[r11, #516]      
+._gteRTPS__87d8:		       
+	mov	r0,	#0x130     
+	ldrsh	ip,	[r11, r0]      
+	mov	r3,	#0x140     
+	strh	r1,	[r11, r3]      
+	mul	r1,	r7, ip      
+	ldr	r2,	[r8, #100]      
+	qadd	r0,	r2, r1      
+	ldr	r2,	._gteRTPS__89e0
+	mov	r3,	r0, asr #16     
+	cmp	r3,	r2       
+	ble	._gteRTPS__88ac	       
+	ldr	r3,	[r11, #516]      
+	mov	ip,	r2       
+	orr	r1,	r3, #0x80000000    
+	orr	r2,	r1, #0x2000    
+	str	r2,	[r11, #516]      
+._gteRTPS__8818:		       
+	mov	r3,	#0x1f4     
+	ldrsh	r1,	[r11, r3]      
+	ldr	r2,	._gteRTPS__89e4
+	mul	r0,	r7, r1      
+	strh	ip,	[r11, r2]      
+	ldr	ip,	[r8, #112]      
+	qadd	r0,	ip, r0      
+	ldr	r2,	._gteRTPS__89e8
+	str	r0,	[r9, #96]      
+	cmp	r0,	r2       
+	ble	._gteRTPS__8884	       
+	ldr	r1,	[r11, #516]      
+	mov	r0,	r2       
+	orr	ip,	r1, #0x1000    
+	mov	r2,	#0x128     
+	str	ip,	[r11, #516]      
+	strh	r0,	[r11, r2]      
+	ldmia	sp!,	{r5, r6, r7, r8, r9, pc} 
+._gteRTPS__8860:		       
+	cmp	r3,	#0     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r3, lsl #16     
+	orrlt	r3,	r3, #0x80000000    
+	orrlt	r3,	r3, #0x40000    
+	movge	ip,	r3, lsr #16     
+	movlt	ip,	#0     
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPS__8760	       
+._gteRTPS__8884:		       
+	cmp	r0,	#0     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r0, lsl #16     
+	movge	r0,	r3, lsr #16     
+	movlt	r0,	#0     
+	orrlt	r3,	r3, #0x1000    
+	mov	r2,	#0x128     
+	strlt	r3,	[r11, #516]      
+	strh	r0,	[r11, r2]      
+	ldmia	sp!,	{r5, r6, r7, r8, r9, pc} 
+._gteRTPS__88ac:		       
+	cmn	r3,	#0x400     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r3, lsl #16     
+	orrlt	r3,	r3, #0x80000000    
+	orrlt	r3,	r3, #0x2000    
+	movge	ip,	r3, lsr #16     
+	movlt	ip,	#0xfc00     
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPS__8818	       
+._gteRTPS__88d0:		       
+	cmn	r3,	#0x400     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r3, lsl #16     
+	orrlt	r3,	r3, #0x80000000    
+	orrlt	r3,	r3, #0x4000    
+	movge	r1,	r3, lsr #16     
+	movlt	r1,	#0xfc00     
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPS__87d8	       
+._gteRTPS__88f4:		       
+	cmn	r3,	#0x8000     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r3, lsl #16     
+	orrlt	r3,	r3, #0x400000    
+	movge	r0,	r3, lsr #16     
+	movlt	r0,	#0x8000     
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPS__870c	       
+._gteRTPS__8914:		       
+	cmn	r3,	#0x8000     
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r3, lsl #16     
+	orrlt	r3,	r3, #0x80000000    
+	orrlt	r3,	r3, #0x800000    
+	movge	r2,	r3, lsr #16     
+	movlt	r2,	#0x8000     
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPS__86e4	       
+._gteRTPS__8938:		       
+	cmp	r1,	#0x8000     
+	movhi	ip,	#0     
+	bhi	._gteRTPS__8958	       
+	mov	ip,	#0     
+._gteRTPS__8948:		       
+	mov	r1,	r1, lsl #1     
+	cmp	r1,	#0x8000     
+	add	ip,	ip, #1    
+	bls	._gteRTPS__8948	       
+._gteRTPS__8958:		       
+	mov	r2,	r1, lsl #17     
+	ldr	r5,	._gteRTPS__89ec
+	mov	r3,	r2, lsr #17     
+	mov	r7,	r3, lsl #1     
+	ldrh	r6,	[r7, r5]      
+	mov	r5,	r0, asr #16     
+	orr	r3,	r6, #0x10000    
+	mov	r7,	r3, asr #31     
+	mov	r0,	r7, lsl ip     
+	rsb	r2,	ip, #0x20    
+	orr	r7,	r0, r3, lsr r2    
+	subs	r1,	ip, #0x20    
+	movpl	r7,	r3, lsl r1     
+	mov	r3,	r3, lsl ip     
+	mov	r6,	r5, asr #31     
+	umull	r1,	r2, r3, r5     
+	mul	ip,	r6, r3      
+	mul	r3,	r7, r5      
+	add	r0,	ip, r2      
+	mov	ip,	#0x8000     
+	add	r2,	r0, r3      
+	mov	r7,	#0x0     
+	adds	r3,	ip, r1      
+	adc	r1,	r7, r2      
+	mov	r0,	r3, lsr #16     
+	orr	ip,	r0, r1, lsl #16    
+	cmp	ip,	#0x20000     
+	movcc	r7,	ip       
+	bcc	._gteRTPS__8790	       
+	b	._gteRTPS__878c	       
+._gteRTPS__89d0:	.long	0x00000196
+._gteRTPS__89d4:	.long	0x00007fff
+._gteRTPS__89d8:	.long	0x0000ffff
+._gteRTPS__89dc:	.long	0x0001ffff
+._gteRTPS__89e0:	.long	0x000003ff
+._gteRTPS__89e4:	.long	0x00000142
+._gteRTPS__89e8:	.long	0x00000fff
+._gteRTPS__89ec:	.long	__gte_reciprocals__       
+/*
+#endif
+*/
+			       
 			     
+.align 4
 _gteNCDS__:		     
 	mov	r2,	#0x1a8     
 	stmdb	sp!,	{r4, r5, r6, r7, r8}
@@ -2501,6 +2704,7 @@ _gteNCDS__:
 ._gteNCDS__000001d2:	.long	0x000001d2     
 ._gteNCDS__ffff8000:	.long	0xffff8000     
 			     
+.align 4
 _gteNCDT__:		     
 	stmdb	sp!,	{r4, r5, r6, r7, r8, r9, r10}
 	ldr	r2,	._gteNCDT__000001aa     
@@ -3007,6 +3211,7 @@ _gteNCDT__:
 ._gteNCDT__000001d6:	.long	0x000001d6     
 ._gteNCDT__ffff8000:	.long	0xffff8000     
 		        
+.align 4
 _gteCDP__:	        
 	stmdb	sp!, {r4, r5, r6, r7, r8}   
 	mov	r0, #0x130       
@@ -3130,6 +3335,7 @@ _gteCDP__:
 ._gteCDP__00007fff:	.long 0x00007fff       
 ._gteCDP__ffff8000:	.long 0xffff8000       
 		        
+.align 4
 _gteNCCS__:	        
 	mov	r0, #0x1a8       
 	sub	r4, r0, #0x9e      
@@ -3268,6 +3474,7 @@ _gteNCCS__:
 ._gteNCCS__000001ce:	.long 0x000001ce       
 ._gteNCCS__000001d2:	.long 0x000001d2       
 		        
+.align 4
 _gteCC__:	        
 	mov	r3, #0x130       
 	mov	ip, #0x1c8       
@@ -3353,6 +3560,7 @@ _gteCC__:
 ._gteCC__000001d2:	.long 0x000001d2       
 ._gteCC__00007fff:	.long 0x00007fff       
 		        
+.align 4
 _gteNCS__:	        
 	mov	r2, #0x1a8       
 	ldrsh	r6, [r11, r2]      
@@ -3466,6 +3674,7 @@ _gteNCS__:
 ._gteNCS__000001ce:	.long 0x000001ce       
 ._gteNCS__000001d2:	.long 0x000001d2       
 		        
+.align 4
 _gteNCT__:	        
 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, r10} 
 	mov	ip, #0x1a8       
@@ -3798,6 +4007,7 @@ _gteNCT__:
 ._gteNCT__000001d2:	.long 0x000001d2       
 ._gteNCT__000001d6:	.long 0x000001d6       
 		        
+.align 4
 _gteDPCT__:	        
 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, r10} 
 	ldr	r5, [r11, #0x1dc]      
@@ -3946,6 +4156,7 @@ _gteDPCT__:
 ._gteDPCT__ffff8000:	.long 0xffff8000       
 ._gteDPCT__00007fff:	.long 0x00007fff       
 		        
+.align 4
 _gteNCCT__:	        
 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, r10} 
 	mov	ip, #0x1a8       
@@ -4344,7 +4555,10 @@ _gteNCCT__:
 ._gteNCCT__000001d2:	.long 0x000001d2       
 ._gteNCCT__000001d6:	.long 0x000001d6       
 		        
+.align 4
 _gteRTPT__:	        
+/*			     
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	mov	r1, #0x108       
 	mov	r2, #0x188       
 	stmdb	sp!, {r4, r5, r6, r7, r8, r9, r10} 
@@ -4946,7 +5160,640 @@ _gteRTPT__:
 ._gteRTPT__00000fff:	.long 0x00000fff       
 ._gteRTPT__ffff8000:	.long 0xffff8000       
 ._gteRTPT__reciprocals:	.long __gte_reciprocals__       
+#else
+*/
+	ldr	r2,	._gteRTPT__9318       
+	stmdb	sp!,	{r4, r5, r6, r7, r8, r9, sl, lr}
+	ldrsh	r4,	[r11, r2]      
+	mov	r9,	#0x108       
+	ldrsh	r5,	[r11, r9]      
+	add	lr,	r2, #0x80      
+	add	r0,	r9, #0x80      
+	mov	r7,	#0x154       
+	ldrsh	r8,	[r11, lr]      
+	ldrsh	ip,	[r11, r0]      
+	ldrh	sl,	[r11, r7]      
+	sub	r6,	r0, #0x40      
+	sub	r1,	lr, #0x7e      
+	strh	sl,	[r11, r6]      
+	sub	sp,	sp, #0x10      
+	ldrsh	lr,	[r11, r1]      
+	mul	r3,	ip, r5      
+	mul	r9,	r8, r4      
+	qadd	r7,	r9, r3      
+	mov	r1,	#0x18c       
+	ldrsh	r0,	[r11, r1]      
+	mul	sl,	r0, lr      
+	qadd	r6,	sl, r7      
+	mov	r8,	r6, asr #12     
+	add	r7,	r11, #0x188      
+	add	sl,	r11, #0x19c      
+	ldr	r2,	[r11, #412]      
+	qadd	r6,	r2, r8      
+	mov	r3,	#0x190       
+	add	ip,	r1, #2      
+	ldrsh	r9,	[r11, ip]      
+	ldrsh	r0,	[r11, r3]      
+	mul	r8,	r9, r5      
+	mul	r2,	r0, r4      
+	qadd	r3,	r2, r8      
+	ldr	r1,	._gteRTPT__931c       
+	ldrsh	ip,	[r11, r1]      
+	mul	r9,	ip, lr      
+	qadd	r0,	r9, r3      
+	add	r8,	r11, #0x1a0      
+	mov	r2,	r0, asr #12     
+	str	r8,	[sp]       
+	ldr	ip,	[r11, #416]      
+	qadd	r8,	ip, r2      
+	ldr	r3,	._gteRTPT__9320       
+	mov	r1,	#0x194       
+	ldrsh	r9,	[r11, r1]      
+	ldrsh	r0,	[r11, r3]      
+	mul	r2,	r9, r5      
+	mul	ip,	r0, r4      
+	qadd	r4,	ip, r2      
+	mov	r9,	#0x198       
+	ldrsh	r5,	[r11, r9]      
+	mul	r1,	r5, lr      
+	qadd	r0,	r1, r4      
+	mov	r3,	r0, asr #12     
+	add	r9,	r11, #0x1a4      
+	ldr	r2,	[r11, #420]      
+	qadd	r0,	r2, r3      
+	ldr	r2,	._gteRTPT__9324       
+	cmp	r6,	r2       
+	ble	._gteRTPT__9134	       
+	ldr	r5,	[r11, #516]      
+	mov	lr,	r2       
+	orr	r4,	r5, #0x81000000      
+	str	r4,	[r11, #516]      
+._gteRTPT__8b2c:		       
+	ldr	r2,	._gteRTPT__9324       
+	cmp	r8,	r2       
+	ble	._gteRTPT__9118	       
+	ldr	r1,	[r11, #516]      
+	mov	r8,	r2       
+	orr	ip,	r1, #0x80000000      
+	orr	r3,	ip, #0x800000      
+	str	r3,	[r11, #516]      
+._gteRTPT__8b4c:		       
+	ldr	r1,	._gteRTPT__9328       
+	cmp	r0,	r1       
+	ble	._gteRTPT__90f4	       
+	ldr	r2,	[r11, #516]      
+	mov	ip,	r1       
+	orr	r0,	r2, #0x80000000      
+	orr	r6,	r0, #0x40000      
+	str	r6,	[r11, #516]      
+._gteRTPT__8b6c:		       
+	mov	r3,	#0x1f0       
+	ldrh	r1,	[r11, r3]      
+	mov	r4,	ip, lsl #16     
+	mov	r0,	r1, lsl #16     
+	sub	r5,	r3, #0xa4      
+	movs	r2,	r0, asr #16     
+	strh	ip,	[r11, r5]      
+	mov	r1,	r4, lsr #16     
+	bmi	._gteRTPT__8b98	       
+	cmp	r2,	r1, lsl #1     
+	blt	._gteRTPT__9280	       
+._gteRTPT__8b98:		       
+	ldr	r4,	._gteRTPT__932c       
+._gteRTPT__8b9c:		       
+	add	r0,	r7, #0x60      
+	mul	r1,	r4, lr      
+	str	r0,	[sp, #4]      
+	ldr	ip,	[r7, #96]      
+	qadd	lr,	ip, r1      
+	ldr	r2,	._gteRTPT__9330       
+	mov	r3,	lr, asr #16     
+	cmp	r3,	r2       
+	bgt	._gteRTPT__8bd0	       
+	cmn	r3,	#0x400       
+	movge	r3,	r3, lsl #16     
+	movlt	r2,	#0xfc00       
+	movge	r2,	r3, lsr #16     
+._gteRTPT__8bd0:		       
+	mov	lr,	#0x138       
+	strh	r2,	[r11, lr]      
+	mul	r3,	r4, r8      
+	add	r4,	r7, #0x64      
+	str	r4,	[sp, #8]      
+	ldr	r5,	[r7, #100]      
+	qadd	r6,	r5, r3      
+	ldr	r8,	._gteRTPT__9330       
+	mov	r2,	r6, asr #16     
+	cmp	r2,	r8       
+	movgt	ip,	r8       
+	bgt	._gteRTPT__8c10	       
+	cmn	r2,	#0x400       
+	movge	r3,	r2, lsl #16     
+	movlt	ip,	#0xfc00       
+	movge	ip,	r3, lsr #16     
+._gteRTPT__8c10:		       
+	ldr	r2,	._gteRTPT__9334       
+	mov	r3,	#0x110       
+	add	r8,	r3, #0x78      
+	add	lr,	r2, #0x78      
+	ldrsh	r1,	[r11, lr]      
+	ldrsh	r4,	[r11, r2]      
+	ldrsh	r6,	[r11, r8]      
+	ldrsh	r5,	[r11, r3]      
+	sub	r0,	r8, #0x4e      
+	strh	ip,	[r11, r0]      
+	sub	ip,	lr, #0x76      
+	ldrsh	lr,	[r11, ip]      
+	mul	r3,	r6, r5      
+	mul	r8,	r1, r4      
+	qadd	r2,	r8, r3      
+	mov	r8,	#0x18c       
+	ldrsh	r0,	[r11, r8]      
+	mul	ip,	r0, lr      
+	qadd	r6,	ip, r2      
+	mov	r3,	r6, asr #12     
+	ldr	r1,	[sl]       
+	qadd	r6,	r1, r3      
+	mov	r0,	#0x190       
+	add	ip,	r8, #2      
+	ldrsh	r2,	[r11, ip]      
+	ldrsh	r1,	[r11, r0]      
+	mul	r3,	r2, r5      
+	mul	r8,	r1, r4      
+	qadd	r2,	r8, r3      
+	ldr	ip,	._gteRTPT__931c       
+	ldrsh	r0,	[r11, ip]      
+	mul	r3,	r0, lr      
+	qadd	r1,	r3, r2      
+	ldr	r8,	[sp]       
+	mov	ip,	r1, asr #12     
+	ldr	r0,	[r8]       
+	qadd	r8,	r0, ip      
+	ldr	r3,	._gteRTPT__9320       
+	mov	r2,	#0x194       
+	ldrsh	ip,	[r11, r2]      
+	ldrsh	r1,	[r11, r3]      
+	mul	r0,	ip, r5      
+	mul	r2,	r1, r4      
+	qadd	r3,	r2, r0      
+	mov	r4,	#0x198       
+	ldrsh	r0,	[r11, r4]      
+	mul	r5,	r0, lr      
+	qadd	r1,	r5, r3      
+	mov	ip,	r1, asr #12     
+	ldr	r2,	[r9]       
+	qadd	r0,	r2, ip      
+	ldr	r2,	._gteRTPT__9324       
+	cmp	r6,	r2       
+	ble	._gteRTPT__90d8	       
+	ldr	r5,	[r11, #516]      
+	mov	lr,	r2       
+	orr	r4,	r5, #0x81000000      
+	str	r4,	[r11, #516]      
+._gteRTPT__8cf8:		       
+	ldr	r2,	._gteRTPT__9324       
+	cmp	r8,	r2       
+	ble	._gteRTPT__90bc	       
+	ldr	r3,	[r11, #516]      
+	mov	r8,	r2       
+	orr	ip,	r3, #0x80000000      
+	orr	r1,	ip, #0x800000      
+	str	r1,	[r11, #516]      
+._gteRTPT__8d18:		       
+	ldr	r1,	._gteRTPT__9328       
+	cmp	r0,	r1       
+	ble	._gteRTPT__9098	       
+	ldr	r4,	[r11, #516]      
+	mov	ip,	r1       
+	orr	r2,	r4, #0x80000000      
+	orr	r0,	r2, #0x40000      
+	str	r0,	[r11, #516]      
+._gteRTPT__8d38:		       
+	mov	r3,	#0x1f0       
+	ldrh	r2,	[r11, r3]      
+	sub	r1,	r3, #0xa0      
+	mov	r0,	r2, lsl #16     
+	mov	r5,	ip, lsl #16     
+	movs	r2,	r0, asr #16     
+	strh	ip,	[r11, r1]      
+	mov	r1,	r5, lsr #16     
+	bmi	._gteRTPT__8d64	       
+	cmp	r2,	r1, lsl #1     
+	blt	._gteRTPT__91e8	       
+._gteRTPT__8d64:		       
+	ldr	r4,	._gteRTPT__932c       
+._gteRTPT__8d68:		       
+	ldr	r1,	[sp, #4]      
+	mul	r5,	lr, r4      
+	ldr	r0,	[r1]       
+	qadd	ip,	r0, r5      
+	ldr	lr,	._gteRTPT__9330       
+	mov	r2,	ip, asr #16     
+	cmp	r2,	lr       
+	movgt	r2,	lr       
+	bgt	._gteRTPT__8d9c	       
+	cmn	r2,	#0x400       
+	movge	r3,	r2, lsl #16     
+	movlt	r2,	#0xfc00       
+	movge	r2,	r3, lsr #16     
+._gteRTPT__8d9c:		       
+	mov	ip,	#0x13c       
+	strh	r2,	[r11, ip]      
+	ldr	lr,	[sp, #8]      
+	mul	r2,	r8, r4      
+	ldr	r3,	[lr]       
+	qadd	r4,	r3, r2      
+	ldr	r8,	._gteRTPT__9330       
+	mov	r2,	r4, asr #16     
+	cmp	r2,	r8       
+	movgt	ip,	r8       
+	bgt	._gteRTPT__8dd8	       
+	cmn	r2,	#0x400       
+	movge	r3,	r2, lsl #16     
+	movlt	ip,	#0xfc00       
+	movge	ip,	r3, lsr #16     
+._gteRTPT__8dd8:		       
+	ldr	r2,	._gteRTPT__9338       
+	mov	r1,	#0x118       
+	add	r3,	r1, #0x70      
+	add	lr,	r2, #0x70      
+	ldrsh	r5,	[r11, r1]      
+	ldrsh	r4,	[r11, r2]      
+	ldrsh	r1,	[r11, lr]      
+	ldrsh	r8,	[r11, r3]      
+	sub	r0,	r3, #0x4a      
+	sub	r3,	lr, #0x6e      
+	strh	ip,	[r11, r0]      
+	ldrsh	lr,	[r11, r3]      
+	mul	ip,	r8, r5      
+	mul	r2,	r1, r4      
+	qadd	r8,	r2, ip      
+	mov	r1,	#0x18c       
+	ldrsh	r0,	[r11, r1]      
+	mul	r3,	r0, lr      
+	qadd	ip,	r3, r8      
+	mov	r0,	ip, asr #12     
+	ldr	r2,	[sl]       
+	qadd	sl,	r2, r0      
+	mov	r3,	#0x190       
+	add	r8,	r1, #2      
+	ldrsh	ip,	[r11, r8]      
+	ldrsh	r1,	[r11, r3]      
+	mul	r0,	ip, r5      
+	mul	r2,	r1, r4      
+	qadd	r3,	r2, r0      
+	ldr	r8,	._gteRTPT__931c       
+	ldrsh	r0,	[r11, r8]      
+	mul	ip,	r0, lr      
+	qadd	r1,	ip, r3      
+	ldr	r8,	[sp]       
+	mov	r2,	r1, asr #12     
+	ldr	r0,	[r8]       
+	qadd	r8,	r0, r2      
+	ldr	ip,	._gteRTPT__9320       
+	mov	r3,	#0x194       
+	ldrsh	r2,	[r11, r3]      
+	ldrsh	r1,	[r11, ip]      
+	mul	r0,	r2, r5      
+	mul	r3,	r1, r4      
+	qadd	r2,	r3, r0      
+	mov	r0,	#0x198       
+	ldrsh	ip,	[r11, r0]      
+	mul	r3,	ip, lr      
+	qadd	r4,	r3, r2      
+	mov	r1,	r4, asr #12     
+	ldr	r0,	[r9]       
+	qadd	lr,	r0, r1      
+	ldr	r2,	._gteRTPT__9324       
+	cmp	sl,	r2       
+	ble	._gteRTPT__9078	       
+	ldr	r4,	[r11, #516]      
+	str	r2,	[sp, #12]      
+	orr	r9,	r4, #0x81000000      
+	str	r9,	[r11, #516]      
+._gteRTPT__8ec0:		       
+	ldr	r2,	._gteRTPT__9324       
+	cmp	r8,	r2       
+	ble	._gteRTPT__9058	       
+	ldr	r3,	[r11, #516]      
+	mov	r9,	r2       
+	orr	r0,	r3, #0x80000000      
+	orr	ip,	r0, #0x800000      
+	str	ip,	[r11, #516]      
+._gteRTPT__8ee0:		       
+	ldr	r1,	._gteRTPT__9328       
+	cmp	lr,	r1       
+	ble	._gteRTPT__9014	       
+	ldr	r4,	[r11, #516]      
+	mov	ip,	r1       
+	orr	r1,	r4, #0x80000000      
+	orr	r2,	r1, #0x40000      
+	str	r2,	[r11, #516]      
+._gteRTPT__8f00:		       
+	mov	r4,	#0x1f0       
+	ldrh	r2,	[r11, r4]      
+	mov	r1,	ip, lsl #16     
+	mov	r0,	r2, lsl #16     
+	sub	r3,	r4, #0x9c      
+	movs	r2,	r0, asr #16     
+	strh	ip,	[r11, r3]      
+	mov	r1,	r1, lsr #16     
+	bmi	._gteRTPT__8f2c	       
+	cmp	r2,	r1, lsl #1     
+	blt	._gteRTPT__9150	       
+._gteRTPT__8f2c:		       
+	ldr	r4,	._gteRTPT__932c       
+._gteRTPT__8f30:		       
+	ldr	r2,	[sp, #4]      
+	ldr	r3,	[sp, #12]      
+	ldr	r0,	[r2]       
+	mul	r3,	r4, r3      
+	qadd	r1,	r0, r3      
+	ldr	ip,	._gteRTPT__9330       
+	mov	r2,	r1, asr #16     
+	cmp	r2,	ip       
+	movgt	r2,	ip       
+	bgt	._gteRTPT__8f68	       
+	cmn	r2,	#0x400       
+	movge	r3,	r2, lsl #16     
+	movlt	r2,	#0xfc00       
+	movge	r2,	r3, lsr #16     
+._gteRTPT__8f68:		       
+	mov	ip,	#0x140       
+	strh	r2,	[r11, ip]      
+	ldr	r2,	[sp, #8]      
+	mul	r3,	r4, r9      
+	ldr	r0,	[r2]       
+	qadd	r1,	r0, r3      
+	ldr	ip,	._gteRTPT__9330       
+	mov	r2,	r1, asr #16     
+	cmp	r2,	ip       
+	movgt	r1,	ip       
+	bgt	._gteRTPT__8fa4	       
+	cmn	r2,	#0x400       
+	movge	r3,	r2, lsl #16     
+	movlt	r1,	#0xfc00       
+	movge	r1,	r3, lsr #16     
+._gteRTPT__8fa4:		       
+	ldr	ip,	._gteRTPT__933c       
+	add	r2,	r11, #0x108      
+	add	r3,	ip, #0xb2      
+	strh	r1,	[r11, ip]      
+	str	lr,	[r2, #108]      
+	str	sl,	[r2, #100]      
+	str	r8,	[r2, #104]      
+	ldrsh	r1,	[r11, r3]      
+	ldr	ip,	[r7, #112]      
+	mul	r0,	r1, r4      
+	qadd	r4,	ip, r0      
+	ldr	r1,	._gteRTPT__9340       
+	ldr	r2,	[sp, #12]      
+	mov	r3,	#0x12c       
+	mov	r0,	#0x130       
+	cmp	r4,	r1       
+	strh	r2,	[r11, r3]      
+	strh	r9,	[r11, r0]      
+	str	r4,	[r11, #360]      
+	ble	._gteRTPT__9038	       
+	ldr	r3,	[r11, #516]      
+	mov	r4,	r1       
+	orr	r0,	r3, #0x1000      
+	str	r0,	[r11, #516]      
+._gteRTPT__9004:		       
+	mov	r1,	#0x128       
+	strh	r4,	[r11, r1]      
+	add	sp,	sp, #0x10      
+	ldmia	sp!,	{r4, r5, r6, r7, r8, r9, sl, pc}
+._gteRTPT__9014:		       
+	cmp	lr,	#0       
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	lr, lsl #16     
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x40000      
+	movge	ip,	r3, lsr #16     
+	movlt	ip,	#0       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8f00	       
+._gteRTPT__9038:		       
+	cmp	r4,	#0       
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r4, lsl #16     
+	orrlt	r3,	r3, #0x1000      
+	movge	r4,	r3, lsr #16     
+	movlt	r4,	#0       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__9004	       
+._gteRTPT__9058:		       
+	cmn	r8,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	r9,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x800000      
+	movge	r9,	r8       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8ee0	       
+._gteRTPT__9078:		       
+	cmn	sl,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	r2,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x81000000      
+	strlt	r2,	[sp, #12]      
+	strge	sl,	[sp, #12]      
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8ec0	       
+._gteRTPT__9098:		       
+	cmp	r0,	#0       
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r0, lsl #16     
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x40000      
+	movge	ip,	r3, lsr #16     
+	movlt	ip,	#0       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8d38	       
+._gteRTPT__90bc:		       
+	cmn	r8,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	r8,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x800000      
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8d18	       
+._gteRTPT__90d8:		       
+	cmn	r6,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	lr,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x81000000      
+	movge	lr,	r6       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8cf8	       
+._gteRTPT__90f4:		       
+	cmp	r0,	#0       
+	ldrlt	r3,	[r11, #516]      
+	movge	r3,	r0, lsl #16     
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x40000      
+	movge	ip,	r3, lsr #16     
+	movlt	ip,	#0       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8b6c	       
+._gteRTPT__9118:		       
+	cmn	r8,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	r8,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x80000000      
+	orrlt	r3,	r3, #0x800000      
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8b4c	       
+._gteRTPT__9134:		       
+	cmn	r6,	#0x8000       
+	ldrlt	r3,	[r11, #516]      
+	ldrlt	lr,	._gteRTPT__9344       
+	orrlt	r3,	r3, #0x81000000      
+	movge	lr,	r6       
+	strlt	r3,	[r11, #516]      
+	b	._gteRTPT__8b2c	       
+._gteRTPT__9150:		       
+	cmp	r1,	#0x8000       
+	movhi	ip,	#0       
+	bhi	._gteRTPT__9170	       
+	mov	ip,	#0       
+._gteRTPT__9160:		       
+	mov	r1,	r1, lsl #1     
+	cmp	r1,	#0x8000       
+	add	ip,	ip, #1      
+	bls	._gteRTPT__9160	       
+._gteRTPT__9170:		       
+	mov	r2,	r1, lsl #17     
+	ldr	r5,	._gteRTPT__9348       
+	mov	r3,	r2, lsr #17     
+	mov	r4,	r3, lsl #1     
+	ldrh	r6,	[r4, r5]      
+	mov	r5,	r0, asr #16     
+	orr	r3,	r6, #0x10000      
+	mov	r4,	r3, asr #31     
+	mov	r0,	r4, lsl ip     
+	rsb	r2,	ip, #0x20      
+	orr	r4,	r0, r3, lsr r2    
+	subs	r1,	ip, #0x20      
+	movpl	r4,	r3, lsl r1     
+	mov	r3,	r3, lsl ip     
+	mov	r6,	r5, asr #31     
+	umull	r1,	r2, r3, r5     
+	mul	ip,	r6, r3      
+	mul	r3,	r4, r5      
+	add	r0,	ip, r2      
+	mov	ip,	#0x8000       
+	add	r2,	r0, r3      
+	mov	r4,	#0       
+	adds	r3,	ip, r1      
+	adc	r1,	r4, r2      
+	mov	r0,	r3, lsr #16     
+	orr	ip,	r0, r1, lsl #16    
+	cmp	ip,	#0x20000       
+	movcc	r4,	ip       
+	bcc	._gteRTPT__8f30	       
+	b	._gteRTPT__8f2c	       
+._gteRTPT__91e8:		       
+	cmp	r1,	#0x8000       
+	movhi	ip,	#0       
+	bhi	._gteRTPT__9208	       
+	mov	ip,	#0       
+._gteRTPT__91f8:		       
+	mov	r1,	r1, lsl #1     
+	cmp	r1,	#0x8000       
+	add	ip,	ip, #1      
+	bls	._gteRTPT__91f8	       
+._gteRTPT__9208:		       
+	mov	r2,	r1, lsl #17     
+	ldr	r5,	._gteRTPT__9348       
+	mov	r3,	r2, lsr #17     
+	mov	r4,	r3, lsl #1     
+	ldrh	r6,	[r4, r5]      
+	mov	r5,	r0, asr #16     
+	orr	r3,	r6, #0x10000      
+	mov	r4,	r3, asr #31     
+	mov	r0,	r4, lsl ip     
+	rsb	r2,	ip, #0x20      
+	orr	r4,	r0, r3, lsr r2    
+	subs	r1,	ip, #0x20      
+	movpl	r4,	r3, lsl r1     
+	mov	r3,	r3, lsl ip     
+	mov	r6,	r5, asr #31     
+	umull	r1,	r2, r3, r5     
+	mul	r0,	r6, r3      
+	mul	ip,	r4, r5      
+	add	r0,	r0, r2      
+	mov	r3,	#0x8000       
+	add	r2,	r0, ip      
+	adds	r5,	r3, r1      
+	mov	ip,	#0       
+	adc	r4,	ip, r2      
+	mov	r0,	r5, lsr #16     
+	orr	ip,	r0, r4, lsl #16    
+	cmp	ip,	#0x20000       
+	movcc	r4,	ip       
+	bcc	._gteRTPT__8d68	       
+	b	._gteRTPT__8d64	       
+._gteRTPT__9280:		       
+	cmp	r1,	#0x8000       
+	movhi	ip,	#0       
+	bhi	._gteRTPT__92a0	       
+	mov	ip,	#0       
+._gteRTPT__9290:		       
+	mov	r1,	r1, lsl #1     
+	cmp	r1,	#0x8000       
+	add	ip,	ip, #0x1      
+	bls	._gteRTPT__9290	       
+._gteRTPT__92a0:		       
+	mov	r2,	r1, lsl #17     
+	ldr	r5,	._gteRTPT__9348       
+	mov	r3,	r2, lsr #17     
+	mov	r4,	r3, lsl #1     
+	ldrh	r6,	[r4, r5]      
+	mov	r5,	r0, asr #16     
+	orr	r3,	r6, #0x10000      
+	mov	r4,	r3, asr #31     
+	mov	r0,	r4, lsl ip     
+	rsb	r2,	ip, #0x20      
+	orr	r4,	r0, r3, lsr r2    
+	subs	r1,	ip, #0x20      
+	movpl	r4,	r3, lsl r1     
+	mov	r3,	r3, lsl ip     
+	mov	r6,	r5, asr #31     
+	umull	r1,	r2, r3, r5     
+	mul	r0,	r6, r3      
+	mul	ip,	r4, r5      
+	add	r6,	r0, r2      
+	mov	r3,	#0x8000       
+	add	r2,	r6, ip      
+	adds	r5,	r3, r1      
+	mov	r4,	#0       
+	adc	r0,	r4, r2      
+	mov	r6,	r5, lsr #16     
+	orr	ip,	r6, r0, lsl #16    
+	cmp	ip,	#0x20000       
+	movcc	r4,	ip       
+	bcc	._gteRTPT__8b9c	       
+	b	._gteRTPT__8b98	       
+._gteRTPT__9318:	.long	0x0000010a
+._gteRTPT__931c:	.long	0x00000192
+._gteRTPT__9320:	.long	0x00000196
+._gteRTPT__9324:	.long	0x00007fff
+._gteRTPT__9328:	.long	0x0000ffff
+._gteRTPT__932c:	.long	0x0001ffff
+._gteRTPT__9330:	.long	0x000003ff
+._gteRTPT__9334:	.long	0x00000112
+._gteRTPT__9338:	.long	0x0000011a
+._gteRTPT__933c:	.long	0x00000142
+._gteRTPT__9340:	.long	0x00000fff
+._gteRTPT__9344:	.long	0xffff8000
+._gteRTPT__9348:	.long	__gte_reciprocals__       
+/*
+#endif
+*/
 		        
+.align 4
 _gteAVSZ3__:	        
 	mov	r2, #0x14c       
 	mov	r1, #0x150       
@@ -4971,6 +5818,7 @@ _gteAVSZ3__:
 	str	r3, [r11, #0x168]      
 	bx	lr        
 		        
+.align 4
 _gteAVSZ4__:	        
 	mov	r3, #0x14c       
 	mov	ip, #0x148       
@@ -4996,3 +5844,5 @@ _gteAVSZ4__:
 	str	r3, [r11, #0x168]      
 	bx	lr        
 ._gteAVSZ__0000ffff:	.long 0x0000ffff       
+
+.align 4

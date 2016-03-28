@@ -65,8 +65,11 @@ unsigned char PAD1_poll(void) {
 		static clock_t t_init;
 		if (!event) t_init=clock();
 		event++;
+#ifdef SHOW_BIOS_CALLS
+		printf("EVENT %i\n",event);
+#endif
 #ifdef DEBUG_START
-		if (event>DEBUG_START)
+		if (event>=DEBUG_START)
 			dbg_enable();
 #endif
 #ifdef AUTOEVENTS_MAX
@@ -139,7 +142,7 @@ unsigned char PAD1_poll(void) {
 		return 0x41;
 	}
 
-	if (g.CurByte1 >= g.CmdLen1) return 0;
+	if (g.CurByte1 >= g.CmdLen1) return 0xFF;
 	return buf[g.CurByte1++];
 }
 
@@ -167,6 +170,6 @@ unsigned char PAD2_poll(void) {
 		return 0x41;
 	}
 
-	if (g.CurByte2 >= g.CmdLen2) return 0;
+	if (g.CurByte2 >= g.CmdLen2) return 0xFF;
 	return buf[g.CurByte2++];
 }

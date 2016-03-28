@@ -26,13 +26,6 @@
 
 /******************************************************************************/
 
-typedef struct Rcnt
-{
-    u16 mode, target;
-    u32 rate, irq, counterState, irqState;
-    u32 cycle, cycleStart;
-} Rcnt;
-
 enum
 {
     Rc0Gate           = 0x0001, // 0    not implemented
@@ -68,13 +61,11 @@ static const u32 CountToTarget    = 1;
 static const u32 FrameRate[]      = { 60, 50 };
 static const u32 VBlankStart[]    = { 240, 256 };
 static const u32 HSyncTotal[]     = { 262, 312 };
-static const u32 SpuUpdInterval[] = { 23, 22 };
-
-//static const s32 VerboseLevel     = 0;
+#define SPU_UPD_INTERVAL 23
 
 /******************************************************************************/
 
-static Rcnt rcnts[ CounterQuantity ];
+Rcnt rcnts[ CounterQuantity ];
 
 static u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;
@@ -90,31 +81,15 @@ INLINE void setIrq( u32 irq )
     	ResetIoCycle();
 }
 
-/*
-static void verboseLog( s32 level, const s8 *str, ... )
-{
-    if( level <= VerboseLevel )
-    {
-        va_list va;
-        char buf[ 4096 ];
-
-        va_start( va, str );
-        vsprintf( buf, str, va );
-        va_end( va );
-
-        printf( buf );
-        fflush( stdout );
-    }
-}
-*/
-
 /******************************************************************************/
 
 INLINE void _psxRcntWcount( u32 index, u32 value )
 {
     if( value > 0xffff )
     {
-        //verboseLog( 1, "[RCNT %i] wcount > 0xffff: %x\n", index, value );
+#ifdef DEBUG_BIOS
+        dbgf("[RCNT %i] wcount > 0xffff: %x\n", index, value );
+#endif
         value &= 0xffff;
     }
 
@@ -140,11 +115,14 @@ INLINE u32 _psxRcntRcount( u32 index )
 
     count  = psxRegs.cycle;
     count -= rcnts[index].cycleStart;
-    count /= rcnts[index].rate;
+    if (rcnts[index].rate > 1)
+    	count = UDIV(count,rcnts[index].rate);
 
     if( count > 0xffff )
     {
-        //verboseLog( 1, "[RCNT %i] rcount > 0xffff: %x\n", index, count );
+#ifdef DEBUG_BIOS
+        dbgf("[RCNT %i] rcount > 0xffff: %x\n", index, count );
+#endif
         count &= 0xffff;
     }
 
@@ -201,7 +179,8 @@ static void psxRcntReset( u32 index )
         {
             count  = psxRegs.cycle;
             count -= rcnts[index].cycleStart;
-            count /= rcnts[index].rate;
+            if (rcnts[index].rate > 1)
+				count = UDIV(count,rcnts[index].rate);
             count -= rcnts[index].target;
         }
         else
@@ -215,7 +194,9 @@ static void psxRcntReset( u32 index )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-                //verboseLog( 3, "[RCNT %i] irq: %x\n", index, count );
+#ifdef DEBUG_BIOS
+                dbgf("[RCNT %i] irq: %x\n", index, count );
+#endif
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
@@ -227,7 +208,8 @@ static void psxRcntReset( u32 index )
     {
         count  = psxRegs.cycle;
         count -= rcnts[index].cycleStart;
-        count /= rcnts[index].rate;
+        if (rcnts[index].rate > 1)
+			count = UDIV(count,rcnts[index].rate);
         count -= 0xffff;
 
         _psxRcntWcount( index, count );
@@ -236,7 +218,9 @@ static void psxRcntReset( u32 index )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-                //verboseLog( 3, "[RCNT %i] irq: %x\n", index, count );
+#ifdef DEBUG_BIOS
+                dbgf("[RCNT %i] irq: %x\n", index, count );
+#endif
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
@@ -291,7 +275,7 @@ void psxRcntUpdate()
         hSyncCount++;
 
         // Update spu.
-        if( spuSyncCount >= SpuUpdInterval[Config.PsxType] )
+        if( spuSyncCount >= SPU_UPD_INTERVAL )
         {
             spuSyncCount = 0;
             SPU_async();
@@ -305,8 +289,11 @@ void psxRcntUpdate()
         }
         */
         // Update lace. (with InuYasha fix)
-        if( hSyncCount >= (Config.VSyncWA ? HSyncTotal[Config.PsxType] / BIAS : HSyncTotal[Config.PsxType]) )
+        if( hSyncCount >= (Config.VSyncWA ? UDIV(HSyncTotal[Config.PsxType],BIAS) : HSyncTotal[Config.PsxType]) )
         {
+#ifdef DEBUG_BIOS
+	    dbg("UpdateLace");
+#endif
             hSyncCount = 0;
 
             setIrq( 0x01 );
@@ -317,7 +304,11 @@ void psxRcntUpdate()
 		{
 			static unsigned _endframe_=0;
 			static unsigned _frametime_[DEBUG_END_FRAME+1];
-			_frametime_[_endframe_]=(get_ticks()/1000);
+			_frametime_[_endframe_]=(get_ticks()
+#ifndef TIME_IN_MSEC
+					/1000
+#endif
+					);
 			_endframe_++;
 			if (_endframe_>DEBUG_END_FRAME) {
 				unsigned i;
@@ -356,7 +347,9 @@ void psxRcntUpdate()
 
 void psxRcntWcount( u32 index, u32 value )
 {
-    //verboseLog( 2, "[RCNT %i] wcount: %x\n", index, value );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] wcount: %x\n", index, value );
+#endif
 
     psxRcntUpdate();
 
@@ -368,7 +361,9 @@ static u32 rcnt_target;
 
 void psxRcntWmode( u32 index, u32 value )
 {
-    //verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] wmode: %x\n", index, value );
+#endif
 
     psxRcntUpdate();
 
@@ -421,7 +416,9 @@ void psxRcntWmode( u32 index, u32 value )
 
 void psxRcntWtarget( u32 index, u32 value )
 {
-    //verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] wtarget: %x\n", index, value );
+#endif
 
     psxRcntUpdate();
 
@@ -473,12 +470,14 @@ u32 psxRcntRcount( u32 index )
         {
             if( rcnts[index].counterState == CountToTarget )
             {
-                count /= BIAS;
+                count=UDIV(count,BIAS);
             }
         }
     }
 
-    //verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] rcount: %x\n", index, count );
+#endif
 
     pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return count;
@@ -497,7 +496,9 @@ u32 psxRcntRmode( u32 index )
     mode = rcnts[index].mode;
     rcnts[index].mode &= 0xe7ff;
 
-    //verboseLog( 2, "[RCNT %i] rmode: %x\n", index, mode );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] rmode: %x\n", index, mode );
+#endif
 
     pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return mode;
@@ -505,7 +506,9 @@ u32 psxRcntRmode( u32 index )
 
 u32 psxRcntRtarget( u32 index )
 {
-    //verboseLog( 2, "[RCNT %i] rtarget: %x\n", index, rcnts[index].target );
+#ifdef DEBUG_BIOS
+    dbgf("[RCNT %i] rtarget: %x\n", index, rcnts[index].target );
+#endif
 
     return rcnts[index].target;
 }
@@ -514,7 +517,7 @@ u32 psxRcntRtarget( u32 index )
 
 void psxRcntUVtarget(void)
 {
-	rcnt_target=(PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
+	rcnt_target=UDIV(PSXCLK,(FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
 }
 
 void psxRcntInit(void)
@@ -558,6 +561,19 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
     gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
 
     return 0;
+}
+
+void psxSetSyncs(unsigned h_sync, unsigned s_sync){
+	hSyncCount=h_sync;
+	spuSyncCount=s_sync;
+}
+
+unsigned psxGetHSync(void){
+	return hSyncCount;
+}
+
+unsigned psxGetSpuSync(void){
+	return spuSyncCount;
 }
 
 /******************************************************************************/

@@ -18,6 +18,16 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#define GPU_TESTRANGE3() \
+{ \
+	if(x0<0) { if((x1-x0)>CHKMAX_X) return; if((x2-x0)>CHKMAX_X) return; } \
+	if(x1<0) { if((x0-x1)>CHKMAX_X) return; if((x2-x1)>CHKMAX_X) return; } \
+	if(x2<0) { if((x0-x2)>CHKMAX_X) return; if((x1-x2)>CHKMAX_X) return; } \
+	if(y0<0) { if((y1-y0)>CHKMAX_Y) return; if((y2-y0)>CHKMAX_Y) return; } \
+	if(y1<0) { if((y0-y1)>CHKMAX_Y) return; if((y2-y1)>CHKMAX_Y) return; } \
+	if(y2<0) { if((y0-y2)>CHKMAX_Y) return; if((y1-y2)>CHKMAX_Y) return; } \
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal polygon drawing functions
 
@@ -25,19 +35,23 @@
 void gpuDrawF3(const PP gpuPolySpanDriver)
 {
 	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
 	s32 temp;
 	s32 xa, xb, xmin, xmax;
 	s32 ya, yb, ymin, ymax;
 	s32 x0, x1, x2, x3, dx3=0, x4, dx4=0, dx;
 	s32 y0, y1, y2;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2]);  GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3]);  GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[4]);  GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[5]);  GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6]);  GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7]);  GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]);
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]);
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[4]);
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[5]);
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[6]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[7]);
 
+	GPU_TESTRANGE3();
+	
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
 
@@ -135,34 +149,17 @@ void gpuDrawF3(const PP gpuPolySpanDriver)
 
 		u16* PixelBase  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
 		
-		if (!progressInterlace)
+		for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4)
 		{
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4)
-			{
-				if (ya&li) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
-				if(xa < xmin) xa = xmin;
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
-			}
-		}
-		else
-		{
-			bool flag=progressInterlace_flag;
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4)
-			{
-				if ((ya&li) && (flag=!flag)) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
-				if(xa < xmin) xa = xmin;
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
-			}
+			if (ya&li) continue;
+			if ((ya&pi)==pif) continue;
+			xa = x2i(x3);
+			xb = x2i(x4);
+			if( (xa>xmax) || (xb<xmin) ) continue;
+			if(xa < xmin) xa = xmin;
+			if(xb > xmax) xb = xmax;
+			xb-=xa;
+			if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
 		}
 	}
 }
@@ -174,6 +171,8 @@ FT3
 void gpuDrawFT3(const PP gpuPolySpanDriver)
 {
 	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
 	s32 temp;
 	s32 xa, xb, xmin, xmax;
 	s32 ya, yb, ymin, ymax;
@@ -182,13 +181,15 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 	s32 u0, u1, u2, u3, du3=0;
 	s32 v0, v1, v2, v3, dv3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );   GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );   GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6] );   GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7] );   GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[10]);   GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[11]);   GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[6] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
 
+	GPU_TESTRANGE3();
+	
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
 
@@ -328,58 +329,29 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 
 		u16* PixelBase  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
 
-		if (!progressInterlace)
+		for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3)
 		{
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3)
-			{
-				if (ya&li) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
+			if (ya&li) continue;
+			if ((ya&pi)==pif) continue;
+			xa = x2i(x3);
+			xb = x2i(x4);
+			if( (xa>xmax) || (xb<xmin) ) continue;
 
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					u4 = u3 + du4*temp;
-					v4 = v3 + dv4*temp;
-				}
-				else
-				{
-					u4 = u3;
-					v4 = v3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
-			}
-		}
-		else
-		{
-			bool flag=progressInterlace_flag;
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3)
+			temp = xmin - xa;
+			if(temp > 0)
 			{
-				if ((ya&li) && (flag=!flag)) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
-
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					u4 = u3 + du4*temp;
-					v4 = v3 + dv4*temp;
-				}
-				else
-				{
-					u4 = u3;
-					v4 = v3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
+				xa  = xmin;
+				u4 = u3 + du4*temp;
+				v4 = v3 + dv4*temp;
 			}
+			else
+			{
+				u4 = u3;
+				v4 = v3;
+			}
+			if(xb > xmax) xb = xmax;
+			xb-=xa;
+			if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
 		}
 	}
 }
@@ -391,6 +363,8 @@ G3
 void gpuDrawG3(const PP gpuPolySpanDriver)
 {
 	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
 	s32 temp;
 	s32 xa, xb, xmin, xmax;
 	s32 ya, yb, ymin, ymax;
@@ -400,13 +374,15 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 	s32 g0, g1, g2, g3, dg3=0;
 	s32 b0, b1, b2, b3, db3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );    GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );	  GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[6] );	  GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[7] );	  GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[10]);	  GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[11]);	  GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[6] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
 
+	GPU_TESTRANGE3();
+	
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
 
@@ -542,54 +518,27 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 
 		u16* PixelBase  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
 		
-		if (!progressInterlace)
+		for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, r3+=dr3, g3+=dg3, b3+=db3)
 		{
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, r3+=dr3, g3+=dg3, b3+=db3)
-			{
-				if (ya&li) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
+			if (ya&li) continue;
+			if ((ya&pi)==pif) continue;
+			xa = x2i(x3);
+			xb = x2i(x4);
+			if( (xa>xmax) || (xb<xmin) ) continue;
 
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
-				}
-				else
-				{
-					r4 = r3;  g4 = g3;  b4 = b3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
-			}
-		}
-		else
-		{
-			bool flag=progressInterlace_flag;
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, r3+=dr3, g3+=dg3, b3+=db3)
+			temp = xmin - xa;
+			if(temp > 0)
 			{
-				if ((ya&li) && (flag=!flag)) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin) ) continue;
-
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
-				}
-				else
-				{
-					r4 = r3;  g4 = g3;  b4 = b3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
+				xa  = xmin;
+				r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
 			}
+			else
+			{
+				r4 = r3;  g4 = g3;  b4 = b3;
+			}
+			if(xb > xmax) xb = xmax;
+			xb-=xa;
+			if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
 		}
 	}
 }
@@ -601,6 +550,8 @@ GT3
 void gpuDrawGT3(const PP gpuPolySpanDriver)
 {
 	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
 	s32 temp;
 	s32 xa, xb, xmin, xmax;
 	s32 ya, yb, ymin, ymax;
@@ -612,13 +563,15 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 	s32 g0, g1, g2, g3, dg3=0;
 	s32 b0, b1, b2, b3, db3=0;
 
-	x0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[2] );   GPU_TESTRANGE(x0);
-	y0 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[3] );   GPU_TESTRANGE(y0);
-	x1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[8] );   GPU_TESTRANGE(x1);
-	y1 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[9] );   GPU_TESTRANGE(y1);
-	x2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[14]);   GPU_TESTRANGE(x2);
-	y2 = GPU_EXPANDSIGN_POLY(PacketBuffer.S2[15]);   GPU_TESTRANGE(y2);
+	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2] );
+	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3] );
+	x1 = GPU_EXPANDSIGN(PacketBuffer.S2[8] );
+	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[9] );
+	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[14]);
+	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[15]);
 
+	GPU_TESTRANGE3();
+	
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
 	y0 += DrawingOffset[1];   y1 += DrawingOffset[1];   y2 += DrawingOffset[1];
 
@@ -780,58 +733,29 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 		r3+= fixed_HALF;  g3+= fixed_HALF;  b3+= fixed_HALF;
 		u16* PixelBase  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
 		
-		if (!progressInterlace)
+		for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3, r3+=dr3, g3+=dg3,	b3+=db3)
 		{
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3, r3+=dr3, g3+=dg3,	b3+=db3)
-			{
-				if (ya&li) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if( (xa>xmax) || (xb<xmin))	continue;
+			if (ya&li) continue;
+			if ((ya&pi)==pif) continue;
+			xa = x2i(x3);
+			xb = x2i(x4);
+			if( (xa>xmax) || (xb<xmin))	continue;
 
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					u4 = u3 + du4*temp;   v4 = v3 + dv4*temp;
-					r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
-				}
-				else
-				{
-					u4 = u3;  v4 = v3;
-					r4 = r3;  g4 = g3;  b4 = b3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
-			}
-		}
-		else
-		{
-			bool flag=progressInterlace_flag;
-			for(;ya<yb;++ya, PixelBase += FRAME_WIDTH, x3+=dx3, x4+=dx4, u3+=du3, v3+=dv3, r3+=dr3, g3+=dg3,	b3+=db3)
+			temp = xmin - xa;
+			if(temp > 0)
 			{
-				if ((ya&li) && (flag=!flag)) continue;
-				xa = x2i(x3);
-				xb = x2i(x4);
-				if ((xa>xmax) || (xb<xmin))	continue;
-
-				temp = xmin - xa;
-				if(temp > 0)
-				{
-					xa  = xmin;
-					u4 = u3 + du4*temp;   v4 = v3 + dv4*temp;
-					r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
-				}
-				else
-				{
-					u4 = u3;  v4 = v3;
-					r4 = r3;  g4 = g3;  b4 = b3;
-				}
-				if(xb > xmax) xb = xmax;
-				xb-=xa;
-				if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
+				xa  = xmin;
+				u4 = u3 + du4*temp;   v4 = v3 + dv4*temp;
+				r4 = r3 + dr4*temp;   g4 = g3 + dg4*temp;   b4 = b3 + db4*temp;
 			}
+			else
+			{
+				u4 = u3;  v4 = v3;
+				r4 = r3;  g4 = g3;  b4 = b3;
+			}
+			if(xb > xmax) xb = xmax;
+			xb-=xa;
+			if(xb>0) gpuPolySpanDriver(PixelBase + xa,xb);
 		}
 	}
 }

@@ -71,7 +71,7 @@ static void game_list_sort(void)
 	{
 		for(j = i + 1; j < game_num_avail; ++j)
 		{
-			if(strcmp(games[i], games[j]) > 0)
+			if(strcasecmp(games[i], games[j]) > 0)
 			{
 				strcpy(tmp,games[i]);
 				strcpy(games[i],games[j]);
@@ -224,7 +224,19 @@ static int show_options(char *game)
 			wiz_gamelist_text_out(x_Pos,y_Pos+30,"Frame-Limit   OFF");
 			
 		/* (3) Frame-Skip */
-		wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    %d %s",wiz_frameskip,(wiz_alt_fps?"(Game)":"(Video)"));
+		switch(wiz_frameskip)
+		{
+			case 1:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (if spd<50%)"); break;
+			case 2:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (if spd<60%)"); break;
+			case 3:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (if spd<70%)"); break;
+			case 4:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (if spd<80%)"); break;
+			case 5:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (if spd<90%)"); break;
+			case 6:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (minimum)"); break;
+			case 7:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (medium)"); break;
+			case 8:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    ON (maximum)"); break;
+			case 0:  wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    OFF"); break;
+			default: wiz_gamelist_text_out_fmt(x_Pos,y_Pos+40,"Frame-Skip    OFF"); wiz_frameskip=0; break;
+		}
 
 		/* (4) Interlace */
 		switch(wiz_interlace)
@@ -292,12 +304,9 @@ static int show_options(char *game)
 		/* (11) Game Fixes */
 		switch(wiz_fixes)
 		{
-			case 0: wiz_gamelist_text_out(x_Pos,y_Pos+120,"No Game Fixes"); break;
-			case 1: wiz_gamelist_text_out(x_Pos,y_Pos+120,"Sio Irq Always Enabled"); break;
-			case 2: wiz_gamelist_text_out(x_Pos,y_Pos+120,"Spu Irq Always Enabled"); break;
-			case 3: wiz_gamelist_text_out(x_Pos,y_Pos+120,"Parasite Eve 2, Vandal Hearts 1/2 fix"); break;
-			case 4: wiz_gamelist_text_out(x_Pos,y_Pos+120,"InuYasha Sengoku Battle fix"); break;
-			case 5: wiz_gamelist_text_out(x_Pos,y_Pos+120,"Abbe's Odyssey fix"); break;
+			case 1: wiz_gamelist_text_out(x_Pos,y_Pos+120,"Parasite Eve 2, Vandal Hearts 1/2 fix"); break;
+			case 2: wiz_gamelist_text_out(x_Pos,y_Pos+120,"InuYasha Sengoku Battle fix"); break;
+			case 0: default: wiz_gamelist_text_out(x_Pos,y_Pos+120,"No Game Fixes"); break;
 		}
 	
 		wiz_gamelist_text_out(x_Pos,y_Pos+140,"Press B to confirm, X to return\0");
@@ -410,12 +419,12 @@ static int show_options(char *game)
 				if(ExKey & WIZ_R)
 				{
 					wiz_frameskip++;
-					if (wiz_frameskip>11) { wiz_frameskip=0; wiz_alt_fps=!wiz_alt_fps; }
+					if (wiz_frameskip>8) { wiz_frameskip=0; }
 				}
 				else
 				{
 					wiz_frameskip--;
-					if (wiz_frameskip<0) { wiz_frameskip=11; wiz_alt_fps=!wiz_alt_fps; }
+					if (wiz_frameskip<0) { wiz_frameskip=8; }
 				}
 				break;
 			case 4:
@@ -473,12 +482,12 @@ static int show_options(char *game)
 				if(ExKey & WIZ_R)
 				{
 					wiz_fixes++;
-					if (wiz_fixes>5) wiz_fixes=0;
+					if (wiz_fixes>2) wiz_fixes=0;
 				}
 				else
 				{
 					wiz_fixes--;
-					if (wiz_fixes<0) wiz_fixes=5;
+					if (wiz_fixes<0) wiz_fixes=2;
 				}
                 break;
 			}
@@ -655,17 +664,8 @@ void execute_game (char *playemu, char *playgame)
 	switch(wiz_fixes)
 	{
 		case 0: break;
-		case 1: args[n]="-sioirq"; n++; break;
-		case 2: args[n]="-spuirq"; n++; break;
-		case 3: args[n]="-rcntfix"; n++; break;
-		case 4: args[n]="-vsyncwa"; n++; break;
-		case 5: args[n]="-abbey"; n++; break;
-	}
-	
-	/* Alternate FPS algorithm */
-	if (wiz_alt_fps)
-	{
-		args[n]="-alt_fps"; n++;
+		case 1: args[n]="-rcntfix"; n++; break;
+		case 2: args[n]="-vsyncwa"; n++; break;
 	}
 	
 	args[n]="-frontend"; n++;

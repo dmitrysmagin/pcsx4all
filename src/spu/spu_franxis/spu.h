@@ -56,7 +56,7 @@ typedef struct
 
 // ~ 1 ms of data
 #define NSSIZE 32
-#define NSSIZE_PAL 30
+#define CYCLES 16
 
 #define H_SPUirqAddr     0x0da4
 #define H_SPUaddr        0x0da6
@@ -188,18 +188,17 @@ INLINE void CLIP_SHORT(int &b) { const int m=0x7fff; int a; asm ("mov %1,%2,asr#
 
 typedef struct
 {
-	int            State;
-	int            AttackModeExp;
-	int            AttackRate;
-	int            DecayRate;
-	int            SustainLevel;
-	int            SustainModeExp;
-	int            SustainIncrease;
-	int            SustainRate;
-	int            ReleaseModeExp;
-	int            ReleaseRate;
+	unsigned char  State:2;
+	unsigned char  AttackModeExp:1;
+	unsigned char  SustainModeExp:1;
+	unsigned char  SustainIncrease:1;
+	unsigned char  ReleaseModeExp:1;
+	unsigned char  AttackRate;
+	unsigned char  DecayRate;
+	unsigned char  SustainLevel;
+	unsigned char  SustainRate;
+	unsigned char  ReleaseRate;
 	int            EnvelopeVol;
-	long           lVolume;
 } ADSRInfoEx;
 
 ///////////////////////////////////////////////////////////
@@ -207,35 +206,26 @@ typedef struct
 // MAIN CHANNEL STRUCT
 typedef struct
 {
-	bool              bNew;                               // start flag
-	bool              bOn;                                // is channel active (sample playing?)
-	bool              bStop;                              // is channel stopped (sample _can_ still be playing, ADSR Release phase)
-	bool              bIgnoreLoop;                        // ignore loop bit, if an external loop address is used
-
-	bool              bNoise;                             // noise active flag
-	unsigned char     bFMod;                              // freq mod (0=off, 1=sound channel, 2=freq channel)
-	unsigned char     iLeftVolume;                        // left volume (0..16)
-	unsigned char     iSBPos;                             // mixing stuff
-
+	int               iSBPos;                             // mixing stuff
 	int               spos;
 	int               sinc;
-	int               sval;
-	int               iActFreq;                           // current psx pitch
-	int               iUsedFreq;                          // current pc pitch
-	int               iRawPitch;                          // raw pitch (0...3fff)
-
-	int               SB[30];
-	int               s_1;                                // last decoding infos
-	int               s_2;
+	int               iLeftVolume;                        // left volume (0..16)
 
 	unsigned char *   pStart;                             // start ptr into sound mem
 	unsigned char *   pCurr;                              // current pos in sound mem
 	unsigned char *   pLoop;                              // loop ptr in sound mem
+	
+	bool              bStop:1;                            // is channel stopped (sample _can_ still be playing, ADSR Release phase)
+	bool              bNoise:1;                           // noise active flag
+	unsigned char     bFMod:2;                            // freq mod (0=off, 1=sound channel, 2=freq channel)
 
+	int               iActFreq;                           // current psx pitch
+	int               iUsedFreq;                          // current pc pitch
+	ADSRInfoEx        ADSRX;                              // next ADSR settings (will be moved to active on sample start)
+	int               iRawPitch;                          // raw pitch (0...3fff)
 	int               iOldNoise;                          // old noise val for this channel   
 
-	ADSRInfoEx        ADSRX;                              // next ADSR settings (will be moved to active on sample start)
-
+	int               SB[30];
 } SPUCHAN;
 
 ///////////////////////////////////////////////////////////
@@ -258,6 +248,8 @@ extern unsigned short spuCtrl;
 extern unsigned short spuStat;
 extern unsigned short spuIrq;
 extern unsigned long  spuAddr;
+extern unsigned int dwNewChannel;
+extern unsigned int dwChannelOn;
 
 extern int      SSumL[];
 extern short *  pS;

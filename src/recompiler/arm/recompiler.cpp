@@ -32,6 +32,11 @@
 #include "port.h"
 
 
+#ifdef __SYMBIAN32__
+void CLEAR_INSN_CACHE(u32* BEG, u32* END);
+#define sys_cacheflush CLEAR_INSN_CACHE
+#endif
+
 static u32 psxRecLUT[0x010000];
 
 #undef PC_REC
@@ -79,7 +84,7 @@ static u32 psxRecLUT[0x010000];
 // CHUI: El maximo de registros a precachear en la fase previa
 #define REC_MAX_2ND_REG_CACHE 6
 // CHUI: El maximo de veces que un bloque no enlaza con el siguiente
-#define REC_MAX_2ND_NOLINK (16*1024)
+#define REC_MAX_2ND_NOLINK 1024
 // CHUI: Longitud maxima para forzar la tabla de immediatos
 #define REC_MAX_IMMEDIATE_LONG 1024
 // CHUI: Longitud de la tabla de UpdateRegs (consume mucha memoria)
@@ -125,6 +130,8 @@ static u32 psxRecLUT[0x010000];
 #define REC_USE_GTE_ASM_FUNCS
 // CHUI: Definido para mapear registros GTE sobre la CPU
 #define REC_USE_GTE_MAP_REGS
+// CHUI: Definido para poner en linea de 32 bytes
+#define REC_USE_ALIGN
 
 #ifdef gte_none
 #ifndef REC_USE_GTE_ASM_FUNCS
@@ -135,8 +142,11 @@ static u32 psxRecLUT[0x010000];
 #endif
 
 int rec_secure_writes=0;
-
+#ifndef __SYMBIAN32__
 static char recMem[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));	/* the recompiled blocks will be here */
+#else
+extern char *recMem;//[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));	/* the recompiled blocks will be here */
+#endif
 static char recRAM[0x200000] __attribute__ ((__aligned__ (32)));	/* and the ptr to the blocks here */
 static char recROM[0x080000] __attribute__ ((__aligned__ (32)));	/* and here */
 
@@ -2613,13 +2623,13 @@ static void recFunctions() {
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION Return --");
 #endif
-	recReturn(0);
+	recReturn(0); gen_align4();
 #ifdef REC_USE_FAST_BLOCK
 	func_TestBranchBlock_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION TestBranchBlock --");
 #endif
-	recTestBranchBlock(0);
+	recTestBranchBlock(0); gen_align4();
 #endif
 #endif
 #ifdef REC_USE_MEMORY_FUNCS
@@ -2627,48 +2637,48 @@ static void recFunctions() {
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION MemRead8 --");
 #endif
-	recMemRead8();
+	recMemRead8(); gen_align4();
 	func_MemRead16_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbgf("-- FUNCTION MemRead16 --");
 #endif
-	recMemRead16();
+	recMemRead16(); gen_align4();
 	func_MemRead32_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION MemRead32 --");
 #endif
-	recMemRead32();
+	recMemRead32(); gen_align4();
 	func_HWRead8_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION HWRead8 --");
 #endif
-	recHWRead8();
+	recHWRead8(); gen_align4();
 	func_HWRead16_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION HWRead16 --");
 #endif
-	recHWRead16();
+	recHWRead16(); gen_align4();
 	func_HWRead32_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbgf("-- FUNCTION HWRead32 --");
 #endif
-	recHWRead32();
+	recHWRead32(); gen_align4();
 #if !defined(USE_CYCLE_ADD) && !defined(DEBUG_CPU_OPCODES)
 	func_MemWrite8_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION MemWrite8 --");
 #endif
-	recMemWrite8();
+	recMemWrite8(); gen_align4();
 	func_MemWrite16_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION MemWrite16 --");
 #endif
-	recMemWrite16();
+	recMemWrite16(); gen_align4();
 	func_MemWrite32_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION MemWrite32 --");
 #endif
-	recMemWrite32();
+	recMemWrite32(); gen_align4();
 #endif
 #endif
 #if defined(REC_USE_GTE_FUNCS) && defined(gte_new)
@@ -2677,52 +2687,52 @@ static void recFunctions() {
 	dbg("-- FUNCTION GTE_MFC2 --");
 #endif
 	recGTE_MFC2_29(HOST_r0);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 
 	func_GTE_MTC2_15_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_MTC2_15 --");
 #endif
 	recGTE_MTC2_15(HOST_r1);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 
 	func_GTE_MTC2_28_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_MTC2_28 --");
 #endif
 	recGTE_MTC2_28(HOST_r1);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 
 	func_GTE_updateCODEs_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateCODEs --");
 #endif
 	recGTE_updateCODEs();
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 	func_GTE_updateMACs_lm0_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateMACs0 --");
 #endif
 	recGTE_updateMACs(0,0);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 	func_GTE_updateMACs_lm1_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateMACs1 --");
 #endif
 	recGTE_updateMACs(1,0);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 	func_GTE_updateMACs_lm0_shift12_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateMACs0_12 --");
 #endif
 	recGTE_updateMACs(0,12);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 	func_GTE_updateMACs_lm1_shift12_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateMACs1_12 --");
 #endif
 	recGTE_updateMACs(1,12);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 #ifndef USE_GTE_FLAG
 	func_GTE_updateMACs_lm0_flag_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
@@ -2732,7 +2742,7 @@ static void recFunctions() {
 	MOV32ItoM_regs((u32)&psxRegs.CP2C.r[31],0);
 #endif
 	recGTE_updateMACs_flag(0,0,1);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 	func_GTE_updateMACs_lm1_flag_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
 	dbg("-- FUNCTION GTE_updateMACs1_flag --");
@@ -2741,7 +2751,7 @@ static void recFunctions() {
 	MOV32ItoM_regs((u32)&psxRegs.CP2C.r[31],0);
 #endif
 	recGTE_updateMACs_flag(1,0,1);
-	write32(BX_LR());
+	write32(BX_LR()); gen_align4();
 #endif
 	func_GTE_updateMAC3_lm0_flag_ptr=(unsigned)armPtr;
 #ifdef DEBUG_CPU
@@ -2916,6 +2926,7 @@ static void recRecompile() {
 			UpdateGteDelay(1);
 			ResetMapGteRegs();
 //			iResetRegw();
+//			gen_align4();
 			rec_skips = rec_total_opcodes-REC_MAX_SKIPS;
 			recPrev[rec_total_opcodes].ptr=armPtr;
 			memcpy((void *)&recPrev[rec_total_opcodes].regs,iRegs,sizeof(iRegs));
@@ -2970,6 +2981,7 @@ static void recRecompile() {
 	}
 #endif
 	UpdateImmediate(1);
+	gen_align4();
 	sys_cacheflush(armPtr_old,armPtr);
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_REC,PCSX4ALL_PROF_CPU);
 #ifdef DEBUG_CPU

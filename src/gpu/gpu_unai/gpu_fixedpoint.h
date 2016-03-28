@@ -23,11 +23,7 @@
 
 typedef s32 fixed;
 
-#ifdef GPU_TABLE_10_BITS
-#define TABLE_BITS 10
-#else
 #define TABLE_BITS 16
-#endif
 
 #define FIXED_BITS 16
 
@@ -42,37 +38,12 @@ s32 s_invTable[(1<<TABLE_BITS)];
 INLINE  fixed i2x(const int   _x) { return  ((_x)<<FIXED_BITS); }
 INLINE  fixed x2i(const fixed _x) { return  ((_x)>>FIXED_BITS); }
 
-/*
-INLINE u32 Log2(u32 _a)
-{
-  u32 c = 0; // result of log2(v) will go here
-  if (_a & 0xFFFF0000) { _a >>= 16; c |= 16;  }
-  if (_a & 0xFF00) { _a >>= 8; c |= 8;  }
-  if (_a & 0xF0) { _a >>= 4; c |= 4;  }
-  if (_a & 0xC) { _a >>= 2; c |= 2;  }
-  if (_a & 0x2) { _a >>= 1; c |= 1;  }
-  return c;
-}
-*/
-
 #ifdef __arm__
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }
 #else
 INLINE u32 Log2(u32 x) { u32 i = 0; for ( ; x > 0; ++i, x >>= 1); return i - 1; }
 #endif
 
-#ifdef GPU_TABLE_10_BITS
-INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
-{
-    u32 uD   = (_b<0) ? -_b : _b ;
-    u32 uLog = Log2(uD);
-    uLog = uLog>(TABLE_BITS-1) ? uLog-(TABLE_BITS-1) : 0;
-    u32 uDen = uD>>uLog;
-    iFactor_ = s_invTable[uDen];
-    iFactor_ = (_b<0) ? -iFactor_ :iFactor_;
-    iShift_  = 15+uLog;
-}
-#else
 INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
 {
   u32 uD = (_b<0) ? -_b : _b;
@@ -80,7 +51,7 @@ INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
   {
 	u32 uLog = Log2(uD);
     uLog = uLog>(TABLE_BITS-1) ? uLog-(TABLE_BITS-1) : 0;
-    u32 uDen = (uD>>uLog)-1;
+    u32 uDen = (uD>>uLog);
     iFactor_ = s_invTable[uDen];
     iFactor_ = (_b<0) ? -iFactor_ :iFactor_;
     iShift_  = 15+uLog;
@@ -91,7 +62,6 @@ INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
     iShift_ = 0;
   }
 }
-#endif
 
 INLINE  fixed xInvMulx  (const fixed _a, const s32 _iFact, const s32 _iShift)
 {

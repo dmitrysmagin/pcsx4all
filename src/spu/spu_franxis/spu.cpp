@@ -42,8 +42,17 @@ unsigned short  spuStat=0;
 unsigned short  spuIrq=0;
 unsigned long   spuAddr=0xffffffff;                    // address into spu mem
 
+unsigned int dwNewChannel=0;                           // flags for faster testing, if new channel starts
+unsigned int dwChannelOn=0;
+unsigned long dwPendingChanOff=0;
+
 // certain globals (were local before, but with the new timeproc I need em global)
 
+static const int f[5][2] = {   {    0,  0  },
+                        {   60,  0  },
+                        {  115, -52 },
+                        {   98, -55 },
+                        {  122, -60 } };
 signed int SSumL[NSSIZE];
 signed int iFMod[NSSIZE];
 signed short * pS;
@@ -68,20 +77,11 @@ bool nullspu=false; // no sound
 
 INLINE void StartSound(SPUCHAN *l_chan)
 {
-	l_chan->ADSRX.lVolume=1;                           // and init some adsr vars
 	l_chan->ADSRX.State=0;
 	l_chan->ADSRX.EnvelopeVol=0;
-
-	//l_chan->pCurr=l_chan->pStart;                   // set sample start
-
-	l_chan->s_1=0;                                     // init mixing vars
-	l_chan->s_2=0;
+	l_chan->SB[26]=0;                                     // init mixing vars
+	l_chan->SB[27]=0;
 	l_chan->iSBPos=28;
-
-	l_chan->bNew=false;                                    // init channel flags
-	//l_chan->bStop=false;
-	//l_chan->bOn=true;
-
 	l_chan->SB[29]=0;                                  // init our interpolation helpers
 	l_chan->spos=0x10000L;
 }
@@ -95,7 +95,7 @@ INLINE void VoiceChangeFrequency(SPUCHAN *l_chan)
 	l_chan->iUsedFreq=l_chan->iActFreq;             // -> take it and calc steps
 	l_chan->sinc=l_chan->iRawPitch<<4;
 	if(!l_chan->sinc) l_chan->sinc=1;
-	l_chan->sinc*=2;
+	l_chan->sinc<<=1;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -104,7 +104,7 @@ INLINE void FModChangeFrequency(SPUCHAN *l_chan,int ns,signed int *mod)
 {
 	int NP=l_chan->iRawPitch;
 
-	NP=((32768L+mod[ns])*NP)/32768L;
+	NP=SDIV(((32768L+mod[ns])*NP),32768L);
 
 	if(NP>0x3fff) NP=0x3fff;
 	if(NP<0x1)    NP=0x1;
@@ -113,9 +113,9 @@ INLINE void FModChangeFrequency(SPUCHAN *l_chan,int ns,signed int *mod)
 
 	l_chan->iActFreq=NP;
 	l_chan->iUsedFreq=NP;
-	l_chan->sinc=(((NP/10)<<16)/4410);
+	l_chan->sinc=UDIV(((NP/10)<<16),4410);
 	if(!l_chan->sinc) l_chan->sinc=1;
-	l_chan->sinc*=2;
+	l_chan->sinc<<=1;
 	mod[ns]=0;
 }                    
 
@@ -139,7 +139,7 @@ INLINE int iGetNoiseVal(SPUCHAN *l_chan)
 	else fa=(dwNoiseVal>>2)&0x7fff;
 
 	// mmm... depending on the noise freq we allow bigger/smaller changes to the previous val
-	fa=l_chan->iOldNoise+((fa-l_chan->iOldNoise)/((0x001f-((spuCtrl&0x3f00)>>9))+1));
+	fa=l_chan->iOldNoise+SDIV((fa-l_chan->iOldNoise),((0x001f-((spuCtrl&0x3f00)>>9))+1));
 	CLIP_SHORT(fa);
 	l_chan->iOldNoise=fa;
 
@@ -151,8 +151,7 @@ INLINE int iGetNoiseVal(SPUCHAN *l_chan)
 
 INLINE void StoreInterpolationVal(SPUCHAN *l_chan,int fa)
 {
-	if(l_chan->bFMod==2)                               // fmod freq channel
-	l_chan->SB[29]=fa;
+	if(l_chan->bFMod==2) l_chan->SB[29]=fa; // fmod freq channel
 	else
 	{
 		if((spuCtrl&0x4000)==0) fa=0;                       // muted?
@@ -173,20 +172,22 @@ INLINE void StoreInterpolationVal(SPUCHAN *l_chan,int fa)
 static void SoundUpdate(void)
 {
 	int fa,ns,ch;
-	int nssize=(Config.PsxType?NSSIZE_PAL:NSSIZE);
+	int nssize=NSSIZE;
 	signed int *sum=SSumL;
 	signed int *mod=iFMod;
-
+	int sval;
+	
 	// main channel loop
 	for(ch=0;ch<MAXCHAN;ch++)                         // loop em all... we will collect 1 ms of sound of each playing channel
 	{
 		SPUCHAN *l_chan=&s_chan[ch];
 
-		if(l_chan->bNew)
+		if(dwNewChannel&(1<<ch))
 		{
 			StartSound(l_chan); // start new sound
+			dwNewChannel&=~(1<<ch); // clear new channel bit
 		}
-		if(!l_chan->bOn) continue;                   // channel not playing? next
+		if(!(dwChannelOn&(1<<ch))) continue;         // channel not playing? next
 		if(l_chan->iActFreq!=l_chan->iUsedFreq) VoiceChangeFrequency(l_chan); // new psx frequency
 
 		ns=0;
@@ -201,61 +202,60 @@ static void SoundUpdate(void)
 				{
 					unsigned char *start=l_chan->pCurr;                   // set up the current pos
 
-					if (start == (unsigned char*)-1)          // special "stop" sign
+					if (start==(unsigned char*)-1||(dwPendingChanOff&(1<<ch))) // special "stop" sign
 					{
-						l_chan->bOn=false;                       // -> turn everything off
-						l_chan->ADSRX.lVolume=0;
+						dwChannelOn&=~(1<<ch);                  // -> turn everything off
+						dwPendingChanOff&=~(1<<ch);
+						s_chan[ch].bStop=true;
 						l_chan->ADSRX.EnvelopeVol=0;
 						goto ENDX;                              // -> and done for this channel
 					}
 
 					l_chan->iSBPos=0;
 					{
-						int s_1=l_chan->s_1;
-						int s_2=l_chan->s_2;
+						int *dest=l_chan->SB;
+						int s_1=dest[27];
+						int s_2=dest[26];
 						int predict_nr;
 						int shift_factor;
 						int flags;
 						predict_nr=(int)*start; start++;
 						shift_factor=predict_nr&0xf; predict_nr >>= 4;
 						flags=(int)*start; start++;
+						if(predict_nr>4) predict_nr=0;
 						{
 							unsigned int nSample;
 							int d,s;
-							static const int f[5][2] = { {0,0}, {60,0}, {115,-52}, {98,-55}, {122,-60 } };
 
 							for (nSample=0;nSample<28;start++)      
 							{
 								d=(int)*start;
-								s=((d&0xf)<<12);
-								if(s&0x8000) s|=0xffff0000;
 
-								fa=(s >> shift_factor);
-								fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
-								s_2=s_1;s_1=fa;
-								s=((d & 0xf0) << 8);
-
-								l_chan->SB[nSample++]=fa;
-
-								if(s&0x8000) s|=0xffff0000;
-								fa=(s>>shift_factor);
-								fa=fa + ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+								s = (int)(signed short)((d & 0x0f) << 12);
+								fa = (s>>shift_factor);
+								fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
 								s_2=s_1;s_1=fa;
 
-								l_chan->SB[nSample++]=fa;
+								dest[nSample++]=fa;
+
+								s = (int)(signed short)((d & 0xf0) << 8);
+								fa = (s>>shift_factor);
+								fa += ((s_1 * f[predict_nr][0])>>6) + ((s_2 * f[predict_nr][1])>>6);
+								s_2=s_1;s_1=fa;
+
+								dest[nSample++]=fa;
 							}
 						}
 
 						// flag handler
-						if((flags&4) && (!l_chan->bIgnoreLoop)) l_chan->pLoop=start-16; // loop adress
+						if(flags&4) l_chan->pLoop=start-16; // loop adress
 						if(flags&1) // 1: stop/loop
 						{
-							if(flags!=3 || l_chan->pLoop==NULL) start = (unsigned char*)-1;
-							else start = l_chan->pLoop;
+							if(!(flags&2)) dwPendingChanOff|=1<<ch;
+							start = l_chan->pLoop;
 						}
-						l_chan->pCurr=start;                   // store values for next cycle
-						l_chan->s_1=s_1;
-						l_chan->s_2=s_2;
+						if (start - spuMemC >= 0x80000) start = (unsigned char*)-1;
+						l_chan->pCurr=start; // store values for next cycle
 					}
 				}
 
@@ -267,10 +267,10 @@ static void SoundUpdate(void)
 			if(l_chan->bNoise) fa=iGetNoiseVal(l_chan); // get noise val
 			else fa=l_chan->SB[29]; // get sample val
 
-			l_chan->sval = fa>>sound_scale[(MixADSR(l_chan)>>1)];  // mix adsr
+			sval = fa>>sound_scale[(MixADSR(ch)>>1)];  // mix adsr
 
-			if(l_chan->bFMod==2) mod[ns]=l_chan->sval; // store 1T sample data, use that to do fmod on next channel
-			else sum[ns]+=l_chan->sval>>l_chan->iLeftVolume; // left sound volume (psx volume goes from 0 ... 0x3fff)
+			if(l_chan->bFMod==2) mod[ns]=sval; // store 1T sample data, use that to do fmod on next channel
+			else sum[ns]+=sval>>l_chan->iLeftVolume; // left sound volume (psx volume goes from 0 ... 0x3fff)
 
 			// ok, go on until 1 ms data of this channel is collected
 			ns++;
@@ -318,10 +318,10 @@ ENDX:;
 	// feed the sound: wanna have around 1/60 sec (16.666 ms) updates
 	{
 		static int iCycle=0;
-		if (iCycle++ > 16)
+		if (iCycle++ > CYCLES)
 		{
 			sound_set((unsigned char *)pSpuBuffer,((unsigned char *)pS)-((unsigned char *)pSpuBuffer));
-			pS = (short *)pSpuBuffer;
+			pS = (short *)(void *)pSpuBuffer;
 			iCycle = 0;
 		}
 	}
@@ -361,7 +361,7 @@ INLINE void SetupStreams(void)
 { 
 	int i;
 
-	pSpuBuffer=(unsigned char *)malloc(8192);            // alloc mixing buffer
+	pSpuBuffer=(unsigned char *)malloc(((CYCLES+2)*NSSIZE*2));            // alloc mixing buffer
 
 	XAStart =                                             // alloc xa buffer
 	(uint16_t *)malloc(22050 * sizeof(uint16_t));
@@ -377,7 +377,7 @@ INLINE void SetupStreams(void)
 
 	for(i=0;i<MAXCHAN;i++)                                // loop sound channels
 	{
-		s_chan[i].ADSRX.SustainLevel = 1024;                // -> init sustain
+		s_chan[i].ADSRX.SustainLevel = 0x000f;                // -> init sustain
 		s_chan[i].pLoop=spuMemC;
 		s_chan[i].pStart=spuMemC;
 		s_chan[i].pCurr=spuMemC;
@@ -416,7 +416,7 @@ long SPU_init(void)
 
 		memset(SSumL,0,NSSIZE*sizeof(int));
 		memset(iFMod,0,NSSIZE*sizeof(int));
-		pS=(short *)pSpuBuffer;                               // setup soundbuffer pointer
+		pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 	}
 	return 0;
 }
@@ -478,6 +478,9 @@ INLINE void LoadStateV5(SPUFreeze_t * pF)
 		if (spuAddr == 0xbaadf00d) spuAddr = 0;
 	}
 
+	dwNewChannel=0;
+	dwChannelOn=0;
+	
 	for(i=0;i<MAXCHAN;i++)
 	{
 		memcpy((void *)&s_chan[i],(void *)&pFO->s_chan[i],sizeof(SPUCHAN));
@@ -496,14 +499,14 @@ INLINE void LoadStateUnknown(SPUFreeze_t * pF)
 
 	for(i=0;i<MAXCHAN;i++)
 	{
-		s_chan[i].bOn=false;
-		s_chan[i].bNew=false;
 		s_chan[i].bStop=false;
 		s_chan[i].pLoop=spuMemC;
 		s_chan[i].pStart=spuMemC;
 		s_chan[i].pLoop=spuMemC;
 	}
 
+	dwNewChannel=0;
+	dwChannelOn=0;
 	pSpuIrq=0;
 
 	for(i=0;i<0xc0;i++)
@@ -570,7 +573,7 @@ long SPU_freeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
 		memset(SSumL,0,NSSIZE*sizeof(int));
 		memset(iFMod,0,NSSIZE*sizeof(int));
-		pS=(short *)pSpuBuffer;                               // setup soundbuffer pointer
+		pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 
 		return 1;
 		//--------------------------------------------------//
@@ -613,7 +616,7 @@ long SPU_freeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
 	memset(SSumL,0,NSSIZE*sizeof(int));
 	memset(iFMod,0,NSSIZE*sizeof(int));
-	pS=(short *)pSpuBuffer;                               // setup soundbuffer pointer
+	pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 
 	return 1;
 }

@@ -1,7 +1,7 @@
 
-==================================================================================================
-PCSX4ALL 2.0 (29 de diciembre de 2010) por Franxis (franxism@gmail.com) y Chui (sdl_gp32@yahoo.es)
-==================================================================================================
+=============================================================================================
+PCSX4ALL 2.3 (03 de mayo de 2012) por Franxis (franxism@gmail.com) y Chui (sdl_gp32@yahoo.es)
+=============================================================================================
 
 
 1. INTRODUCCIÓN
@@ -11,8 +11,9 @@ PCSX4ALL es un emulador de PSOne (PSX) para la consolas portátiles WIZ/CAANOO de
 Se trata de un port del emulador PCSX Reloaded.
 Para ver la licencia GPL mira el final de este documento (capítulo 14).
 
-La página oficial de este proyecto (con noticias, información adicional y donaciones) es:
+Las páginas oficiales de este proyecto (con noticias, información adicional y donaciones) son:
 http://chui.dcemu.co.uk/
+http://franxis.zxq.net/
 
 
 2. CONTROLES
@@ -40,16 +41,22 @@ Se puede seleccionar frecuencias de 200 a 900 MHz. El rendimiento del emulador e
 
 - RAM Tweaks:
 ON: Se activan los tweaks de la RAM para ganar más rendimiento. Algunas consolas presentan problemas con esta opción. Recomendado en WIZ.
-OFF: Se desactiva los tweaks de la RAM para asegurar el funcionamiento en cualquier consola. Recomendado en CAANOO.
+OFF: Se desactivan los tweaks de la RAM para asegurar el funcionamiento en cualquier consola. Recomendado en CAANOO.
 
 - Frame-Limit:
 ON: Limitador de frames habilitado.
 OFF: Limitador de frames deshabilitado.
 
 - Frame-Skip:
-0 to 11: Ajustar frame-skip.
-Video: El frame-skip se ajusta en función de la velocidad de refresco de video (NTSC=60 Hz o PAL=50 Hz).
-Game: El frame-skip se ajusta en función del frame-rate del juego (dependiente del juego).
+Frame-Skip OFF: Frame-skip deshabilitado
+Frame-Skip ON (if spd<50%): Frame-skip automático si velocidad < 50%
+Frame-Skip ON (if spd<60%): Frame-skip automático si velocidad < 60%
+Frame-Skip ON (if spd<70%): Frame-skip automático si velocidad < 70%
+Frame-Skip ON (if spd<80%): Frame-skip automático si velocidad < 80%
+Frame-Skip ON (if spd<90%): Frame-skip automático si velocidad < 90%
+Frame-Skip ON (minimum): Frame-skip habilitado (mínimo)
+Frame-Skip ON (medium): Frame-skip habilitado (medio)
+Frame-Skip ON (maximum): Frame-skip habilitado (máximo)
 
 - Interlace:
 OFF: Entrelazado de video desactivado.
@@ -97,19 +104,17 @@ OFF: El modo de auto-guardado está desactivado.
 ON: El estado del juego se carga automáticamente al comenzar y se graba al salir.
 
 - Game Fixes:
-Sio Irq Always Enabled
-Spu Irq Always Enabled
 Parasite Eve 2, Vandal Hearts 1/2 fix
 InuYasha Sengoku Battle fix
-Abbe's Odyssey fix
 
 
 4. INSTALACIÓN
 --------------
 
-autorun.gpu         -> Script de auto-run (WIZ)
+autorun.gpu         -> Script de auto-run
 mcd001.mcr          -> Memory-card #1
 mcd002.mcr          -> Memory-card #2
+pcsx4all.gpe        -> Script de selección automática WIZ/CAANOO
 pcsx4all_wiz.gpe    -> Menú de selección de juegos (WIZ)
 pcsx4all_wiz        -> Ejecutable del emulador (WIZ)
 pcsx4all_caanoo.gpe -> Menú de selección de juegos (CAANOO)
@@ -157,6 +162,15 @@ save/               -> Directorio para los save-states
 
 8. DESARROLLO
 -------------
+
+3 de mayo de 2012:
+- Versión 2.3. Muchos cambios internos. Mejoras en el HLE, en el frame-skip, optimizaciones, etc.
+
+10 de abril de 2011:
+- Versión 2.2. Corregido fallo en el limitador de frames.
+
+9 de abril de 2011:
+- Versión 2.1. Añadido soporte para TV-Out en la WIZ. Optimizaciones y mejoras de compatibilidad en HLE, GPU y SPU.
 
 29 de diciembre de 2010:
 - Versión 2.0. Añadido port para CAANOO. Diversas mejoras (Auto-BIAS y detección de idle-loop por ejemplo).

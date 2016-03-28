@@ -98,10 +98,14 @@ typedef Bit8u HostReg;
 #define MOV_REG_LSL_IMM(dst, src, imm) (0xe1a00000 + ((dst) << 12) + (src) + ((imm) << 7) )
 // movs dst, src, lsl #imm
 #define MOVS_REG_LSL_IMM(dst, src, imm) (0xe1b00000 + ((dst) << 12) + (src) + ((imm) << 7) )
+// movcc dst, src, lsl #imm
+#define MOVCC_REG_LSL_IMM(dst, src, imm) (0x31a00000 + ((dst) << 12) + (src) + ((imm) << 7) )
 // mov dst, src, lsr #imm
 #define MOV_REG_LSR_IMM(dst, src, imm) (imm?(0xe1a00020 + ((dst) << 12) + (src) + ((imm) << 7)):(MOV_REG_LSL_IMM(dst,src,0)))
 // mov dst, src, asr #imm
 #define MOV_REG_ASR_IMM(dst, src, imm) (imm?(0xe1a00040 + ((dst) << 12) + (src) + ((imm) << 7)):(MOV_REG_LSL_IMM(dst,src,0)))
+// movcc dst, src, asr #imm
+#define MOVCC_REG_ASR_IMM(dst, src, imm) (imm?(0x31a00040 + ((dst) << 12) + (src) + ((imm) << 7)):(MOVCC_REG_LSL_IMM(dst,src,0)))
 // mov dst, src, lsl rreg
 #define MOV_REG_LSL_REG(dst, src, rreg) (0xe1a00010 + ((dst) << 12) + (src) + ((rreg) << 8) )
 // mov dst, src, lsr rreg
@@ -164,12 +168,16 @@ typedef Bit8u HostReg;
 #define LDRCC_IMM(reg, addr, imm) (0x35900000 + ((reg) << 12) + ((addr) << 16) + (imm) )
 // ldr reg, [reg, reg]
 #define LDR_REG(reg_dest, reg_src1, reg_src2) (0xe7900000 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
+// ldrcc reg, [reg, reg]
+#define LDRCC_REG(reg_dest, reg_src1, reg_src2) (0x37900000 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
 // ldr reg, [reg, reg, lsl #imm]
 #define LDR_REG_LSL(reg_dest, reg_src1, reg_src2, imm) (0xe7900000 + ((reg_dest) << 12) + ((reg_src1) << 16) + (imm << 7) + (reg_src2) )
 // ldrh reg, [addr, #imm]		@	0 <= imm < 256
 #define LDRH_IMM(reg, addr, imm) (0xe1d000b0 + ((reg) << 12) + ((addr) << 16) + (((imm) & 0xf0) << 4) + ((imm) & 0x0f) )
 // ldrh reg, [reg, reg]
 #define LDRH_REG(reg_dest, reg_src1, reg_src2) (0xe19000b0 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
+// ldrcch reg, [reg, reg]
+#define LDRCCH_REG(reg_dest, reg_src1, reg_src2) (0x319000b0 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
 // ldrsh reg, [addr, #imm]		@	0 <= imm < 256
 #define LDRSH_IMM(reg, addr, imm) (0xe1d000f0 + ((reg) << 12) + ((addr) << 16) + (((imm) & 0xf0) << 4) + ((imm) & 0x0f) )
 // ldrsh reg, [reg, reg]
@@ -178,6 +186,8 @@ typedef Bit8u HostReg;
 #define LDRB_IMM(reg, addr, imm) (0xe5d00000 + ((reg) << 12) + ((addr) << 16) + (imm) )
 // ldrb reg, [reg, reg]
 #define LDRB_REG(reg_dest, reg_src1, reg_src2) (0xe7d00000 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
+// ldrccb reg, [reg, reg]
+#define LDRCCB_REG(reg_dest, reg_src1, reg_src2) (0x37d00000 + ((reg_dest) << 12) + ((reg_src1) << 16) + (reg_src2) )
 
 // store
 // str reg, [addr, #imm]		@	0 <= imm < 4096
@@ -782,4 +792,12 @@ INLINE void gen_fill_branch(DRC_PTR_SIZE_IM data) {
 	while((u32)armPtr < (data+8))
 		write32(NOP);
 	*(Bit32u*)data=( (*(Bit32u*)data) & 0xff000000 ) | ( ( ((Bit32u)armPtr - (data+8)) >> 2 ) & 0x00ffffff );
+}
+
+INLINE void gen_align4(void) {
+#ifdef REC_USE_ALIGN
+	if (!rec_phase) return;
+	while(((u32)armPtr)&0x1f)
+		write32(NOP);
+#endif
 }

@@ -26,6 +26,8 @@
 #define dbgte(name)
 #endif
 
+// #define USE_OLD_GTE_WITHOUT_PATCH
+
 static unsigned func_GTE_updateMACs_lm0_ptr=0;
 static unsigned func_GTE_updateMACs_lm1_ptr=0;
 static unsigned func_GTE_updateMACs_lm0_shift12_ptr=0;
@@ -277,7 +279,11 @@ static void recMFC2(void) {
 #ifdef REC_USE_GTECALC_INLINE
 	if (!_Rt_) return;
 #ifdef REC_USE_GTE_DELAY_CALC
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	if (_Rd_==29 || _Rd_==9 || _Rd_==10 || _Rd_==11) {
+#else
+	if (_Rd_==29 || _Rd_==28 || _Rd_==9 || _Rd_==10 || _Rd_==11) {
+#endif
 		iLockReg(3);
 	}
 #endif
@@ -322,9 +328,11 @@ static void recMFC2(void) {
 			}
 			break;
 		case 28:
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 30:
 			MapConst(_Rt_,0);
 			break;
+#endif
 		case 29:
 			UpdateGteDelay(1);
 #ifdef REC_USE_GTE_FUNCS
@@ -341,7 +349,11 @@ static void recMFC2(void) {
 #ifdef REC_USE_GTE_MAP_REGS
 				u32 rmap=GetGteDataMapped(_Rd_);
 #ifdef REC_USE_GTE_DELAY_CALC
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 				if (rmap && (!(_Rd_==29 || _Rd_==9 || _Rd_==10 || _Rd_==11)) && (IsConst(rmap) || IsMapped(rmap)) ) {
+#else
+				if (rmap && (!(_Rd_==29 || _Rd_==28 || _Rd_==9 || _Rd_==10 || _Rd_==11)) && (IsConst(rmap) || IsMapped(rmap)) ) {
+#endif
 #else
 				if (rmap && (IsConst(rmap) || IsMapped(rmap)) ) {
 #endif
@@ -358,11 +370,18 @@ static void recMFC2(void) {
 				}
 			}
 	}
-	if (_Rt_!=28 && _Rt_!=30) {
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
+	if (_Rt_!=28 && _Rt_!=30)
+#endif
+	{
 		MapDataGte(_Rt_,_Rd_);
 	}
 #ifdef REC_USE_GTE_DELAY_CALC
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 	if (_Rd_==29 || _Rd_==9 || _Rd_==10 || _Rd_==11) {
+#else
+	if (_Rd_==29 || _Rd_==28 || _Rd_==9 || _Rd_==10 || _Rd_==11) {
+#endif
 		iUnlockReg(3);
 	}
 #endif
@@ -482,8 +501,10 @@ static void recMTC2(void) {
 			UnmapDataGte(30);
 #endif
 			break;
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 7:
 		case 29:
+#endif
 		case 31:
 			break;
 		case 9:
@@ -831,8 +852,10 @@ static void recLWC2(void)
 			UnmapDataGte(30);
 #endif
 			break;
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 7:
 		case 29:
+#endif
 		case 31:
 			break;
 		case 9:
@@ -917,9 +940,11 @@ static void recSWC2(void)
 			}
 			break;
 		case 28:
+#ifdef USE_OLD_GTE_WITHOUT_PATCH
 		case 30:
 			MOV32ItoR(rt,0);
 			break;
+#endif
 		case 29:
 			UpdateGteDelay(1);
 #ifdef REC_USE_GTE_FUNCS
@@ -1789,7 +1814,8 @@ static void recSQR(void){
 	} else {
 		CALLFunc((u32)_gteSQR_s0_);
 	} 
-	
+
+#ifdef USE_OLD_GTE_WITHOUT_PATCH	
 #ifdef REC_USE_GTE_FUNCS
 #ifdef REC_USE_GTE_DELAY_CALC
 	if (shift) {
@@ -1821,6 +1847,24 @@ static void recSQR(void){
 #else
 	recGTE_updateMACs(lm,shift);
 #endif
+#else // USE_OLD_GTE_WITHOUT_PATCH
+#ifdef REC_USE_GTE_FUNCS
+#ifdef REC_USE_GTE_DELAY_CALC
+	if (lm)
+		func_GTE_delay_ptr=func_GTE_updateMACs_lm1_ptr;
+	else
+		func_GTE_delay_ptr=func_GTE_updateMACs_lm0_ptr;
+#else
+	if (lm) {
+		CALLFunc(func_GTE_updateMACs_lm1_ptr);
+	} else {
+		CALLFunc(func_GTE_updateMACs_lm0_ptr);
+	}
+#endif
+#else
+	recGTE_updateMACs(lm,0);
+#endif
+#endif // USE_OLD_GTE_WITHOUT_PATCH
 	UnmapDataGteMACs();
 
 	iUnlockReg(3);

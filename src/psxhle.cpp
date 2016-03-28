@@ -41,7 +41,7 @@ static void hleDummy(void) {
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	psxRegs.pc = psxRegs.GPR.n.ra;
 
-	psxBranchTest();
+//	psxBranchTest();
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
@@ -63,7 +63,13 @@ static void hleA0(void) {
 
 	if (biosA0[call]) biosA0[call]();
 
+#ifdef DEBUG_BIOS
+	psxRegs.cycle+=3;
+	dbg_bioscheckopcode(psxRegs.pc);
+	psxRegs.cycle-=3;
+#else
 	psxBranchTest();
+#endif
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
@@ -85,7 +91,13 @@ static void hleB0(void) {
 
 	if (biosB0[call]) biosB0[call]();
 
+#ifdef DEBUG_BIOS
+	psxRegs.cycle+=3;
+	dbg_bioscheckopcode(psxRegs.pc);
+	psxRegs.cycle-=3;
+#else
 	psxBranchTest();
+#endif
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
@@ -107,7 +119,13 @@ static void hleC0(void) {
 
 	if (biosC0[call]) biosC0[call]();
 
-	psxBranchTest();
+#ifdef DEBUG_BIOS
+	psxRegs.cycle+=3;
+	dbg_bioscheckopcode(psxRegs.pc);
+	psxRegs.cycle-=3;
+#else
+//	psxBranchTest();
+#endif
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 

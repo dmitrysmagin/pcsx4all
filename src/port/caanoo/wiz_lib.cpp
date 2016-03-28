@@ -6,10 +6,10 @@
 #define FB1_0 (0x5600000+320*240*4)
 #define FB1_1 (0x5600000+320*240*6)
 #define FBX_L (320*240*2)
-unsigned char *uppermem;
+unsigned char *upper_fb;
 
 /* register access */
-static unsigned long wiz_dev[4];
+static unsigned long wiz_dev[3];
 static volatile unsigned int *memregs32;
 static volatile unsigned short *memregs16;
 static volatile unsigned char *memregs8;
@@ -295,14 +295,19 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	/* Set Wiz Clock */
 	wiz_set_clock(wiz_clock);
 
-	/* access framebuffers */
-	uppermem=(unsigned char  *)mmap(0, FBX_L*4, PROT_READ|PROT_WRITE, MAP_SHARED, wiz_dev[0], 0x5600000);
+	/* Video frame buffers */
+	upper_fb=(unsigned char  *)mmap(0, FBX_L*4, PROT_READ|PROT_WRITE, MAP_SHARED, wiz_dev[0], 0x5600000);
 
+#ifdef MMUHACK
+	warm_init();
+    warm_change_cb_upper(WCB_C_BIT|WCB_B_BIT, 1);
+#endif
+	
 	/* assign framebuffers */
-	fb0_0 = (unsigned short *)(uppermem);
-	fb0_1 = (unsigned short *)(uppermem+FBX_L);
-	fb1_0 = (unsigned short *)(uppermem+FBX_L*2);
-	fb1_1 = (unsigned short *)(uppermem+FBX_L*3);
+	fb0_0 = (unsigned short *)(upper_fb);
+	fb0_1 = (unsigned short *)(upper_fb+FBX_L);
+	fb1_0 = (unsigned short *)(upper_fb+FBX_L*2);
+	fb1_1 = (unsigned short *)(upper_fb+FBX_L*3);
 	
     /* assign initial framebuffers */
 	fb0_16bit = fb0_1; fb0_8bit=(unsigned char *)fb0_16bit;
@@ -390,7 +395,7 @@ int wiz_init(int bpp, int rate, int bits, int stereo)
 	// tRCD: 15ns (2 cycles)
 	// pollux_set(memregs16, "ram_timings=2.5,8,6,2,2,2,2");
 			
-	wiz_dev[3] = open("/dev/input/event1", O_RDONLY|O_NONBLOCK);
+	wiz_dev[2] = open("/dev/input/event1", O_RDONLY|O_NONBLOCK);
 
 	printf("OK\n");
 	return 0;
@@ -403,6 +408,10 @@ void wiz_deinit(void)
   	memset(fb1_16bit, 0, FBX_L); wiz_video_flip();
   	memset(fb1_16bit, 0, FBX_L); wiz_video_flip();
 	wiz_video_flip_single();
+
+#ifdef MMUHACK
+    warm_finish();
+#endif
 
 	/* restore old register values */
 	MLCADDRESS0 = bkregs32[0]; MLCADDRESS1 = bkregs32[1]; MLCCONTROL0 = bkregs32[2]; MLCCONTROL1 = bkregs32[3]; MLCLEFTRIGHT0 = bkregs32[4];
@@ -417,10 +426,10 @@ void wiz_deinit(void)
 	lc_dirtylayer(1);
 	lc_dirtymlc();
 
-	munmap((void *)uppermem, FBX_L*4);
+	munmap((void *)upper_fb, FBX_L*4);
    	munmap((void *)memregs32, 0x20000);
 
-	close(wiz_dev[3]);
+	close(wiz_dev[2]);
  	close(wiz_dev[1]);
  	close(wiz_dev[0]);
 	fcloseall(); /* close all files */
@@ -451,7 +460,7 @@ void wiz_joystick_read_analog(void)
 	struct input_event event[MAX_EVENTS];
 	int i, bytes; 
 
-	bytes = read(wiz_dev[3], &event, sizeof(event));
+	bytes = read(wiz_dev[2], &event, sizeof(event));
 	if (bytes <= 0)
 		return;
 

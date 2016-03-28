@@ -106,15 +106,15 @@ INLINE void FeedXA(xa_decode_t *xap)
 	xapGlobal = xap;                                      // store info for save states
 	XARepeat  = 100;                                      // set up repeat
 
-	iSize=((22050*xap->nsamples)/xap->freq);              // get size
+	iSize=UDIV((22050*xap->nsamples),xap->freq);              // get size
 	if(!iSize) return;                                    // none? bye
 
 	spos=0x10000L;
-	sinc = (xap->nsamples << 16) / iSize;                 // calc freq by num / size
+	sinc = UDIV((xap->nsamples << 16),iSize);                 // calc freq by num / size
 
 	if(xap->stereo)
 	{
-		uint32_t * ps=(uint32_t *)xap->pcm;
+		uint32_t * ps=(uint32_t *)(void *)xap->pcm;
 		uint16_t l=0;
 		
 		for(i=0;i<iSize;i++)
@@ -187,7 +187,7 @@ INLINE void FeedCDDA(unsigned char *pcm, int nBytes)
 	}
 	else
 	{
-		uint16_t *pcm16=(uint16_t *)pcm;
+		uint16_t *pcm16=(uint16_t *)(void *)pcm;
 		while(nBytes>0)
 		{
 			*feed++=*pcm16;

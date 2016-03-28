@@ -39,6 +39,34 @@
 #define	MLCADDRESS1		(memregs32[0x406C>>2])
 #define	MLCPALETTE1		(memregs32[0x4070>>2])
 
+#define	MLC2LEFTRIGHT0		(memregs32[0x440C>>2])
+#define	MLC2TOPBOTTOM0		(memregs32[0x4410>>2])
+#define MLC2LEFTRIGHT0_0	(memregs32[0x4414>>2])
+#define	MLC2TOPBOTTOM0_0	(memregs32[0x4418>>2])
+#define MLC2LEFTRIGHT0_1	(memregs32[0x441C>>2])
+#define	MLC2TOPBOTTOM0_1	(memregs32[0x4420>>2])
+#define	MLC2CONTROL0		(memregs32[0x4424>>2])
+#define	MLC2HSTRIDE0		(memregs32[0x4428>>2])
+#define	MLC2VSTRIDE0		(memregs32[0x442C>>2])
+#define	MLC2TPCOLOR0		(memregs32[0x4430>>2])
+#define	MLC2INVCOLOR0		(memregs32[0x4434>>2])
+#define	MLC2ADDRESS0		(memregs32[0x4438>>2])
+#define	MLC2PALETTE0		(memregs32[0x443C>>2])
+
+#define	MLC2LEFTRIGHT1		(memregs32[0x4440>>2])
+#define	MLC2TOPBOTTOM1		(memregs32[0x4444>>2])
+#define MLC2LEFTRIGHT1_0	(memregs32[0x4448>>2])
+#define	MLC2TOPBOTTOM1_0	(memregs32[0x444C>>2])
+#define MLC2LEFTRIGHT1_1	(memregs32[0x4450>>2])
+#define	MLC2TOPBOTTOM1_1	(memregs32[0x4454>>2])
+#define	MLC2CONTROL1		(memregs32[0x4458>>2])
+#define	MLC2HSTRIDE1		(memregs32[0x445C>>2])
+#define	MLC2VSTRIDE1		(memregs32[0x4460>>2])
+#define	MLC2TPCOLOR1		(memregs32[0x4464>>2])
+#define	MLC2INVCOLOR1		(memregs32[0x4468>>2])
+#define	MLC2ADDRESS1		(memregs32[0x446C>>2])
+#define	MLC2PALETTE1		(memregs32[0x4470>>2])
+
 /* Graphics modes */
 enum {
 	RGB565		= 0x4432,

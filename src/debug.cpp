@@ -40,6 +40,9 @@ int dbg_now=1;
 #endif
 
 int dbg_frame=0;
+#ifdef DEBUG_BIOS
+unsigned dbg_biosunset();
+#endif
 
 void dbgsum(char *str, void *buff, unsigned len) {
 	if (dbg_now) {
@@ -62,6 +65,9 @@ void dbgregs(void *r) {
 			fprintf(DEBUG_STR_FILE," R%.2i=%.8X",i,regs->GPR.r[i]);
 			if (!((i+1)&3)) fprintf(DEBUG_STR_FILE,"\n");
 		}
+#ifdef DEBUG_BIOS
+		fprintf(DEBUG_STR_FILE," INT=%.8X CYL=%i",regs->interrupt,regs->cycle);
+#endif
 		fprintf(DEBUG_STR_FILE," IOC=%u\n",regs->io_cycle_counter);
 #ifdef DEBUG_PCSX4ALL_FFLUSH
 		fflush(DEBUG_STR_FILE);
@@ -283,7 +289,54 @@ void dbg_opcode(unsigned _pc, unsigned _opcode, unsigned _cycle_add, unsigned bl
 #ifdef DEBUG_CPU_OPCODES
 //if (_pc-4==0x800966a0) { dbg_enable(); }
 //if (_pc-4==0x80094ab0 && isdbg()) { exit(0); }
-	if (!isdbg()) return;
+	if (!isdbg()) {
+#ifdef DEBUG_MIN_OPCODES
+#ifdef DEBUG_BIOS
+		static unsigned nloop=0;
+		static unsigned sentinel=0;
+		if (!dbg_biosin())
+#endif
+		{
+#ifdef DEBUG_BIOS
+			if (sentinel){
+				sentinel=0;
+				nloop++;
+			}
+#endif
+			if (!block) {
+				static unsigned long long min=0;
+				min++;
+				if (min>((unsigned long long)DEBUG_MIN_OPCODES)) {
+					dbg_enable();
+				}
+			}
+		}
+#ifdef DEBUG_BIOS
+		else {
+//const char *str="ERROR";
+//switch(_opcode>>26) {
+//case 0: str=strSPC[_opcode&0x3f]; break;
+//case 1: str=strREG[(_opcode>>16)&0x1F]; break;
+//case 16: str=strCP0[(_opcode>>21)&0x1F]; break;
+//case 18: if (!(_opcode&0x3f)) str=strCP2BSC[(_opcode>>21)&0x1F];
+// else str=strCP2[_opcode&0x3f]; break;
+//default: str=strBSC[_opcode>>26];
+//}
+//printf("%p [%s] %u%s\n",_pc-4,str,_cycle_add+psxRegs.cycle,block?" (BLK)":"");
+			sentinel++;
+			if (sentinel>50000) {
+				printf("Infinite loop %i, PC=%p!\n",nloop,dbg_biosptr);
+				pcsx4all_exit();
+			}
+		}
+#endif
+#endif
+#ifdef DEBUG_BIOS
+		dbg_bioscheckopcode(_pc-4);
+		if (!isdbg())
+#endif
+		return;
+	}
 //if (!PC_REC(0x8005ad20)) dbg("AHORA VACIO");
 //dbgsum("-SUM ",(void *)&psxM[0],0x200000);
 	const char *str="ERROR";
@@ -295,7 +348,9 @@ void dbg_opcode(unsigned _pc, unsigned _opcode, unsigned _cycle_add, unsigned bl
 			 else str=strCP2[_opcode&0x3f]; break;
 		default: str=strBSC[_opcode>>26];
 	}
-	dbgf("%p [%s] %u%s\n",_pc-4,str,_cycle_add+psxRegs.cycle,block?" (BLK)":"");
+//	dbgf("%p [%s] %u%s\n",_pc-4,str,_cycle_add+psxRegs.cycle,block?" (BLK)":"");
+//dbgf("%p [%s] %u%s (R2=%p,R3=%p,R5=%p) %p\n",_pc-4,str,_cycle_add+psxRegs.cycle,block?" (BLK)":"",psxRegs.GPR.r[2],psxRegs.GPR.r[3],psxRegs.GPR.r[5],(SWAP16(*(u16*)&psxH[(0x1074) & 0xffff])));
+dbgf("%p [%s] %u%s INT2=%u\n",_pc-4,str,_cycle_add+psxRegs.cycle,block?" (BLK)":"",psxRegs.intCycle[2]);
 #endif
 //if (isdbg()) fflush(stdout);
 #ifdef DEBUG_ANALYSIS
@@ -321,6 +376,13 @@ void dbg_opcode(unsigned _pc, unsigned _opcode, unsigned _cycle_add, unsigned bl
 	dbg_anacnt_total_opcodes++;
 	if (block)
 		dbg_anacnt_total_opcodes_block++;
+#endif
+#ifdef DEBUG_MAX_OPCODES
+	static unsigned long long total_opcodes=0;
+	total_opcodes++;
+	if (total_opcodes>((unsigned long long)DEBUG_MAX_OPCODES)){
+		pcsx4all_exit();
+	}
 #endif
 }
 
@@ -446,5 +508,32 @@ void dbg_print_analysis(void) {
 	printf("dbg_anacnt_Load: %u\n",dbg_anacnt_Load);
 #endif
 }
+
+#ifdef DEBUG_BIOS
+void dbg_bioscall(unsigned branchPC){
+	dbgpsxregs();
+	if (!dbg_biosin() && isdbg()){
+		dbg_biosset(psxRegs.GPR.n.ra);
+		if (branchPC==0xA0 && (psxRegs.GPR.n.t1 & 0xff)==0x43)
+			dbg_biosptr=*((unsigned*)PSXM(psxRegs.GPR.n.a0));
+		dbgf("BIOS CALL 0x%.2X:0x%.2X, Return %p\n",branchPC,psxRegs.GPR.n.t1 & 0xff,dbg_biosptr);
+		fflush(stdout);
+//if (!(branchPC==0xA0 && psxRegs.GPR.n.t1==0x70))
+		dbg_disable();
+	}
+}
+
+void dbg_biosreturn(void){
+	if (dbg_biosin()){
+		dbg_enable();
+		dbg("RETURN BIOS");
+		dbgpsxregs();
+		fflush(stdout);
+		if (Config.HLE && autobias)
+			psxRegs.cycle+=1;
+		dbg_biosunset();
+	}
+}
+#endif
 
 #endif
