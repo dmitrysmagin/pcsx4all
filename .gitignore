@@ -2,3 +2,9 @@
 obj
 *.swp
 pcsx4all*
+stdin.txt
+stdout.txt
+*.mcr
+*.iso
+*.bin
+*.diff

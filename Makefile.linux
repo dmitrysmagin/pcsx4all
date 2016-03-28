@@ -24,15 +24,12 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -Di686 -O3 -ffast-math -fno-common -fno-builtin -fno-exceptions -fstrict-aliasing -march=i686 \
-	-Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
-    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
-    -DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
-    -DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
-	`sdl-config --cflags` -I/usr/local/include
-	# -fsigned-char 
-	# -Wstrict-prototypes -Wbad-function-cast
-    # -Wshadow
+CFLAGS = -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
+	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -Isrc/port/$(PORT) \
+	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
+	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
+	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
+	`sdl-config --cflags`
 
 #CFLAGS += -DDEBUG_IO_CYCLE_COUNTER
 #CFLAGS += -DDEBUG_FAST_MEMORY
@@ -48,15 +45,16 @@ CFLAGS = -Di686 -O3 -ffast-math -fno-common -fno-builtin -fno-exceptions -fstric
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-#LDFLAGS = -s -L/usr/lib/mingw -L/usr/local/lib  -L/usr/lib/w32api/ -L/usr/X11R6/lib -lglu32 -lopengl32 -lmingw32 -lglu32  -lopengl32 -lSDL_static_1212 -mwindows -mno-cygwin -luser32 -lgdi32 -lwinmm -ldxguid
-LDFLAGS = -s `sdl-config --libs` -lSDL_mixer -lSDL_image
+LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image
 
-OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/interpreter/$(INTERPRETER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter \
+	obj/interpreter/$(INTERPRETER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
 all: maketree $(TARGET)
 
 OBJS = obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o obj/psxcounters.o \
-	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o obj/gte/$(GTE)/gte.o obj/mdec.o \
+	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
+	obj/gte/$(GTE)/gte.o obj/mdec.o \
 	obj/decode_xa.o obj/cdriso.o obj/cdrom.o obj/sio.o obj/pad.o
 
 OBJS += obj/gpu/$(GPU)/gpu.o
@@ -72,8 +70,9 @@ OBJS += obj/port/$(PORT)/port.o
 
 OBJS += obj/profiler.o obj/debug.o
 
-$(TARGET): $(OBJS) 
-	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $@
+$(TARGET): $(OBJS)
+	@echo Linking $(TARGET)...
+	$(LD) $(OBJS) $(LDFLAGS) -o $@
 
 obj/%.o: src/%.c
 	@echo Compiling $<...
