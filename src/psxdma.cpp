@@ -60,7 +60,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			size = (bcr >> 16) * (bcr & 0xffff) * 2;
     		SPU_readDMAMem(ptr, size);
 			#ifdef PSXREC
-			psxCpu->Clear(madr, size);
+			CATCH(); psxCpu->Clear(madr, size);
 			#endif
 			break;
 
@@ -131,7 +131,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			size = (bcr >> 16) * (bcr & 0xffff);
 			GPU_readDataMem(ptr, size);
 			#ifdef PSXREC
-			psxCpu->Clear(madr, size);
+			CATCH(); psxCpu->Clear(madr, size);
 			#endif
 			break;
 
