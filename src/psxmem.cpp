@@ -381,7 +381,7 @@ void psxMemWrite8(u32 mem, u8 value) {
 		{
 			*(p + m) = value;
 			#ifdef PSXREC
-			CATCH(); psxCpu->Clear((mem & (~3)), 1);
+			psxCpu->Clear((mem & (~3)), 1);
 			#endif
 		}
 		#ifdef PSXMEM_LOG
@@ -458,7 +458,7 @@ void psxMemWrite16(u32 mem, u16 value) {
 		{
 			*(u16 *)(p + m) = SWAPu16(value);
 			#ifdef PSXREC
-			CATCH(); psxCpu->Clear((mem & (~3)), 1);
+			psxCpu->Clear((mem & (~3)), 1);
 			#endif
 		}
 		#ifdef PSXMEM_LOG
@@ -501,7 +501,7 @@ void psxMemWrite32_error(u32 mem, u32 value) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemWrite32_error++;
 #endif
-	static int writeok = 1;printf("psxMemWrite32_error(%08x, %08x);\n", mem, value);
+	static int writeok = 1;
 	if (mem==0xfffe0130)
 	{
 		switch (value) {
@@ -529,7 +529,7 @@ void psxMemWrite32_error(u32 mem, u32 value) {
 	#ifdef PSXREC
 	else
 	{
-		if (!writeok) {CATCH(); psxCpu->Clear(mem, 1);}
+		if (!writeok) psxCpu->Clear(mem, 1);
 		#ifdef PSXMEM_LOG
 		if (writeok) { PSXMEM_LOG("err sw %8.8lx\n", mem); }
 		#endif
@@ -574,7 +574,7 @@ void psxMemWrite32(u32 mem, u32 value) {
 		{
 			*(u32 *)(p + m) = SWAPu32(value);
 			#ifdef PSXREC
-			CATCH(); psxCpu->Clear(mem, 1);
+			psxCpu->Clear(mem, 1);
 			#endif
 		}
 		else

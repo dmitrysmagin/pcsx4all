@@ -21,8 +21,6 @@
 #ifndef __R3000A_H__
 #define __R3000A_H__
 
-#define CATCH() printf("Catch error: %s : %d\n", __FILE__, __LINE__)
-
 #include "psxcommon.h"
 #include "psxmem.h"
 #include "psxcounters.h"

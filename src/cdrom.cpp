@@ -1126,7 +1126,7 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 			ptr = (u8 *)PSXM(madr);
 			memcpy(ptr, cdr.pTransfer, cdsize);
 			#ifdef PSXREC
-			CATCH(); psxCpu->Clear(madr, cdsize / 4);
+			psxCpu->Clear(madr, cdsize / 4);
 			#endif
 			cdr.pTransfer += cdsize;
 			break;

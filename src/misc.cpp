@@ -290,7 +290,7 @@ int LoadCdrom() {
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
 	#ifdef PSXREC
-		CATCH(); psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+		psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
 	#endif
 
 	// Read the rest of the main executable
@@ -357,7 +357,7 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	addr = head->t_addr;
 
 	#ifdef PSXREC
-		CATCH(); psxCpu->Clear(addr, size/4);
+		psxCpu->Clear(addr, size/4);
 	#endif
 
 	while (size & ~2047) {
@@ -516,7 +516,7 @@ int Load(const char *ExePath) {
 					fseek(tmpFile, 0x800, SEEK_SET);		
                     fread(mem, section_size, 1, tmpFile);
 					#ifdef PSXREC
-						CATCH(); psxCpu->Clear(section_address, section_size / 4);
+						psxCpu->Clear(section_address, section_size / 4);
 					#endif
 				}
 				fclose(tmpFile);
@@ -544,7 +544,7 @@ int Load(const char *ExePath) {
 							if (mem != NULL) {
                                 fread(mem, section_size, 1, tmpFile);
 								#ifdef PSXREC
-									CATCH(); psxCpu->Clear(section_address, section_size / 4);
+									psxCpu->Clear(section_address, section_size / 4);
 								#endif
 							}
 							break;
