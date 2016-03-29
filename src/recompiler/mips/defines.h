@@ -46,6 +46,12 @@
 /* CP2C offset */
 #define offCP2C(rx) offsetof(psxRegisters,  CP2C.r[rx])
 
+/* pc offset */
+#define offpc		offsetof(psxRegisters,  pc)
+
+/* code offset */
+#define offcode		offsetof(psxRegisters,  code)
+
 /* call func */
 #define CALLFunc(func)						 															\
 	{																															\

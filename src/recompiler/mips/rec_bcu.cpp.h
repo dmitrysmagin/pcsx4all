@@ -4,7 +4,7 @@ static void recSYSCALL()
 
 	LoadImmediate32(pc - 4, TEMP_1);
 
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, 648);
+	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offpc);
 
 	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, (branch == 1 ? 1 : 0));
 	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A0, 0x20);
@@ -439,7 +439,7 @@ static void recHLE()
 	
 	/* Needed? */
 	LoadImmediate32(pc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, 648);
+	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offpc);
 
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
