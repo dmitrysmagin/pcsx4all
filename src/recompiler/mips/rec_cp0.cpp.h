@@ -5,7 +5,7 @@ static void recMFC0()
 	if (!_Rt_) return;
 	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
 
-	MIPS_LDR_IMM(MIPS_POINTER, rt, PERM_REG_1, CalcDispCP0(_Rd_));
+	MIPS_LDR_IMM(MIPS_POINTER, rt, PERM_REG_1, offCP0(_Rd_));
 	regMipsChanged(_Rt_);
 	regBranchUnlock(rt);
 }
@@ -22,7 +22,7 @@ static void recMTC0()
 // Cop0->Rd = Rt
 
 	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-	MIPS_STR_IMM(MIPS_POINTER, rt, PERM_REG_1, CalcDispCP0(_Rd_));
+	MIPS_STR_IMM(MIPS_POINTER, rt, PERM_REG_1, offCP0(_Rd_));
 	regBranchUnlock(rt);
 	LoadImmediate32(_Rd_, MIPSREG_A0);
 	CALLFunc((u32)psx_interrupt);

@@ -41,7 +41,7 @@
 #define offGPR(rx) offsetof(psxRegisters, GPR.r[rx])
 
 /* CP0 offset */
-#define CalcDispCP0(rx) (136 + ((rx) << 2))
+#define offCP0(rx) offsetof(psxRegisters,  CP0.r[rx])
 
 /* CP2C offset */
 #define CalcDispCP2C(rx) (520 + ((rx) << 2))
