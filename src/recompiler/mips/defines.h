@@ -44,7 +44,7 @@
 #define offCP0(rx) offsetof(psxRegisters,  CP0.r[rx])
 
 /* CP2C offset */
-#define CalcDispCP2C(rx) (520 + ((rx) << 2))
+#define offCP2C(rx) offsetof(psxRegisters,  CP2C.r[rx])
 
 /* call func */
 #define CALLFunc(func)						 															\
