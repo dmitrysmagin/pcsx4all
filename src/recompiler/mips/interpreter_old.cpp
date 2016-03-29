@@ -155,6 +155,60 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 	return 0;
 }
 
+/*********************************************************
+* Shift arithmetic with variant register shift           *
+* Format:  OP rd, rt, rs                                 *
+*********************************************************/
+void psxSLLV() { if (!_Rd_) return; (_rRd_) = _u32(_rRt_) << _u32(_rRs_); } // Rd = Rt << rs
+void psxSRAV() { if (!_Rd_) return; (_rRd_) = _i32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (arithmetic)
+void psxSRLV() { if (!_Rd_) return; (_rRd_) = _u32(_rRt_) >> _u32(_rRs_); } // Rd = Rt >> rs (logical)
+
+#define _oB_ (_u32(_rRs_) + _Imm_)
+
+void psxLB() {
+	if (_Rt_) {
+		(_rRt_) = (char)psxMemRead8(_oB_);
+	} else {
+		psxMemRead8(_oB_);
+	}
+}
+
+void psxLBU() {
+	if (_Rt_) {
+		(_rRt_) = psxMemRead8(_oB_);
+	} else {
+		psxMemRead8(_oB_);
+	}
+}
+
+void psxLH() {
+	if (_Rt_) {
+		(_rRt_) = (short)psxMemRead16(_oB_);
+	} else {
+		psxMemRead16(_oB_);
+	}
+}
+
+void psxLHU() {
+	if (_Rt_) {
+		(_rRt_) = psxMemRead16(_oB_);
+	} else {
+		psxMemRead16(_oB_);
+	}
+}
+
+void psxLW() {
+	if (_Rt_) {
+		(_rRt_) = psxMemRead32(_oB_);
+	} else {
+		psxMemRead32(_oB_);
+	}
+}
+
+void psxSB() { psxMemWrite8 (_oB_, _u8 (_rRt_)); }
+void psxSH() { psxMemWrite16(_oB_, _u16(_rRt_)); }
+void psxSW() { psxMemWrite32(_oB_, _u32(_rRt_)); }
+
 u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
 u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
 
