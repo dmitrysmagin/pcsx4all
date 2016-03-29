@@ -1,7 +1,13 @@
 //#define NO_ZERO_REGISTER_OPTIMISATION	1
 
 #include "common.h"
-#include "recompiler.h"
+#include "mips_codegen.h"
+#include "mips_dpimacros.h"
+
+#include "defines.h"
+#include "externs.h"
+
+#include "disasm.h"
 
 psxRegisters 	recRegs;
 RecRegisters 	regcache;
