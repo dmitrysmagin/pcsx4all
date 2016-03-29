@@ -7,4 +7,8 @@ stdout.txt
 *.mcr
 *.iso
 *.bin
+*.img
 *.diff
+*.sh
+*.bat
+err.txt
