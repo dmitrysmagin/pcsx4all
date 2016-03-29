@@ -26,18 +26,8 @@ typedef struct {
 } RecRegisters;
 
 
-extern psxRegisters 	recRegs;
 extern psxRegisters 	psxRegs;
 extern RecRegisters 	regcache;
-
-extern u32 psxRecLUT[0x010000];
-extern u8 recMemBase[RECMEM_SIZE];
-extern s8 recRAM[0x200000];				/* and the ptr to the blocks here */
-extern s8 recROM[0x080000];				/* and here */
-extern u32 pc;						/* recompiler pc */
-extern u32 oldpc;
-extern u32 branch;
-extern u32 rec_count;
 
 extern u32 stores[4];                                                         
 extern u32 rotations[4];                                                      
@@ -65,7 +55,6 @@ extern u32 psx_interrupt(u32 reg);
 //extern void regClearJump();
 //extern void ClearReg(u32 ra, u32 clearthis);
 
-extern u32 *recMem;
 static u32 recRecompile();
 
 #endif

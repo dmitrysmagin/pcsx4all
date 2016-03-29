@@ -20,13 +20,9 @@
 /* general defines */
 #define MIPS_POINTER		0
 
-#ifdef GIZMONDO
-#define RECMEM_SIZE			(5*1024*1024)
+#define RECMEM_SIZE		(12 * 1024 * 1024)
 #define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
-#else
-#define RECMEM_SIZE			(8*1024*1024)
-#define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
-#endif
+#define REC_MAX_OPCODES		80
 
 #define TEMP_1 				MIPSREG_T0
 #define TEMP_2 				MIPSREG_T1

@@ -9,10 +9,9 @@
 
 #include "disasm.h"
 
-psxRegisters 	recRegs;
 RecRegisters 	regcache;
 
-u32 psxRecLUT[0x010000];
+static u32 psxRecLUT[0x010000];
 
 #undef PC_REC
 #undef PC_REC8
@@ -23,14 +22,14 @@ u32 psxRecLUT[0x010000];
 #define PC_REC16(x)	(*(u16*)PC_REC(x))
 #define PC_REC32(x)	(*(u32*)PC_REC(x))
 
-u8 recMemBase[RECMEM_SIZE];
-u32 *recMem;					/* the recompiled blocks will be here */
-s8 recRAM[0x200000];				/* and the ptr to the blocks here */
-s8 recROM[0x080000];				/* and here */
-u32 pc;						/* recompiler pc */
-u32 oldpc;
-u32 branch = 0;
-u32 rec_count;
+static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
+static u32 *recMem;				/* the recompiled blocks will be here */
+static s8 recRAM[0x200000];			/* and the ptr to the blocks here */
+static s8 recROM[0x080000];			/* and here */
+static u32 pc;					/* recompiler pc */
+static u32 oldpc;
+static u32 branch = 0;
+static u32 rec_count;
 
 #ifdef WITH_REG_STATS
 u32 reg_count[32];
@@ -409,10 +408,8 @@ static int recInit()
 {
 	int i;
 
-	psxRegs = recRegs;
-
-	recMem = (u32*)recMemBase;	
-	loadedpermregs = 0;	
+	recMem = (u32*)recMemBase;
+	loadedpermregs = 0;
 	recReset();
 
 	//recRAM = (char*) malloc(0x200000);
@@ -519,7 +516,7 @@ void (*recCP2BSC[32])() =
 
 static void recExecute()
 {
-	loadedpermregs = 0;	
+	loadedpermregs = 0;
 
 	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
 
