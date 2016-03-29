@@ -32,8 +32,13 @@
 /* PERM_REG_1 is used to store psxRegs struct address */
 #define PERM_REG_1 			MIPSREG_S8
 
+/* Crazy macro to calculate offset of the field in the structure */
+#ifndef offsetof
+#define offsetof(T,F) ((unsigned int)((char *)&((T *)0L)->F - (char *)0L))
+#endif
+
 /* GPR offset */
-#define CalcDisp(rx) ((rx) << 2)
+#define offGPR(rx) offsetof(psxRegisters, GPR.r[rx])
 
 /* CP0 offset */
 #define CalcDispCP0(rx) (136 + ((rx) << 2))

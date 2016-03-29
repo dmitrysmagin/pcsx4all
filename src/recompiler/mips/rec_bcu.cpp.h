@@ -72,7 +72,7 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 
 	regClearJump();
 	LoadImmediate32(linkpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, CalcDisp(31));
+	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(branchPC, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
@@ -198,7 +198,7 @@ static void recBLTZAL()
 
 	regClearBranch();
 	LoadImmediate32(nbpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, CalcDisp(31));
+	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
@@ -232,7 +232,7 @@ static void recBGEZAL()
 
 	regClearBranch();
 	LoadImmediate32(nbpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, CalcDisp(31));
+	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);

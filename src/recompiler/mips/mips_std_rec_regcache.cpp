@@ -11,7 +11,7 @@ static INLINE void regClearJump(void)
 			if( i != 0 && regcache.psx[i].psx_ischanged )
 			{
 				//DEBUGG("mappedto %d pr %d\n", mappedto, PERM_REG_1);
-				MIPS_STR_IMM(MIPS_POINTER, mappedto, PERM_REG_1, CalcDisp(i));
+				MIPS_STR_IMM(MIPS_POINTER, mappedto, PERM_REG_1, offGPR(i));
 			}
 			regcache.psx[i].psx_ischanged = false;
 			regcache.host[mappedto].ismapped = regcache.psx[i].ismapped = false;
@@ -39,7 +39,7 @@ static INLINE void regFreeRegs(void)
 			int psxreg = regcache.host[hostreg].mappedto;
 			if( psxreg != 0 && regcache.psx[psxreg].psx_ischanged )
 			{
-				MIPS_STR_IMM(MIPS_POINTER, hostreg, PERM_REG_1, CalcDisp(psxreg));
+				MIPS_STR_IMM(MIPS_POINTER, hostreg, PERM_REG_1, offGPR(psxreg));
 			}
 			regcache.psx[psxreg].psx_ischanged = false;
 			regcache.host[hostreg].ismapped = regcache.psx[psxreg].ismapped = false;
@@ -110,7 +110,7 @@ static u32 regMipsToArmHelper(u32 regpsx, u32 action, u32 type)
 		regcache.host[regnum].mappedto = 0;
 		if( regpsx != 0 )
 		{
-			MIPS_LDR_IMM(MIPS_POINTER, regnum, PERM_REG_1, CalcDisp(regpsx));
+			MIPS_LDR_IMM(MIPS_POINTER, regnum, PERM_REG_1, offGPR(regpsx));
 		}
 		else
 		{
@@ -128,7 +128,7 @@ static u32 regMipsToArmHelper(u32 regpsx, u32 action, u32 type)
 	{
 		if( regpsx != 0 )
 		{
-			MIPS_LDR_IMM(MIPS_POINTER, regcache.psx[regpsx].mappedto, PERM_REG_1, CalcDisp(regpsx));
+			MIPS_LDR_IMM(MIPS_POINTER, regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
 		}
 		else
 		{
@@ -160,7 +160,7 @@ static INLINE u32 regMipsToArm(u32 regpsx, u32 action, u32 type)
 			u32 mappedto = regcache.psx[regpsx].mappedto;
 			if( regpsx != 0 && regcache.psx[regpsx].psx_ischanged )
 			{
-				MIPS_STR_IMM(MIPS_POINTER, mappedto, PERM_REG_1, CalcDisp(regpsx));
+				MIPS_STR_IMM(MIPS_POINTER, mappedto, PERM_REG_1, offGPR(regpsx));
 			}
 			regcache.psx[regpsx].psx_ischanged = false;
 			regcache.psx[regpsx].ismapped = false;
@@ -200,7 +200,7 @@ static INLINE void regClearBranch(void)
 		{
 			if( regcache.psx[i].psx_ischanged )
 			{
-				MIPS_STR_IMM(MIPS_POINTER, regcache.psx[i].mappedto, PERM_REG_1, CalcDisp(i));
+				MIPS_STR_IMM(MIPS_POINTER, regcache.psx[i].mappedto, PERM_REG_1, offGPR(i));
 			}
 		}
 	}
