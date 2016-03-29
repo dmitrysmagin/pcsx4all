@@ -29,7 +29,6 @@ static s8 recROM[0x080000];			/* and here */
 static u32 pc;					/* recompiler pc */
 static u32 oldpc;
 static u32 branch = 0;
-static u32 rec_count;
 
 #ifdef WITH_REG_STATS
 u32 reg_count[32];
