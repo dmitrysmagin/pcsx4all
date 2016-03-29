@@ -3,6 +3,7 @@
 
 
 //#define WITH_DISASM
+//#define DEBUGG printf
 
 #define REG_CACHE_START		MIPSREG_S0
 #define REG_CACHE_END		(MIPSREG_S7+1)

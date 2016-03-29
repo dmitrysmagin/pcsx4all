@@ -409,6 +409,7 @@ static int recInit()
 	int i;
 
 	recMem = (u32*)recMemBase;
+	memset(recMem, 0, RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000);
 	loadedpermregs = 0;
 	recReset();
 
