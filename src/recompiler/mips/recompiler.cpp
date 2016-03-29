@@ -3,11 +3,46 @@
 #include "common.h"
 #include "recompiler.h"
 
-#include "interpreter_old.cpp"
+psxRegisters 	recRegs;
+RecRegisters 	regcache;
+
+u32 psxRecLUT[0x010000];
+
+#undef PC_REC
+#undef PC_REC8
+#undef PC_REC16
+#undef PC_REC32
+#define PC_REC(x)	(psxRecLUT[(x) >> 16] + ((x) & 0xffff))
+#define PC_REC8(x)	(*(u8 *)PC_REC(x))
+#define PC_REC16(x)	(*(u16*)PC_REC(x))
+#define PC_REC32(x)	(*(u32*)PC_REC(x))
+
+u8 recMemBase[RECMEM_SIZE];
+u32 *recMem;					/* the recompiled blocks will be here */
+s8 recRAM[0x200000];				/* and the ptr to the blocks here */
+s8 recROM[0x080000];				/* and here */
+u32 pc;						/* recompiler pc */
+u32 oldpc;
+u32 branch = 0;
+u32 rec_count;
+
+#ifdef WITH_REG_STATS
+u32 reg_count[32];
+u32 reg_mapped_count[32];
+#endif
+
+#ifdef WITH_DISASM
+FILE *translation_log_fp = NULL;
+char disasm_buffer[512];
+#endif
+
+u32 stores[4];
+u32 rotations[4];
+
 #include "mips_std_rec_calls.cpp"
-#include "mips_std_rec_globals.cpp"
 #include "mips_std_rec_debug.cpp"
 #include "mips_std_rec_regcache.cpp"
+#include "interpreter_old.cpp"
 
 #include "evaluator/evaluator.cpp.h"
 #include "generator/mips/generator.cpp.h"
@@ -25,10 +60,10 @@ extern void (*recCP2BSC[32])();
 
 extern int skCount;
 
-u8*	current_translation_ptr;
+u8	*current_translation_ptr;
 u32 	opcode;
-u32* 	recMemStart;
-u32		isInBios = 0;
+u32	*recMemStart;
+u32	isInBios = 0;
 u32 	loadedpermregs = 0;
 u32	end_block = 0;
 // Let's hope the number of indirect branches in a block doesnt exceed this large number of elements
