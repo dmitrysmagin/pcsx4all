@@ -444,5 +444,9 @@ static void recHLE()
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
+	MIPS_LDR_IMM(MIPS_POINTER, MIPSREG_A1, PERM_REG_1, offpc);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	CALLFunc((u32)psxBranchTest_rec);
+
 	end_block = 1;
 }
