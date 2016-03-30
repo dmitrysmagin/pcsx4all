@@ -128,13 +128,6 @@ do { \
 #define CALLFunc_NoFlush(func) \
 	CALLFunc(func)
 
-#define CALLFunc_Branch(func) \
-do { \
-	MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
-	rec_recompile_end(); \
-} while (0)
-
 #define mips_relative_offset(source, offset, next) \
 	((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF)
 

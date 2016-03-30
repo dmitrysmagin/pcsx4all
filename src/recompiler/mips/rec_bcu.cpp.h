@@ -131,7 +131,8 @@ static void recBLTZ()
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -162,7 +163,8 @@ static void recBGTZ()
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -196,7 +198,8 @@ static void recBLTZAL()
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -230,7 +233,8 @@ static void recBGEZAL()
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -311,7 +315,8 @@ static void recBEQ()
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -346,7 +351,8 @@ static void recBNE()
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	//DEBUGG("backpatching %p rel to %p -> 0x%x\n", backpatch, recMem, mips_relative_offset(backpatch, (u32)recMem, 4));
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -381,7 +387,8 @@ static void recBLEZ()
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
@@ -413,7 +420,8 @@ static void recBGEZ()
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
-	CALLFunc_Branch((u32)psxBranchTest_rec);
+	CALLFunc((u32)psxBranchTest_rec);
+	rec_recompile_end();
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
