@@ -27,12 +27,3 @@ u32 psx_interrupt(u32 reg)
 		psxRegs.interrupt |= 0x80000000;
 	return 0;
 }
-
-#ifdef IPHONE
-extern "C" void sys_icache_invalidate(const void* Addr, size_t len);
-
-void clear_insn_cache(u32 start, u32 end, int type)
-{
-	sys_icache_invalidate((void*)start, end - start);
-}
-#endif

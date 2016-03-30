@@ -44,8 +44,6 @@ extern char disasm_buffer[512];
 
 /* Functions */
 extern void rec_test_pc();
-extern void rec_flush_cache();
-extern "C" void clear_insn_cache(u32 BEG, u32 END, u32 FLAG);
 
 extern u32 recIntExecuteBlock(u32 newpc);
 extern u32 psxBranchTest_rec(u32 cycles, u32 pc);

@@ -193,9 +193,11 @@ void rec##f() 																	\
 		} 																		\
 }
 
-void rec_flush_cache()
+#include <sys/cachectl.h>
+
+void clear_insn_cache(void *start, void *end, int flags)
 {
-	clear_insn_cache((u32)recMemBase, ((u32)recMemBase) + RECMEM_SIZE, 0);
+	cacheflush(start, (char *)end - (char *)start, ICACHE);
 }
 
 static INLINE u32 recScanBlock(u32 scanpc, u32 numbranches)
@@ -363,7 +365,7 @@ static u32 recRecompile()
 			MIPS_POP(MIPS_POINTER, MIPSREG_S8);
 			MIPS_POP(MIPS_POINTER, MIPSREG_RA);
 			MIPS_EMIT(MIPS_POINTER, 0x00000008 | (MIPSREG_RA << 21)); /* jr ra */
-			clear_insn_cache((u32)recMemStart, (u32)recMem, 0);
+			clear_insn_cache(recMemStart, recMem, 0);
 			return (u32)recMemStart;
 		}
 	}
@@ -393,7 +395,7 @@ static u32 recRecompile()
 			end_block = 0;
 			recRet();
 			DISASM_HOST
-			clear_insn_cache((u32)recMemStart, (u32)recMem, 0);
+			clear_insn_cache(recMemStart, recMem, 0);
 			return (u32)recMemStart;
 		}
 	}
@@ -564,7 +566,6 @@ static void recReset()
 	memset(recROM, 0, 0x080000);
 
 	//memset((void*)recMemBase, 0, RECMEM_SIZE);
-	//rec_flush_cache();
 
 	recMem = (u32*)recMemBase;
 
