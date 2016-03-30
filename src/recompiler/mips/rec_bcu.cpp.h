@@ -11,7 +11,7 @@ static void recSYSCALL()
 	CALLFunc((u32)psxException);
 	MIPS_LDR_IMM(MIPS_POINTER, MIPSREG_A1, PERM_REG_1, offpc);
 
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
 	CALLFunc((u32)psxBranchTest_rec);
 
@@ -51,7 +51,7 @@ static INLINE void iJumpNormal(u32 branchPC)
 
 	regClearJump();
 	LoadImmediate32(branchPC, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
 	CALLFunc((u32)psxBranchTest_rec);
 
@@ -75,7 +75,7 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(branchPC, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
 	CALLFunc((u32)psxBranchTest_rec);
 
@@ -98,7 +98,7 @@ static INLINE void iJump(u32 branchPC)
 	{
 		regClearJump();
 		LoadImmediate32(branchPC, MIPSREG_A1);
-		LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+		LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 		CALLFunc((u32)psxBranchTest_rec);
 		end_block = 1;
 		return;
@@ -136,7 +136,7 @@ static void recBLTZ()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -167,7 +167,7 @@ static void recBGTZ()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -201,7 +201,7 @@ static void recBLTZAL()
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -235,7 +235,7 @@ static void recBGEZAL()
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -267,7 +267,7 @@ static void recJR()
 	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);
 	regBranchUnlock(br1);
 	regClearJump();
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -285,7 +285,7 @@ static void recJALR()
 	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);	
 	regBranchUnlock(br1);
 	regClearJump();
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -316,7 +316,7 @@ static void recBEQ()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
@@ -351,7 +351,7 @@ static void recBNE()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
 	//DEBUGG("backpatching %p rel to %p -> 0x%x\n", backpatch, recMem, mips_relative_offset(backpatch, (u32)recMem, 4));
@@ -385,7 +385,7 @@ static void recBLEZ()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
@@ -417,7 +417,7 @@ static void recBGEZ()
 
 	regClearBranch();
 	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
 	CALLFunc_Branch((u32)psxBranchTest_rec);
 
@@ -441,7 +441,7 @@ static void recHLE()
 	LoadImmediate32(pc, TEMP_1);
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offpc);
 
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS_CYCLE_INC, MIPSREG_A0);
+	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
 	end_block = 1;

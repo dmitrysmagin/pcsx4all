@@ -5,8 +5,6 @@
 #define psxMemReadS8	psxMemRead8
 #define psxMemReadS16	psxMemRead16
 
-#define BIAS_CYCLE_INC	BIAS
-
 #undef INLINE
 #define INLINE		inline
 
