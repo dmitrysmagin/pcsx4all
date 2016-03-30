@@ -50,7 +50,6 @@ u32 rotations[4];
 #include "mips_std_rec_regcache.cpp"
 #include "interpreter_old.cpp"
 
-#include "evaluator/evaluator.cpp.h"
 #include "generator/mips/generator.cpp.h"
 
 static void recReset();
