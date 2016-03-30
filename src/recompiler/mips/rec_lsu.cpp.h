@@ -89,7 +89,7 @@ static void recLB()
 	EMITDIRECTLOAD(0x80000000)
 	iPushOfB();
 	psxRegs.iRegs[_Rt_] = -1;
-	CALLFunc_NoFlush((u32)psxMemReadS8);
+	CALLFunc((u32)psxMemReadS8);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -108,7 +108,7 @@ static void recLBU()
 	iPushOfB();
 	psxRegs.iRegs[_Rt_] = -1;
 
-	CALLFunc_NoFlush((u32)psxMemRead8);
+	CALLFunc((u32)psxMemRead8);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -126,7 +126,7 @@ static void recLH()
 	EMITDIRECTLOAD(0x84000000)
 	iPushOfB();
 	psxRegs.iRegs[_Rt_] = -1;
-	CALLFunc_NoFlush((u32)psxMemReadS16);
+	CALLFunc((u32)psxMemReadS16);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -144,7 +144,7 @@ static void recLHU()
 	EMITDIRECTLOAD(0x94000000)
 	iPushOfB();
 	psxRegs.iRegs[_Rt_] = -1;
-	CALLFunc_NoFlush((u32)psxMemRead16);
+	CALLFunc((u32)psxMemRead16);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -162,7 +162,7 @@ static void recLW()
 	EMITDIRECTLOAD(0x8c000000)
 	psxRegs.iRegs[_Rt_] = -1;
 	iPushOfB();
-	CALLFunc_NoFlush((u32)psxMemRead32);
+	CALLFunc((u32)psxMemRead32);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -192,7 +192,7 @@ static void recSB()
 	{
 		MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, 0);
 	}
-	CALLFunc_NoFlush((u32)psxMemWrite8);
+	CALLFunc((u32)psxMemWrite8);
 }
 
 static void recSH()
@@ -212,7 +212,7 @@ static void recSH()
 	{
 		MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, 0);
 	}
-	CALLFunc_NoFlush((u32)psxMemWrite16);
+	CALLFunc((u32)psxMemWrite16);
 }
 
 static void recSW()
@@ -232,7 +232,7 @@ static void recSW()
 	{
 		MIPS_EMIT(MIPS_POINTER, 0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
 	}
-	CALLFunc_NoFlush((u32)psxMemWrite32);
+	CALLFunc((u32)psxMemWrite32);
 }
 
 REC_FUNC_TEST(SWL);

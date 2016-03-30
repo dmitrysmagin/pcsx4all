@@ -125,9 +125,6 @@ do { \
 	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
 } while (0)
 
-#define CALLFunc_NoFlush(func) \
-	CALLFunc(func)
-
 #define mips_relative_offset(source, offset, next) \
 	((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF)
 

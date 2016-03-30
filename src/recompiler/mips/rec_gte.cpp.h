@@ -4,7 +4,7 @@
 	CALLFunc(func)
 
 #define CP2_CALLFunc_NoFlush(func) \
-	CALLFunc_NoFlush(func)
+	CALLFunc(func)
 
 #define CP2_FUNC(f,n,flush) \
 void gte##f(u32 code, u32 pc); void rec##f() \
