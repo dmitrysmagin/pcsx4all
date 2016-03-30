@@ -1,4 +1,4 @@
-#if 0
+#if 1
 static INLINE void iPushOfB()
 {
 	s32 imm16 = (s32)(s16)_Imm_;
