@@ -59,38 +59,4 @@
 /* code offset */
 #define offcode		offsetof(psxRegisters,  code)
 
-/* call func */
-#define CALLFunc(func)						 															\
-	{																															\
-		MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-		MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
-	}
-
-#define CALLFunc_NoFlush(func)		 											\
-	CALLFunc(func)						 										\
-
-#define CALLFunc_Branch(func)		 											\
-	MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
-	rec_recompile_end();												\
-
-#define gp2x_sync() sync()
-
-#define _oB_ (_u32(_rRs_) + _Imm_)
-
-#define write32(val) 															\
-	*recMem++ = (u32)(val);			 											\
-
-#define mips_relative_offset(source, offset, next) \
-  ((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF) \
-
-#define LoadImmediate32(imm32, reg)												\
-	mips_load_imm32((imm32), reg)													\
-
-#define mips_load_imm32(imm, ireg) \
-{ \
-  MIPS_EMIT(0, 0x3c000000 | (ireg << 16) | ((imm) >> 16)); /* lui */ \
-  MIPS_EMIT(0, 0x34000000 | (ireg << 21) | (ireg << 16) | ((imm) & 0xffff)); /* ori */ \
-}
-
 #endif

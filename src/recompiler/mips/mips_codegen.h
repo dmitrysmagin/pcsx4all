@@ -58,15 +58,20 @@ typedef enum {
 	MIPSREG_S7,
 } MIPSReg;
 
-#define MIPS_EMIT(p, i) write32(i);
+#define MIPS_EMIT(p, i) \
+	*recMem++ = (u32)(i);
 
-#define MIPS_PUSH(p, reg)						\
-	do {								\
-		MIPS_EMIT(p, 0x27bdfffc /* addiu sp, sp, -4 */);	\
-		MIPS_EMIT(p, 0xafa00000 | (reg << 16));			\
-	} while(0)
+#define MIPS_PUSH(p, reg) \
+do { \
+	MIPS_EMIT(p, 0x27bdfffc /* addiu sp, sp, -4 */); \
+	MIPS_EMIT(p, 0xafa00000 | (reg << 16)); \
+} while (0)
 
-#define MIPS_POP(p, reg) MIPS_EMIT(p, 0x8fa00000 | (reg << 16)); MIPS_EMIT(p, 0x27bd0004 /* addiu sp, sp, 4 */);
+#define MIPS_POP(p, reg) \
+do { \
+	MIPS_EMIT(p, 0x8fa00000 | (reg << 16)); \
+	MIPS_EMIT(p, 0x27bd0004 /* addiu sp, sp, 4 */); \
+} while (0)
 
 #define MIPS_LDR_IMM(p, rd, rn, imm) MIPS_EMIT(p, 0x8c000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 #define MIPS_STR_IMM(p, rd, rn, imm) MIPS_EMIT(p, 0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
@@ -77,7 +82,7 @@ typedef enum {
 	MIPS_EMIT(p, 0x34000000 | ((reg) << 16) | ((short)imm8)) /* ori reg, zero, imm8 */
 
 #define MIPS_MOV_REG_REG(p, rd, rs) \
-        MIPS_EMIT(p, 0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
+	MIPS_EMIT(p, 0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
 
 #define MIPS_AND_REG_REG(p, rd, rn, rm) \
 	MIPS_EMIT(p, 0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
@@ -96,6 +101,32 @@ typedef enum {
 
 #define MIPS_ORR_REG_REG(p, rd, rn, rm) \
 	MIPS_EMIT(p, 0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+
+/* call func */
+#define CALLFunc(func) \
+do { \
+	MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
+	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
+} while (0)
+
+#define CALLFunc_NoFlush(func) \
+	CALLFunc(func)
+
+#define CALLFunc_Branch(func) \
+do { \
+	MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
+	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
+	rec_recompile_end(); \
+} while (0)
+
+#define mips_relative_offset(source, offset, next) \
+	((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF)
+
+#define LoadImmediate32(imm, ireg) \
+do { \
+	MIPS_EMIT(0, 0x3c000000 | (ireg << 16) | ((imm) >> 16)); /* lui */ \
+	MIPS_EMIT(0, 0x34000000 | (ireg << 21) | (ireg << 16) | ((imm) & 0xffff)); /* ori */ \
+} while (0)
 
 #endif /* MIPS_CG_H */
 
