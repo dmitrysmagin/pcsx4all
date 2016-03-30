@@ -37,9 +37,6 @@ FILE *translation_log_fp = NULL;
 char disasm_buffer[512];
 #endif
 
-u32 stores[4];
-u32 rotations[4];
-
 #include "mips_std_rec_calls.cpp"
 #include "mips_std_rec_regcache.cpp"
 #include "interpreter_old.cpp"
