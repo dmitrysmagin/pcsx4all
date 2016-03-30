@@ -37,7 +37,6 @@ FILE *translation_log_fp = NULL;
 char disasm_buffer[512];
 #endif
 
-#include "mips_std_rec_calls.cpp"
 #include "mips_std_rec_regcache.cpp"
 #include "interpreter_old.cpp"
 

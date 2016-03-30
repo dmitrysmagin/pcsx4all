@@ -1,3 +1,12 @@
+static u32 psx_interrupt(u32 reg)
+{
+	if (reg == 12)
+		psxRegs.interrupt |= 0x80000000;
+
+	return 0;
+}
+
+
 #if 1
 static void recMFC0()
 {
