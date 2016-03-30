@@ -1,10 +1,6 @@
 #ifndef __MIPS_DEFINES_H__
 #define __MIPS_DEFINES_H__
 
-// From old psxmem.h
-#define psxMemReadS8	psxMemRead8
-#define psxMemReadS16	psxMemRead16
-
 #undef INLINE
 #define INLINE		inline
 

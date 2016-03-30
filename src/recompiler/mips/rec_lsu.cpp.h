@@ -89,7 +89,12 @@ static void recLB()
 	EMITDIRECTLOAD(0x80000000)
 	iPushOfB();
 	iRegs[_Rt_] = -1;
-	CALLFunc((u32)psxMemReadS8);
+	CALLFunc((u32)psxMemRead8);
+
+	/* Sign extend */
+	gen(SLL, MIPSREG_V0, MIPSREG_V0, 24);
+	gen(SRA, MIPSREG_V0, MIPSREG_V0, 24);
+
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -126,7 +131,12 @@ static void recLH()
 	EMITDIRECTLOAD(0x84000000)
 	iPushOfB();
 	iRegs[_Rt_] = -1;
-	CALLFunc((u32)psxMemReadS16);
+	CALLFunc((u32)psxMemRead16);
+
+	/* Sign extend */
+	gen(SLL, MIPSREG_V0, MIPSREG_V0, 16);
+	gen(SRA, MIPSREG_V0, MIPSREG_V0, 16);
+
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
