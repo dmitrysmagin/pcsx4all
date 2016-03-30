@@ -23,6 +23,8 @@ static INLINE void iPushOfB()
 	}
 }
 
+/* Temporarily disable because it causes SEGFAULTs */
+#if 0
 #define EMITDIRECTLOAD(insn) \
 	if (psxRegs.iRegs[_Rs_] != -1) { \
 	  u32 addr = psxRegs.iRegs[_Rs_] + ((s32)(s16)_Imm_); \
@@ -74,6 +76,10 @@ static INLINE void iPushOfB()
 	    return; \
 	  } \
 	}
+#else
+#define EMITDIRECTLOAD(insn)
+#define EMITDIRECTSTORE(insn)
+#endif
 
 static void recLB()
 {
