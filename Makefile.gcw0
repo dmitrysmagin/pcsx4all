@@ -73,8 +73,7 @@ OBJS = \
 ifdef RECOMPILER
 OBJS += \
 	obj/recompiler/mips/recompiler.o \
-	obj/recompiler/mips/mips_disasm.o \
-	obj/recompiler/mips/mips.o
+	obj/recompiler/mips/mips_disasm.o
 endif
 
 OBJS += obj/gpu/$(GPU)/gpu.o
