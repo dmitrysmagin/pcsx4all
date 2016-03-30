@@ -4,7 +4,7 @@ do \
 { \
 	u32 rt  = _rt_; u32 rs  = _rs_; s32 imm = _imm_; \
 	if (!rt) break; \
-	psxRegs.iRegs[_rt_] = -1; \
+	iRegs[_rt_] = -1; \
 	u32 r1, r2; \
 	if (!rs) \
 	{ \
@@ -46,7 +46,14 @@ while (0)
 #endif
 
 #if 1
-static void recADDI()  { u32 x = psxRegs.iRegs[_Rs_]; REC_ITYPE_RT_RS_I16(ADDI,  _Rt_, _Rs_, ((s16)(_Imm_))); if (x != -1) psxRegs.iRegs[_Rt_] = x + (s16)(_Imm_); }
+static void recADDI()
+{
+	u32 x = iRegs[_Rs_];
+	REC_ITYPE_RT_RS_I16(ADDI,  _Rt_, _Rs_, ((s16)(_Imm_)));
+	if (x != -1)
+		iRegs[_Rt_] = x + (s16)(_Imm_);
+}
+
 static void recADDIU() { recADDI(); }
 static void recSLTI()  { REC_ITYPE_RT_RS_I16(SLTI,  _Rt_, _Rs_, ((s16)(_Imm_))); }
 static void recSLTIU() { REC_ITYPE_RT_RS_I16(SLTIU, _Rt_, _Rs_, ((s16)(_Imm_))); }
@@ -63,7 +70,7 @@ do \
 { \
 	u32 rt  = _rt_; u32 rs  = _rs_; u32 imm = _imm_; \
 	if (!rt) break; \
-	psxRegs.iRegs[_rt_] = -1; \
+	iRegs[_rt_] = -1; \
 	u32 r1, r2; \
 	if (!rs) \
 	{ \
@@ -107,7 +114,7 @@ while (0)
 
 #if 1
 static void recANDI()  { REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
-static void recORI()   { u32 x = psxRegs.iRegs[_Rs_]; REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_))); if (x != -1) psxRegs.iRegs[_Rt_] = x | ((u16)(_Imm_)); }
+static void recORI()   { u32 x = iRegs[_Rs_]; REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_))); if (x != -1) iRegs[_Rt_] = x | ((u16)(_Imm_)); }
 static void recXORI()  { REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
 #else
 REC_FUNC_TEST(ANDI);
@@ -126,7 +133,7 @@ do 										\
 } 										\
 while (0)
 
-static void recLUI()   { psxRegs.iRegs[_Rt_] = ((u16)_ImmU_) << 16; REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
+static void recLUI()   { iRegs[_Rt_] = ((u16)_ImmU_) << 16; REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
 
 #ifndef NO_ZERO_REGISTER_OPTIMISATION
 #define REC_RTYPE_RD_RS_RT(insn, _rd_, _rs_, _rt_) \
@@ -135,7 +142,7 @@ do \
 	u32 rd  = _rd_; u32 rt  = _rt_; u32 rs  = _rs_; \
 	if (!rd) break; \
 	u32 r1, r2, r3; \
-	psxRegs.iRegs[_rd_] = -1; \
+	iRegs[_rd_] = -1; \
 	if (rs == rd) \
 	{ \
 		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); r2 = r1; \

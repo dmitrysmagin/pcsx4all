@@ -12,6 +12,7 @@
 #include "disasm.h"
 
 RecRegisters 	regcache;
+static u32 iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
 static u32 psxRecLUT[0x010000];
 
@@ -233,7 +234,7 @@ static u32 recRecompile()
 	}
 
 	rec_recompile_start();
-	memset(psxRegs.iRegs, 0xff, 32*4);
+	memset(iRegs, 0xff, 32*4);
 
 	for (;;)
 	{
