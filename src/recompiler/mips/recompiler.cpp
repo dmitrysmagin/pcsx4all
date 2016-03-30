@@ -1,12 +1,15 @@
 //#define NO_ZERO_REGISTER_OPTIMISATION	1
 
-#include "common.h"
-#include "mips_codegen.h"
-#include "mips_dpimacros.h"
+#include "psxcommon.h"
+#include "psxhle.h"
+#include "psxmem.h"
+#include "r3000a.h"
+#include "gte.h"
 
 #include "defines.h"
+#include "mips_codegen.h"
+#include "mips_dpimacros.h"
 #include "externs.h"
-
 #include "disasm.h"
 
 RecRegisters 	regcache;
@@ -44,7 +47,6 @@ u32 stores[4];
 u32 rotations[4];
 
 #include "mips_std_rec_calls.cpp"
-#include "mips_std_rec_debug.cpp"
 #include "mips_std_rec_regcache.cpp"
 #include "interpreter_old.cpp"
 

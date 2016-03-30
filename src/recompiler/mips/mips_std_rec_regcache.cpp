@@ -1,5 +1,3 @@
-#include "common.h"
-
 static INLINE void regClearJump(void)
 {
 	int i;

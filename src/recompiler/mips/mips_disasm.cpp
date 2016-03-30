@@ -21,7 +21,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "common.h"
+#include "psxcommon.h"
 #include "disasm.h"
 
 const char *mips_opcode_names[] =

@@ -1,9 +1,18 @@
 #ifndef __MIPS_DEFINES_H__
 #define __MIPS_DEFINES_H__
 
+// From old psxmem.h
+#define psxMemReadS8	psxMemRead8
+#define psxMemReadS16	psxMemRead16
+
+#define BIAS_CYCLE_INC	BIAS
+
+#undef INLINE
+#define INLINE		inline
 
 //#define WITH_DISASM
 //#define DEBUGG printf
+#define DEBUGF(aa)
 
 #define REG_CACHE_START		MIPSREG_S0
 #define REG_CACHE_END		(MIPSREG_S7+1)

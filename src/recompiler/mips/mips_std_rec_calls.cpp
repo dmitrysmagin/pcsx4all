@@ -1,5 +1,3 @@
-#include "common.h"
-
 extern void psxBranchTest();
 
 u32 psxBranchTest_rec(u32 cycles, u32 pc)

@@ -43,8 +43,6 @@ extern char disasm_buffer[512];
 #endif
 
 /* Functions */
-extern void rec_test_pc();
-
 extern u32 recIntExecuteBlock(u32 newpc);
 extern u32 psxBranchTest_rec(u32 cycles, u32 pc);
 extern u32 psx_interrupt(u32 reg);
