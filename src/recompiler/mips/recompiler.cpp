@@ -8,7 +8,6 @@
 
 #include "defines.h"
 #include "mips_codegen.h"
-#include "mips_dpimacros.h"
 #include "externs.h"
 #include "disasm.h"
 
