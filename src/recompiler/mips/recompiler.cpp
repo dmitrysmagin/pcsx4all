@@ -8,10 +8,32 @@
 
 #include "defines.h"
 #include "mips_codegen.h"
-#include "externs.h"
 #include "disasm.h"
 
-RecRegisters 	regcache;
+/* Regcache data */
+typedef struct {
+	u32	mappedto;
+	u32	host_age;
+	u32	host_use;
+	u32	host_type;
+	bool	ismapped;
+	int	host_islocked;
+} HOST_RecRegister;
+
+typedef struct {
+	u32	mappedto;
+	bool	ismapped;
+	bool	psx_ischanged;
+} PSX_RecRegister;
+
+typedef struct {
+	PSX_RecRegister		psx[32];
+	HOST_RecRegister	host[32];
+	u32			reglist[32];
+	u32			reglist_cnt;
+} RecRegisters;
+
+RecRegisters	regcache;
 static u32 iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
 static u32 psxRecLUT[0x010000];
