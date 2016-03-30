@@ -33,11 +33,6 @@ static u32 pc;					/* recompiler pc */
 static u32 oldpc;
 static u32 branch = 0;
 
-#ifdef WITH_REG_STATS
-u32 reg_count[32];
-u32 reg_mapped_count[32];
-#endif
-
 #ifdef WITH_DISASM
 FILE *translation_log_fp = NULL;
 char disasm_buffer[512];

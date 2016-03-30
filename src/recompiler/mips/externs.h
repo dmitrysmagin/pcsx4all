@@ -32,11 +32,6 @@ extern RecRegisters 	regcache;
 extern u32 stores[4];                                                         
 extern u32 rotations[4];                                                      
 
-#ifdef WITH_REG_STATS
-extern u32 reg_count[32];
-extern u32 reg_mapped_count[32];
-#endif
-
 #ifdef WITH_DISASM
 extern FILE *translation_log_fp;
 extern char disasm_buffer[512];
