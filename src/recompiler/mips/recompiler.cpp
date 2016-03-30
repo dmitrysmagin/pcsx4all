@@ -41,8 +41,6 @@ char disasm_buffer[512];
 #include "mips_std_rec_regcache.cpp"
 #include "interpreter_old.cpp"
 
-#include "generator/mips/generator.cpp.h"
-
 static void recReset();
 static u32 recRecompile();
 static void recClear(u32 Addr, u32 Size);
@@ -165,6 +163,7 @@ void rec##f() 																	\
 	CALLFunc((u32)psx##f); 														\
 }
 
+#include "gen_alu.h"     // Helpers for generating ALU opcodes
 #include "rec_lsu.cpp.h" // Load Store Unit
 #include "rec_gte.cpp.h" // Geometry Transformation Engine
 #include "rec_alu.cpp.h" // Arithmetic Logical Unit
