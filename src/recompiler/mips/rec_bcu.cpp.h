@@ -18,12 +18,6 @@ static void recSYSCALL()
 	end_block = 1;
 }
 
-#define rec_recompile_end(cond)													\
-{																												\
-		MIPS_EMIT(MIPS_POINTER, 0x00000008 | (MIPSREG_V0 << 21)); /* jr v0 */ \
-		MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
-}																												\
-
 /* Set a pending branch */
 static INLINE void SetBranch()
 {
@@ -425,11 +419,6 @@ static void recBGEZ()
 	regBranchUnlock(br1);
 }
 #endif
-
-static void recRet()
-{
-	rec_recompile_end(ARMCOND_AL);
-}
 
 static void recBREAK() { }
 

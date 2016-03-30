@@ -102,6 +102,22 @@ do { \
 #define MIPS_ORR_REG_REG(p, rd, rn, rm) \
 	MIPS_EMIT(p, 0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
+/* start of the recompiled block */
+#define rec_recompile_start() \
+do { \
+	if (loadedpermregs == 0) { \
+		LoadImmediate32((u32)&psxRegs, PERM_REG_1); \
+		loadedpermregs = 1; \
+	} \
+} while (0)
+
+/* end of the recompiled block */
+#define rec_recompile_end() \
+do { \
+	MIPS_EMIT(MIPS_POINTER, 0x00000008 | (MIPSREG_V0 << 21)); /* jr v0 */ \
+	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
+} while (0)
+
 /* call func */
 #define CALLFunc(func) \
 do { \

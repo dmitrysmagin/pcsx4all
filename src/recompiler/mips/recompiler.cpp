@@ -179,15 +179,6 @@ void rec##f() 																	\
 #include "rec_cp0.cpp.h" // Coprocessor 0
 #include "rec_bcu.cpp.h" // Branch Control Unit
 
-#define rec_recompile_start() 													\
-{																				\
-		if( loadedpermregs == 0 ) 												\
-		{ 																		\
-			LoadImmediate32((u32)&psxRegs, PERM_REG_1); 							\
-			loadedpermregs = 1; 												\
-		} 																		\
-}
-
 #include <sys/cachectl.h>
 
 void clear_insn_cache(void *start, void *end, int flags)
@@ -388,7 +379,7 @@ static u32 recRecompile()
 		if (end_block)
 		{
 			end_block = 0;
-			recRet();
+			rec_recompile_end();
 			DISASM_HOST
 			clear_insn_cache(recMemStart, recMem, 0);
 			return (u32)recMemStart;
