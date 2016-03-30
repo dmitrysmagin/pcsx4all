@@ -90,6 +90,15 @@ void pad_update(void)
 				case SDLK_LEFT:  pad1 &= ~(1 << DKEY_LEFT);  break;
 				case SDLK_RIGHT: pad1 &= ~(1 << DKEY_RIGHT); break;
 
+#ifdef GCW_ZERO
+				case SDLK_LSHIFT: pad1 &= ~(1 << DKEY_SQUARE); break;
+				case SDLK_LCTRL: pad1 &= ~(1 << DKEY_CIRCLE); break;
+				case SDLK_SPACE: pad1 &= ~(1 << DKEY_TRIANGLE); break;
+				case SDLK_LALT: pad1 &= ~(1 << DKEY_CROSS); break;
+
+				case SDLK_TAB: pad1 &= ~(1 << DKEY_L1); break;
+				case SDLK_BACKSPACE: pad1 &= ~(1 << DKEY_R1); break;
+#else
 				case SDLK_a: pad1 &= ~(1 << DKEY_SQUARE); break;
 				case SDLK_x: pad1 &= ~(1 << DKEY_CIRCLE); break;
 				case SDLK_y:
@@ -99,10 +108,11 @@ void pad_update(void)
 
 				case SDLK_w: pad1 &= ~(1 << DKEY_L1); break;
 				case SDLK_e: pad1 &= ~(1 << DKEY_R1); break;
-				
+#endif
 				case SDLK_RETURN: pad1 &= ~(1 << DKEY_START); break;
+#ifndef GCW_ZERO
 				case SDLK_BACKSPACE: pad1 &= ~(1 << DKEY_SELECT); break;
-				
+#endif
 				case 0:
 				case SDLK_ESCAPE:
 					if (autosavestate) {	
@@ -137,7 +147,15 @@ void pad_update(void)
 				case SDLK_DOWN:  pad1 |= (1 << DKEY_DOWN);  break;
 				case SDLK_LEFT:  pad1 |= (1 << DKEY_LEFT);  break;
 				case SDLK_RIGHT: pad1 |= (1 << DKEY_RIGHT); break;
+#ifdef GCW_ZERO
+				case SDLK_LSHIFT: pad1 |= (1 << DKEY_SQUARE); break;
+				case SDLK_LCTRL: pad1 |= (1 << DKEY_CIRCLE); break;
+				case SDLK_SPACE: pad1 |= (1 << DKEY_TRIANGLE); break;
+				case SDLK_LALT: pad1 |= (1 << DKEY_CROSS); break;
 
+				case SDLK_TAB: pad1 |= (1 << DKEY_L1); break;
+				case SDLK_BACKSPACE: pad1 |= (1 << DKEY_R1); break;
+#else
 				case SDLK_a: pad1 |= (1 << DKEY_SQUARE); break;
 				case SDLK_x: pad1 |= (1 << DKEY_CIRCLE); break;
 				case SDLK_s: pad1 |= (1 << DKEY_TRIANGLE); break;
@@ -145,10 +163,11 @@ void pad_update(void)
 
 				case SDLK_w: pad1 |= (1 << DKEY_L1); break;
 				case SDLK_e: pad1 |= (1 << DKEY_R1); break;
-
+#endif
 				case SDLK_RETURN: pad1 |= (1 << DKEY_START); break;
+#ifndef GCW_ZERO
 				case SDLK_BACKSPACE: pad1 |= (1 << DKEY_SELECT); break;
-
+#endif
 				default: break;
 			}
 			break;
