@@ -61,10 +61,6 @@ u32	*recMemStart;
 u32	isInBios = 0;
 u32 	loadedpermregs = 0;
 u32	end_block = 0;
-// Let's hope the number of indirect branches in a block doesnt exceed this large number of elements
-u32 recBranches[1024];
-//u32 recBranchesPatch[1024];
-u32 recBranchesPatchAddr[1024];
 int ibranch;
 u32 blockcycles = 0;
 
@@ -180,122 +176,6 @@ void rec##f() 																	\
 void clear_insn_cache(void *start, void *end, int flags)
 {
 	cacheflush(start, (char *)end - (char *)start, ICACHE);
-}
-
-static INLINE u32 recScanBlock(u32 scanpc, u32 numbranches)
-{
-	u32 scancode;
-
-	if( (u32)(PC_REC32(recBranches[ibranch])) != 0 ) return numbranches;
-
-	while(1)
-	{
-		scancode = *(u32*)((psxMemRLUT[scanpc>>16] + (scanpc&0xffff)));
-		scanpc += 4;
-		switch(scancode >> 26)
-		{
-		case 0:
-			switch(_fFunct_(scancode))
-			{
-			case 8: return numbranches; //recJR
-			case 9: return numbranches; //recJALR
-			case 12: return numbranches; //recSYSCALL
-			}
-		break;
-		case 1:
-			switch(_fRt_(scancode))
-			{
-			case 0: //recBLTZ
-				if(_fRs_(scancode) == 0)
-				{
-					recBranches[numbranches] = scanpc + 4;
-					numbranches++;
-					numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-					return numbranches;
-				}
-			break;
-			case 1: //recBGEZ
-				if(_fRs_(scancode) == 0)
-				{
-					recBranches[numbranches] =  _fImm_(scancode) * 4 + scanpc;
-					numbranches++;
-					numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-					return numbranches;
-				}
-			break;
-			case 16: //recBLTZAL
-				if(_fRs_(scancode) == 0)
-				{
-					recBranches[numbranches] = scanpc + 4;
-					numbranches++;
-					numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-					return numbranches;
-				}
-			break;
-			case 17: //recBGEZAL
-				if(_fRs_(scancode) == 0)
-				{
-					recBranches[numbranches] =  _fImm_(scancode) * 4 + scanpc;
-					numbranches++;
-					numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-					return numbranches;
-				}
-			break;
-			}
-		break;
-		case 2: //recJ
-			recBranches[numbranches] = _fTarget_(scancode) * 4 + (scanpc & 0xf0000000);
-			numbranches++;
-			numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-			return numbranches;
-		break;	
-		case 3: //recJAL
-			recBranches[numbranches] = _fTarget_(scancode) * 4 + (scanpc & 0xf0000000);
-			numbranches++;
-			numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-			return numbranches;
-		break;
-		case 4: //recBEQ
-			if( (_fRs_(scancode) == _fRt_(scancode)) )
-			{
-				recBranches[numbranches] =  ((_fImm_(scancode)) * 4) + scanpc;
-				numbranches++;
-				numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-				return numbranches;
-			}
-		break;
-		case 5: //recBNE
-			if( (_fRs_(scancode) == 0 && _fRt_(scancode) == 0) )
-			{
-				recBranches[numbranches] = scanpc + 4;
-				numbranches++;
-				numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-				return numbranches;
-			}
-		break;
-		case 6: //recBLEZ
-			if( (_fRs_(scancode) == 0) )
-			{
-				recBranches[numbranches] =  _fImm_(scancode) * 4 + scanpc;
-				numbranches++;
-				numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-				return numbranches;
-			}
-		break;
-		case 7: //recBGTZ
-			if( (_fRs_(scancode) == 0) )
-			{
-				recBranches[numbranches] = scanpc + 4;
-				numbranches++;
-				numbranches = recScanBlock(recBranches[numbranches-1], numbranches);
-				return numbranches;
-			}
-		break;
-		case 59: //recHLE
-			return numbranches;
-		break;
-		}
-	}
 }
 
 static u32 recRecompile()
