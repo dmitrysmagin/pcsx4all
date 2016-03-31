@@ -100,8 +100,11 @@ do { \
 	write32(0x27bd0004); /* addiu sp, sp, 4 */ \
 } while (0)
 
-#define MIPS_LDR_IMM(p, rd, rn, imm) write32(0x8c000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
-#define MIPS_STR_IMM(p, rd, rn, imm) write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
+#define LW(rt, rn, imm) \
+	write32(0x8c000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define SW(rd, rn, imm) \
+	write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 
 #define MIPS_ADDIU(p, rt, rs, imm) write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 

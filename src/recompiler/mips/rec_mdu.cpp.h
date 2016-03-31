@@ -14,8 +14,8 @@ static void recMULT() {
 		{
 			rsrt = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		}
-		MIPS_STR_IMM(MIPS_POINTER, rsrt, PERM_REG_1, offGPR(32));
-		MIPS_STR_IMM(MIPS_POINTER, rsrt, PERM_REG_1, offGPR(33));
+		SW(rsrt, PERM_REG_1, offGPR(32));
+		SW(rsrt, PERM_REG_1, offGPR(33));
 		regBranchUnlock(rsrt);
 	}
 	else
@@ -27,8 +27,8 @@ static void recMULT() {
 		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
 		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
 		
-		MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(32));
-		MIPS_STR_IMM(MIPS_POINTER, TEMP_2, PERM_REG_1, offGPR(33));
+		SW(TEMP_1, PERM_REG_1, offGPR(32));
+		SW(TEMP_2, PERM_REG_1, offGPR(33));
 		regBranchUnlock(rs);
 		regBranchUnlock(rt);
 	}
@@ -50,8 +50,8 @@ static void recMULTU() {
 		{
 			rsrt = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		}
-		MIPS_STR_IMM(MIPS_POINTER, rsrt, PERM_REG_1, offGPR(32)); // LO
-		MIPS_STR_IMM(MIPS_POINTER, rsrt, PERM_REG_1, offGPR(33)); // HI
+		SW(rsrt, PERM_REG_1, offGPR(32)); // LO
+		SW(rsrt, PERM_REG_1, offGPR(33)); // HI
 		regBranchUnlock(rsrt);
 	}
 	else
@@ -63,8 +63,8 @@ static void recMULTU() {
 		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
 		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
 		
-		MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(32)); // LO
-		MIPS_STR_IMM(MIPS_POINTER, TEMP_2, PERM_REG_1, offGPR(33)); // HI
+		SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+		SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
 		regBranchUnlock(rs);
 		regBranchUnlock(rt);
 	}
@@ -79,7 +79,7 @@ static void recMFHI() {
 	iRegs[_Rd_] = -1;
 	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
 
-	MIPS_LDR_IMM(MIPS_POINTER, rd, PERM_REG_1, offGPR(33));
+	LW(rd, PERM_REG_1, offGPR(33));
 	regMipsChanged(_Rd_);
 	regBranchUnlock(rd);
 }
@@ -87,7 +87,7 @@ static void recMFHI() {
 static void recMTHI() {
 // Hi = Rs
 	u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
-	MIPS_STR_IMM(MIPS_POINTER, rs, PERM_REG_1, offGPR(33));
+	SW(rs, PERM_REG_1, offGPR(33));
 	regBranchUnlock(rs);
 }
 
@@ -97,7 +97,7 @@ static void recMFLO() {
 	iRegs[_Rd_] = -1;
 	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
 
-	MIPS_LDR_IMM(MIPS_POINTER, rd, PERM_REG_1, offGPR(32));
+	LW(rd, PERM_REG_1, offGPR(32));
 	regMipsChanged(_Rd_);
 	regBranchUnlock(rd);
 }
@@ -105,7 +105,7 @@ static void recMFLO() {
 static void recMTLO() {
 // Lo = Rs
 	u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
-	MIPS_STR_IMM(MIPS_POINTER, rs, PERM_REG_1, offGPR(32));
+	SW(rs, PERM_REG_1, offGPR(32));
 	regBranchUnlock(rs);
 }
 #else

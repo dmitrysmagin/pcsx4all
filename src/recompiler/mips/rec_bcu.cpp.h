@@ -23,12 +23,12 @@ static void recSYSCALL()
 
 	LoadImmediate32(pc - 4, TEMP_1);
 
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offpc);
+	SW(TEMP_1, PERM_REG_1, offpc);
 
 	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, (branch == 1 ? 1 : 0));
 	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
-	MIPS_LDR_IMM(MIPS_POINTER, MIPSREG_A1, PERM_REG_1, offpc);
+	LW(MIPSREG_A1, PERM_REG_1, offpc);
 
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
@@ -85,7 +85,7 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 
 	regClearJump();
 	LoadImmediate32(linkpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
+	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(branchPC, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
@@ -213,7 +213,7 @@ static void recBLTZAL()
 
 	regClearBranch();
 	LoadImmediate32(nbpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
+	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
@@ -248,7 +248,7 @@ static void recBGEZAL()
 
 	regClearBranch();
 	LoadImmediate32(nbpc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(31));
+	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
 	LoadImmediate32(bpc, MIPSREG_A1);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
@@ -455,12 +455,12 @@ static void recHLE()
 	
 	/* Needed? */
 	LoadImmediate32(pc, TEMP_1);
-	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offpc);
+	SW(TEMP_1, PERM_REG_1, offpc);
 
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
-	MIPS_LDR_IMM(MIPS_POINTER, MIPSREG_A1, PERM_REG_1, offpc);
+	LW(MIPSREG_A1, PERM_REG_1, offpc);
 	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 	CALLFunc((u32)psxBranchTest_rec);
 

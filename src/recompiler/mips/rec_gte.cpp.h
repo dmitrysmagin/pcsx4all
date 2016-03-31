@@ -79,7 +79,7 @@ static void recCFC2()
 
 	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
 
-	MIPS_LDR_IMM(MIPS_POINTER, rt, PERM_REG_1, offCP2C(_Rd_));
+	LW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regMipsChanged(_Rt_);
 	regBranchUnlock(rt);
 }
@@ -88,7 +88,7 @@ static void recCTC2()
 {
 	/*if( skCount != 0 ) return;*/
 	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-	MIPS_STR_IMM(MIPS_POINTER, rt, PERM_REG_1, offCP2C(_Rd_));
+	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
 }
 #endif
