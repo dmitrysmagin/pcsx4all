@@ -46,15 +46,15 @@ static void recCTC0()
 
 static void recRFE()
 {
-	MIPS_EMIT(MIPS_POINTER, 0x3c00ffff | (TEMP_2 << 16)); /* lui 0xffff */
-	MIPS_EMIT(MIPS_POINTER, 0x3400fff0 | (TEMP_2 << 21) | (TEMP_2 << 16)); /* ori 0xfff0 */
+	write32(0x3c00ffff | (TEMP_2 << 16)); /* lui 0xffff */
+	write32(0x3400fff0 | (TEMP_2 << 21) | (TEMP_2 << 16)); /* ori 0xfff0 */
 	
 	MIPS_LDR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offCP0(12));
 	/* DEBUG LSR or ASR ? */
 	MIPS_AND_REG_REG(MIPS_POINTER, TEMP_2, TEMP_1, TEMP_2);
-	MIPS_EMIT(MIPS_POINTER, 0x30000000 | (TEMP_1 << 21) | (TEMP_1 << 16) | 0x3c); /* andi t1, t1, 0x3c */
-	MIPS_EMIT(MIPS_POINTER, 0x00000002 | (TEMP_1 << 16) | (TEMP_1 << 11) | (2 << 6)); /* srl t1, t1, 2 */
-	MIPS_EMIT(MIPS_POINTER, 0x00000025 | (TEMP_2 << 21) | (TEMP_1 << 16) | (TEMP_1 << 11)); /* or t1, t2, t1 */
+	write32(0x30000000 | (TEMP_1 << 21) | (TEMP_1 << 16) | 0x3c); /* andi t1, t1, 0x3c */
+	write32(0x00000002 | (TEMP_1 << 16) | (TEMP_1 << 11) | (2 << 6)); /* srl t1, t1, 2 */
+	write32(0x00000025 | (TEMP_2 << 21) | (TEMP_1 << 16) | (TEMP_1 << 11)); /* or t1, t2, t1 */
 	
 	MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offCP0(12));
 }

@@ -23,9 +23,9 @@ static void recMULT() {
 		u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		u32	rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 		
-		MIPS_EMIT(MIPS_POINTER, 0x00000018 | (rs << 21) | (rt << 16)); /* mult rs, rt */
-		MIPS_EMIT(MIPS_POINTER, 0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
-		MIPS_EMIT(MIPS_POINTER, 0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
+		write32(0x00000018 | (rs << 21) | (rt << 16)); /* mult rs, rt */
+		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
+		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
 		
 		MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(32));
 		MIPS_STR_IMM(MIPS_POINTER, TEMP_2, PERM_REG_1, offGPR(33));
@@ -59,9 +59,9 @@ static void recMULTU() {
 		u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 		
-		MIPS_EMIT(MIPS_POINTER, 0x00000019 | (rs << 21) | (rt << 16)); /* multu rs, rt */
-		MIPS_EMIT(MIPS_POINTER, 0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
-		MIPS_EMIT(MIPS_POINTER, 0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
+		write32(0x00000019 | (rs << 21) | (rt << 16)); /* multu rs, rt */
+		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
+		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
 		
 		MIPS_STR_IMM(MIPS_POINTER, TEMP_1, PERM_REG_1, offGPR(32)); // LO
 		MIPS_STR_IMM(MIPS_POINTER, TEMP_2, PERM_REG_1, offGPR(33)); // HI

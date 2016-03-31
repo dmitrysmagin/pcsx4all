@@ -85,49 +85,49 @@ typedef enum {
 /* code offset */
 #define offcode		offsetof(psxRegisters,  code)
 
-#define MIPS_EMIT(p, i) \
+#define write32(i) \
 	*recMem++ = (u32)(i);
 
 #define MIPS_PUSH(p, reg) \
 do { \
-	MIPS_EMIT(p, 0x27bdfffc /* addiu sp, sp, -4 */); \
-	MIPS_EMIT(p, 0xafa00000 | (reg << 16)); \
+	write32(0x27bdfffc /* addiu sp, sp, -4 */); \
+	write32(0xafa00000 | (reg << 16)); \
 } while (0)
 
 #define MIPS_POP(p, reg) \
 do { \
-	MIPS_EMIT(p, 0x8fa00000 | (reg << 16)); \
-	MIPS_EMIT(p, 0x27bd0004 /* addiu sp, sp, 4 */); \
+	write32(0x8fa00000 | (reg << 16)); \
+	write32(0x27bd0004 /* addiu sp, sp, 4 */); \
 } while (0)
 
-#define MIPS_LDR_IMM(p, rd, rn, imm) MIPS_EMIT(p, 0x8c000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
-#define MIPS_STR_IMM(p, rd, rn, imm) MIPS_EMIT(p, 0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
+#define MIPS_LDR_IMM(p, rd, rn, imm) write32(0x8c000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
+#define MIPS_STR_IMM(p, rd, rn, imm) write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 
-#define MIPS_ADDIU(p, rt, rs, imm) MIPS_EMIT(p, 0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define MIPS_ADDIU(p, rt, rs, imm) write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
 #define MIPS_MOV_REG_IMM8(p, reg, imm8) \
-	MIPS_EMIT(p, 0x34000000 | ((reg) << 16) | ((short)imm8)) /* ori reg, zero, imm8 */
+	write32(0x34000000 | ((reg) << 16) | ((short)imm8)) /* ori reg, zero, imm8 */
 
 #define MIPS_MOV_REG_REG(p, rd, rs) \
-	MIPS_EMIT(p, 0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
+	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
 
 #define MIPS_AND_REG_REG(p, rd, rn, rm) \
-	MIPS_EMIT(p, 0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
 #define MIPS_XOR_REG_IMM(p, rd, rn, imm16) \
-	MIPS_EMIT(p, 0x38000000 | ((rn) << 21) | ((rd) << 16) | ((imm16) & 0xffff))
+	write32(0x38000000 | ((rn) << 21) | ((rd) << 16) | ((imm16) & 0xffff))
 
 #define MIPS_XOR_REG_REG(p, rd, rn, rm) \
-	MIPS_EMIT(p, 0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)));
+	write32(0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)));
 
 #define MIPS_SUB_REG_REG(p, rd, rn, rm) \
-	MIPS_EMIT(p, 0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
+	write32(0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
 
 #define MIPS_ADD_REG_REG(p, rd, rn, rm) \
-	MIPS_EMIT(p, 0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
+	write32(0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
 
 #define MIPS_ORR_REG_REG(p, rd, rn, rm) \
-	MIPS_EMIT(p, 0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+	write32(0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
 /* start of the recompiled block */
 #define rec_recompile_start() \
@@ -141,15 +141,15 @@ do { \
 /* end of the recompiled block */
 #define rec_recompile_end() \
 do { \
-	MIPS_EMIT(MIPS_POINTER, 0x00000008 | (MIPSREG_V0 << 21)); /* jr v0 */ \
-	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
+	write32(0x00000008 | (MIPSREG_V0 << 21)); /* jr v0 */ \
+	write32(0); /* nop */ \
 } while (0)
 
 /* call func */
 #define CALLFunc(func) \
 do { \
-	MIPS_EMIT(MIPS_POINTER, 0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-	MIPS_EMIT(MIPS_POINTER, 0); /* nop */ \
+	write32(0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
+	write32(0); /* nop */ \
 } while (0)
 
 #define mips_relative_offset(source, offset, next) \
@@ -157,8 +157,8 @@ do { \
 
 #define LoadImmediate32(imm, ireg) \
 do { \
-	MIPS_EMIT(0, 0x3c000000 | (ireg << 16) | ((imm) >> 16)); /* lui */ \
-	MIPS_EMIT(0, 0x34000000 | (ireg << 21) | (ireg << 16) | ((imm) & 0xffff)); /* ori */ \
+	write32(0x3c000000 | (ireg << 16) | ((imm) >> 16)); /* lui */ \
+	write32(0x34000000 | (ireg << 21) | (ireg << 16) | ((imm) & 0xffff)); /* ori */ \
 } while (0)
 
 #endif /* MIPS_CG_H */

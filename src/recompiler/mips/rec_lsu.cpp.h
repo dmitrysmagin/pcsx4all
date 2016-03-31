@@ -39,11 +39,11 @@ static INLINE void iPushOfB()
 	    else r1 = r2; \
             s32 imm16 = (s32)(s16)_Imm_; \
             /* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */ \
-            if (addr < 0x200000) { MIPS_EMIT(MIPS_POINTER, 0x3c001000 | (TEMP_1 << 16)); }	/* lui temp1, 0x1000 */ \
-            else if (addr >= 0xa0000000) { MIPS_EMIT(MIPS_POINTER, 0x3c00b000 | (TEMP_1 << 16)); } /* lui temp1, 0xb000 */ \
-            else { MIPS_EMIT(MIPS_POINTER, 0x3c009000 | (TEMP_1 << 16)); }	/* lui temp1, 0x9000 */ \
-            MIPS_EMIT(MIPS_POINTER, 0x00000026 | (TEMP_1 << 21) | (r2 << 16) | (TEMP_2 << 11)); /* xor temp2, temp1, r2 */ \
-	    MIPS_EMIT(MIPS_POINTER, (insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff)); \
+            if (addr < 0x200000) { write32(0x3c001000 | (TEMP_1 << 16)); }	/* lui temp1, 0x1000 */ \
+            else if (addr >= 0xa0000000) { write32(0x3c00b000 | (TEMP_1 << 16)); } /* lui temp1, 0xb000 */ \
+            else { write32(0x3c009000 | (TEMP_1 << 16)); }	/* lui temp1, 0x9000 */ \
+            write32(0x00000026 | (TEMP_1 << 21) | (r2 << 16) | (TEMP_2 << 11)); /* xor temp2, temp1, r2 */ \
+	    write32((insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff)); \
 	    regMipsChanged(rt); \
 	    regBranchUnlock(r1); \
 	    regBranchUnlock(r2); \
@@ -66,11 +66,11 @@ static INLINE void iPushOfB()
 	    else r1 = r2; \
             s32 imm16 = (s32)(s16)_Imm_; \
             /* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */ \
-            if (addr < 0x200000) { MIPS_EMIT(MIPS_POINTER, 0x3c001000 | (TEMP_1 << 16)); }	/* lui temp1, 0x1000 */ \
-            else if (addr >= 0xa0000000) { MIPS_EMIT(MIPS_POINTER, 0x3c00b000 | (TEMP_1 << 16)); } /* lui temp1, 0xb000 */ \
-            else { MIPS_EMIT(MIPS_POINTER, 0x3c009000 | (TEMP_1 << 16)); }	/* lui temp1, 0x9000 */ \
-            MIPS_EMIT(MIPS_POINTER, 0x00000026 | (TEMP_1 << 21) | (r2 << 16) | (TEMP_2 << 11)); /* xor temp2, temp1, r2 */ \
-	    MIPS_EMIT(MIPS_POINTER, (insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff)); \
+            if (addr < 0x200000) { write32(0x3c001000 | (TEMP_1 << 16)); }	/* lui temp1, 0x1000 */ \
+            else if (addr >= 0xa0000000) { write32(0x3c00b000 | (TEMP_1 << 16)); } /* lui temp1, 0xb000 */ \
+            else { write32(0x3c009000 | (TEMP_1 << 16)); }	/* lui temp1, 0x9000 */ \
+            write32(0x00000026 | (TEMP_1 << 21) | (r2 << 16) | (TEMP_2 << 11)); /* xor temp2, temp1, r2 */ \
+	    write32((insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff)); \
 	    regBranchUnlock(r1); \
 	    regBranchUnlock(r2); \
 	    return; \
@@ -235,12 +235,12 @@ static void recSW()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-		MIPS_EMIT(MIPS_POINTER, 0x00000021 | (r1 << 21) | (MIPSREG_A1 << 11)); /* move a1, r1 */
+		write32(0x00000021 | (r1 << 21) | (MIPSREG_A1 << 11)); /* move a1, r1 */
 		regBranchUnlock(r1);
 	}
 	else
 	{
-		MIPS_EMIT(MIPS_POINTER, 0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
+		write32(0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
 	}
 	CALLFunc((u32)psxMemWrite32);
 }
