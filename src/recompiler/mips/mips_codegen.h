@@ -108,8 +108,8 @@ do { \
 
 #define MIPS_ADDIU(p, rt, rs, imm) write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
-#define MIPS_MOV_REG_IMM8(p, reg, imm8) \
-	write32(0x34000000 | ((reg) << 16) | ((short)imm8)) /* ori reg, zero, imm8 */
+#define LI16(reg, imm16) \
+	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */
 
 #define MIPS_MOV_REG_REG(p, rd, rs) \
 	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */

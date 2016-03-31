@@ -25,7 +25,7 @@ extern INLINE u32 gen(MOVI32, u32 rt, u32 imm32)
 }
 
 extern INLINE u32 gen(MOV, u32 rd, u32 rs) { MIPS_MOV_REG_REG(0, rd, rs); return 1; }
-extern INLINE u32 gen(CLR, u32 rd)         { MIPS_MOV_REG_IMM8(0, rd, 0); return 1; }
+extern INLINE u32 gen(CLR, u32 rd)         { LI16(rd, 0); return 1; }
 extern INLINE u32 gen(NEG, u32 rd, u32 rs) { DEBUGF("fuckup"); abort(); /* ARM_RSB_REG_IMM8(0, rd, rs, 0); */ return 1; }
 extern INLINE u32 gen(NOT, u32 rd, u32 rs) { DEBUGF("fuckup"); abort(); /* ARM_MVN_REG_REG(0, rd, rs); */ return 1; }
 

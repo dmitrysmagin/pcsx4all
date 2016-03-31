@@ -25,8 +25,8 @@ static void recSYSCALL()
 
 	SW(TEMP_1, PERM_REG_1, offpc);
 
-	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, (branch == 1 ? 1 : 0));
-	MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A0, 0x20);
+	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0));
+	LI16(MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
 	LW(MIPSREG_A1, PERM_REG_1, offpc);
 

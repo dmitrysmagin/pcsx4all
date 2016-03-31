@@ -200,7 +200,7 @@ static void recSB()
 	}
 	else
 	{
-		MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, 0);
+		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)psxMemWrite8);
 }
@@ -220,7 +220,7 @@ static void recSH()
 	}
 	else
 	{
-		MIPS_MOV_REG_IMM8(MIPS_POINTER, MIPSREG_A1, 0);
+		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)psxMemWrite16);
 }
