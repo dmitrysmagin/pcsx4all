@@ -88,16 +88,16 @@ typedef enum {
 #define write32(i) \
 	*recMem++ = (u32)(i);
 
-#define MIPS_PUSH(p, reg) \
+#define PUSH(reg) \
 do { \
-	write32(0x27bdfffc /* addiu sp, sp, -4 */); \
-	write32(0xafa00000 | (reg << 16)); \
+	write32(0x27bdfffc); /* addiu sp, sp, -4 */ \
+	write32(0xafa00000 | (reg << 16)); /* sw reg, sp(0) */ \
 } while (0)
 
-#define MIPS_POP(p, reg) \
+#define POP(reg) \
 do { \
-	write32(0x8fa00000 | (reg << 16)); \
-	write32(0x27bd0004 /* addiu sp, sp, 4 */); \
+	write32(0x8fa00000 | (reg << 16)); /* lw reg, sp(0) */\
+	write32(0x27bd0004); /* addiu sp, sp, 4 */ \
 } while (0)
 
 #define MIPS_LDR_IMM(p, rd, rn, imm) write32(0x8c000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
