@@ -1,3 +1,16 @@
+#define REG_CACHE_START		MIPSREG_S0
+#define REG_CACHE_END		(MIPSREG_S7+1)
+
+#define REG_LOAD		0
+#define REG_FIND		1
+#define REG_LOADBRANCH		2
+
+#define REG_EMPTY		0
+#define REG_REGISTER		1
+#define REG_TEMPORARY		2
+#define REG_RESERVED		3
+#define REG_REGISTERBRANCH	4
+
 static INLINE void regClearJump(void)
 {
 	int i;
