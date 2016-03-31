@@ -111,6 +111,12 @@ do { \
 #define LI16(reg, imm16) \
 	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */
 
+#define LI32(reg, imm32) \
+do { \
+	write32(0x3c000000 | (reg << 16) | ((imm32) >> 16)); /* lui */ \
+	write32(0x34000000 | (reg << 21) | (reg << 16) | ((imm32) & 0xffff)); /* ori */ \
+} while (0)
+
 #define MIPS_MOV_REG_REG(p, rd, rs) \
 	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
 
@@ -136,7 +142,7 @@ do { \
 #define rec_recompile_start() \
 do { \
 	if (loadedpermregs == 0) { \
-		LoadImmediate32((u32)&psxRegs, PERM_REG_1); \
+		LI32(PERM_REG_1, (u32)&psxRegs); \
 		loadedpermregs = 1; \
 	} \
 } while (0)
@@ -157,12 +163,6 @@ do { \
 
 #define mips_relative_offset(source, offset, next) \
 	((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF)
-
-#define LoadImmediate32(imm, ireg) \
-do { \
-	write32(0x3c000000 | (ireg << 16) | ((imm) >> 16)); /* lui */ \
-	write32(0x34000000 | (ireg << 21) | (ireg << 16) | ((imm) & 0xffff)); /* ori */ \
-} while (0)
 
 #endif /* MIPS_CG_H */
 

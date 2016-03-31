@@ -21,17 +21,15 @@ static void recSYSCALL()
 {
 	regClearJump();
 
-	LoadImmediate32(pc - 4, TEMP_1);
-
+	LI32(TEMP_1, pc - 4);
 	SW(TEMP_1, PERM_REG_1, offpc);
 
 	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0));
 	LI16(MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
+
 	LW(MIPSREG_A1, PERM_REG_1, offpc);
-
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -63,9 +61,9 @@ static INLINE void iJumpNormal(u32 branchPC)
 	branch = 0;
 
 	regClearJump();
-	LoadImmediate32(branchPC, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
 
+	LI32(MIPSREG_A1, branchPC);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -84,12 +82,12 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 	branch = 0;
 
 	regClearJump();
-	LoadImmediate32(linkpc, TEMP_1);
+
+	LI32(TEMP_1, linkpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LoadImmediate32(branchPC, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-
+	LI32(MIPSREG_A1, branchPC);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -110,8 +108,8 @@ static INLINE void iJump(u32 branchPC)
 	if(ibranch > 0)
 	{
 		regClearJump();
-		LoadImmediate32(branchPC, MIPSREG_A1);
-		LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+		LI32(MIPSREG_A1, branchPC);
+		LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 		CALLFunc((u32)psxBranchTest_rec);
 		end_block = 1;
 		return;
@@ -121,7 +119,6 @@ static INLINE void iJump(u32 branchPC)
 	blockcycles += ((pc-oldpc)/4);
 	oldpc = pc = branchPC;
 	recClear(branchPC, 1);
-
 }
 
 #if 1
@@ -148,8 +145,8 @@ static void recBLTZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -180,8 +177,8 @@ static void recBGTZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -212,11 +209,11 @@ static void recBLTZAL()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(nbpc, TEMP_1);
+	LI32(TEMP_1, nbpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -247,11 +244,11 @@ static void recBGEZAL()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(nbpc, TEMP_1);
+	LI32(TEMP_1, nbpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -284,7 +281,7 @@ static void recJR()
 	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);
 	regBranchUnlock(br1);
 	regClearJump();
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -295,14 +292,14 @@ static void recJALR()
 // jalr Rs
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
-	LoadImmediate32(pc + 4, rd);
+	LI32(rd, pc + 4);
 	regMipsChanged(_Rd_);
 
 	SetBranch();
 	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);	
 	regBranchUnlock(br1);
 	regClearJump();
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;
@@ -332,8 +329,8 @@ static void recBEQ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -368,8 +365,8 @@ static void recBNE()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -403,9 +400,8 @@ static void recBLEZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -436,9 +432,8 @@ static void recBGEZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LoadImmediate32(bpc, MIPSREG_A1);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
-
+	LI32(MIPSREG_A1, bpc);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
@@ -452,16 +447,15 @@ static void recBREAK() { }
 static void recHLE() 
 {
 	regClearJump();
-	
-	/* Needed? */
-	LoadImmediate32(pc, TEMP_1);
+
+	LI32(TEMP_1, pc);
 	SW(TEMP_1, PERM_REG_1, offpc);
 
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
 	LW(MIPSREG_A1, PERM_REG_1, offpc);
-	LoadImmediate32(((blockcycles+((pc-oldpc)/4)))*BIAS, MIPSREG_A0);
+	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
 	end_block = 1;

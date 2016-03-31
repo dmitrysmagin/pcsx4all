@@ -33,7 +33,7 @@ static void recMTC0()
 	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP0(_Rd_));
 	regBranchUnlock(rt);
-	LoadImmediate32(_Rd_, MIPSREG_A0);
+	LI32(MIPSREG_A0, _Rd_);
 	CALLFunc((u32)psx_interrupt);
 }
 

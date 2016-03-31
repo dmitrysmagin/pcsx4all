@@ -186,9 +186,9 @@ extern void psx##f(); 															\
 void rec##f() 																	\
 { 																				\
 	regClearJump();																\
-	LoadImmediate32(pc, TEMP_1); 												\
+	LI32(TEMP_1, pc); \
 	SW(TEMP_1, PERM_REG_1, offpc); 							\
-	LoadImmediate32(psxRegs.code, TEMP_1); 									\
+	LI32(TEMP_1, psxRegs.code); \
 	SW(TEMP_1, PERM_REG_1, offcode); 							\
 	CALLFunc((u32)psx##f); 														\
 }
