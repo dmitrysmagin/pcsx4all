@@ -6,7 +6,17 @@
 #include "r3000a.h"
 #include "gte.h"
 
-#include "defines.h"
+#undef INLINE
+#define INLINE		inline
+
+//#define WITH_DISASM
+//#define DEBUGG printf
+#define DEBUGF(aa)
+
+#define RECMEM_SIZE		(12 * 1024 * 1024)
+#define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
+#define REC_MAX_OPCODES		80
+
 #include "mips_codegen.h"
 #include "disasm.h"
 
