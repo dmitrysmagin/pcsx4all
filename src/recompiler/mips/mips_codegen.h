@@ -133,7 +133,7 @@ do { \
 #define SUBU(rd, rn, rm) \
 	write32(0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
 
-#define MIPS_ADD_REG_REG(p, rd, rn, rm) \
+#define ADDU(rd, rn, rm) \
 	write32(0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
 
 #define MIPS_ORR_REG_REG(p, rd, rn, rm) \

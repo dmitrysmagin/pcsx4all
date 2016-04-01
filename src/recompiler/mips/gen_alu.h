@@ -56,7 +56,7 @@ extern INLINE u32 gen(SRAV_RT0, u32 rd, u32 rt, u32 rs) { write32(0x00000007 | (
 extern INLINE u32 gen(SRAV_RS0, u32 rd, u32 rt, u32 rs) { write32(0x00000007 | (rs << 21) | (rt << 16) | (rd << 11)); return 1; }
 extern INLINE u32 gen(SRAV_RT0_RS0, u32 rd, u32 rt, u32 rs) { write32(0x00000007 | (rs << 21) | (rt << 16) | (rd << 11)); return 1; }
 
-extern INLINE u32 gen(ADD, u32 rd, u32 rs, u32 rt) { MIPS_ADD_REG_REG(0, rd, rs, rt); return 1; }
+extern INLINE u32 gen(ADD, u32 rd, u32 rs, u32 rt) { ADDU(rd, rs, rt); return 1; }
 extern INLINE u32 gen(ADD_RS0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rt); }
 extern INLINE u32 gen(ADD_RT0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rs); }
 extern INLINE u32 gen(ADD_RS0_RT0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
