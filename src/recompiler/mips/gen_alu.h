@@ -138,7 +138,7 @@ extern INLINE u32 gen(ORI_RS0, u32 rt, u32 rs, u32 imm16) { return gen(MOVU16, r
 
 extern INLINE u32 gen(XORI, u32 rt, u32 rs, u32 imm16)
 {
-  MIPS_XOR_REG_IMM(0, rt, rs, imm16);
+  XORI(rt, rs, imm16);
   return 1;
 }
 extern INLINE u32 gen(XORI_RS0, u32 rt, u32 rs, u32 imm16) { return gen(MOVU16, rt, imm16); }

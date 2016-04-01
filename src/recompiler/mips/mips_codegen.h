@@ -124,7 +124,7 @@ do { \
 #define AND(rd, rn, rm) \
 	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
-#define MIPS_XOR_REG_IMM(p, rd, rn, imm16) \
+#define XORI(rd, rn, imm16) \
 	write32(0x38000000 | ((rn) << 21) | ((rd) << 16) | ((imm16) & 0xffff))
 
 #define MIPS_XOR_REG_REG(p, rd, rn, rm) \
