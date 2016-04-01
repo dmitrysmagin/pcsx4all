@@ -61,10 +61,10 @@ extern INLINE u32 gen(ADD_RS0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rt)
 extern INLINE u32 gen(ADD_RT0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rs); }
 extern INLINE u32 gen(ADD_RS0_RT0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
 
-extern INLINE u32 gen(SUB, u32 rd, u32 rs, u32 rt) { MIPS_SUB_REG_REG(0, rd, rs, rt); return 1; }
-extern INLINE u32 gen(SUB_RS0, u32 rd, u32 rs, u32 rt) { MIPS_SUB_REG_REG(0, rd, rs, rt); return 1; }
-extern INLINE u32 gen(SUB_RT0, u32 rd, u32 rs, u32 rt) { MIPS_SUB_REG_REG(0, rd, rs, rt); return 1; }
-extern INLINE u32 gen(SUB_RS0_RT0, u32 rd, u32 rs, u32 rt) { MIPS_SUB_REG_REG(0, rd, rs, rt); return 1; }
+extern INLINE u32 gen(SUB, u32 rd, u32 rs, u32 rt) { SUBU(rd, rs, rt); return 1; }
+extern INLINE u32 gen(SUB_RS0, u32 rd, u32 rs, u32 rt) { SUBU(rd, rs, rt); return 1; }
+extern INLINE u32 gen(SUB_RT0, u32 rd, u32 rs, u32 rt) { SUBU(rd, rs, rt); return 1; }
+extern INLINE u32 gen(SUB_RS0_RT0, u32 rd, u32 rs, u32 rt) { SUBU(rd, rs, rt); return 1; }
 
 extern INLINE u32 gen(AND, u32 rd, u32 rs, u32 rt) { AND(rd, rs, rt); return 1; }
 extern INLINE u32 gen(AND_RS0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }

@@ -130,7 +130,7 @@ do { \
 #define XOR(rd, rn, rm) \
 	write32(0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)));
 
-#define MIPS_SUB_REG_REG(p, rd, rn, rm) \
+#define SUBU(rd, rn, rm) \
 	write32(0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
 
 #define MIPS_ADD_REG_REG(p, rd, rn, rm) \
