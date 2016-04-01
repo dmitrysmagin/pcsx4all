@@ -106,7 +106,8 @@ do { \
 #define SW(rd, rn, imm) \
 	write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 
-#define MIPS_ADDIU(p, rt, rs, imm) write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define ADDIU(rt, rs, imm) \
+	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
 #define LI16(reg, imm16) \
 	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */

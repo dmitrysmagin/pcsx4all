@@ -103,7 +103,7 @@ extern INLINE u32 gen(SLTU, u32 rd, u32 rs, u32 rt)
 
 extern INLINE u32 gen(ADDI, u32 rt, u32 rs, s32 imm16)
 {
-  MIPS_ADDIU(MIPS_POINTER, rt, rs, imm16);
+  ADDIU(rt, rs, imm16);
   return 1;
 }
 extern INLINE u32 gen(ADDI_RS0, u32 rt, u32 rs, s32 imm16) { return gen(MOVI16, rt, imm16); } 
