@@ -121,7 +121,7 @@ do { \
 #define MOV(rd, rs) \
 	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
 
-#define MIPS_AND_REG_REG(p, rd, rn, rm) \
+#define AND(rd, rn, rm) \
 	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
 #define MIPS_XOR_REG_IMM(p, rd, rn, imm16) \
