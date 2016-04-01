@@ -278,7 +278,7 @@ static void recJR()
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 
-	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);
+	MOV(MIPSREG_A1, br1);
 	regBranchUnlock(br1);
 	regClearJump();
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
@@ -296,7 +296,7 @@ static void recJALR()
 	regMipsChanged(_Rd_);
 
 	SetBranch();
-	MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, br1);	
+	MOV(MIPSREG_A1, br1);
 	regBranchUnlock(br1);
 	regClearJump();
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);

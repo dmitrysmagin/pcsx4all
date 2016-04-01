@@ -117,7 +117,7 @@ do { \
 	write32(0x34000000 | (reg << 21) | (reg << 16) | ((imm32) & 0xffff)); /* ori */ \
 } while (0)
 
-#define MIPS_MOV_REG_REG(p, rd, rs) \
+#define MOV(rd, rs) \
 	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
 
 #define MIPS_AND_REG_REG(p, rd, rn, rm) \

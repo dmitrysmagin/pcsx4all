@@ -366,13 +366,15 @@ do 										\
 	if (!rt) 								\
 	{ 									\
 		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); 			\
-		gen(CLR, r1); regMipsChanged(rd); regBranchUnlock(r1); break; 			\
+		MOV(r1, 0); regMipsChanged(rd); regBranchUnlock(r1); break;	\
 	} 									\
 	if (!rs) 								\
 	{ 									\
 		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); 			\
 		r1 = (rt == rd) ? r2 : regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		gen(MOV, r1, r2); regMipsChanged(rd); regBranchUnlock(r1); regBranchUnlock(r2); break; 			\
+		MOV(r1, r2);							\
+		regMipsChanged(rd); regBranchUnlock(r1); regBranchUnlock(r2);	\
+		break;								\
 	} 									\
 	if (rt == rd) 								\
 	{ 									\

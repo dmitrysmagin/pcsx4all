@@ -98,7 +98,7 @@ static void recLB()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, r1, MIPSREG_V0);
+		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
@@ -117,7 +117,7 @@ static void recLBU()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, r1, MIPSREG_V0);
+		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
@@ -140,7 +140,7 @@ static void recLH()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, r1, MIPSREG_V0);
+		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
@@ -158,7 +158,7 @@ static void recLHU()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, r1, MIPSREG_V0);
+		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
@@ -176,7 +176,7 @@ static void recLW()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, r1, MIPSREG_V0);
+		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
@@ -195,7 +195,7 @@ static void recSB()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, r1);
+		MOV(MIPSREG_A1, r1);
 		regBranchUnlock(r1);
 	}
 	else
@@ -215,7 +215,7 @@ static void recSH()
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-		MIPS_MOV_REG_REG(MIPS_POINTER, MIPSREG_A1, r1);
+		MOV(MIPSREG_A1, r1);
 		regBranchUnlock(r1);
 	}
 	else
