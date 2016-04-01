@@ -136,7 +136,7 @@ do { \
 #define ADDU(rd, rn, rm) \
 	write32(0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
 
-#define MIPS_ORR_REG_REG(p, rd, rn, rm) \
+#define OR(rd, rn, rm) \
 	write32(0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
 /* start of the recompiled block */

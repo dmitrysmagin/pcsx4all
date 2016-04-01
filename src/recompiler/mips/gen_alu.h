@@ -71,7 +71,7 @@ extern INLINE u32 gen(AND_RS0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
 extern INLINE u32 gen(AND_RT0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
 extern INLINE u32 gen(AND_RS0_RT0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
 
-extern INLINE u32 gen(OR, u32 rd, u32 rs, u32 rt) { MIPS_ORR_REG_REG(0, rd, rs, rt); return 1; }
+extern INLINE u32 gen(OR, u32 rd, u32 rs, u32 rt) { OR(rd, rs, rt); return 1; }
 extern INLINE u32 gen(OR_RS0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rt); }
 extern INLINE u32 gen(OR_RT0, u32 rd, u32 rs, u32 rt) { return gen(MOV, rd, rs); }
 extern INLINE u32 gen(OR_RS0_RT0, u32 rd, u32 rs, u32 rt) { return gen(CLR, rd); }
