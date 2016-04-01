@@ -86,7 +86,7 @@ typedef enum {
 #define offcode		offsetof(psxRegisters,  code)
 
 #define write32(i) \
-	*recMem++ = (u32)(i);
+	do { *recMem++ = (u32)(i); } while (0)
 
 #define PUSH(reg) \
 do { \
