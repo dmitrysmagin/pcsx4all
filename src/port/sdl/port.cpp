@@ -181,7 +181,7 @@ unsigned short pad_read(int num)
 	if (num==0) return pad1; else return pad2;
 }
 
-#define SOUND_BUFFER_SIZE (64*1024)
+#define SOUND_BUFFER_SIZE (4*1024)
 static unsigned *sound_buffer=NULL;
 static unsigned sound_wptr=0;
 static unsigned sound_rptr=0;
