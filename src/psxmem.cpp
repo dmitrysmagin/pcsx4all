@@ -25,7 +25,7 @@
 #include "psxmem.h"
 #include "r3000a.h"
 #include "psxhw.h"
-//#include <sys/mman.h>
+#include <sys/mman.h>
 #include "port.h"
 #include "profiler.h"
 
@@ -67,7 +67,13 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
+#if defined(PSXREC) && defined(mips)
+	/* This is needed for direct writes in mips recompiler */
+	psxM = (s8 *)mmap((void*)0x10000000, 0x220000,
+			  PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_ANONYMOUS, -1, 0);
+#else
 	psxM = (s8 *)malloc(0x00220000);
+#endif
 	psxRegs.psxM=psxM;
 
 	psxP = &psxM[0x200000];
@@ -137,7 +143,11 @@ void psxMemReset() {
 
 void psxMemShutdown() {
 	free(psxNULLread);
+#if defined(PSXREC) && defined(mips)
+	munmap(psxM, 0x220000);
+#else
 	free(psxM);
+#endif
 	free(psxR);
 	free(psxMemRLUT);
 	free(psxMemWLUT);
