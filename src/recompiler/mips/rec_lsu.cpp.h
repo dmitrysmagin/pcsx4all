@@ -111,8 +111,8 @@ static void recLB()
 	CALLFunc((u32)MemRead8);
 
 	/* Sign extend */
-	gen(SLL, MIPSREG_V0, MIPSREG_V0, 24);
-	gen(SRA, MIPSREG_V0, MIPSREG_V0, 24);
+	SLL(MIPSREG_V0, MIPSREG_V0, 24);
+	SRA(MIPSREG_V0, MIPSREG_V0, 24);
 
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -151,8 +151,8 @@ static void recLH()
 	CALLFunc((u32)MemRead16);
 
 	/* Sign extend */
-	gen(SLL, MIPSREG_V0, MIPSREG_V0, 16);
-	gen(SRA, MIPSREG_V0, MIPSREG_V0, 16);
+	SLL(MIPSREG_V0, MIPSREG_V0, 16);
+	SRA(MIPSREG_V0, MIPSREG_V0, 16);
 
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);

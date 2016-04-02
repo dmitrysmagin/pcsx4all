@@ -139,6 +139,12 @@ do { \
 #define OR(rd, rn, rm) \
 	write32(0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
 
+#define SLL(rd, rt, sa) \
+	write32(0x00000000 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+
+#define SRA(rd, rt, sa) \
+	write32(0x00000003 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+
 /* start of the recompiled block */
 #define rec_recompile_start() \
 do { \
