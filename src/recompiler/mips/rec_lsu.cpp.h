@@ -23,8 +23,7 @@ static INLINE void iPushOfB()
 	}
 }
 
-/* Temporarily disable because it causes SEGFAULTs */
-#if 0
+/* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
 #define EMITDIRECTLOAD(insn) \
 	if (iRegs[_Rs_] != -1) { \
 	  u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_); \
@@ -76,10 +75,6 @@ static INLINE void iPushOfB()
 	    return; \
 	  } \
 	}
-#else
-#define EMITDIRECTLOAD(insn)
-#define EMITDIRECTSTORE(insn)
-#endif
 
 static void recLB()
 {
