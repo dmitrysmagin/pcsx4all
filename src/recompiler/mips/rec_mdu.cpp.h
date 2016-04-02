@@ -1,4 +1,3 @@
-#if 1
 static void recMULT() {
 // Lo/Hi = Rs * Rt (signed)
 
@@ -70,6 +69,23 @@ static void recMULTU() {
 	}
 }
 
+/* From interpreter_pcsx.cpp */
+#if defined (interpreter_new) || defined (interpreter_none)
+void psxDIV() {
+	if (_i32(_rRt_) != 0) {
+		(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
+		(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
+	}
+}
+
+void psxDIVU() {
+	if (_rRt_ != 0) {
+		_rLo_ = _rRs_ / _rRt_;
+		_rHi_ = _rRs_ % _rRt_;
+	}
+}
+#endif
+
 REC_FUNC_TEST(DIV);	/* FIXME: implement natively */
 REC_FUNC_TEST(DIVU);	/* dto */
 
@@ -108,18 +124,3 @@ static void recMTLO() {
 	SW(rs, PERM_REG_1, offGPR(32));
 	regBranchUnlock(rs);
 }
-#else
-
-
-REC_FUNC_TEST(MULT);
-REC_FUNC_TEST(MULTU);
-
-REC_FUNC_TEST(MTLO);
-REC_FUNC_TEST(MTHI);
-REC_FUNC_TEST(MFLO);
-REC_FUNC_TEST(MFHI);
-
-REC_FUNC_TEST(DIV);
-REC_FUNC_TEST(DIVU);
-
-#endif

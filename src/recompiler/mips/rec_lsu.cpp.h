@@ -1,6 +1,5 @@
-#if 1
-
 /* Fast reads/writes */
+/* TODO: Implement in generated asm code */
 static u16 MemRead8(u32 mem) {
 	if ((mem&0x1fffffff)<0x800000)
 		return *((u8 *)&psxM[mem&0x1fffff]);
@@ -213,9 +212,6 @@ static void recLW()
 	}
 }
 
-REC_FUNC_TEST(LWL);
-REC_FUNC_TEST(LWR);
-
 static void recSB()
 {
 // mem[Rs + Im] = Rt
@@ -276,21 +272,96 @@ static void recSW()
 	CALLFunc((u32)MemWrite32);
 }
 
-REC_FUNC_TEST(SWL);
-REC_FUNC_TEST(SWR);
+#if defined (interpreter_new) || defined (interpreter_none)
 
-#else
+#define _oB_ (_u32(_rRs_) + _Imm_)
+static u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
+static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
 
-REC_FUNC_TEST(LB);
-REC_FUNC_TEST(LBU);
-REC_FUNC_TEST(LH);
-REC_FUNC_TEST(LHU);
-REC_FUNC_TEST(LW);
-REC_FUNC_TEST(SB);
-REC_FUNC_TEST(SH);
-REC_FUNC_TEST(SW);
+void psxLWL() {
+	u32 addr = _oB_;
+	u32 shift = addr & 3;
+	u32 mem = psxMemRead32(addr & ~3);
+
+	if (!_Rt_) return;
+	(_rRt_) = ( _u32(_rRt_) & LWL_MASK[shift]) |
+					( mem << LWL_SHIFT[shift]);
+
+	/*
+	Mem = 1234.  Reg = abcd
+
+	0   4bcd   (mem << 24) | (reg & 0x00ffffff)
+	1   34cd   (mem << 16) | (reg & 0x0000ffff)
+	2   234d   (mem <<  8) | (reg & 0x000000ff)
+	3   1234   (mem      ) | (reg & 0x00000000)
+	*/
+}
+
+static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
+static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
+
+void psxLWR() {
+	u32 addr = _oB_;
+	u32 shift = addr & 3;
+	u32 mem = psxMemRead32(addr & ~3);
+
+	if (!_Rt_) return;
+	(_rRt_) = ( _u32(_rRt_) & LWR_MASK[shift]) |
+					( mem >> LWR_SHIFT[shift]);
+
+	/*
+	Mem = 1234.  Reg = abcd
+
+	0   1234   (mem      ) | (reg & 0x00000000)
+	1   a123   (mem >>  8) | (reg & 0xff000000)
+	2   ab12   (mem >> 16) | (reg & 0xffff0000)
+	3   abc1   (mem >> 24) | (reg & 0xffffff00)
+	*/
+}
+
+static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
+static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
+
+void psxSWL() {
+	u32 addr = _oB_;
+	u32 shift = addr & 3;
+	u32 mem = psxMemRead32(addr & ~3);
+
+	psxMemWrite32(addr & ~3,  (_u32(_rRt_) >> SWL_SHIFT[shift]) |
+			     (  mem & SWL_MASK[shift]) );
+	/*
+	Mem = 1234.  Reg = abcd
+
+	0   123a   (reg >> 24) | (mem & 0xffffff00)
+	1   12ab   (reg >> 16) | (mem & 0xffff0000)
+	2   1abc   (reg >>  8) | (mem & 0xff000000)
+	3   abcd   (reg      ) | (mem & 0x00000000)
+	*/
+}
+
+static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
+static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
+
+void psxSWR() {
+	u32 addr = _oB_;
+	u32 shift = addr & 3;
+	u32 mem = psxMemRead32(addr & ~3);
+
+	psxMemWrite32(addr & ~3,  (_u32(_rRt_) << SWR_SHIFT[shift]) |
+			     (  mem & SWR_MASK[shift]) );
+
+	/*
+	Mem = 1234.  Reg = abcd
+
+	0   abcd   (reg      ) | (mem & 0x00000000)
+	1   bcd4   (reg <<  8) | (mem & 0x000000ff)
+	2   cd34   (reg << 16) | (mem & 0x0000ffff)
+	3   d234   (reg << 24) | (mem & 0x00ffffff)
+	*/
+}
+#endif
+
 REC_FUNC_TEST(LWL);
 REC_FUNC_TEST(LWR);
 REC_FUNC_TEST(SWL);
 REC_FUNC_TEST(SWR);
-#endif

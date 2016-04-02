@@ -71,7 +71,6 @@ char disasm_buffer[512];
 #endif
 
 #include "regcache.h"
-#include "interpreter_old.cpp"
 
 static void recReset();
 static u32 recRecompile();

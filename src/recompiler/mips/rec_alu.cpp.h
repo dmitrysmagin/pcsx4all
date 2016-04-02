@@ -400,13 +400,6 @@ do 										\
 while (0)
 #endif
 
-#if 1
 static void recSLLV()  { REC_RTYPE_RD_RT_RS(SLLV, _Rd_, _Rt_, _Rs_); }
 static void recSRLV()  { REC_RTYPE_RD_RT_RS(SRLV, _Rd_, _Rt_, _Rs_); }
 static void recSRAV()  { REC_RTYPE_RD_RT_RS(SRAV, _Rd_, _Rt_, _Rs_); }
-#else
-REC_FUNC_TEST(SLLV);
-REC_FUNC_TEST(SRLV);
-REC_FUNC_TEST(SRAV);
-#endif
-

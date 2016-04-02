@@ -44,8 +44,6 @@ void gte##f(); void rec##f() \
 
 CP2_FUNC2(MFC2,Flush,true);
 CP2_FUNC2(MTC2,Flush,true);
-//CP2_FUNC2(CFC2,Flush,true);
-//CP2_FUNC2(CTC2,Flush,true);
 CP2_FUNC(LWC2,Flush,true);
 CP2_FUNC(SWC2,Flush,true);
 CP2_FUNC3(DCPL,NoFlush,false);
@@ -71,7 +69,6 @@ CP2_FUNC2(GPF,NoFlush,false);
 CP2_FUNC2(GPL,NoFlush,false);
 CP2_FUNC3(NCCT,NoFlush,false);
 
-#if 1
 static void recCFC2()
 {
 	/*if( skCount != 0 ) return;*/
@@ -91,4 +88,3 @@ static void recCTC2()
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
 }
-#endif
