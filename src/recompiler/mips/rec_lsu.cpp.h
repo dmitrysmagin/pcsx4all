@@ -1,4 +1,40 @@
 #if 1
+
+/* Fast reads/writes */
+static u16 MemRead8(u32 mem) {
+	if ((mem&0x1fffffff)<0x800000)
+		return *((u8 *)&psxM[mem&0x1fffff]);
+	return psxMemRead8(mem);
+}
+static u16 MemRead16(u32 mem) {
+	if ((mem&0x1fffffff)<0x800000)
+		return *((u16 *)&psxM[mem&0x1fffff]);
+	return psxMemRead16(mem);
+}
+static u32 MemRead32(u32 mem) {
+	if ((mem&0x1fffffff)<0x800000)
+		return *((u32 *)&psxM[mem&0x1fffff]);
+	return psxMemRead32(mem);
+}
+static void MemWrite8(u32 mem, u8 value) {
+	if (((mem&0x1fffffff)<0x800000)&&(Config.HLE))
+		*((u8 *)&psxM[mem&0x1fffff]) = value;
+	else
+		psxMemWrite8(mem,value);
+}
+static void MemWrite16(u32 mem, u16 value) {
+	if (((mem&0x1fffffff)<0x800000)&&(Config.HLE))
+		*((u16 *)&psxM[mem&0x1fffff]) = value;
+	else
+		psxMemWrite16(mem,value);
+}
+static void MemWrite32(u32 mem, u32 value) {
+	if (((mem&0x1fffffff)<0x800000)&&(Config.HLE))
+		*((u32 *)&psxM[mem&0x1fffff]) = value;
+	else
+		psxMemWrite32(mem,value);
+}
+
 static INLINE void iPushOfB()
 {
 	s32 imm16 = (s32)(s16)_Imm_;
@@ -84,7 +120,7 @@ static void recLB()
 	EMITDIRECTLOAD(0x80000000)
 	iPushOfB();
 	iRegs[_Rt_] = -1;
-	CALLFunc((u32)psxMemRead8);
+	CALLFunc((u32)MemRead8);
 
 	/* Sign extend */
 	gen(SLL, MIPSREG_V0, MIPSREG_V0, 24);
@@ -108,7 +144,7 @@ static void recLBU()
 	iPushOfB();
 	iRegs[_Rt_] = -1;
 
-	CALLFunc((u32)psxMemRead8);
+	CALLFunc((u32)MemRead8);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -126,7 +162,7 @@ static void recLH()
 	EMITDIRECTLOAD(0x84000000)
 	iPushOfB();
 	iRegs[_Rt_] = -1;
-	CALLFunc((u32)psxMemRead16);
+	CALLFunc((u32)MemRead16);
 
 	/* Sign extend */
 	gen(SLL, MIPSREG_V0, MIPSREG_V0, 16);
@@ -149,7 +185,7 @@ static void recLHU()
 	EMITDIRECTLOAD(0x94000000)
 	iPushOfB();
 	iRegs[_Rt_] = -1;
-	CALLFunc((u32)psxMemRead16);
+	CALLFunc((u32)MemRead16);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -167,7 +203,7 @@ static void recLW()
 	EMITDIRECTLOAD(0x8c000000)
 	iRegs[_Rt_] = -1;
 	iPushOfB();
-	CALLFunc((u32)psxMemRead32);
+	CALLFunc((u32)MemRead32);
 	if (rt)
 	{
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -197,7 +233,7 @@ static void recSB()
 	{
 		LI16(MIPSREG_A1, 0);
 	}
-	CALLFunc((u32)psxMemWrite8);
+	CALLFunc((u32)MemWrite8);
 }
 
 static void recSH()
@@ -217,7 +253,7 @@ static void recSH()
 	{
 		LI16(MIPSREG_A1, 0);
 	}
-	CALLFunc((u32)psxMemWrite16);
+	CALLFunc((u32)MemWrite16);
 }
 
 static void recSW()
@@ -237,7 +273,7 @@ static void recSW()
 	{
 		write32(0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
 	}
-	CALLFunc((u32)psxMemWrite32);
+	CALLFunc((u32)MemWrite32);
 }
 
 REC_FUNC_TEST(SWL);
