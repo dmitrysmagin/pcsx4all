@@ -34,27 +34,16 @@ static void MemWrite32(u32 mem, u32 value) {
 		psxMemWrite32(mem,value);
 }
 
-static INLINE void iPushOfB()
+static void AddrToA0()
 {
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
-	u32 r1;
-	if (rs)
-	{
-		r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-		if (imm16)
-		{
-			gen(ADDI, MIPSREG_A0, r1, imm16);
-		}
-		else
-		{
-			gen(MOV, MIPSREG_A0, r1);
-		}
+	if (rs) {
+		u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+		ADDIU(MIPSREG_A0, r1, imm16);
 		regBranchUnlock(r1);
-	}
-	else
-	{
-		gen(MOVI16, MIPSREG_A0, imm16);
+	} else {
+		LI16(MIPSREG_A0, imm16);
 	}
 }
 
@@ -117,7 +106,7 @@ static void recLB()
 	u32 rt = _Rt_;
 
 	EMITDIRECTLOAD(0x80000000)
-	iPushOfB();
+	AddrToA0();
 	iRegs[_Rt_] = -1;
 	CALLFunc((u32)MemRead8);
 
@@ -125,8 +114,7 @@ static void recLB()
 	gen(SLL, MIPSREG_V0, MIPSREG_V0, 24);
 	gen(SRA, MIPSREG_V0, MIPSREG_V0, 24);
 
-	if (rt)
-	{
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
@@ -140,12 +128,11 @@ static void recLBU()
 	u32 rt = _Rt_;
 
 	EMITDIRECTLOAD(0x90000000)
-	iPushOfB();
+	AddrToA0();
 	iRegs[_Rt_] = -1;
 
 	CALLFunc((u32)MemRead8);
-	if (rt)
-	{
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
@@ -159,7 +146,7 @@ static void recLH()
 	u32 rt = _Rt_;
 
 	EMITDIRECTLOAD(0x84000000)
-	iPushOfB();
+	AddrToA0();
 	iRegs[_Rt_] = -1;
 	CALLFunc((u32)MemRead16);
 
@@ -167,8 +154,7 @@ static void recLH()
 	gen(SLL, MIPSREG_V0, MIPSREG_V0, 16);
 	gen(SRA, MIPSREG_V0, MIPSREG_V0, 16);
 
-	if (rt)
-	{
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
@@ -182,11 +168,10 @@ static void recLHU()
 	u32 rt = _Rt_;
 
 	EMITDIRECTLOAD(0x94000000)
-	iPushOfB();
+	AddrToA0();
 	iRegs[_Rt_] = -1;
 	CALLFunc((u32)MemRead16);
-	if (rt)
-	{
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
@@ -201,10 +186,9 @@ static void recLW()
 
 	EMITDIRECTLOAD(0x8c000000)
 	iRegs[_Rt_] = -1;
-	iPushOfB();
+	AddrToA0();
 	CALLFunc((u32)MemRead32);
-	if (rt)
-	{
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 		MOV(r1, MIPSREG_V0);
 		regMipsChanged(rt);
@@ -218,15 +202,12 @@ static void recSB()
 	u32 rt = _Rt_;
 
 	EMITDIRECTSTORE(0xa0000000) /* qemu assertion failure */
-	iPushOfB();	
-	if (rt)
-	{
+	AddrToA0();
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 		MOV(MIPSREG_A1, r1);
 		regBranchUnlock(r1);
-	}
-	else
-	{
+	} else {
 		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite8);
@@ -238,15 +219,12 @@ static void recSH()
 	u32 rt = _Rt_;
 
 	EMITDIRECTSTORE(0xa4000000)
-	iPushOfB();	
-	if (rt)
-	{
+	AddrToA0();
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 		MOV(MIPSREG_A1, r1);
 		regBranchUnlock(r1);
-	}
-	else
-	{
+	} else {
 		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite16);
@@ -258,15 +236,12 @@ static void recSW()
 	u32 rt = _Rt_;
 
 	EMITDIRECTSTORE(0xac000000)
-	iPushOfB();
-	if (rt)
-	{
+	AddrToA0();
+	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 		write32(0x00000021 | (r1 << 21) | (MIPSREG_A1 << 11)); /* move a1, r1 */
 		regBranchUnlock(r1);
-	}
-	else
-	{
+	} else {
 		write32(0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
 	}
 	CALLFunc((u32)MemWrite32);
