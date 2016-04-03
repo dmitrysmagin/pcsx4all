@@ -11,6 +11,31 @@
 #define REG_RESERVED		3
 #define REG_REGISTERBRANCH	4
 
+/* Regcache data */
+typedef struct {
+	u32	mappedto;
+	u32	host_age;
+	u32	host_use;
+	u32	host_type;
+	bool	ismapped;
+	int	host_islocked;
+} HOST_RecRegister;
+
+typedef struct {
+	u32	mappedto;
+	bool	ismapped;
+	bool	psx_ischanged;
+} PSX_RecRegister;
+
+typedef struct {
+	PSX_RecRegister		psx[32];
+	HOST_RecRegister	host[32];
+	u32			reglist[32];
+	u32			reglist_cnt;
+} RecRegisters;
+
+RecRegisters regcache;
+
 static INLINE void regClearJump(void)
 {
 	int i;
@@ -278,3 +303,14 @@ static INLINE void regReset()
 	//DEBUGF("reglist len %d", i2);
 }
 
+static void INLINE regUpdate(void)
+{
+	int ilock;
+
+	for (ilock = REG_CACHE_START; ilock < REG_CACHE_END; ilock++) {
+		if (regcache.host[ilock].ismapped) {
+			regcache.host[ilock].host_age++;
+			regcache.host[ilock].host_islocked = 0;
+		}
+	}
+}

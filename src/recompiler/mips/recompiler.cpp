@@ -39,37 +39,9 @@
 //#define DEBUGG printf
 #define DEBUGF(aa)
 
-#define RECMEM_SIZE		(12 * 1024 * 1024)
-#define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
-#define REC_MAX_OPCODES		80
-
 #include "mips_codegen.h"
 #include "disasm.h"
 
-/* Regcache data */
-typedef struct {
-	u32	mappedto;
-	u32	host_age;
-	u32	host_use;
-	u32	host_type;
-	bool	ismapped;
-	int	host_islocked;
-} HOST_RecRegister;
-
-typedef struct {
-	u32	mappedto;
-	bool	ismapped;
-	bool	psx_ischanged;
-} PSX_RecRegister;
-
-typedef struct {
-	PSX_RecRegister		psx[32];
-	HOST_RecRegister	host[32];
-	u32			reglist[32];
-	u32			reglist_cnt;
-} RecRegisters;
-
-RecRegisters	regcache;
 static u32 iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
 static u32 psxRecLUT[0x010000];
@@ -82,6 +54,10 @@ static u32 psxRecLUT[0x010000];
 #define PC_REC8(x)	(*(u8 *)PC_REC(x))
 #define PC_REC16(x)	(*(u16*)PC_REC(x))
 #define PC_REC32(x)	(*(u32*)PC_REC(x))
+
+#define RECMEM_SIZE		(12 * 1024 * 1024)
+#define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
+#define REC_MAX_OPCODES		80
 
 static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
 static u32 *recMem;				/* the recompiled blocks will be here */
@@ -287,15 +263,7 @@ static u32 recRecompile()
 		DISASM_PSX
 		pc+=4;
 		recBSC[psxRegs.code>>26]();
-		int ilock;
-		for(ilock = REG_CACHE_START; ilock < REG_CACHE_END; ilock++)
-		{					
-			if( regcache.host[ilock].ismapped )
-			{
-				regcache.host[ilock].host_age++;
-				regcache.host[ilock].host_islocked = 0;
-			}
-		}
+		regUpdate();
 		branch = 0;
 		if (end_block)
 		{
