@@ -109,6 +109,9 @@ do { \
 #define ADDIU(rt, rs, imm) \
 	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
+#define LUI(rt, imm16) \
+	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff));
+
 #define LI16(reg, imm16) \
 	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */
 

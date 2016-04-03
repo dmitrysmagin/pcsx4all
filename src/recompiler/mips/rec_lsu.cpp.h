@@ -75,30 +75,42 @@ static void AddrToA0()
 	  } \
 	}
 
-#define EMITDIRECTSTORE(insn) \
-	if (iRegs[_Rs_] != -1) { \
-	  u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_); \
-	  /* DEBUGF("known address 0x%x", addr); */ \
-	  if ((addr >= 0x80000000 && addr < 0x80200000) || \
-	      (addr >= 0xa0000000 && addr < 0xa0200000) ||  \
-	       addr < 0x200000 ) { \
-	    u32 rs = _Rs_; \
-	    u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-	    u32 r1; \
-	    if (rt != rs) r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-	    else r1 = r2; \
-            s32 imm16 = (s32)(s16)_Imm_; \
-            /* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */ \
-            if (addr < 0x200000) { write32(0x3c001000 | (TEMP_1 << 16)); }	/* lui temp1, 0x1000 */ \
-            else if (addr >= 0xa0000000) { write32(0x3c00b000 | (TEMP_1 << 16)); } /* lui temp1, 0xb000 */ \
-            else { write32(0x3c009000 | (TEMP_1 << 16)); }	/* lui temp1, 0x9000 */ \
-            write32(0x00000026 | (TEMP_1 << 21) | (r2 << 16) | (TEMP_2 << 11)); /* xor temp2, temp1, r2 */ \
-	    write32((insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff)); \
-	    regBranchUnlock(r1); \
-	    regBranchUnlock(r2); \
-	    return; \
-	  } \
+static int StoreToConstAddr(u32 insn)
+{
+	if (iRegs[_Rs_] != -1) {
+		u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_);
+		/* DEBUGF("known address 0x%x", addr); */
+		if ((addr >= 0x80000000 && addr < 0x80200000) ||
+		    (addr >= 0xa0000000 && addr < 0xa0200000) ||
+		     addr < 0x200000 ) {
+			u32 rt = _Rt_;
+			u32 rs = _Rs_;
+			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+			u32 r1;
+			if (rt != rs)
+				r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+			else
+				r1 = r2;
+			s32 imm16 = (s32)(s16)_Imm_;
+			/* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */
+			if (addr < 0x200000) {
+				LUI(TEMP_1, 0x1000);
+			} else if (addr >= 0xa0000000) {
+				LUI(TEMP_1, 0xb000);
+			} else {
+				LUI(TEMP_1, 0x9000);
+			}
+
+			XOR(TEMP_2, TEMP_1, r2);
+			write32((insn) | (TEMP_2 << 21) | (r1 << 16) | (imm16 & 0xffff));
+			regBranchUnlock(r1);
+			regBranchUnlock(r2);
+			return 1;
+		}
 	}
+
+	return 0;
+}
 
 static void recLB()
 {
@@ -201,7 +213,9 @@ static void recSB()
 // mem[Rs + Im] = Rt
 	u32 rt = _Rt_;
 
-	EMITDIRECTSTORE(0xa0000000) /* qemu assertion failure */
+	if (StoreToConstAddr(0xa0000000))
+		return;
+
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -218,7 +232,9 @@ static void recSH()
 // mem[Rs + Im] = Rt
 	u32 rt = _Rt_;
 
-	EMITDIRECTSTORE(0xa4000000)
+	if (StoreToConstAddr(0xa4000000))
+		return;
+
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -235,7 +251,9 @@ static void recSW()
 // mem[Rs + Im] = Rt
 	u32 rt = _Rt_;
 
-	EMITDIRECTSTORE(0xac000000)
+	if (StoreToConstAddr(0xac000000))
+		return;
+
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
