@@ -112,8 +112,9 @@ void pad_update(void)
 				case SDLK_RETURN: pad1 &= ~(1 << DKEY_START); break;
 #ifndef GCW_ZERO
 				case SDLK_BACKSPACE: pad1 &= ~(1 << DKEY_SELECT); break;
-#endif
+
 				case 0:
+#endif
 				case SDLK_ESCAPE:
 					if (autosavestate) {	
 						toExit=1;
