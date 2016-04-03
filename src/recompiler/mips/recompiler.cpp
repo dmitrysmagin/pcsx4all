@@ -109,8 +109,6 @@ extern void (*recCP0[32])();
 extern void (*recCP2[64])();
 extern void (*recCP2BSC[32])();
 
-extern int skCount;
-
 u8	*current_translation_ptr;
 u32 	opcode;
 u32	*recMemStart;
@@ -153,7 +151,6 @@ disasm_label stub_labels[] =
   make_stub_label(gteGPF),
   make_stub_label(gteGPL),
   make_stub_label(gteNCCT),
-//  make_stub_label(psxBranchTest_full),
   make_stub_label(psxMemRead8),
   make_stub_label(psxMemRead16),
   make_stub_label(psxMemRead32),
@@ -286,7 +283,6 @@ static u32 recRecompile()
 
 	for (;;)
 	{
-		//psxRegs.code = *(u32*)((psxMemRLUT[pc>>16] + (pc&0xffff)));
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 		DISASM_PSX
 		pc+=4;

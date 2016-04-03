@@ -196,7 +196,6 @@ static void recSYSCALL()
 static INLINE void SetBranch()
 {
 	branch = 1;
-	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
@@ -208,7 +207,6 @@ static INLINE void SetBranch()
 static INLINE void iJumpNormal(u32 branchPC)
 {
 	branch = 1;
-	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
@@ -229,7 +227,6 @@ static INLINE void iJumpNormal(u32 branchPC)
 static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 {
 	branch = 1;
-	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;
@@ -253,7 +250,6 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 static INLINE void iJump(u32 branchPC)
 {
 	branch = 1;
-	//psxRegs.code = *(u32*)(psxMemRLUT[pc>>16] + (pc&0xffff));
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
 	DISASM_PSX
 	pc+=4;

@@ -9,7 +9,6 @@
 #define CP2_FUNC(f,n,flush) \
 void gte##f(u32 code, u32 pc); void rec##f() \
 { \
-	/*if( skCount != 0 ) return;*/ \
 	CP2_REGCACHE \
 	{ \
 		/* TODO: Remove */regClearJump();	/**/ \
@@ -22,7 +21,6 @@ void gte##f(u32 code, u32 pc); void rec##f() \
 #define CP2_FUNC2(f,n,flush) \
 void gte##f(u32 code); void rec##f() \
 { \
-	/*if( skCount != 0 ) return;*/ \
 	CP2_REGCACHE \
 	{ \
 		/* TODO: Remove */regClearJump();	/**/ \
@@ -34,7 +32,6 @@ void gte##f(u32 code); void rec##f() \
 #define CP2_FUNC3(f,n,flush) \
 void gte##f(); void rec##f() \
 { \
-	/*if( skCount != 0 ) return;*/ \
 	CP2_REGCACHE \
 	{ \
 		/* TODO: Remove */regClearJump();	/**/ \
@@ -71,7 +68,6 @@ CP2_FUNC3(NCCT,NoFlush,false);
 
 static void recCFC2()
 {
-	/*if( skCount != 0 ) return;*/
 	if (!_Rt_) return;
 
 	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
@@ -83,7 +79,6 @@ static void recCFC2()
 
 static void recCTC2()
 {
-	/*if( skCount != 0 ) return;*/
 	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
