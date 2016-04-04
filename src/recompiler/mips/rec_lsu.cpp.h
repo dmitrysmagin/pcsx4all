@@ -53,9 +53,7 @@ static int LoadFromConstAddr(u32 insn)
 	if (iRegs[_Rs_] != -1) {
 		u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_);
 		/* DEBUGF("known address 0x%x", addr); */
-		if ((addr >= 0x80000000 && addr < 0x80200000) ||
-		    (addr >= 0xa0000000 && addr < 0xa0200000) ||
-		     addr < 0x200000) {
+		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
@@ -92,9 +90,7 @@ static int StoreToConstAddr(u32 insn)
 	if (iRegs[_Rs_] != -1) {
 		u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_);
 		/* DEBUGF("known address 0x%x", addr); */
-		if ((addr >= 0x80000000 && addr < 0x80200000) ||
-		    (addr >= 0xa0000000 && addr < 0xa0200000) ||
-		     addr < 0x200000 ) {
+		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
@@ -279,10 +275,10 @@ static void recSW()
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-		write32(0x00000021 | (r1 << 21) | (MIPSREG_A1 << 11)); /* move a1, r1 */
+		MOV(MIPSREG_A1, r1);
 		regBranchUnlock(r1);
 	} else {
-		write32(0x3c000000 | (MIPSREG_A1 << 16)); /* lui ,0 */
+		LUI(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite32);
 }
