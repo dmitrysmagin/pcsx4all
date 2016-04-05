@@ -1,3 +1,5 @@
+#ifdef gte_old
+
 #define CP2_REGCACHE
 
 #define CP2_CALLFunc_Flush(func) \
@@ -83,3 +85,64 @@ static void recCTC2()
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
 }
+
+#elif defined(gte_new)
+
+#define CP2_FUNC(f) \
+extern void gte##f(); \
+void rec##f() \
+{ \
+	regClearJump(); \
+	LI32(TEMP_1, pc); \
+	SW(TEMP_1, PERM_REG_1, offpc); \
+	LI32(TEMP_1, psxRegs.code); \
+	SW(TEMP_1, PERM_REG_1, offcode); \
+	CALLFunc((u32)gte##f); \
+} \
+
+CP2_FUNC(MFC2);
+CP2_FUNC(MTC2);
+CP2_FUNC(LWC2);
+CP2_FUNC(SWC2);
+CP2_FUNC(DCPL);
+CP2_FUNC(RTPS);
+CP2_FUNC(OP);
+CP2_FUNC(NCLIP);
+CP2_FUNC(DPCS);
+CP2_FUNC(INTPL);
+CP2_FUNC(MVMVA);
+CP2_FUNC(NCDS);
+CP2_FUNC(NCDT);
+CP2_FUNC(CDP);
+CP2_FUNC(NCCS);
+CP2_FUNC(CC);
+CP2_FUNC(NCS);
+CP2_FUNC(NCT);
+CP2_FUNC(SQR);
+CP2_FUNC(DPCT);
+CP2_FUNC(AVSZ3);
+CP2_FUNC(AVSZ4);
+CP2_FUNC(RTPT);
+CP2_FUNC(GPF);
+CP2_FUNC(GPL);
+CP2_FUNC(NCCT);
+
+static void recCFC2()
+{
+	if (!_Rt_) return;
+
+	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
+
+	LW(rt, PERM_REG_1, offCP2C(_Rd_));
+	regMipsChanged(_Rt_);
+	regBranchUnlock(rt);
+}
+
+static void recCTC2()
+{
+	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+	SW(rt, PERM_REG_1, offCP2C(_Rd_));
+	regBranchUnlock(rt);
+}
+
+#endif
