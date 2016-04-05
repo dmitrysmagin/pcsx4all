@@ -85,6 +85,8 @@ typedef enum {
 /* code offset */
 #define offcode		offsetof(psxRegisters,  code)
 
+#define offpsxM		offsetof(psxRegisters, psxM)
+
 #define write32(i) \
 	do { *recMem++ = (u32)(i); } while (0)
 
@@ -165,6 +167,19 @@ do { \
 
 #define MFHI(rd) \
 	write32(0x00000010 | (rd << 11))
+
+#define SLTU(rd, rs, rt) \
+	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
+
+#define BEQ(rs, rt, offset) \
+	write32(0x10000000 | (rs << 21) | (rt << 16) | (offset >> 2))
+
+#define BEQZ(rs, offset)	BEQ(rs, 0, offset)
+#define B(offset)		BEQ(0, 0, offset)
+
+#define EXT(rt, rs, pos, size) \
+	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
+	        ((pos & 0x1f) << 6) | ((size & 0x1f) << 11))
 
 /* start of the recompiled block */
 #define rec_recompile_start() \

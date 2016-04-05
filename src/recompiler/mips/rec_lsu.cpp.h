@@ -120,6 +120,136 @@ static int StoreToConstAddr(u32 insn)
 	return 0;
 }
 
+// For debug catching in gdb
+void Nullproc() {asm ("nop");}
+
+#define MIPSREG_AT	1
+#define L_(insn, rt, rn, imm) \
+	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+static void LoadFromAddr(u32 insn)
+{
+	// Rt = [Rs + imm16]
+	s32 imm16 = (s32)(s16)_Imm_;
+	u32 rs = _Rs_;
+	u32 rt = _Rt_;
+	u32 *backpatch1, *backpatch2;
+
+	CALLFunc((u32)Nullproc);
+
+	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+	ADDIU(MIPSREG_A0, r1, imm16);
+	regBranchUnlock(r1);
+
+	/*LI32(TEMP_1, 0x1fffffff);
+	AND(TEMP_1, MIPSREG_A0, TEMP_1);*/
+	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d);
+	LUI(TEMP_2, 0x20);
+	SLTU(MIPSREG_AT, TEMP_1, TEMP_2);
+	backpatch1 = (u32 *)recMem;
+	BEQZ(MIPSREG_AT, 0); // beqz at, label1
+	write32(0); // nop
+
+	if ((u32)psxRegs.psxM == 0x10000000) {
+		LUI(TEMP_2, 0x1000);
+		OR(TEMP_1, TEMP_1, TEMP_2);
+	} else {
+		LW(TEMP_2, PERM_REG_1, offpsxM);
+		ADDU(TEMP_1, TEMP_1, TEMP_2);
+	}
+
+	L_(insn, MIPSREG_V0, TEMP_1, 0);
+	backpatch2 = (u32 *)recMem;
+	write32(0x10000000); // b label2
+	write32(0); // nop
+
+	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	// label1:
+	if (insn == 0x80000000) { // LB
+		CALLFunc((u32)psxMemRead8);
+		/* Sign extend */
+		SLL(MIPSREG_V0, MIPSREG_V0, 24);
+		SRA(MIPSREG_V0, MIPSREG_V0, 24);
+	} else if (insn == 0x90000000) { // LBU
+		CALLFunc((u32)psxMemRead8);
+	} else if (insn == 0x84000000) { // LH
+		CALLFunc((u32)MemRead16);
+		/* Sign extend */
+		SLL(MIPSREG_V0, MIPSREG_V0, 16);
+		SRA(MIPSREG_V0, MIPSREG_V0, 16);
+	} else if (insn == 0x94000000) { // LHU
+		CALLFunc((u32)MemRead16);
+	} else if (insn == 0x8c000000) { // LW
+		CALLFunc((u32)psxMemRead32);
+	}
+	// label2:
+	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+
+	if (rt) {
+		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+		MOV(r2, MIPSREG_V0);
+		regMipsChanged(rt);
+		regBranchUnlock(r2);
+	}
+}
+
+static void StoreToAddr(u32 insn)
+{
+	s32 imm16 = (s32)(s16)_Imm_;
+	u32 rs = _Rs_;
+	u32 rt = _Rt_;
+	u32 *backpatch1, *backpatch2;
+	u32 r1 = 0, r2 = 0;
+
+	CALLFunc((u32)Nullproc);
+
+	if (rs) {
+		r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+		ADDIU(MIPSREG_A0, r1, imm16);
+		//regBranchUnlock(r1);
+	} else {
+		LI16(MIPSREG_A0, imm16);
+	}
+
+	if (rt) {
+		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+		MOV(MIPSREG_A1, r2);
+		//regBranchUnlock(r2);
+	} else {
+		LI16(MIPSREG_A1, 0);
+	}
+
+	LI32(TEMP_1, 0x1fffffff);
+	AND(TEMP_1, MIPSREG_A0, TEMP_1);
+	LUI(TEMP_2, 0x20);
+	SLTU(MIPSREG_AT, MIPSREG_A0, TEMP_2);
+	backpatch1 = (u32 *)recMem;
+	write32(0x10000000 | (MIPSREG_AT << 21) | (0 << 16)); //BEQZ(MIPSREG_AT, _label1);
+	write32(0); // nop
+	#if 0
+	LUI(TEMP_2, 0x1000);
+	OR(TEMP_1, TEMP_1, TEMP_2);
+	#else
+	LW(TEMP_2, PERM_REG_1, offpsxM);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	#endif
+	//SW(MIPSREG_A1, TEMP_1, 0);
+	write32((insn) | (TEMP_1 << 21) | (r2 << 16) | (0 & 0xffff));
+	backpatch2 = (u32 *)recMem;
+	write32(0x10000000); // beqz
+	write32(0); // nop
+
+	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	CALLFunc((u32)psxMemWrite32);
+	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+
+	if (rs)
+		regBranchUnlock(r1);
+
+	if (rt)
+		regBranchUnlock(r2);
+}
+
 static void recLB()
 {
 // Rt = mem[Rs + Im] (signed)
@@ -128,8 +258,11 @@ static void recLB()
 	if (LoadFromConstAddr(0x80000000))
 		return;
 
-	AddrToA0();
 	iRegs[_Rt_] = -1;
+#if 1
+	LoadFromAddr(0x80000000);
+#else
+	AddrToA0();
 	CALLFunc((u32)MemRead8);
 
 	/* Sign extend */
@@ -142,6 +275,7 @@ static void recLB()
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
+#endif
 }
 
 static void recLBU()
@@ -152,8 +286,11 @@ static void recLBU()
 	if (LoadFromConstAddr(0x90000000))
 		return;
 
-	AddrToA0();
 	iRegs[_Rt_] = -1;
+#if 1
+	LoadFromAddr(0x90000000);
+#else
+	AddrToA0();
 
 	CALLFunc((u32)MemRead8);
 	if (rt) {
@@ -162,6 +299,7 @@ static void recLBU()
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
+#endif
 }
 
 static void recLH()
@@ -172,8 +310,11 @@ static void recLH()
 	if (LoadFromConstAddr(0x84000000))
 		return;
 
-	AddrToA0();
 	iRegs[_Rt_] = -1;
+#if 1
+	LoadFromAddr(0x84000000);
+#else
+	AddrToA0();
 	CALLFunc((u32)MemRead16);
 
 	/* Sign extend */
@@ -186,6 +327,7 @@ static void recLH()
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
+#endif
 }
 
 static void recLHU()
@@ -196,8 +338,11 @@ static void recLHU()
 	if (LoadFromConstAddr(0x94000000))
 		return;
 
-	AddrToA0();
 	iRegs[_Rt_] = -1;
+#if 1
+	LoadFromAddr(0x94000000);
+#else
+	AddrToA0();
 	CALLFunc((u32)MemRead16);
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -205,6 +350,7 @@ static void recLHU()
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
+#endif
 }
 
 static void recLW()
@@ -216,6 +362,9 @@ static void recLW()
 		return;
 
 	iRegs[_Rt_] = -1;
+#if 1
+	LoadFromAddr(0x8c000000);
+#else
 	AddrToA0();
 	CALLFunc((u32)MemRead32);
 	if (rt) {
@@ -224,6 +373,7 @@ static void recLW()
 		regMipsChanged(rt);
 		regBranchUnlock(r1);
 	}
+#endif
 }
 
 static void recSB()
