@@ -249,6 +249,7 @@ static u32 recRecompile()
 			POP(MIPSREG_S8);
 			POP(MIPSREG_RA);
 			write32(0x00000008 | (MIPSREG_RA << 21)); /* jr ra */
+			write32(0);
 			clear_insn_cache(recMemStart, recMem, 0);
 			return (u32)recMemStart;
 		}
