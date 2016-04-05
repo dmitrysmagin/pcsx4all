@@ -69,25 +69,33 @@ static void recMULTU() {
 	}
 }
 
-/* From interpreter_pcsx.cpp */
-#if defined (interpreter_new) || defined (interpreter_none)
-void psxDIV() {
-	if (_i32(_rRt_) != 0) {
-		(_rLo_) = _i32(_rRs_) / _i32(_rRt_);
-		(_rHi_) = _i32(_rRs_) % _i32(_rRt_);
-	}
+static void recDIV()
+{
+// Hi, Lo = rs / rt signed
+	if (!_Rt_) return;
+	u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+
+	DIV(rs, rt);
+	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+	SW(TEMP_1, PERM_REG_1, offGPR(32));
+	MFHI(TEMP_1);
+	SW(TEMP_1, PERM_REG_1, offGPR(33));
 }
 
-void psxDIVU() {
-	if (_rRt_ != 0) {
-		_rLo_ = _rRs_ / _rRt_;
-		_rHi_ = _rRs_ % _rRt_;
-	}
-}
-#endif
+static void recDIVU()
+{
+// Hi, Lo = rs / rt unsigned
+	if (!_Rt_) return;
+	u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
 
-REC_FUNC_TEST(DIV);	/* FIXME: implement natively */
-REC_FUNC_TEST(DIVU);	/* dto */
+	DIVU(rs, rt);
+	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+	SW(TEMP_1, PERM_REG_1, offGPR(32));
+	MFHI(TEMP_1);
+	SW(TEMP_1, PERM_REG_1, offGPR(33));
+}
 
 static void recMFHI() {
 // Rd = Hi

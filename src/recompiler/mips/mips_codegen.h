@@ -148,6 +148,18 @@ do { \
 #define SRA(rd, rt, sa) \
 	write32(0x00000003 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
 
+#define DIV(rs, rt) \
+	write32(0x0000001a | (rs << 21) | (rt << 16))
+
+#define DIVU(rs, rt) \
+	write32(0x0000001b | (rs << 21) | (rt << 16))
+
+#define MFLO(rd) \
+	write32(0x00000012 | (rd << 11))
+
+#define MFHI(rd) \
+	write32(0x00000010 | (rd << 11))
+
 /* start of the recompiled block */
 #define rec_recompile_start() \
 do { \
