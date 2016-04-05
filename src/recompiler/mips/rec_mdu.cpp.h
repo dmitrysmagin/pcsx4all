@@ -1,31 +1,23 @@
 static void recMULT() {
 // Lo/Hi = Rs * Rt (signed)
-
-//	iFlushRegs();
-	if(!(_Rt_) || !(_Rs_))
-	{
+	if (!_Rt_ || !_Rs_) {
 		u32 rsrt;
-		if( !(_Rt_) )
-		{
+		if (!_Rt_) {
 			rsrt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-		}
-		else
-		{
+		} else {
 			rsrt = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		}
 		SW(rsrt, PERM_REG_1, offGPR(32));
 		SW(rsrt, PERM_REG_1, offGPR(33));
 		regBranchUnlock(rsrt);
-	}
-	else
-	{
+	} else {
 		u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
-		u32	rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-		
-		write32(0x00000018 | (rs << 21) | (rt << 16)); /* mult rs, rt */
-		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
-		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
-		
+		u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+
+		MULT(rs, rt);
+		MFLO(TEMP_1);
+		MFHI(TEMP_2);
+
 		SW(TEMP_1, PERM_REG_1, offGPR(32));
 		SW(TEMP_2, PERM_REG_1, offGPR(33));
 		regBranchUnlock(rs);
@@ -35,33 +27,24 @@ static void recMULT() {
 
 static void recMULTU() {
 // Lo/Hi = Rs * Rt (unsigned)
-
-//	iFlushRegs();
-
-	if(!(_Rt_) || !(_Rs_))
-	{
+	if (!_Rt_ || !_Rs_) {
 		u32 rsrt;
-		if( !(_Rt_) )
-		{
+		if (!_Rt_) {
 			rsrt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-		}
-		else
-		{
+		} else {
 			rsrt = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		}
 		SW(rsrt, PERM_REG_1, offGPR(32)); // LO
 		SW(rsrt, PERM_REG_1, offGPR(33)); // HI
 		regBranchUnlock(rsrt);
-	}
-	else
-	{
+	} else {
 		u32 rs = regMipsToArm(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
-		
-		write32(0x00000019 | (rs << 21) | (rt << 16)); /* multu rs, rt */
-		write32(0x00000012 | (TEMP_1 << 11)); /* mflo temp1 */
-		write32(0x00000010 | (TEMP_2 << 11)); /* mfhi temp2 */
-		
+
+		MULTU(rs, rt);
+		MFLO(TEMP_1);
+		MFHI(TEMP_2);
+
 		SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
 		SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
 		regBranchUnlock(rs);

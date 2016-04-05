@@ -148,6 +148,12 @@ do { \
 #define SRA(rd, rt, sa) \
 	write32(0x00000003 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
 
+#define MULT(rs, rt) \
+	write32(0x00000018 | (rs << 21) | (rt << 16))
+
+#define MULTU(rs, rt) \
+	write32(0x00000019 | (rs << 21) | (rt << 16))
+
 #define DIV(rs, rt) \
 	write32(0x0000001a | (rs << 21) | (rt << 16))
 
