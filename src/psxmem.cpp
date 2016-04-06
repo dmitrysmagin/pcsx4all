@@ -25,7 +25,9 @@
 #include "psxmem.h"
 #include "r3000a.h"
 #include "psxhw.h"
+#ifndef WIN32
 #include <sys/mman.h>
+#endif
 #include "port.h"
 #include "profiler.h"
 
