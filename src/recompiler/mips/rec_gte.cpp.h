@@ -86,7 +86,7 @@ static void recCTC2()
 	regBranchUnlock(rt);
 }
 
-#elif defined(gte_new)
+#elif defined(gte_new) || defined(gte_pcsx)
 
 #define CP2_FUNC(f) \
 extern void gte##f(); \
