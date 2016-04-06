@@ -774,6 +774,8 @@ static void gpuVideoOutput(void)
 // Update frames-skip each second>>3 (8 times per second)
 #define GPU_FRAMESKIP_UPDATE 3
 
+char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
+
 static void GPU_frameskip (bool show)
 {
 	u32 now=get_ticks(); // current frame
@@ -783,7 +785,6 @@ static void GPU_frameskip (bool show)
 	{
 		static u32 frames_fps=0; // frames counter
 		static u32 prev_fps=now; // previous fps calculation
-		static char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
 		frames_fps++;
 		if ((now-prev_fps)>=TPS)
 		{
