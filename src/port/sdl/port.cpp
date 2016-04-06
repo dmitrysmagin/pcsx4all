@@ -186,71 +186,103 @@ unsigned short pad_read(int num)
 	if (num==0) return pad1; else return pad2;
 }
 
-#define SOUND_BUFFER_SIZE (4*1024)
-static unsigned *sound_buffer=NULL;
-static unsigned sound_wptr=0;
-static unsigned sound_rptr=0;
-static int sound_initted=0;
-static SDL_sem * sound_data_available_sem=NULL;
-static SDL_sem * sound_callback_done_sem=NULL;
-static int sound_running=0;
+#define SOUND_BUFFER_SIZE (1024 * 3 * 2)
+static unsigned *sound_buffer = NULL;
+static unsigned int buf_read_pos = 0;
+static unsigned int buf_write_pos = 0;
+static unsigned buffered_bytes = 0;
+static int sound_initted = 0;
+static int sound_running = 0;
 
-static void sound_mix(void *unused, Uint8 *stream, int len) {
-	if (!sound_running) return;
-	unsigned *dest=(unsigned *)stream;
-	if (sound_wptr!=sound_rptr)
-		SDL_SemWait(sound_data_available_sem);
-	for(len/=4;(sound_wptr!=sound_rptr)&&len;len--)
-		*dest++=sound_buffer[(sound_wptr++)&(SOUND_BUFFER_SIZE-1)];
-	sound_wptr&=(SOUND_BUFFER_SIZE-1);
-	SDL_SemPost(sound_callback_done_sem);
+SDL_mutex *sound_mutex;
+SDL_cond *sound_cv;
+static unsigned int mutex = 0; // 0 - don't use mutex; 1 - use it
+
+static void sound_mix(void *unused, Uint8 *stream, int len)
+{
+	u8 *data = (u8 *)stream;
+	u8 *buffer = (u8 *)sound_buffer;
+
+	if (!sound_running)
+		return;
+
+	if (mutex)
+		SDL_LockMutex(sound_mutex);
+
+	if (buffered_bytes >= len) {
+		if (buf_read_pos + len <= SOUND_BUFFER_SIZE ) {
+			memcpy(data, buffer + buf_read_pos, len);
+		} else {
+			int tail = SOUND_BUFFER_SIZE - buf_read_pos;
+			memcpy(data, buffer + buf_read_pos, tail);
+			memcpy(data + tail, buffer, len - tail);
+		}
+		buf_read_pos = (buf_read_pos + len) % SOUND_BUFFER_SIZE;
+		buffered_bytes -= len;
+	}
+
+	if (mutex) {
+		SDL_CondSignal(sound_cv);
+		SDL_UnlockMutex(sound_mutex);
+	}
 }
 
-void sound_init(void) {
+void sound_init(void)
+{
 #ifndef spu_null
-	if (sound_initted) return;
-	sound_initted=1;
 	SDL_AudioSpec fmt;
+
+	if (sound_initted)
+		return;
+	sound_initted = 1;
+
 	fmt.format = AUDIO_S16;
 	fmt.channels = 1;
 #ifdef spu_franxis
 	fmt.freq = 22050;
-	fmt.samples = 1080/2;
+	fmt.samples = 1024;
 #else
 	fmt.freq = 44100;
-	fmt.samples = 1620/2;
+	fmt.samples = 1024;
 #endif
 	fmt.callback = sound_mix;
 	if (!sound_buffer)
-		sound_buffer = (unsigned *)calloc(SOUND_BUFFER_SIZE,4);
+		sound_buffer = (unsigned *)calloc(SOUND_BUFFER_SIZE,1);
+
 	SDL_OpenAudio(&fmt, NULL);
 #endif
-	if (!sound_callback_done_sem)
-		sound_callback_done_sem=SDL_CreateSemaphore(0);
-	if (!sound_data_available_sem)
-		sound_data_available_sem=SDL_CreateSemaphore(0);
-	sound_running=0;
+	if (mutex) {
+		sound_mutex = SDL_CreateMutex();
+		sound_cv = SDL_CreateCond();
+	}
+
+	sound_running = 0;
 	SDL_PauseAudio(0);
 }
 
 void sound_close(void) {
 #ifndef spu_null
-	sound_running=0;
-	if (sound_data_available_sem)
-		SDL_SemPost(sound_data_available_sem);
-	SDL_Delay(333);
-	if (!sound_initted) return;
-	sound_initted=0;
+	sound_running = 0;
+
+	if (mutex) {
+		SDL_LockMutex(sound_mutex);
+		buffered_bytes = SOUND_BUFFER_SIZE;
+		SDL_CondSignal(sound_cv);
+		SDL_UnlockMutex(sound_mutex);
+		SDL_Delay(100);
+
+		SDL_DestroyCond(sound_cv);
+		SDL_DestroyMutex(sound_mutex);
+	}
+
+	if (!sound_initted)
+		return;
+
+	sound_initted = 0;
 	SDL_CloseAudio();
 	if (sound_buffer)
 		free(sound_buffer);
-	sound_buffer=NULL;
-	if (sound_callback_done_sem)
-		SDL_DestroySemaphore(sound_callback_done_sem); 
-	sound_callback_done_sem=NULL;
-	if (sound_data_available_sem)
-		SDL_DestroySemaphore(sound_data_available_sem); 
-	sound_data_available_sem=NULL;
+	sound_buffer = NULL;
 #endif
 }
 
@@ -262,18 +294,35 @@ unsigned long sound_get(void) {
 	#endif
 }
 
-void sound_set(unsigned char* pSound,long lBytes) {
-	#ifndef spu_null
-	unsigned *orig=(unsigned *)pSound;
-	sound_running=1;
-	SDL_SemWait(sound_callback_done_sem);
-//	SDL_LockAudio();
-	for(lBytes/=4;lBytes;lBytes--)
-		sound_buffer[(sound_rptr++)&(SOUND_BUFFER_SIZE-1)]=*orig++;
-	sound_rptr&=(SOUND_BUFFER_SIZE-1);
-//	SDL_UnlockAudio();
-	SDL_SemPost(sound_data_available_sem);
-	#endif
+void sound_set(unsigned char *pSound, long lBytes)
+{
+	u8 *data = (u8 *)pSound;
+	u8 *buffer = (u8 *)sound_buffer;
+
+	sound_running = 1;
+
+	if (mutex)
+		SDL_LockMutex(sound_mutex);
+
+	for (int i = 0; i < lBytes; i += 4) {
+		if (mutex) {
+			while (buffered_bytes == SOUND_BUFFER_SIZE)
+				SDL_CondWait(sound_cv, sound_mutex);
+		} else {
+			if (buffered_bytes == SOUND_BUFFER_SIZE)
+				return; // just drop samples
+		}
+
+		*(int*)((char*)(buffer + buf_write_pos)) = *(int*)((char*)(data + i));
+		//memcpy(buffer + buf_write_pos, data + i, 4);
+		buf_write_pos = (buf_write_pos + 4) % SOUND_BUFFER_SIZE;
+		buffered_bytes += 4;
+	}
+
+	if (mutex) {
+		SDL_CondSignal(sound_cv);
+		SDL_UnlockMutex(sound_mutex);
+	}
 }
 
 
@@ -447,6 +496,7 @@ int main (int argc, char **argv)
 		// SPU
 	#ifndef spu_null
 		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
+		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
 	#endif
 		// WIZ
 #if 0

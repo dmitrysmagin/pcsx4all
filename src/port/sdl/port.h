@@ -26,7 +26,7 @@ extern unsigned short pad_read(int num);
 extern void sound_init(void);
 extern void sound_close(void);
 extern unsigned long sound_get(void);
-extern void sound_set(unsigned char* pSound,long lBytes);
+extern void sound_set(unsigned char *pSound, long lBytes);
 extern void video_flip(void);
 extern void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 extern void video_clear(void);
