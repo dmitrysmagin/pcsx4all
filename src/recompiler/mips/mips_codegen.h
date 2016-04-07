@@ -111,8 +111,14 @@ do { \
 #define ADDIU(rt, rs, imm) \
 	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
+#define SLTI(rt, rs, imm16) \
+	write32(0x28000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+
+#define SLTIU(rt, rs, imm16) \
+	write32(0x2c000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+
 #define LUI(rt, imm16) \
-	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff));
+	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff))
 
 #define LI16(reg, imm16) \
 	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */
@@ -124,16 +130,19 @@ do { \
 } while (0)
 
 #define MOV(rd, rs) \
-	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)); /* move rd, rs */
+	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)) /* move rd, rs */
 
-#define AND(rd, rn, rm) \
-	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+#define ANDI(rt, rs, imm16) \
+	write32(0x30000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
 
-#define XORI(rd, rn, imm16) \
-	write32(0x38000000 | ((rn) << 21) | ((rd) << 16) | ((imm16) & 0xffff))
+#define ORI(rt, rs, imm16) \
+	write32(0x34000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+
+#define XORI(rt, rs, imm16) \
+	write32(0x38000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define XOR(rd, rn, rm) \
-	write32(0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)));
+	write32(0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)))
 
 #define SUBU(rd, rn, rm) \
 	write32(0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
@@ -141,14 +150,32 @@ do { \
 #define ADDU(rd, rn, rm) \
 	write32(0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
 
+#define AND(rd, rn, rm) \
+	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+
 #define OR(rd, rn, rm) \
 	write32(0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+
+#define NOR(rd, rs, rt) \
+	write32(0x00000027 | (rs << 21) | (rt << 16) | (rd << 11))
 
 #define SLL(rd, rt, sa) \
 	write32(0x00000000 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
 
+#define SRL(rd, rt, sa) \
+	write32(0x00000002 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+
 #define SRA(rd, rt, sa) \
 	write32(0x00000003 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+
+#define SLLV(rd, rt, rs) \
+	write32(0x00000004 | (rs << 21) | (rt << 16) | (rd << 11))
+
+#define SRLV(rd, rt, rs) \
+	write32(0x00000006 | (rs << 21) | (rt << 16) | (rd << 11))
+
+#define SRAV(rd, rt, rs) \
+	write32(0x00000007 | (rs << 21) | (rt << 16) | (rd << 11))
 
 #define MULT(rs, rt) \
 	write32(0x00000018 | (rs << 21) | (rt << 16))
@@ -167,6 +194,9 @@ do { \
 
 #define MFHI(rd) \
 	write32(0x00000010 | (rd << 11))
+
+#define SLT(rd, rs, rt) \
+	write32(0x0000002a | (rs << 21) | (rt << 16) | (rd << 11))
 
 #define SLTU(rd, rs, rt) \
 	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))

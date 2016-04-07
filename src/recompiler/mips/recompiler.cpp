@@ -176,7 +176,6 @@ const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
 
 #endif
 
-#include "gen_alu.h"     // Helpers for generating ALU opcodes
 #include "opcodes.h"
 #include <sys/cachectl.h>
 
