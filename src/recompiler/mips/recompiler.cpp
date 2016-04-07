@@ -84,13 +84,13 @@ extern void (*recCP2[64])();
 extern void (*recCP2BSC[32])();
 
 u8	*current_translation_ptr;
-u32 	opcode;
+u32	opcode;
 u32	*recMemStart;
 u32	isInBios = 0;
-u32 	loadedpermregs = 0;
+u32	loadedpermregs = 0;
 u32	end_block = 0;
-int ibranch;
-u32 blockcycles = 0;
+int	ibranch;
+u32	blockcycles = 0;
 
 #ifdef WITH_DISASM
 
@@ -186,7 +186,7 @@ void clear_insn_cache(void *start, void *end, int flags)
 
 static u32 recRecompile()
 {
-	if ( (u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
+	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
 		recReset();
 
 	recMem = (u32*)(((u32)recMem + 64) & ~(63));
@@ -202,10 +202,8 @@ static u32 recRecompile()
 
 	DISASM_INIT
 
-	if( isInBios )
-	{
-		if( isInBios == 1 )
-		{
+	if (isInBios) {
+		if (isInBios == 1) {
 			isInBios = 2;
 			PUSH(MIPSREG_RA);
 			PUSH(MIPSREG_S8);
@@ -217,9 +215,7 @@ static u32 recRecompile()
 			PUSH(MIPSREG_S2);
 			PUSH(MIPSREG_S1);
 			PUSH(MIPSREG_S0);
-		}
-		else if( isInBios == 2 && psxRegs.pc == 0x80030000 )
-		{
+		} else if (isInBios == 2 && psxRegs.pc == 0x80030000) {
 			PC_REC32(psxRegs.pc) = 0;
 			isInBios = 0;
 			POP(MIPSREG_S0);
@@ -242,16 +238,14 @@ static u32 recRecompile()
 	rec_recompile_start();
 	memset(iRegs, 0xff, 32*4);
 
-	for (;;)
-	{
+	for (;;) {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 		DISASM_PSX
-		pc+=4;
+		pc += 4;
 		recBSC[psxRegs.code>>26]();
 		regUpdate();
 		branch = 0;
-		if (end_block)
-		{
+		if (end_block) {
 			end_block = 0;
 			rec_recompile_end();
 			DISASM_HOST
@@ -272,17 +266,18 @@ static int recInit()
 	loadedpermregs = 0;
 	recReset();
 
-	//recRAM = (char*) malloc(0x200000);
-	//recROM = (char*) malloc(0x080000);
 	if (recRAM == NULL || recROM == NULL || recMemBase == NULL || psxRecLUT == NULL) {
 		printf("Error allocating memory\n"); return -1;
 	}
 
-	for (i=0; i<0x80; i++) psxRecLUT[i + 0x0000] = (u32)&recRAM[(i & 0x1f) << 16];
+	for (i = 0; i < 0x80; i++)
+		psxRecLUT[i + 0x0000] = (u32)&recRAM[(i & 0x1f) << 16];
+
 	memcpy(psxRecLUT + 0x8000, psxRecLUT, 0x80 * 4);
 	memcpy(psxRecLUT + 0xa000, psxRecLUT, 0x80 * 4);
 
-	for (i=0; i<0x08; i++) psxRecLUT[i + 0xbfc0] = (u32)&recROM[i << 16];
+	for (i = 0; i < 0x08; i++)
+		psxRecLUT[i + 0xbfc0] = (u32)&recROM[i << 16];
 
 	return 0;
 }
@@ -316,20 +311,11 @@ static void recExecuteBlock(unsigned target_pc)
 
 static void recClear(u32 Addr, u32 Size)
 {
-	//memset((u32*)PC_REC(Addr), 0, (Size * 4));
-	//memset(recRAM, 0, 0x200000);
-	//printf("addr %x\n", Addr);
-
 	memset((u32*)PC_REC(Addr), 0, (Size * 4));
-	//memset(recRAM+0x0, 0, 0x200000);
 
-	if( Addr == 0x8003d000 )
-	{
+	if (Addr == 0x8003d000) {
 		// temp fix for Buster Bros Collection and etc.
 		memset(recRAM+0x4d88, 0, 0x8);
-		//recReset();
-		//memset(recRAM, 0, 0x200000);
-		//memset(&recRAM[0x1362<<1], 0, (0x4));
 	}
 }
 
@@ -337,8 +323,6 @@ static void recReset()
 {
 	memset(recRAM, 0, 0x200000);
 	memset(recROM, 0, 0x080000);
-
-	//memset((void*)recMemBase, 0, RECMEM_SIZE);
 
 	recMem = (u32*)recMemBase;
 
