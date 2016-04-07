@@ -151,11 +151,10 @@ static void LoadFromAddr(u32 insn)
 	CALLFunc((u32)Nullproc);
 
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 	ADDIU(MIPSREG_A0, r1, imm16);
 	regBranchUnlock(r1);
 
-	/*LI32(TEMP_1, 0x1fffffff);
-	AND(TEMP_1, MIPSREG_A0, TEMP_1);*/
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d);
 	LUI(TEMP_2, 0x20);
 	SLTU(MIPSREG_AT, TEMP_1, TEMP_2);
@@ -171,7 +170,7 @@ static void LoadFromAddr(u32 insn)
 		ADDU(TEMP_1, TEMP_1, TEMP_2);
 	}
 
-	L_(insn, MIPSREG_V0, TEMP_1, 0);
+	L_(insn, r2, TEMP_1, 0);
 	backpatch2 = (u32 *)recMem;
 	write32(0x10000000); // b label2
 	write32(0); // nop
@@ -181,27 +180,27 @@ static void LoadFromAddr(u32 insn)
 	if (insn == 0x80000000) { // LB
 		CALLFunc((u32)psxMemRead8);
 		/* Sign extend */
-		SEB(MIPSREG_V0, MIPSREG_V0);
+		SEB(r2, MIPSREG_V0);
 	} else if (insn == 0x90000000) { // LBU
 		CALLFunc((u32)psxMemRead8);
+		MOV(r2, MIPSREG_V0);
 	} else if (insn == 0x84000000) { // LH
 		CALLFunc((u32)MemRead16);
 		/* Sign extend */
-		SEH(MIPSREG_V0, MIPSREG_V0);
+		SEH(r2, MIPSREG_V0);
 	} else if (insn == 0x94000000) { // LHU
 		CALLFunc((u32)MemRead16);
+		MOV(r2, MIPSREG_V0);
 	} else if (insn == 0x8c000000) { // LW
 		CALLFunc((u32)psxMemRead32);
+		MOV(r2, MIPSREG_V0);
 	}
+
 	// label2:
 	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
 
-	if (rt) {
-		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-		MOV(r2, MIPSREG_V0);
-		regMipsChanged(rt);
-		regBranchUnlock(r2);
-	}
+	regMipsChanged(rt);
+	regBranchUnlock(r2);
 }
 
 static void StoreToAddr(u32 insn)
