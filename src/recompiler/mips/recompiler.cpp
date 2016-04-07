@@ -24,8 +24,6 @@
  *
  */
 
-//#define NO_ZERO_REGISTER_OPTIMISATION	1
-
 #include "psxcommon.h"
 #include "psxhle.h"
 #include "psxmem.h"
