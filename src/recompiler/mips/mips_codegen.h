@@ -211,6 +211,12 @@ do { \
 	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
 	        ((pos & 0x1f) << 6) | ((size & 0x1f) << 11))
 
+#define SEB(rd, rt) \
+	write32(0x7C000420 | (rt << 16) | (rd << 11))
+
+#define SEH(rd, rt) \
+	write32(0x7C000620 | (rt << 16) | (rd << 11))
+
 /* start of the recompiled block */
 #define rec_recompile_start() \
 do { \

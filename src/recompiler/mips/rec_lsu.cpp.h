@@ -181,15 +181,13 @@ static void LoadFromAddr(u32 insn)
 	if (insn == 0x80000000) { // LB
 		CALLFunc((u32)psxMemRead8);
 		/* Sign extend */
-		SLL(MIPSREG_V0, MIPSREG_V0, 24);
-		SRA(MIPSREG_V0, MIPSREG_V0, 24);
+		SEB(MIPSREG_V0, MIPSREG_V0);
 	} else if (insn == 0x90000000) { // LBU
 		CALLFunc((u32)psxMemRead8);
 	} else if (insn == 0x84000000) { // LH
 		CALLFunc((u32)MemRead16);
 		/* Sign extend */
-		SLL(MIPSREG_V0, MIPSREG_V0, 16);
-		SRA(MIPSREG_V0, MIPSREG_V0, 16);
+		SEH(MIPSREG_V0, MIPSREG_V0);
 	} else if (insn == 0x94000000) { // LHU
 		CALLFunc((u32)MemRead16);
 	} else if (insn == 0x8c000000) { // LW
@@ -279,8 +277,7 @@ static void recLB()
 	CALLFunc((u32)MemRead8);
 
 	/* Sign extend */
-	SLL(MIPSREG_V0, MIPSREG_V0, 24);
-	SRA(MIPSREG_V0, MIPSREG_V0, 24);
+	SEB(MIPSREG_V0, MIPSREG_V0);
 
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
@@ -331,8 +328,7 @@ static void recLH()
 	CALLFunc((u32)MemRead16);
 
 	/* Sign extend */
-	SLL(MIPSREG_V0, MIPSREG_V0, 16);
-	SRA(MIPSREG_V0, MIPSREG_V0, 16);
+	SEH(MIPSREG_V0, MIPSREG_V0);
 
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
