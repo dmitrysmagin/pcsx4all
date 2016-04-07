@@ -180,6 +180,10 @@ static u32 regMipsToArmHelper(u32 regpsx, u32 action, u32 type)
 
 static INLINE u32 regMipsToArm(u32 regpsx, u32 action, u32 type)
 {
+	/* zero reg is not mapped anywhere */
+	if (!regpsx)
+		return 0;
+
 	//DEBUGF("starting for regpsx %d, action %d, type %d", regpsx, action, type);
 	if( regcache.psx[regpsx].ismapped )
 	{
@@ -219,12 +223,21 @@ static INLINE u32 regMipsToArm(u32 regpsx, u32 action, u32 type)
 
 static INLINE void regMipsChanged(u32 regpsx)
 {
+	/* do nothing for zero reg */
+	if (!regpsx)
+		return;
+
 	regcache.psx[regpsx].psx_ischanged = true;
 }
 
 static INLINE void regBranchUnlock(u32 reghost)
 {
-	if (regcache.host[reghost].host_islocked > 0) regcache.host[reghost].host_islocked--;
+	/* do nothing for zero reg */
+	if (!reghost)
+		return;
+
+	if (regcache.host[reghost].host_islocked > 0)
+		regcache.host[reghost].host_islocked--;
 }
 
 static INLINE void regClearBranch(void)
