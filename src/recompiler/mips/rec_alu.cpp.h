@@ -1,3 +1,5 @@
+/* NOTE: There's no need to do zero register optimizatins since we have
+         native zero reg on mips. */
 #define REC_ITYPE_RT_RS_I16(insn, _rt_, _rs_, _imm_) \
 do { \
 	u32 rt  = _rt_; \
@@ -6,13 +8,6 @@ do { \
 	if (!rt) break; \
 	iRegs[_rt_] = -1; \
 	u32 r1, r2; \
-	if (!rs) { \
-		r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER); \
-		gen(insn, r1, 0, imm); \
-		regMipsChanged(rt); \
-		regBranchUnlock(r1); \
-		break; \
-	} \
 	if (rs == rt) { \
 		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
@@ -46,13 +41,6 @@ do { \
 	if (!rt) break; \
 	iRegs[_rt_] = -1; \
 	u32 r1, r2; \
-	if (!rs) { \
-		r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER); \
-		gen(insn, r1, 0, imm); \
-		regMipsChanged(rt); \
-		regBranchUnlock(r1); \
-		break; \
-	} \
 	if (rs == rt) { \
 		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
@@ -99,56 +87,17 @@ do { \
 	u32 r1, r2, r3; \
 	iRegs[_rd_] = -1; \
 	if (rs == rd) { \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); r2 = r1; \
-		if (rd == rt) { \
-			r3 = r1; \
-		} else if (!rt) { \
-			gen(insn, r1, r2, 0); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r2); \
-			break; \
-		} else { \
-			r3 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-		} \
+		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r2 = r1; \
+		r3 = (rd == rt ? r1 : regMipsToArm(rt, REG_LOAD, REG_REGISTER)); \
 	} else if (rt == rd) { \
 		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
 		r3 = r1; \
-		if (!rs) { \
-			gen(insn, r1, 0, r3); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r3); \
-			break; \
-		} else { \
-			r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-		} \
+		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
 	} else { \
 		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		if (!rt) { \
-			if (!rs) { \
-				gen(insn, r1, 0, 0); \
-				regMipsChanged(rd); \
-				regBranchUnlock(r1); \
-				break; \
-			} \
-			r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-			gen(insn, r1, r2, 0); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r2); \
-			break; \
-		} else if (!rs) { \
-			r3 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-			gen(insn, r1, 0, r3); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r3); \
-			break; \
-		} else { \
-			r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-			r3 = (rs == rt ? r2 : regMipsToArm(rt, REG_LOAD, REG_REGISTER)); \
-		} \
+		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
+		r3 = (rs == rt ? r2 : regMipsToArm(rt, REG_LOAD, REG_REGISTER)); \
 	} \
 	gen(insn, r1, r2, r3); \
 	regMipsChanged(rd); \
@@ -181,12 +130,6 @@ do { \
 		if (!sa) break; \
 		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
-	} else if (!rt) { \
-		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		gen(insn, r1, 0, sa); \
-		regMipsChanged(rd); \
-		regBranchUnlock(r1); \
-		break; \
 	} else { \
 		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
 		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
@@ -214,42 +157,13 @@ do { \
 		r2 = r1; \
 		r3 = (rs == rd ? r1 : regMipsToArm(rs, REG_LOAD, REG_REGISTER)); \
 	} else if (rd == rs) { \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); r3 = r1; \
-		if (!rt) { \
-			gen(insn, r1, 0, r3); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r3); \
-			break; \
-		} \
+		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r3 = r1; \
 		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
 	} else { \
 		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		if (!rt) { \
-			if (!rs) { \
-				gen(insn, r1, 0, 0); \
-				regMipsChanged(rd); \
-				regBranchUnlock(r1); \
-				break; \
-			} \
-			r3 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-			gen(insn, r1, 0, r3); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r3); \
-			break; \
-		} else if (!rs) { \
-			r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-			gen(insn, r1, r2, 0); \
-			regMipsChanged(rd); \
-			regBranchUnlock(r1); \
-			regBranchUnlock(r2); \
-			break; \
-		} else { \
-			r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-			r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-			r3 = (rs == rt) ? r2 : regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-		} \
+		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
+		r3 = (rs == rt) ? r2 : regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
 	} \
 	gen(insn, r1, r2, r3); \
 	regMipsChanged(rd); \
