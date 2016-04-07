@@ -45,7 +45,6 @@ do 										\
 while (0)
 #endif
 
-#if 1
 static void recADDI()
 {
 	u32 x = iRegs[_Rs_];
@@ -57,12 +56,6 @@ static void recADDI()
 static void recADDIU() { recADDI(); }
 static void recSLTI()  { REC_ITYPE_RT_RS_I16(SLTI,  _Rt_, _Rs_, ((s16)(_Imm_))); }
 static void recSLTIU() { REC_ITYPE_RT_RS_I16(SLTIU, _Rt_, _Rs_, ((s16)(_Imm_))); }
-#else
-REC_FUNC_TEST(ADDI);
-REC_FUNC_TEST(ADDIU);
-REC_FUNC_TEST(SLTI);
-REC_FUNC_TEST(SLTIU);
-#endif
 
 #ifndef NO_ZERO_REGISTER_OPTIMISATION
 #define REC_ITYPE_RT_RS_U16(insn, _rt_, _rs_, _imm_) \
@@ -112,15 +105,9 @@ do 										\
 while (0)
 #endif
 
-#if 1
 static void recANDI()  { REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
 static void recORI()   { u32 x = iRegs[_Rs_]; REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_))); if (x != -1) iRegs[_Rt_] = x | ((u16)(_Imm_)); }
 static void recXORI()  { REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
-#else
-REC_FUNC_TEST(ANDI);
-REC_FUNC_TEST(ORI);
-REC_FUNC_TEST(XORI);
-#endif
 
 #define REC_ITYPE_RT_U16(insn, _rt_, _imm_) 					\
 do 										\
@@ -227,7 +214,6 @@ do 										\
 while (0)
 #endif
 
-#if 1
 static void recADD()   { REC_RTYPE_RD_RS_RT(ADD, _Rd_, _Rs_, _Rt_); }
 static void recADDU()  { recADD(); }
 static void recSUB()   { REC_RTYPE_RD_RS_RT(SUB, _Rd_, _Rs_, _Rt_); }
@@ -240,18 +226,6 @@ static void recNOR()   { REC_RTYPE_RD_RS_RT(NOR, _Rd_, _Rs_, _Rt_); }
 
 static void recSLT()   { REC_RTYPE_RD_RS_RT(SLT,  _Rd_, _Rs_, _Rt_); }
 static void recSLTU()  { REC_RTYPE_RD_RS_RT(SLTU, _Rd_, _Rs_, _Rt_); }
-#else
-REC_FUNC_TEST(ADD);
-REC_FUNC_TEST(ADDU);
-REC_FUNC_TEST(SUB);
-REC_FUNC_TEST(SUBU);
-REC_FUNC_TEST(AND);
-REC_FUNC_TEST(OR);
-REC_FUNC_TEST(XOR);
-REC_FUNC_TEST(NOR);
-REC_FUNC_TEST(SLT);
-REC_FUNC_TEST(SLTU);
-#endif
 
 #ifndef NO_ZERO_REGISTER_OPTIMISATION
 #define REC_RTYPE_RD_RT_SA(insn, _rd_, _rt_, _sa_) \
@@ -299,15 +273,9 @@ do 										\
 while (0)
 #endif
 
-#if 1
 static void recSLL()   { REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_); }
 static void recSRL()   { REC_RTYPE_RD_RT_SA(SRL, _Rd_, _Rt_, _Sa_); }
 static void recSRA()   { REC_RTYPE_RD_RT_SA(SRA, _Rd_, _Rt_, _Sa_); }
-#else
-REC_FUNC_TEST(SLL);
-REC_FUNC_TEST(SRL);
-REC_FUNC_TEST(SRA);
-#endif
 
 #ifndef NO_ZERO_REGISTER_OPTIMISATION
 #define REC_RTYPE_RD_RT_RS(insn, _rd_, _rt_, _rs_) \

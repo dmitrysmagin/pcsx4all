@@ -1,3 +1,16 @@
+/* Helper for generating rec*** function that calls psx*** one */
+#define REC_FUNC(f) \
+extern void psx##f(); \
+void rec##f() \
+{ \
+	regClearJump(); \
+	LI32(TEMP_1, pc); \
+	SW(TEMP_1, PERM_REG_1, offpc); \
+	LI32(TEMP_1, psxRegs.code); \
+	SW(TEMP_1, PERM_REG_1, offcode); \
+	CALLFunc((u32)psx##f); \
+}
+
 /* Fast reads/writes */
 /* TODO: Implement in generated asm code */
 static u16 MemRead8(u32 mem) {
@@ -522,7 +535,7 @@ void psxSWR() {
 }
 #endif
 
-REC_FUNC_TEST(LWL);
-REC_FUNC_TEST(LWR);
-REC_FUNC_TEST(SWL);
-REC_FUNC_TEST(SWR);
+REC_FUNC(LWL);
+REC_FUNC(LWR);
+REC_FUNC(SWL);
+REC_FUNC(SWR);

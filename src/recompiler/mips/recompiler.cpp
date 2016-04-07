@@ -178,18 +178,6 @@ const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
 
 #endif
 
-#define REC_FUNC_TEST(f) 														\
-extern void psx##f(); 															\
-void rec##f() 																	\
-{ 																				\
-	regClearJump();																\
-	LI32(TEMP_1, pc); \
-	SW(TEMP_1, PERM_REG_1, offpc); 							\
-	LI32(TEMP_1, psxRegs.code); \
-	SW(TEMP_1, PERM_REG_1, offcode); 							\
-	CALLFunc((u32)psx##f); 														\
-}
-
 #include "gen_alu.h"     // Helpers for generating ALU opcodes
 #include "opcodes.h"
 #include <sys/cachectl.h>
