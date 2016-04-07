@@ -134,8 +134,7 @@ disasm_label stub_labels[] =
   make_stub_label(psxMemWrite16),
   make_stub_label(psxMemWrite32),
   make_stub_label(psxException),
-  make_stub_label(psxBranchTest_rec),
-  make_stub_label(psx_interrupt)
+  make_stub_label(psxBranchTest_rec)
 };
 
 const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
