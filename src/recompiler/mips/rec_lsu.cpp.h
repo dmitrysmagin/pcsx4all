@@ -13,21 +13,6 @@ void rec##f() \
 
 /* Fast reads/writes */
 /* TODO: Implement in generated asm code */
-static u16 MemRead8(u32 mem) {
-	if ((mem&0x1fffffff)<0x800000)
-		return *((u8 *)&psxM[mem&0x1fffff]);
-	return psxMemRead8(mem);
-}
-static u16 MemRead16(u32 mem) {
-	if ((mem&0x1fffffff)<0x800000)
-		return *((u16 *)&psxM[mem&0x1fffff]);
-	return psxMemRead16(mem);
-}
-static u32 MemRead32(u32 mem) {
-	if ((mem&0x1fffffff)<0x800000)
-		return *((u32 *)&psxM[mem&0x1fffff]);
-	return psxMemRead32(mem);
-}
 static void MemWrite8(u32 mem, u8 value) {
 	if (((mem&0x1fffffff)<0x800000)&&(Config.HLE))
 		*((u8 *)&psxM[mem&0x1fffff]) = value;
@@ -133,9 +118,6 @@ static int StoreToConstAddr(u32 insn)
 	return 0;
 }
 
-// For debug catching in gdb
-void Nullproc() {asm ("nop");}
-
 #define MIPSREG_AT	1
 #define L_(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
@@ -148,12 +130,9 @@ static void LoadFromAddr(u32 insn)
 	u32 rt = _Rt_;
 	u32 *backpatch1, *backpatch2;
 
-	CALLFunc((u32)Nullproc);
-
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 	ADDIU(MIPSREG_A0, r1, imm16);
-	regBranchUnlock(r1);
 
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d);
 	LUI(TEMP_2, 0x20);
@@ -185,11 +164,11 @@ static void LoadFromAddr(u32 insn)
 		CALLFunc((u32)psxMemRead8);
 		MOV(r2, MIPSREG_V0);
 	} else if (insn == 0x84000000) { // LH
-		CALLFunc((u32)MemRead16);
+		CALLFunc((u32)psxMemRead16);
 		/* Sign extend */
 		SEH(r2, MIPSREG_V0);
 	} else if (insn == 0x94000000) { // LHU
-		CALLFunc((u32)MemRead16);
+		CALLFunc((u32)psxMemRead16);
 		MOV(r2, MIPSREG_V0);
 	} else if (insn == 0x8c000000) { // LW
 		CALLFunc((u32)psxMemRead32);
@@ -200,6 +179,7 @@ static void LoadFromAddr(u32 insn)
 	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
 
 	regMipsChanged(rt);
+	regBranchUnlock(r1);
 	regBranchUnlock(r2);
 }
 
@@ -208,56 +188,57 @@ static void StoreToAddr(u32 insn)
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
-	u32 *backpatch1, *backpatch2;
-	u32 r1 = 0, r2 = 0;
+	u32 *backpatch1, *backpatch2, *backpatch3;
 
-	CALLFunc((u32)Nullproc);
+	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 
-	if (rs) {
-		r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-		ADDIU(MIPSREG_A0, r1, imm16);
-		//regBranchUnlock(r1);
-	} else {
-		LI16(MIPSREG_A0, imm16);
-	}
+	ADDIU(MIPSREG_A0, r1, imm16);
+	MOV(MIPSREG_A1, r2);
 
-	if (rt) {
-		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-		MOV(MIPSREG_A1, r2);
-		//regBranchUnlock(r2);
-	} else {
-		LI16(MIPSREG_A1, 0);
-	}
-
-	LI32(TEMP_1, 0x1fffffff);
-	AND(TEMP_1, MIPSREG_A0, TEMP_1);
-	LUI(TEMP_2, 0x20);
-	SLTU(MIPSREG_AT, MIPSREG_A0, TEMP_2);
+	SRL(TEMP_1, MIPSREG_A0, 16);
+	LI16(TEMP_2, 0x1f80);
 	backpatch1 = (u32 *)recMem;
-	write32(0x10000000 | (MIPSREG_AT << 21) | (0 << 16)); //BEQZ(MIPSREG_AT, _label1);
-	write32(0); // nop
-	#if 0
-	LUI(TEMP_2, 0x1000);
-	OR(TEMP_1, TEMP_1, TEMP_2);
-	#else
-	LW(TEMP_2, PERM_REG_1, offpsxM);
-	ADDU(TEMP_1, TEMP_1, TEMP_2);
-	#endif
-	//SW(MIPSREG_A1, TEMP_1, 0);
-	write32((insn) | (TEMP_1 << 21) | (r2 << 16) | (0 & 0xffff));
-	backpatch2 = (u32 *)recMem;
-	write32(0x10000000); // beqz
-	write32(0); // nop
+	BEQ(TEMP_1, TEMP_2, 0);
+	NOP();
 
+	LW(TEMP_2, PERM_REG_1, offpsxWLUT);
+	SLL(TEMP_1, TEMP_1, 2);
+	ADDU(TEMP_1, TEMP_2, TEMP_1);
+	LW(TEMP_1, TEMP_1, 0);
+
+	backpatch3 = (u32 *)recMem;
+	BEQZ(TEMP_1, 0);
+	NOP();
+
+	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	L_(insn, MIPSREG_A1, TEMP_1, 0);
+
+	SRL(MIPSREG_A0, MIPSREG_A0, 2);
+	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	LI16(MIPSREG_A1, 1);
+	CALLFunc((u32)recClear);
+
+	backpatch2 = (u32 *)recMem;
+	write32(0x10000000); // b label2
+	NOP();
+
+	// label1:
 	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
-	CALLFunc((u32)psxMemWrite32);
+	*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+	switch (insn) {
+	case 0xa0000000: CALLFunc((u32)psxMemWrite8); break;
+	case 0xa4000000: CALLFunc((u32)psxMemWrite16); break;
+	case 0xac000000: CALLFunc((u32)psxMemWrite32); break;
+	default: break;
+	}
+
+	// label2:
 	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
 
-	if (rs)
-		regBranchUnlock(r1);
-
-	if (rt)
-		regBranchUnlock(r2);
+	regBranchUnlock(r1);
+	regBranchUnlock(r2);
 }
 
 static void recLB()
@@ -391,7 +372,9 @@ static void recSB()
 
 	if (StoreToConstAddr(0xa0000000))
 		return;
-
+#if 1
+	StoreToAddr(0xa0000000);
+#else
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -401,6 +384,7 @@ static void recSB()
 		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite8);
+#endif
 }
 
 static void recSH()
@@ -410,7 +394,9 @@ static void recSH()
 
 	if (StoreToConstAddr(0xa4000000))
 		return;
-
+#if 1
+	StoreToAddr(0xa4000000);
+#else
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -420,6 +406,7 @@ static void recSH()
 		LI16(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite16);
+#endif
 }
 
 static void recSW()
@@ -429,7 +416,9 @@ static void recSW()
 
 	if (StoreToConstAddr(0xac000000))
 		return;
-
+#if 1
+	StoreToAddr(0xac000000);
+#else
 	AddrToA0();
 	if (rt) {
 		u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -439,6 +428,7 @@ static void recSW()
 		LUI(MIPSREG_A1, 0);
 	}
 	CALLFunc((u32)MemWrite32);
+#endif
 }
 
 #if defined (interpreter_new) || defined (interpreter_none)
