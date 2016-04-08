@@ -214,7 +214,11 @@ do { \
 
 #define EXT(rt, rs, pos, size) \
 	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
-	        ((pos & 0x1f) << 6) | ((size & 0x1f) << 11))
+	        ((pos & 0x1f) << 6) | (((size-1) & 0x1f) << 11))
+
+#define INS(rt, rs, pos, size) \
+	write32(0x7c000004 | (rs << 21) | (rt << 16) | \
+	        ((pos & 0x1f) << 6) | (((pos+size-1) & 0x1f) << 11))
 
 #define SEB(rd, rt) \
 	write32(0x7C000420 | (rt << 16) | (rd << 11))
