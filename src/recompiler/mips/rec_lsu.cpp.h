@@ -137,12 +137,14 @@ static void LoadFromAddr(u32 insn)
 	regBranchUnlock(r2);
 }
 
+void psxMemWrite32_error(u32 mem, u32 value);
+
 static void StoreToAddr(u32 insn)
 {
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
-	u32 *backpatch1, *backpatch2, *backpatch3;
+	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch4;
 
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -153,7 +155,7 @@ static void StoreToAddr(u32 insn)
 	SRL(TEMP_1, MIPSREG_A0, 16);
 	LI16(TEMP_2, 0x1f80);
 	backpatch1 = (u32 *)recMem;
-	BEQ(TEMP_1, TEMP_2, 0);
+	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_call_hle
 	NOP();
 
 	LW(TEMP_2, PERM_REG_1, offpsxWLUT);
@@ -162,7 +164,7 @@ static void StoreToAddr(u32 insn)
 	LW(TEMP_1, TEMP_1, 0);
 
 	backpatch3 = (u32 *)recMem;
-	BEQZ(TEMP_1, 0);
+	BEQZ(TEMP_1, 0); // beqz temp_1, label_exit or label_error
 	NOP();
 
 	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
@@ -175,12 +177,22 @@ static void StoreToAddr(u32 insn)
 	CALLFunc((u32)recClear);
 
 	backpatch2 = (u32 *)recMem;
-	B(0); // b label2
+	B(0); // b label_exit
 	NOP();
 
-	// label1:
+	/* Generate psxMemWrite32_error() for SW only */
+	/* This is needed for cache control in bios */
+	// label_error:
+	if (insn == 0xac000000) {
+		*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+		CALLFunc((u32)psxMemWrite32_error);
+		backpatch4 = (u32 *)recMem;
+		B(0); // b label_exit
+		NOP();
+	}
+
+	// label_call_hle:
 	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
-	*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
 	switch (insn) {
 	case 0xa0000000: CALLFunc((u32)psxMemWrite8); break;
 	case 0xa4000000: CALLFunc((u32)psxMemWrite16); break;
@@ -188,8 +200,12 @@ static void StoreToAddr(u32 insn)
 	default: break;
 	}
 
-	// label2:
+	// label2_exit
 	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+	if (insn == 0xac000000)
+		*backpatch4 |= mips_relative_offset(backpatch4, (u32)recMem, 4);
+	else
+		*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
 
 	regBranchUnlock(r1);
 	regBranchUnlock(r2);
