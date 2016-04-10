@@ -27,6 +27,7 @@
 #include "psxcommon.h"
 #include "psxhle.h"
 #include "psxmem.h"
+#include "psxhw.h"
 #include "r3000a.h"
 #include "gte.h"
 

@@ -144,7 +144,8 @@ static void StoreToAddr(u32 insn)
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
-	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch4;
+	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch4=0;
+	u32 *backpatch5, *backpatch6;
 
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
@@ -155,7 +156,7 @@ static void StoreToAddr(u32 insn)
 	SRL(TEMP_1, MIPSREG_A0, 16);
 	LI16(TEMP_2, 0x1f80);
 	backpatch1 = (u32 *)recMem;
-	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_call_hle
+	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_1f80
 	NOP();
 
 	LW(TEMP_2, PERM_REG_1, offpsxWLUT);
@@ -191,12 +192,28 @@ static void StoreToAddr(u32 insn)
 		NOP();
 	}
 
-	// label_call_hle:
+	// label_1f80:
 	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
+	SLTIU(TEMP_3, TEMP_2, 0x1000);
+	backpatch5 = (u32 *)recMem;
+	BEQZ(TEMP_3, 0); // beqz temp_3, label_call_hle
+	NOP();
+
+	LI32(TEMP_1, (u32)psxH);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	OPCODE(insn, MIPSREG_A1, TEMP_1, 0);
+
+	backpatch6 = (u32 *)recMem;
+	B(0); // b label_exit
+	NOP();
+
+	// label_call_hle:
+	*backpatch5 |= mips_relative_offset(backpatch5, (u32)recMem, 4);
 	switch (insn) {
-	case 0xa0000000: CALLFunc((u32)psxMemWrite8); break;
-	case 0xa4000000: CALLFunc((u32)psxMemWrite16); break;
-	case 0xac000000: CALLFunc((u32)psxMemWrite32); break;
+	case 0xa0000000: CALLFunc((u32)psxHwWrite8); break;
+	case 0xa4000000: CALLFunc((u32)psxHwWrite16); break;
+	case 0xac000000: CALLFunc((u32)psxHwWrite32); break;
 	default: break;
 	}
 
@@ -206,6 +223,7 @@ static void StoreToAddr(u32 insn)
 		*backpatch4 |= mips_relative_offset(backpatch4, (u32)recMem, 4);
 	else
 		*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+	*backpatch6 |= mips_relative_offset(backpatch6, (u32)recMem, 4);
 
 	regBranchUnlock(r1);
 	regBranchUnlock(r2);
