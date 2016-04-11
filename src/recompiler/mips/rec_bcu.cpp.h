@@ -257,9 +257,8 @@ static INLINE void iJump(u32 branchPC)
 	recBSC[psxRegs.code>>26]();
 
 	branch = 0;
-	
-	if(ibranch > 0)
-	{
+
+	if (ibranch > 0) {
 		regClearJump();
 		LI32(MIPSREG_A1, branchPC);
 		LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
@@ -274,21 +273,19 @@ static INLINE void iJump(u32 branchPC)
 	recClear(branchPC, 1);
 }
 
-#if 1
 static void recBLTZ()
 {
 // Branch if Rs < 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		SetBranch(); return;
+
+	if (!(_Rs_)) {
+		SetBranch();
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -312,15 +309,14 @@ static void recBGTZ()
 // Branch if Rs > 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		SetBranch(); return;
+
+	if (!(_Rs_)) {
+		SetBranch();
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -344,15 +340,14 @@ static void recBLTZAL()
 // Branch if Rs < 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		SetBranch(); return;
+
+	if (!(_Rs_)) {
+		SetBranch();
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -379,15 +374,14 @@ static void recBGEZAL()
 // Branch if Rs >= 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		iJumpAL(bpc, (pc + 4)); return;
+
+	if (!(_Rs_)) {
+		iJumpAL(bpc, (pc + 4));
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -408,7 +402,6 @@ static void recBGEZAL()
 	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
 	regBranchUnlock(br1);
 }
-#endif
 
 static void recJ()
 {
@@ -463,15 +456,14 @@ static void recBEQ()
 // Branch if Rs == Rt
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if (_Rs_ == _Rt_)
-	{
-		iJumpNormal(bpc); return;
+
+	if (_Rs_ == _Rt_) {
+		iJumpNormal(bpc);
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -497,14 +489,12 @@ static void recBNE()
 // Branch if Rs != Rt
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_) && !(_Rt_))
-	{
+
+	if (!(_Rs_) && !(_Rt_)) {
 		SetBranch(); return;
 	}
 
@@ -534,15 +524,14 @@ static void recBLEZ()
 // Branch if Rs <= 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		iJumpNormal(bpc); return;
+
+	if (!(_Rs_)) {
+		iJumpNormal(bpc);
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -566,15 +555,14 @@ static void recBGEZ()
 // Branch if Rs >= 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-//	iFlushRegs();
 
 	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
 		return;
 	}
-	
-	if(!(_Rs_))
-	{
-		iJumpNormal(bpc); return;
+
+	if (!(_Rs_)) {
+		iJumpNormal(bpc);
+		return;
 	}
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -595,7 +583,7 @@ static void recBGEZ()
 
 static void recBREAK() { }
 
-static void recHLE() 
+static void recHLE()
 {
 	regClearJump();
 
