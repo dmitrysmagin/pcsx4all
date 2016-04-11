@@ -170,12 +170,16 @@ static void StoreToAddr(u32 insn)
 
 	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
 	ADDU(TEMP_1, TEMP_1, TEMP_2);
-	OPCODE(insn, MIPSREG_A1, TEMP_1, 0);
+	OPCODE(insn, r2, TEMP_1, 0);
 
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
-	LI16(MIPSREG_A1, 1);
-	CALLFunc((u32)recClear);
+	SRL(TEMP_1, MIPSREG_A0, 16);
+	SLL(TEMP_1, TEMP_1, 2);
+	LI32(TEMP_2, (u32)psxRecLUT);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	LW(TEMP_1, TEMP_1, 0);
+	ANDI(TEMP_2, MIPSREG_A0, (~3));
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	SW(0, TEMP_1, 0);
 
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
@@ -202,7 +206,7 @@ static void StoreToAddr(u32 insn)
 
 	LI32(TEMP_1, (u32)psxH);
 	ADDU(TEMP_1, TEMP_1, TEMP_2);
-	OPCODE(insn, MIPSREG_A1, TEMP_1, 0);
+	OPCODE(insn, r2, TEMP_1, 0);
 
 	backpatch6 = (u32 *)recMem;
 	B(0); // b label_exit
