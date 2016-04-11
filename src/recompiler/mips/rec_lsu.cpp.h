@@ -93,44 +93,65 @@ static void LoadFromAddr(u32 insn)
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
-	u32 *backpatch1, *backpatch2;
+	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch5, *backpatch6;
 
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 	ADDIU(MIPSREG_A0, r1, imm16);
 
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d);
-	LUI(TEMP_2, 0x20);
-	SLTU(TEMP_2, TEMP_1, TEMP_2);
+	SRL(TEMP_1, MIPSREG_A0, 16);
+	LI16(TEMP_2, 0x1f80);
 	backpatch1 = (u32 *)recMem;
-	BEQZ(TEMP_2, 0); // beqz at, label1
+	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_1f80
 	NOP();
 
-	if ((u32)psxRegs.psxM == 0x10000000) {
-		LUI(TEMP_2, 0x1000);
-		OR(TEMP_1, TEMP_1, TEMP_2);
-	} else {
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-		ADDU(TEMP_1, TEMP_1, TEMP_2);
-	}
+	LI32(TEMP_2, (u32)psxMemRLUT);
+	SLL(TEMP_1, TEMP_1, 2);
+	ADDU(TEMP_1, TEMP_2, TEMP_1);
+	LW(TEMP_1, TEMP_1, 0);
 
+	backpatch3 = (u32 *)recMem;
+	BEQZ(TEMP_1, 0); // beqz temp_1, label_exit
+	NOP();
+
+	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
 	OPCODE(insn, r2, TEMP_1, 0);
+
 	backpatch2 = (u32 *)recMem;
-	B(0); // b label2
+	B(0); // b label_exit
 	NOP();
 
+	// label_1f80:
 	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
-	// label1:
+	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
+	SLTIU(TEMP_3, TEMP_2, 0x1000);
+	backpatch5 = (u32 *)recMem;
+	BEQZ(TEMP_3, 0); // beqz temp_3, label_call_hle
+	NOP();
+
+	LI32(TEMP_1, (u32)psxH);
+	ADDU(TEMP_1, TEMP_1, TEMP_2);
+	OPCODE(insn, r2, TEMP_1, 0);
+
+	backpatch6 = (u32 *)recMem;
+	B(0); // b label_exit
+	NOP();
+
+	// label_call_hle:
+	*backpatch5 |= mips_relative_offset(backpatch5, (u32)recMem, 4);
 	switch (insn) {
-	case 0x80000000: CALLFunc((u32)psxMemRead8); SEB(r2, MIPSREG_V0); break; // LB
-	case 0x90000000: CALLFunc((u32)psxMemRead8); MOV(r2, MIPSREG_V0); break; // LBU
-	case 0x84000000: CALLFunc((u32)psxMemRead16); SEH(r2, MIPSREG_V0); break; // LH
-	case 0x94000000: CALLFunc((u32)psxMemRead16); MOV(r2, MIPSREG_V0); break; // LHU
-	case 0x8c000000: CALLFunc((u32)psxMemRead32); MOV(r2, MIPSREG_V0); break; // LW
+	case 0x80000000: CALLFunc((u32)psxHwRead8); SEB(r2, MIPSREG_V0); break; // LB
+	case 0x90000000: CALLFunc((u32)psxHwRead8); MOV(r2, MIPSREG_V0); break; // LBU
+	case 0x84000000: CALLFunc((u32)psxHwRead16); SEH(r2, MIPSREG_V0); break; // LH
+	case 0x94000000: CALLFunc((u32)psxHwRead16); MOV(r2, MIPSREG_V0); break; // LHU
+	case 0x8c000000: CALLFunc((u32)psxHwRead32); MOV(r2, MIPSREG_V0); break; // LW
 	}
 
-	// label2:
+	// label_exit:
 	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+	*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+	*backpatch6 |= mips_relative_offset(backpatch6, (u32)recMem, 4);
 
 	regMipsChanged(rt);
 	regBranchUnlock(r1);
@@ -159,7 +180,7 @@ static void StoreToAddr(u32 insn)
 	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_1f80
 	NOP();
 
-	LW(TEMP_2, PERM_REG_1, off(reserved)); // psxWLUT
+	LI32(TEMP_2, (u32)psxMemWLUT);
 	SLL(TEMP_1, TEMP_1, 2);
 	ADDU(TEMP_1, TEMP_2, TEMP_1);
 	LW(TEMP_1, TEMP_1, 0);
