@@ -1,0 +1,39 @@
+
+Mips-to-mips recompiler by Ulrich Hecht, modified by Dmitry Smagin
+
+What's already done:
+
+ - The whole recompiler is adapted for pcsx4all 2.3
+ - Code is greatly cleaned up from dead code and leftovers from arm
+   recompiler.
+ - Zero register optimizations are removed, since mips has harware
+   zero register unlike arm. This reduces code and make it more
+   readable.
+ - Implemented code generation for DIV/DIVU.
+ - GTE code is adapted for new gte core.
+
+TODO list
+
+* recompiler:
+
+  - Add direct memory reads/writes (inlined psxMemRead/Write in fact)
+  - Add forward analysis for sequential reads/writes
+  - Add proper support for autobias and cycle counting
+  - Implement LWL/LWR/SWL/SWR code generation
+  - Implement GTE code generation
+
+* constants caching
+
+  For now it's very limited, used by ADDIU, ORI, LUI and memory operations
+
+  - Make '-1' value usable (it's used to indicate 'no const' status now)
+  - Add constants caching for more opcodes
+
+* register allocator
+
+  For now host registers s0-s7 are allocated, s8 is a pointer to psxRegs
+
+  - Use less confusing names for funcs (leftovers from arm rec)
+  - Add caching of LO/HI regs
+  - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
+
