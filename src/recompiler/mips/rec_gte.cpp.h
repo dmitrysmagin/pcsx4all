@@ -94,9 +94,9 @@ void rec##f() \
 { \
 	regClearJump(); \
 	LI32(TEMP_1, pc); \
-	SW(TEMP_1, PERM_REG_1, offpc); \
+	SW(TEMP_1, PERM_REG_1, off(pc)); \
 	LI32(TEMP_1, psxRegs.code); \
-	SW(TEMP_1, PERM_REG_1, offcode); \
+	SW(TEMP_1, PERM_REG_1, off(code)); \
 	CALLFunc((u32)gte##f); \
 } \
 

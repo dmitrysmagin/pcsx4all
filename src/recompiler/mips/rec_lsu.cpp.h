@@ -5,9 +5,9 @@ void rec##f() \
 { \
 	regClearJump(); \
 	LI32(TEMP_1, pc); \
-	SW(TEMP_1, PERM_REG_1, offpc); \
+	SW(TEMP_1, PERM_REG_1, off(pc)); \
 	LI32(TEMP_1, psxRegs.code); \
-	SW(TEMP_1, PERM_REG_1, offcode); \
+	SW(TEMP_1, PERM_REG_1, off(code)); \
 	CALLFunc((u32)psx##f); \
 }
 
@@ -110,7 +110,7 @@ static void LoadFromAddr(u32 insn)
 		LUI(TEMP_2, 0x1000);
 		OR(TEMP_1, TEMP_1, TEMP_2);
 	} else {
-		LW(TEMP_2, PERM_REG_1, offpsxM);
+		LW(TEMP_2, PERM_REG_1, off(psxM));
 		ADDU(TEMP_1, TEMP_1, TEMP_2);
 	}
 
@@ -159,7 +159,7 @@ static void StoreToAddr(u32 insn)
 	BEQ(TEMP_1, TEMP_2, 0); // beq temp_1, temp_2, label_1f80
 	NOP();
 
-	LW(TEMP_2, PERM_REG_1, offpsxWLUT);
+	LW(TEMP_2, PERM_REG_1, off(reserved)); // psxWLUT
 	SLL(TEMP_1, TEMP_1, 2);
 	ADDU(TEMP_1, TEMP_2, TEMP_1);
 	LW(TEMP_1, TEMP_1, 0);

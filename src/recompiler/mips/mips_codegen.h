@@ -71,23 +71,15 @@ typedef enum {
 #endif
 
 /* GPR offset */
-#define offGPR(rx) offsetof(psxRegisters, GPR.r[rx])
+#define offGPR(rx)	offsetof(psxRegisters, GPR.r[rx])
 
 /* CP0 offset */
-#define offCP0(rx) offsetof(psxRegisters,  CP0.r[rx])
+#define offCP0(rx)	offsetof(psxRegisters, CP0.r[rx])
 
 /* CP2C offset */
-#define offCP2C(rx) offsetof(psxRegisters,  CP2C.r[rx])
+#define offCP2C(rx)	offsetof(psxRegisters, CP2C.r[rx])
 
-/* pc offset */
-#define offpc		offsetof(psxRegisters,  pc)
-
-/* code offset */
-#define offcode		offsetof(psxRegisters,  code)
-
-#define offpsxM		offsetof(psxRegisters, psxM)
-
-#define offpsxWLUT	offsetof(psxRegisters, reserved)
+#define off(field)	offsetof(psxRegisters, field)
 
 #define write32(i) \
 	do { *recMem++ = (u32)(i); } while (0)

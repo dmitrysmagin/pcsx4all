@@ -179,13 +179,13 @@ static void recSYSCALL()
 	regClearJump();
 
 	LI32(TEMP_1, pc - 4);
-	SW(TEMP_1, PERM_REG_1, offpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
 
 	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0));
 	LI16(MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
 
-	LW(MIPSREG_A1, PERM_REG_1, offpc);
+	LW(MIPSREG_A1, PERM_REG_1, off(pc));
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
@@ -600,12 +600,12 @@ static void recHLE()
 	regClearJump();
 
 	LI32(TEMP_1, pc);
-	SW(TEMP_1, PERM_REG_1, offpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
 
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
 
-	LW(MIPSREG_A1, PERM_REG_1, offpc);
+	LW(MIPSREG_A1, PERM_REG_1, off(pc));
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
 
