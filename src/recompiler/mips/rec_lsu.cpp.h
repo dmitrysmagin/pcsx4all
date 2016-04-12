@@ -20,8 +20,8 @@ void rec##f() \
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
 static int LoadFromConstAddr(u32 insn)
 {
-	if (iRegs[_Rs_] != -1) {
-		u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_);
+	if (IsConst(_Rs_)) {
+		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		/* DEBUGF("known address 0x%x", addr); */
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
@@ -47,7 +47,7 @@ static int LoadFromConstAddr(u32 insn)
 			regMipsChanged(rt);
 			regBranchUnlock(r1);
 			regBranchUnlock(r2);
-			iRegs[_Rt_] = -1;
+			SetUndef(_Rt_);
 			return 1;
 		}
 	}
@@ -57,8 +57,8 @@ static int LoadFromConstAddr(u32 insn)
 
 static int StoreToConstAddr(u32 insn)
 {
-	if (iRegs[_Rs_] != -1) {
-		u32 addr = iRegs[_Rs_] + ((s32)(s16)_Imm_);
+	if (IsConst(_Rs_)) {
+		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		/* DEBUGF("known address 0x%x", addr); */
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
@@ -316,7 +316,7 @@ static void recLB()
 	if (LoadFromConstAddr(0x80000000))
 		return;
 
-	iRegs[_Rt_] = -1;
+	SetUndef(_Rt_);
 
 	LoadFromAddr(0x80000000);
 }
@@ -327,7 +327,7 @@ static void recLBU()
 	if (LoadFromConstAddr(0x90000000))
 		return;
 
-	iRegs[_Rt_] = -1;
+	SetUndef(_Rt_);
 
 	LoadFromAddr(0x90000000);
 }
@@ -338,7 +338,7 @@ static void recLH()
 	if (LoadFromConstAddr(0x84000000))
 		return;
 
-	iRegs[_Rt_] = -1;
+	SetUndef(_Rt_);
 
 	LoadFromAddr(0x84000000);
 }
@@ -349,7 +349,7 @@ static void recLHU()
 	if (LoadFromConstAddr(0x94000000))
 		return;
 
-	iRegs[_Rt_] = -1;
+	SetUndef(_Rt_);
 
 	LoadFromAddr(0x94000000);
 }
@@ -360,7 +360,7 @@ static void recLW()
 	if (LoadFromConstAddr(0x8c000000))
 		return;
 
-	iRegs[_Rt_] = -1;
+	SetUndef(_Rt_);
 
 	LoadFromAddr(0x8c000000);
 }

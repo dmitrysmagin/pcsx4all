@@ -6,7 +6,7 @@ do { \
 	u32 rs  = _rs_; \
 	s32 imm = _imm_; \
 	if (!rt) break; \
-	iRegs[_rt_] = -1; \
+	SetUndef(_rt_); \
 	u32 r1, r2; \
 	if (rs == rt) { \
 		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
@@ -23,10 +23,10 @@ do { \
 
 static void recADDI()
 {
-	u32 x = iRegs[_Rs_];
+	u32 s = iRegs[_Rs_].s;
 	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, ((s16)(_Imm_)));
-	if (x != -1)
-		iRegs[_Rt_] = x + (s16)(_Imm_);
+	if (s)
+		SetConst(_Rt_, iRegs[_Rs_].r + (s16)(_Imm_));
 }
 
 static void recADDIU() { recADDI(); }
@@ -39,7 +39,7 @@ do { \
 	u32 rs  = _rs_; \
 	u32 imm = _imm_; \
 	if (!rt) break; \
-	iRegs[_rt_] = -1; \
+	SetUndef(_rt_); \
 	u32 r1, r2; \
 	if (rs == rt) { \
 		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
@@ -58,10 +58,10 @@ do { \
 static void recANDI()  { REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
 static void recORI()
 {
-	u32 x = iRegs[_Rs_];
+	u32 s = iRegs[_Rs_].s;
 	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_)));
-	if (x != -1)
-		iRegs[_Rt_] = x | ((u16)(_Imm_));
+	if (s)
+		SetConst(_Rt_, iRegs[_Rs_].r | ((u16)(_Imm_)));
 }
 static void recXORI()  { REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
 
@@ -76,7 +76,7 @@ do { \
 	regBranchUnlock(r1); \
 } while (0)
 
-static void recLUI()   { iRegs[_Rt_] = ((u16)_ImmU_) << 16; REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
+static void recLUI()   { SetConst(_Rt_, ((u16)_ImmU_) << 16); REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
 
 #define REC_RTYPE_RD_RS_RT(insn, _rd_, _rs_, _rt_) \
 do { \
@@ -85,7 +85,7 @@ do { \
 	u32 rs  = _rs_; \
 	if (!rd) break; \
 	u32 r1, r2, r3; \
-	iRegs[_rd_] = -1; \
+	SetUndef(_rd_); \
 	if (rs == rd) { \
 		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \

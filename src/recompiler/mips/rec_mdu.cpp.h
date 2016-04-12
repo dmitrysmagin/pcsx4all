@@ -83,7 +83,7 @@ static void recDIVU()
 static void recMFHI() {
 // Rd = Hi
 	if (!_Rd_) return;
-	iRegs[_Rd_] = -1;
+	SetUndef(_Rd_);
 	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
 
 	LW(rd, PERM_REG_1, offGPR(33));
@@ -101,7 +101,7 @@ static void recMTHI() {
 static void recMFLO() {
 // Rd = Lo
 	if (!_Rd_) return;
-	iRegs[_Rd_] = -1;
+	SetUndef(_Rd_);
 	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
 
 	LW(rd, PERM_REG_1, offGPR(32));

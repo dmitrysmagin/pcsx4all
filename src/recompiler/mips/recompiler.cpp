@@ -41,7 +41,16 @@
 #include "mips_codegen.h"
 #include "disasm.h"
 
-static u32 iRegs[32]; /* used for imm caching and back up of regs in dynarec */
+typedef struct {
+	u32 s;
+	u32 r;
+} iRegisters;
+
+#define IsConst(reg) (iRegs[reg].s)
+#define SetUndef(reg) do { iRegs[reg].s = 0; } while (0)
+#define SetConst(reg, val) do { iRegs[reg].s = 1; iRegs[reg].r = (val); } while (0)
+
+static iRegisters iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
 static u32 psxRecLUT[0x010000];
 
@@ -239,7 +248,7 @@ static u32 recRecompile()
 	}
 
 	rec_recompile_start();
-	memset(iRegs, 0xff, 32*4);
+	memset(iRegs, 0, sizeof(iRegs));
 
 	for (;;) {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
