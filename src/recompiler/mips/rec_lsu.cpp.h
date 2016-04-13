@@ -1,19 +1,6 @@
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
 
-/* Helper for generating rec*** function that calls psx*** one */
-#define REC_FUNC(f) \
-extern void psx##f(); \
-void rec##f() \
-{ \
-	regClearJump(); \
-	LI32(TEMP_1, pc); \
-	SW(TEMP_1, PERM_REG_1, off(pc)); \
-	LI32(TEMP_1, psxRegs.code); \
-	SW(TEMP_1, PERM_REG_1, off(code)); \
-	CALLFunc((u32)psx##f); \
-}
-
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
@@ -390,99 +377,61 @@ static void recSW()
 	StoreToAddr(0xac000000);
 }
 
-#if defined (interpreter_new) || defined (interpreter_none)
-
-#define _oB_ (_u32(_rRs_) + _Imm_)
 static u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
 static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
-
-void psxLWL() {
-	u32 addr = _oB_;
-	u32 shift = addr & 3;
-	u32 mem = psxMemRead32(addr & ~3);
-
-	if (!_Rt_) return;
-	(_rRt_) = ( _u32(_rRt_) & LWL_MASK[shift]) |
-					( mem << LWL_SHIFT[shift]);
-
-	/*
-	Mem = 1234.  Reg = abcd
-
-	0   4bcd   (mem << 24) | (reg & 0x00ffffff)
-	1   34cd   (mem << 16) | (reg & 0x0000ffff)
-	2   234d   (mem <<  8) | (reg & 0x000000ff)
-	3   1234   (mem      ) | (reg & 0x00000000)
-	*/
-}
-
 static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
 static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
-
-void psxLWR() {
-	u32 addr = _oB_;
-	u32 shift = addr & 3;
-	u32 mem = psxMemRead32(addr & ~3);
-
-	if (!_Rt_) return;
-	(_rRt_) = ( _u32(_rRt_) & LWR_MASK[shift]) |
-					( mem >> LWR_SHIFT[shift]);
-
-	/*
-	Mem = 1234.  Reg = abcd
-
-	0   1234   (mem      ) | (reg & 0x00000000)
-	1   a123   (mem >>  8) | (reg & 0xff000000)
-	2   ab12   (mem >> 16) | (reg & 0xffff0000)
-	3   abc1   (mem >> 24) | (reg & 0xffffff00)
-	*/
-}
-
 static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
 static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
-
-void psxSWL() {
-	u32 addr = _oB_;
-	u32 shift = addr & 3;
-	u32 mem = psxMemRead32(addr & ~3);
-
-	psxMemWrite32(addr & ~3,  (_u32(_rRt_) >> SWL_SHIFT[shift]) |
-			     (  mem & SWL_MASK[shift]) );
-	/*
-	Mem = 1234.  Reg = abcd
-
-	0   123a   (reg >> 24) | (mem & 0xffffff00)
-	1   12ab   (reg >> 16) | (mem & 0xffff0000)
-	2   1abc   (reg >>  8) | (mem & 0xff000000)
-	3   abcd   (reg      ) | (mem & 0x00000000)
-	*/
-}
-
 static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
 static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-void psxSWR() {
-	u32 addr = _oB_;
-	u32 shift = addr & 3;
-	u32 mem = psxMemRead32(addr & ~3);
+static void LoadFromAddrLR(u32 insn)
+{
+	s32 imm16 = (s32)(s16)_Imm_;
+	u32 rs = _Rs_;
+	u32 rt = _Rt_;
 
-	psxMemWrite32(addr & ~3,  (_u32(_rRt_) << SWR_SHIFT[shift]) |
-			     (  mem & SWR_MASK[shift]) );
+	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 
-	/*
-	Mem = 1234.  Reg = abcd
+	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+	SRL(MIPSREG_A0, MIPSREG_A0, 2);
+	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-	0   abcd   (reg      ) | (mem & 0x00000000)
-	1   bcd4   (reg <<  8) | (mem & 0x000000ff)
-	2   cd34   (reg << 16) | (mem & 0x0000ffff)
-	3   d234   (reg << 24) | (mem & 0x00ffffff)
-	*/
+	ADDIU(TEMP_1, r1, imm16);
+	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+	SLL(TEMP_1, TEMP_1, 2);
+
+	if (insn == 0x88000000) // LWL
+		LI32(TEMP_2, (u32)LWL_MASK);
+	else			// LWR
+		LI32(TEMP_2, (u32)LWR_MASK);
+
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
+	AND(r2, r2, TEMP_2);
+
+	if (insn == 0x88000000) // LWL
+		LI32(TEMP_2, (u32)LWL_SHIFT);
+	else			// LWR
+		LI32(TEMP_2, (u32)LWR_SHIFT);
+
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
+
+	if (insn == 0x88000000) // LWL
+		SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
+	else			// LWR
+		SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+
+	OR(r2, r2, TEMP_3);
+
+	regMipsChanged(rt);
+	regBranchUnlock(r1);
+	regBranchUnlock(r2);
 }
-#endif
-
-REC_FUNC(LWL);
-REC_FUNC(LWR);
-//REC_FUNC(SWL);
-//REC_FUNC(SWR);
 
 static void StoreToAddrLR(u32 insn)
 {
@@ -534,6 +483,20 @@ static void StoreToAddrLR(u32 insn)
 
 	regBranchUnlock(r1);
 	regBranchUnlock(r2);
+}
+
+static void recLWL()
+{
+	SetUndef(_Rt_);
+
+	LoadFromAddrLR(0x88000000);
+}
+
+static void recLWR()
+{
+	SetUndef(_Rt_);
+
+	LoadFromAddrLR(0x98000000);
 }
 
 static void recSWL()
