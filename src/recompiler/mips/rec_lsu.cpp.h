@@ -486,7 +486,7 @@ REC_FUNC(LWR);
 //REC_FUNC(SWL);
 //REC_FUNC(SWR);
 
-static void recSWL()
+static void StoreToAddrLR(u32 insn)
 {
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
@@ -507,15 +507,29 @@ static void recSWL()
 	ADDIU(TEMP_1, r1, imm16);
 	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
 	SLL(TEMP_1, TEMP_1, 2);
-	LI32(TEMP_2, (u32)SWL_MASK);
+
+	if (insn == 0xa8000000) // SWL
+		LI32(TEMP_2, (u32)SWL_MASK);
+	else			// SWR
+		LI32(TEMP_2, (u32)SWR_MASK);
+
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
 	LW(TEMP_2, TEMP_2, 0);
 	AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
 
-	LI32(TEMP_2, (u32)SWL_SHIFT);
+	if (insn == 0xa8000000) // SWL
+		LI32(TEMP_2, (u32)SWL_SHIFT);
+	else			// SWR
+		LI32(TEMP_2, (u32)SWR_SHIFT);
+
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
 	LW(TEMP_2, TEMP_2, 0);
-	SRLV(TEMP_3, r2, TEMP_2);
+
+	if (insn == 0xa8000000) // SWL
+		SRLV(TEMP_3, r2, TEMP_2);
+	else			// SWR
+		SLLV(TEMP_3, r2, TEMP_2);
+
 	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
 
 	CALLFunc((u32)psxMemWrite32);
@@ -524,40 +538,12 @@ static void recSWL()
 	regBranchUnlock(r2);
 }
 
+static void recSWL()
+{
+	StoreToAddrLR(0xa8000000);
+}
+
 static void recSWR()
 {
-	s32 imm16 = (s32)(s16)_Imm_;
-	u32 rs = _Rs_;
-	u32 rt = _Rt_;
-
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
-	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
-
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
-
-	ADDIU(TEMP_1, r1, imm16);
-	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-	SLL(TEMP_1, TEMP_1, 2);
-	LI32(TEMP_2, (u32)SWR_MASK);
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
-
-	LI32(TEMP_2, (u32)SWR_SHIFT);
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	SLLV(TEMP_3, r2, TEMP_2);
-	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
-
-	CALLFunc((u32)psxMemWrite32);
-
-	regBranchUnlock(r1);
-	regBranchUnlock(r2);
+	StoreToAddrLR(0xb8000000);
 }
