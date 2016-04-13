@@ -162,8 +162,6 @@ static void LoadFromAddr(u32 insn)
 	regBranchUnlock(r2);
 }
 
-void psxMemWrite32_error(u32 mem, u32 value);
-
 static void StoreToAddr(u32 insn)
 {
 	s32 imm16 = (s32)(s16)_Imm_;

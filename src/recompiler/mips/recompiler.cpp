@@ -31,6 +31,11 @@
 #include "r3000a.h"
 #include "gte.h"
 
+/* not declared in any .h file for some reason */
+void psxMemWrite32_error(u32 mem, u32 value);
+/* forward declaration */
+static u32 psxBranchTest_rec(u32 cycles, u32 pc);
+
 #undef INLINE
 #define INLINE		inline
 
@@ -141,6 +146,13 @@ disasm_label stub_labels[] =
   make_stub_label(psxMemWrite8),
   make_stub_label(psxMemWrite16),
   make_stub_label(psxMemWrite32),
+  make_stub_label(psxMemWrite32_error),
+  make_stub_label(psxHwRead8),
+  make_stub_label(psxHwRead16),
+  make_stub_label(psxHwRead32),
+  make_stub_label(psxHwWrite8),
+  make_stub_label(psxHwWrite16),
+  make_stub_label(psxHwWrite32),
   make_stub_label(psxException),
   make_stub_label(psxBranchTest_rec)
 };
@@ -168,7 +180,7 @@ const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
      			(u32)current_translation_ptr, stub_labels,		\
 			num_stub_labels);     			        	\
     		DEBUGG(/*translation_log_fp, */"%08x: %s\t(0x%08x)\n", 			\
-			current_translation_ptr, disasm_buffer, opcode);	        \
+			(u32)current_translation_ptr, disasm_buffer, opcode);	\
   	}                                                                       \
                                                                               	\
   	DEBUGG(/*translation_log_fp, */"\n");                                      \
