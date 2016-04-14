@@ -485,9 +485,84 @@ static void StoreToAddrLR(u32 insn)
 	regBranchUnlock(r2);
 }
 
+static int calculate_LWL_LWR_pairs()
+{
+	int count = 1;
+	u32 PC = pc - 4;
+	u32 LWL = *(u32 *)((char *)PSXM(PC));
+	u32 LWR = *(u32 *)((char *)PSXM(PC + 4));
+	u32 nextLWL = *(u32 *)((char *)PSXM(PC + 8));
+	u32 nextLWR = *(u32 *)((char *)PSXM(PC + 12));
+
+	/* Check if SWR has different rt than SWL */
+	/* This should never happen in fact */
+	if (((LWL >> 16) & 0x1f) != ((LWR >> 16) & 0x1f)) {
+		printf("LWL and LWR target reg don't match at addr %08x!\n", PC);
+		return 0;
+	}
+
+	PC += 16;
+
+	/* opcode and base must coincide, rt and imm could be any */
+	while (((LWL & 0xffe00000) == (nextLWL & 0xffe00000)) &&
+	       ((LWR & 0xffe00000) == (nextLWR & 0xffe00000))) {
+		count++;
+		nextLWL = *(u32 *)((char *)PSXM(PC));
+		nextLWR = *(u32 *)((char *)PSXM(PC + 4));
+		PC += 8;
+	}
+
+	return count;
+}
+
 static void recLWL()
 {
-	SetUndef(_Rt_);
+	int count = calculate_LWL_LWR_pairs();
+
+	if (IsConst(_Rs_) && count) {
+		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
+		if ((addr & 0x1fffffff) < 0x200000) {
+			u32 rs = _Rs_;
+			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+			u32 PC = pc - 4;
+
+			if (addr < 0x200000) {
+				LUI(TEMP_1, 0x1000);
+			} else if (addr >= 0xa0000000) {
+				LUI(TEMP_1, 0xb000);
+			} else {
+				LUI(TEMP_1, 0x9000);
+			}
+
+			XOR(TEMP_2, TEMP_1, r2);
+
+			do {
+				u32 LWL = *(u32 *)((char *)PSXM(PC));
+				u32 LWR = *(u32 *)((char *)PSXM(PC + 4));
+				s32 imm_LWL = (s16)(LWL & 0xffff);
+				s32 imm_LWR = (s16)(LWR & 0xffff);
+				u32 rt = (LWL >> 16) & 0x1f;
+				u32 r1;
+
+				if (rt != rs)
+					r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+				else
+					r1 = r2;
+
+				LWL(r1, TEMP_2, imm_LWL);
+				LWR(r1, TEMP_2, imm_LWR);
+
+				SetUndef(rt);
+				regMipsChanged(rt);
+				regBranchUnlock(r1);
+				PC += 8;
+			} while (--count);
+
+			pc = PC;
+			regBranchUnlock(r2);
+			return;
+		}
+	}
 
 	LoadFromAddrLR(0x88000000);
 }

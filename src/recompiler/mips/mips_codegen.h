@@ -102,6 +102,12 @@ do { \
 #define SW(rd, rn, imm) \
 	write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 
+#define LWL(rt, rn, imm) \
+	write32(0x88000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define LWR(rt, rn, imm) \
+	write32(0x98000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
 #define ADDIU(rt, rs, imm) \
 	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
