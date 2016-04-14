@@ -81,8 +81,7 @@ static u32 oldpc;
 static u32 branch = 0;
 
 #ifdef WITH_DISASM
-FILE *translation_log_fp = NULL;
-char disasm_buffer[512];
+char	disasm_buffer[512];
 #endif
 
 #include "regcache.h"
@@ -98,8 +97,6 @@ extern void (*recCP0[32])();
 extern void (*recCP2[64])();
 extern void (*recCP2BSC[32])();
 
-u8	*current_translation_ptr;
-u32	opcode;
 u32	*recMemStart;
 u32	isInBios = 0;
 u32	loadedpermregs = 0;
@@ -109,8 +106,8 @@ u32	blockcycles = 0;
 
 #ifdef WITH_DISASM
 
-#define make_stub_label(name)                                                 \
- { (void *)name, (char*)#name }                                                      \
+#define make_stub_label(name) \
+ { (void *)name, (char*)#name }
 
 disasm_label stub_labels[] =
 {
@@ -159,42 +156,37 @@ disasm_label stub_labels[] =
 
 const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);
 
-#define DISASM_INIT								\
-  	/*translation_log_fp = fopen("/mnt/sd/translation_log.txt", "a+");*/     	\
-  	printf(/*translation_log_fp, */"Block PC %x (MIPS) -> %p\n", pc,  \
-   		recMemStart);                                          	        \
+#define DISASM_INIT() \
+do { \
+	printf("Block PC %x (MIPS) -> %p\n", pc, recMemStart); \
+} while (0)
 
-#define DISASM_PSX								\
-		disasm_mips_instruction(psxRegs.code,disasm_buffer,pc, 0, 0);	\
-    		DEBUGG(/*translation_log_fp, */"%08x: %08x %s\n", pc, 		\
-			psxRegs.code, disasm_buffer);   			\
+#define DISASM_PSX(_PC_) \
+do { \
+	disasm_mips_instruction(psxRegs.code, disasm_buffer, _PC_, 0, 0); \
+	printf("%08x: %08x %s\n", _PC_, psxRegs.code, disasm_buffer); \
+} while (0)
 
-#define DISASM_HOST								\
-	DEBUGG(/*translation_log_fp, */"\n");                                      \
-  	for(	current_translation_ptr = (u8*)recMemStart;            	    	\
-   		(u32)current_translation_ptr < (u32)recMem; 			\
-		current_translation_ptr += 4)  					\
-  	{                                                                       \
-    		opcode = *(u32*)current_translation_ptr;			\
-		disasm_mips_instruction(opcode, disasm_buffer,                   \
-     			(u32)current_translation_ptr, stub_labels,		\
-			num_stub_labels);     			        	\
-    		DEBUGG(/*translation_log_fp, */"%08x: %s\t(0x%08x)\n", 			\
-			(u32)current_translation_ptr, disasm_buffer, opcode);	\
-  	}                                                                       \
-                                                                              	\
-  	DEBUGG(/*translation_log_fp, */"\n");                                      \
- 	/*fflush(translation_log_fp);*/                                             \
-	/*gp2x_sync();*/								\
-  	/*fclose(translation_log_fp);*/						\
+#define DISASM_HOST() \
+do { \
+	printf("\n"); \
+	u8 *tr_ptr = (u8*)recMemStart; \
+	for (; (u32)tr_ptr < (u32)recMem; tr_ptr += 4) { \
+		u32 opcode = *(u32*)tr_ptr; \
+		disasm_mips_instruction(opcode, disasm_buffer, \
+					(u32)tr_ptr, stub_labels, \
+					num_stub_labels); \
+		printf("%08x: %s\t(0x%08x)\n", \
+			(u32)tr_ptr, disasm_buffer, opcode); \
+	} \
+	printf("\n"); \
+} while (0)
 
 #else
 
-#define DISASM_PSX								\
-
-#define DISASM_HOST								\
-
-#define DISASM_INIT								\
+#define DISASM_PSX(_PC_)
+#define DISASM_HOST()
+#define DISASM_INIT()
 
 #endif
 
@@ -224,7 +216,7 @@ static u32 recRecompile()
 	oldpc = pc = psxRegs.pc;
 	ibranch = 0;
 
-	DISASM_INIT
+	DISASM_INIT();
 
 	if (isInBios) {
 		if (isInBios == 1) {
@@ -264,7 +256,7 @@ static u32 recRecompile()
 
 	for (;;) {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
-		DISASM_PSX
+		DISASM_PSX(pc);
 		pc += 4;
 		recBSC[psxRegs.code>>26]();
 		regUpdate();
@@ -272,7 +264,7 @@ static u32 recRecompile()
 		if (end_block) {
 			end_block = 0;
 			rec_recompile_end();
-			DISASM_HOST
+			DISASM_HOST();
 			clear_insn_cache(recMemStart, recMem, 0);
 			return (u32)recMemStart;
 		}
