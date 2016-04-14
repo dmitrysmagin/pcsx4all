@@ -527,6 +527,11 @@ static void recLWL()
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
 
+			#ifdef WITH_DISASM
+			for (int i = 0; i < count*2-1; i++)
+				DISASM_PSX(pc + i * 4);
+			#endif
+
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
 			} else if (addr >= 0xa0000000) {
@@ -585,6 +590,11 @@ static void recSWL()
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
+
+			#ifdef WITH_DISASM
+			for (int i = 0; i < count*2-1; i++)
+				DISASM_PSX(pc + i * 4);
+			#endif
 
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);

@@ -163,8 +163,9 @@ do { \
 
 #define DISASM_PSX(_PC_) \
 do { \
-	disasm_mips_instruction(psxRegs.code, disasm_buffer, _PC_, 0, 0); \
-	printf("%08x: %08x %s\n", _PC_, psxRegs.code, disasm_buffer); \
+	u32 opcode = *(u32 *)((char *)PSXM(_PC_)); \
+	disasm_mips_instruction(opcode, disasm_buffer, _PC_, 0, 0); \
+	printf("%08x: %08x %s\n", _PC_, opcode, disasm_buffer); \
 } while (0)
 
 #define DISASM_HOST() \
