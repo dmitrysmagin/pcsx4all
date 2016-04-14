@@ -485,7 +485,8 @@ static void StoreToAddrLR(u32 insn)
 	regBranchUnlock(r2);
 }
 
-static int calculate_LWL_LWR_pairs()
+/* Calculate LWL/LWR or SWL/SWR opcode pairs */
+static int calc_pairs()
 {
 	int count = 1;
 	u32 PC = pc - 4;
@@ -517,7 +518,7 @@ static int calculate_LWL_LWR_pairs()
 
 static void recLWL()
 {
-	int count = calculate_LWL_LWR_pairs();
+	int count = calc_pairs();
 
 	if (IsConst(_Rs_) && count) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
@@ -576,6 +577,51 @@ static void recLWR()
 
 static void recSWL()
 {
+	int count = calc_pairs();
+
+	if (IsConst(_Rs_) && count) {
+		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
+		if ((addr & 0x1fffffff) < 0x200000) {
+			u32 rs = _Rs_;
+			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
+			u32 PC = pc - 4;
+
+			if (addr < 0x200000) {
+				LUI(TEMP_1, 0x1000);
+			} else if (addr >= 0xa0000000) {
+				LUI(TEMP_1, 0xb000);
+			} else {
+				LUI(TEMP_1, 0x9000);
+			}
+
+			XOR(TEMP_2, TEMP_1, r2);
+
+			do {
+				u32 SWL = *(u32 *)((char *)PSXM(PC));
+				u32 SWR = *(u32 *)((char *)PSXM(PC + 4));
+				s32 imm_SWL = (s16)(SWL & 0xffff);
+				s32 imm_SWR = (s16)(SWR & 0xffff);
+				u32 rt = (SWL >> 16) & 0x1f;
+				u32 r1;
+
+				if (rt != rs)
+					r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+				else
+					r1 = r2;
+
+				SWL(r1, TEMP_2, imm_SWL);
+				SWR(r1, TEMP_2, imm_SWR);
+
+				regBranchUnlock(r1);
+				PC += 8;
+			} while (--count);
+
+			pc = PC;
+			regBranchUnlock(r2);
+			return;
+		}
+	}
+
 	StoreToAddrLR(0xa8000000);
 }
 
