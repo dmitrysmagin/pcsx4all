@@ -119,6 +119,8 @@ int psxMemInit() {
 	psxMemWLUT[0x1f00] = (u8 *)psxP;
 	psxMemWLUT[0x1f80] = (u8 *)psxH;
 
+	psxRegs.writeok = 1;
+
 	return 0;
 }
 
@@ -519,14 +521,14 @@ void psxMemWrite32_error(u32 mem, u32 value) {
 		switch (value) {
 			case 0x800: case 0x804:
 				if (writeok == 0) break;
-				writeok = 0;
+				psxRegs.writeok = writeok = 0;
 				memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
 				memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
 				memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
 				break;
 			case 0x00: case 0x1e988:
 				if (writeok == 1) break;
-				writeok = 1;
+				psxRegs.writeok = writeok = 1;
 				{ int i; for (i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8 *)&psxM[(i & 0x1f) << 16]; }
 				memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
 				memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));

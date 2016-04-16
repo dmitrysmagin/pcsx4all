@@ -161,6 +161,7 @@ typedef struct {
 	s8 *psxH;
 // CHUI: Añadido para posible uso en el recompilador (psxRecLUT)
 	void *reserved;
+	int writeok;
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 // CHUI: Añado los ciclos pendientes (ver recompilador)
 	u32 cycle_add;
