@@ -381,10 +381,6 @@ static u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
 static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
 static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
-static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
-static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
-static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
-static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
@@ -451,56 +447,78 @@ static void gen_LWL_LWR(int count)
 	regBranchUnlock(r1);
 }
 
-static void StoreToAddrLR(u32 insn)
+static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
+static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
+static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
+static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
+
+static void gen_SWL_SWR(int count)
 {
-	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
-	u32 rt = _Rt_;
-
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+	u32 PC = pc - 4;
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
-	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count*2-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	count *= 2;
 
-	ADDIU(TEMP_1, r1, imm16);
-	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-	SLL(TEMP_1, TEMP_1, 2);
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		u32 insn = opcode & 0xfc000000;
+		u32 rt = ((opcode >> 16) & 0x1f);
+		u32 imm16 = (s32)(s16)(opcode & 0xffff);
+		u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 
-	if (insn == 0xa8000000) // SWL
-		LI32(TEMP_2, (u32)SWL_MASK);
-	else			// SWR
-		LI32(TEMP_2, (u32)SWR_MASK);
+		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		SLL(MIPSREG_A0, MIPSREG_A0, 2);
+		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
+		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		SLL(MIPSREG_A0, MIPSREG_A0, 2);
 
-	if (insn == 0xa8000000) // SWL
-		LI32(TEMP_2, (u32)SWL_SHIFT);
-	else			// SWR
-		LI32(TEMP_2, (u32)SWR_SHIFT);
+		ADDIU(TEMP_1, r1, imm16);
+		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
+		if (insn == 0xa8000000) // SWL
+			LI32(TEMP_2, (u32)SWL_MASK);
+		else			// SWR
+			LI32(TEMP_2, (u32)SWR_MASK);
 
-	if (insn == 0xa8000000) // SWL
-		SRLV(TEMP_3, r2, TEMP_2);
-	else			// SWR
-		SLLV(TEMP_3, r2, TEMP_2);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
+		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
 
-	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
+		if (insn == 0xa8000000) // SWL
+			LI32(TEMP_2, (u32)SWL_SHIFT);
+		else			// SWR
+			LI32(TEMP_2, (u32)SWR_SHIFT);
 
-	CALLFunc((u32)psxMemWrite32);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
 
+		if (insn == 0xa8000000) // SWL
+			SRLV(TEMP_3, r2, TEMP_2);
+		else			// SWR
+			SLLV(TEMP_3, r2, TEMP_2);
+
+		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
+
+		CALLFunc((u32)psxMemWrite32);
+
+		regBranchUnlock(r2);
+
+		PC += 4;
+		if (!count) break;
+	} while (--count);
+
+	pc = PC;
 	regBranchUnlock(r1);
-	regBranchUnlock(r2);
 }
 
 /* Calculate LWL/LWR or SWL/SWR opcode pairs
@@ -592,7 +610,7 @@ static void recLWL()
 				SetUndef(rt);
 				regMipsChanged(rt);
 				regBranchUnlock(r1);
-				PC += 8;
+				PC += (count ? 8 : 4);
 				if (!count) break;
 			} while (--count);
 
@@ -616,7 +634,7 @@ static void recSWL()
 {
 	int count = calc_pairs();
 
-	if (IsConst(_Rs_) && count) {
+	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rs = _Rs_;
@@ -655,7 +673,8 @@ static void recSWL()
 				SWR(r1, TEMP_2, imm_SWR);
 
 				regBranchUnlock(r1);
-				PC += 8;
+				PC += (count ? 8 : 4);
+				if (!count) break;
 			} while (--count);
 
 			pc = PC;
@@ -664,10 +683,10 @@ static void recSWL()
 		}
 	}
 
-	StoreToAddrLR(0xa8000000);
+	gen_SWL_SWR(count);
 }
 
 static void recSWR()
 {
-	StoreToAddrLR(0xb8000000);
+	gen_SWL_SWR(0); // 0 - sole inst
 }
