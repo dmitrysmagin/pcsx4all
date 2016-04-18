@@ -485,7 +485,8 @@ static void StoreToAddrLR(u32 insn)
 	regBranchUnlock(r2);
 }
 
-/* Calculate LWL/LWR or SWL/SWR opcode pairs */
+/* Calculate LWL/LWR or SWL/SWR opcode pairs
+   return number of pairs or 0 if single opcode is found */
 static int calc_pairs()
 {
 	int count = 1;
@@ -495,10 +496,21 @@ static int calc_pairs()
 	u32 nextLWL = *(u32 *)((char *)PSXM(PC + 8));
 	u32 nextLWR = *(u32 *)((char *)PSXM(PC + 12));
 
-	/* Check if SWR has different rt than SWL */
-	/* This should never happen in fact */
+	/* Check if LWL/SWL is followed by LWR/SWR because the latter could be
+	   placed in delay slot after jal/jalr/jr */
+	if ((LWL >> 26) == 0x22 && (LWR >> 26) != 0x26) {
+		printf("LWL is not followed by LWR at addr %08x\n", PC);
+		return 0;
+	}
+
+	if ((LWL >> 26) == 0x2a && (LWR >> 26) != 0x2e) {
+		printf("SWL is not followed by SWR at addr %08x\n", PC);
+		return 0;
+	}
+
+	/* LWL/SWL has different rt than LWR/SWR, should never happen in fact */
 	if (((LWL >> 16) & 0x1f) != ((LWR >> 16) & 0x1f)) {
-		printf("LWL and LWR target reg don't match at addr %08x!\n", PC);
+		printf("LWL/SWL and LWR/SWR target reg don't match at addr %08x!\n", PC);
 		return 0;
 	}
 
