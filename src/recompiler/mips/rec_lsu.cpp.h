@@ -386,51 +386,69 @@ static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
 static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-static void LoadFromAddrLR(u32 insn)
+static void gen_LWL_LWR(int count)
 {
-	s32 imm16 = (s32)(s16)_Imm_;
 	u32 rs = _Rs_;
-	u32 rt = _Rt_;
-
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+	u32 PC = pc - 4;
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
-	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count*2-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
 
-	ADDIU(TEMP_1, r1, imm16);
-	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-	SLL(TEMP_1, TEMP_1, 2);
+	count *= 2;
 
-	if (insn == 0x88000000) // LWL
-		LI32(TEMP_2, (u32)LWL_MASK);
-	else			// LWR
-		LI32(TEMP_2, (u32)LWR_MASK);
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		u32 insn = opcode & 0xfc000000;
+		u32 rt = ((opcode >> 16) & 0x1f);
+		u32 imm16 = (s32)(s16)(opcode & 0xffff);
+		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	AND(r2, r2, TEMP_2);
+		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		SLL(MIPSREG_A0, MIPSREG_A0, 2);
+		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-	if (insn == 0x88000000) // LWL
-		LI32(TEMP_2, (u32)LWL_SHIFT);
-	else			// LWR
-		LI32(TEMP_2, (u32)LWR_SHIFT);
+		ADDIU(TEMP_1, r1, imm16);
+		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
+		if (insn == 0x88000000) // LWL
+			LI32(TEMP_2, (u32)LWL_MASK);
+		else			// LWR
+			LI32(TEMP_2, (u32)LWR_MASK);
 
-	if (insn == 0x88000000) // LWL
-		SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
-	else			// LWR
-		SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
+		AND(r2, r2, TEMP_2);
 
-	OR(r2, r2, TEMP_3);
+		if (insn == 0x88000000) // LWL
+			LI32(TEMP_2, (u32)LWL_SHIFT);
+		else			// LWR
+			LI32(TEMP_2, (u32)LWR_SHIFT);
 
-	regMipsChanged(rt);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
+
+		if (insn == 0x88000000) // LWL
+			SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
+		else			// LWR
+			SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+
+		OR(r2, r2, TEMP_3);
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regBranchUnlock(r2);
+
+		PC += 4;
+		if (!count) break;
+	} while (--count);
+
+	pc = PC;
 	regBranchUnlock(r1);
-	regBranchUnlock(r2);
 }
 
 static void StoreToAddrLR(u32 insn)
@@ -532,7 +550,7 @@ static void recLWL()
 {
 	int count = calc_pairs();
 
-	if (IsConst(_Rs_) && count) {
+	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rs = _Rs_;
@@ -568,12 +586,14 @@ static void recLWL()
 					r1 = r2;
 
 				LWL(r1, TEMP_2, imm_LWL);
-				LWR(r1, TEMP_2, imm_LWR);
+				if (count)
+					LWR(r1, TEMP_2, imm_LWR);
 
 				SetUndef(rt);
 				regMipsChanged(rt);
 				regBranchUnlock(r1);
 				PC += 8;
+				if (!count) break;
 			} while (--count);
 
 			pc = PC;
@@ -582,14 +602,14 @@ static void recLWL()
 		}
 	}
 
-	LoadFromAddrLR(0x88000000);
+	gen_LWL_LWR(count);
 }
 
 static void recLWR()
 {
 	SetUndef(_Rt_);
 
-	LoadFromAddrLR(0x98000000);
+	gen_LWL_LWR(0); // 0 - sole inst
 }
 
 static void recSWL()
