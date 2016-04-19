@@ -40,11 +40,11 @@ SPUCHAN         s_chan[MAXCHAN+1];                     // channel + 1 infos (1 i
 unsigned short  spuCtrl=0;                             // some vars to store psx reg infos
 unsigned short  spuStat=0;
 unsigned short  spuIrq=0;
-unsigned long   spuAddr=0xffffffff;                    // address into spu mem
+unsigned int   spuAddr=0xffffffff;                    // address into spu mem
 
 unsigned int dwNewChannel=0;                           // flags for faster testing, if new channel starts
 unsigned int dwChannelOn=0;
-unsigned long dwPendingChanOff=0;
+unsigned int dwPendingChanOff=0;
 
 // certain globals (were local before, but with the new timeproc I need em global)
 
@@ -401,21 +401,31 @@ long SPU_init(void)
 	spuMemC=(unsigned char *)spuMem;                      // just small setup
 	if (!nullspu)
 	{
-		memset((void *)s_chan,0,MAXCHAN*sizeof(SPUCHAN));
+        //senquack - smarter way to zero-fill array:
+		//memset((void *)s_chan,0,MAXCHAN*sizeof(SPUCHAN));
+		memset((void *)s_chan,0,sizeof(s_chan));
+
 		InitADSR();
 
 		spuIrq = 0;
 		spuAddr = 0xffffffff;
 		spuMemC = (unsigned char *)spuMem;
-		memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
+
+        //senquack - buffer overflow and redundant fill of 0 (already filled above)
+		//memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
+
 		pSpuIrq = 0;
 
 		sound_init();                                         // setup sound (before init!)
 
 		SetupStreams();                                       // prepare streaming
 
-		memset(SSumL,0,NSSIZE*sizeof(int));
-		memset(iFMod,0,NSSIZE*sizeof(int));
+        //senquack - smarter way to zero-fill array:
+		//memset(SSumL,0,NSSIZE*sizeof(int));
+		//memset(iFMod,0,NSSIZE*sizeof(int));
+		memset(SSumL,0,sizeof(SSumL));
+		memset(iFMod,0,sizeof(iFMod));
+
 		pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 	}
 	return 0;
