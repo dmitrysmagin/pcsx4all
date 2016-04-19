@@ -40,11 +40,11 @@ SPUCHAN         s_chan[MAXCHAN+1];                     // channel + 1 infos (1 i
 unsigned short  spuCtrl=0;                             // some vars to store psx reg infos
 unsigned short  spuStat=0;
 unsigned short  spuIrq=0;
-unsigned long   spuAddr=0xffffffff;                    // address into spu mem
+unsigned int   spuAddr=0xffffffff;                    // address into spu mem
 
 unsigned int dwNewChannel=0;                           // flags for faster testing, if new channel starts
 unsigned int dwChannelOn=0;
-unsigned long dwPendingChanOff=0;
+unsigned int dwPendingChanOff=0;
 
 // certain globals (were local before, but with the new timeproc I need em global)
 
@@ -401,21 +401,31 @@ long SPU_init(void)
 	spuMemC=(unsigned char *)spuMem;                      // just small setup
 	if (!nullspu)
 	{
-		memset((void *)s_chan,0,MAXCHAN*sizeof(SPUCHAN));
+		//senquack - smarter way to zero-fill array:
+		//memset((void *)s_chan,0,MAXCHAN*sizeof(SPUCHAN));
+		memset((void *)s_chan,0,sizeof(s_chan));
+
 		InitADSR();
 
 		spuIrq = 0;
 		spuAddr = 0xffffffff;
 		spuMemC = (unsigned char *)spuMem;
-		memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
+
+		//senquack - buffer overflow and redundant fill of 0 (already filled above)
+		//memset((void *)s_chan, 0, (MAXCHAN + 1) * sizeof(SPUCHAN));
+
 		pSpuIrq = 0;
 
 		sound_init();                                         // setup sound (before init!)
 
 		SetupStreams();                                       // prepare streaming
 
-		memset(SSumL,0,NSSIZE*sizeof(int));
-		memset(iFMod,0,NSSIZE*sizeof(int));
+		//senquack - smarter way to zero-fill array:
+		//memset(SSumL,0,NSSIZE*sizeof(int));
+		//memset(iFMod,0,NSSIZE*sizeof(int));
+		memset(SSumL,0,sizeof(SSumL));
+		memset(iFMod,0,sizeof(iFMod));
+
 		pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 	}
 	return 0;
@@ -527,14 +537,28 @@ long SPU_freeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 
 	if(ulFreezeMode)                                      // info or save?
 	{//--------------------------------------------------//
+		//senquack - this is not OK! SaveState() in src/misc.cpp first calls this function with
+		// ulFreezeMode==2, expecting this function to setulFreezeSize struct member to the
+		// total size of memory to allocate for SPU's portion of save-state file. It allocates
+		// the requested buffer size, and then calls here again with ulFreezeMode==1. So, this
+		// function was causing very undefined behavior with original line below:
+
+		// if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
+
+		// senquack - Replacement for above line:
+        if (ulFreezeMode==2) {
+            // Caller wants to know total buffer size to allocate:
+            pF->ulFreezeSize = sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t);
+            return 1;
+        }
+
 		if(ulFreezeMode==1)                                 
-		memset(pF,0,sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t));
+            memset(pF,0,sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t));
 
 		strcpy(pF->szSPUName,"PBOSS");
 		pF->ulFreezeVersion=5;
 		pF->ulFreezeSize=sizeof(SPUFreeze_t)+sizeof(SPUOSSFreeze_t);
 
-		if(ulFreezeMode==2) return 1;                       // info mode? ok, bye
 		// save mode:
 		memcpy(pF->cSPURam,spuMem,0x80000);                 // copy common infos
 		memcpy(pF->cSPUPort,regArea,0x200);
@@ -571,8 +595,12 @@ long SPU_freeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 			pFO->s_chan[i].pLoop-=(unsigned long)spuMemC;
 		}
 
-		memset(SSumL,0,NSSIZE*sizeof(int));
-		memset(iFMod,0,NSSIZE*sizeof(int));
+		//senquack - smarter way to zero-fill array:
+		//memset(SSumL,0,NSSIZE*sizeof(int));
+		//memset(iFMod,0,NSSIZE*sizeof(int));
+		memset(SSumL,0,sizeof(SSumL));
+		memset(iFMod,0,sizeof(iFMod));
+
 		pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 
 		return 1;
@@ -614,8 +642,12 @@ long SPU_freeze(uint32_t ulFreezeMode,SPUFreeze_t * pF)
 	// fix to prevent new interpolations from crashing
 	for(i=0;i<MAXCHAN;i++) s_chan[i].SB[28]=0;
 
-	memset(SSumL,0,NSSIZE*sizeof(int));
-	memset(iFMod,0,NSSIZE*sizeof(int));
+	//senquack - smarter way to zero-fill array:
+	//memset(SSumL,0,NSSIZE*sizeof(int));
+	//memset(iFMod,0,NSSIZE*sizeof(int));
+	memset(SSumL,0,sizeof(SSumL));
+	memset(iFMod,0,sizeof(iFMod));
+
 	pS=(short *)(void *)pSpuBuffer;                               // setup soundbuffer pointer
 
 	return 1;

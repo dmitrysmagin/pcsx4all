@@ -28,7 +28,9 @@ INLINE void InitADSR(void)                                    // INIT ADSR
 {
  unsigned int r,rs,rd;int i;
 
-	memset(RateTable,0,sizeof(unsigned long)*160);        // build the rate table according to Neill's rules (see at bottom of file)
+	//senquack - fixed buffer overflow on 64-bit platforms:
+	//memset(RateTable,0,sizeof(unsigned long)*160);        // build the rate table according to Neill's rules (see at bottom of file)
+	memset(RateTable,0,sizeof(RateTable));        // build the rate table according to Neill's rules (see at bottom of file)
 
 	r=3;rs=1;rd=0;
 

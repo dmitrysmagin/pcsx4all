@@ -34,7 +34,9 @@
 
 typedef struct
 {
-	long	y0, y1;
+	//senquack - fixed mismatch with actual type used in emulator on 64-bit platforms:
+	//long	y0, y1;
+	s32	y0, y1;
 } ADPCM_Decode_t;
 
 typedef struct
@@ -247,7 +249,7 @@ extern SPUCHAN s_chan[];
 extern unsigned short spuCtrl;
 extern unsigned short spuStat;
 extern unsigned short spuIrq;
-extern unsigned long  spuAddr;
+extern unsigned int  spuAddr;
 extern unsigned int dwNewChannel;
 extern unsigned int dwChannelOn;
 
