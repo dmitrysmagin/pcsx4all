@@ -217,7 +217,7 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 
 	switch(r)
 	{
-	case H_SPUaddr: spuAddr = (unsigned long) val<<3; break;
+	case H_SPUaddr: spuAddr = (unsigned int) val<<3; break;
 	case H_SPUdata: spuMem[spuAddr>>1] = val; spuAddr+=2; if(spuAddr>0x7ffff) spuAddr=0; break;
 	case H_SPUctrl: spuCtrl=val; break;
 	case H_SPUstat: spuStat=val & 0xf800; break;
