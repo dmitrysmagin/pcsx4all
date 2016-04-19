@@ -384,16 +384,67 @@ static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
+	int icount = count;
 	u32 rs = _Rs_;
+	s32 imm16 = (s32)(s16)_Imm_;
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
+	u32 *backpatch1, *backpatch2;
+
+	if (!count)
+		printf("Count zero at addr %08x\n", PC);
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count*2-1; i++)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+	ADDIU(MIPSREG_A0, r1, imm16);
+	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
+	LUI(TEMP_2, 0x80);
+	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	backpatch1 = (u32 *)recMem;
+	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	NOP();
+
+	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+
+	if ((u32)psxM == 0x10000000)
+		LUI(TEMP_2, 0x1000);
+	else
+		LW(TEMP_2, PERM_REG_1, off(psxM));
+
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+
+	do {
+		u32 LWL = *(u32 *)((char *)PSXM(PC));
+		u32 LWR = *(u32 *)((char *)PSXM(PC + 4));
+		s32 imm_LWL = (s16)(LWL & 0xffff);
+		s32 imm_LWR = (s16)(LWR & 0xffff);
+		u32 rt = (LWL >> 16) & 0x1f;
+		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+
+		OPCODE((LWL & 0xfc000000), r2, TEMP_2, imm_LWL);
+		if (icount)
+			OPCODE((LWR & 0xfc000000), r2, TEMP_2, imm_LWR);
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regBranchUnlock(r2);
+
+		PC += (icount ? 8 : 4);
+		if (!icount) break;
+	} while (--icount);
+
+	backpatch2 = (u32 *)recMem;
+	B(0); // b label_exit
+	NOP();
+
 	count *= 2;
+	PC = pc - 4;
+
+	// label_hle:
+	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -442,6 +493,9 @@ static void gen_LWL_LWR(int count)
 		PC += 4;
 		if (!count) break;
 	} while (--count);
+
+	// label_exit:
+	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
 
 	pc = PC;
 	regBranchUnlock(r1);
@@ -619,6 +673,9 @@ static void recLWL()
 			return;
 		}
 	}
+
+	/* FIXME: Weird bugs if count > 1 in Metal Slug X */
+	if (count > 1) count = 1;
 
 	gen_LWL_LWR(count);
 }
