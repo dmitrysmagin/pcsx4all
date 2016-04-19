@@ -587,7 +587,12 @@ static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
-static const u32 SaveVersion = 0x8b410004;
+
+//senquack - had to increment version value as requested above, after fixing buffer-size
+//			 return value of of SPU_freeze() in spu/spu_franxis/spu.cpp.
+//static const u32 SaveVersion = 0x8b410004;
+static const u32 SaveVersion = 0x8b410005;
+
 #define FWRITE(c,a,b) fwrite(a,sizeof(u8),b,c)
 int SaveState(const char *file) {
     FILE* f;
