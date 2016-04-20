@@ -872,6 +872,9 @@ static void recSWL()
 		}
 	}
 
+	/* FIXME: Weird bugs if count > 1 in Need For Speed III */
+	if (count > 1) count = 1;
+
 	gen_SWL_SWR(count);
 }
 
