@@ -295,8 +295,67 @@ static void StoreToAddr(u32 insn)
 }
 #endif
 
+static int calc_loads()
+{
+	int count = 1;
+	u32 PC = pc;
+	u32 opcode1 = psxRegs.code;
+	u32 opcode2 = *(u32 *)((char *)PSXM(PC));
+
+	/* Extra paranoid check if rt == rs */
+	if (_fRt_(opcode1) == _fRs_(opcode1))
+		return count;
+
+	/* Allow LB, LBU, LH, LHU and LW */
+	/* rs should be the same, imm and rt could be different */
+	while ((((opcode2 >> 26) == 0x20) || ((opcode2 >> 26) == 0x24) ||
+	        ((opcode2 >> 26) == 0x21) || ((opcode2 >> 26) == 0x25) ||
+	        ((opcode2 >> 26) == 0x23)) &&
+	       (((opcode1 >> 21) & 0x1f) == ((opcode2 >> 21) & 0x1f))) {
+
+		PC += 4;
+		count++;
+
+		/* Extra paranoid check if rt == rs */
+		if (_fRt_(opcode2) == _fRs_(opcode2))
+			return count;
+
+		opcode2 = *(u32 *)((char *)PSXM(PC));
+	}
+
+	//if (count > 1)
+	//	printf("LOADS found %d at addr %08x\n", count, pc - 4);
+
+	return count;
+}
+
+static int calc_stores()
+{
+	int count = 1;
+	u32 PC = pc;
+	u32 opcode1 = psxRegs.code;
+	u32 opcode2 = *(u32 *)((char *)PSXM(PC));
+
+	/* Allow SB, SH and SW */
+	/* rs should be the same, imm and rt could be different */
+	while ((((opcode2 >> 26) == 0x28) || ((opcode2 >> 26) == 0x29) ||
+	        ((opcode2 >> 26) == 0x2b)) &&
+	       (((opcode1 >> 21) & 0x1f) == ((opcode2 >> 21) & 0x1f))) {
+		PC += 4;
+		count++;
+		opcode2 = *(u32 *)((char *)PSXM(PC));
+	}
+
+	//if (count > 1)
+	//	printf("STORES found %d at addr %08x\n", count, pc - 4);
+
+	return count;
+}
+
 static void recLB()
 {
+	int count = calc_loads();
+
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(0x80000000))
 		return;
@@ -308,6 +367,8 @@ static void recLB()
 
 static void recLBU()
 {
+	int count = calc_loads();
+
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x90000000))
 		return;
@@ -319,6 +380,8 @@ static void recLBU()
 
 static void recLH()
 {
+	int count = calc_loads();
+
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(0x84000000))
 		return;
@@ -330,6 +393,8 @@ static void recLH()
 
 static void recLHU()
 {
+	int count = calc_loads();
+
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x94000000))
 		return;
@@ -341,6 +406,8 @@ static void recLHU()
 
 static void recLW()
 {
+	int count = calc_loads();
+
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x8c000000))
 		return;
@@ -352,6 +419,8 @@ static void recLW()
 
 static void recSB()
 {
+	int count = calc_stores();
+
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa0000000))
 		return;
@@ -361,6 +430,8 @@ static void recSB()
 
 static void recSH()
 {
+	int count = calc_stores();
+
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa4000000))
 		return;
@@ -370,6 +441,8 @@ static void recSH()
 
 static void recSW()
 {
+	int count = calc_stores();
+
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xac000000))
 		return;
