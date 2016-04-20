@@ -186,7 +186,11 @@ unsigned short pad_read(int num)
 	if (num==0) return pad1; else return pad2;
 }
 
+#ifdef spu_franxis
 #define SOUND_BUFFER_SIZE (1024 * 3 * 2)
+#else
+#define SOUND_BUFFER_SIZE (1024 * 4 * 4)
+#endif
 static unsigned *sound_buffer = NULL;
 static unsigned int buf_read_pos = 0;
 static unsigned int buf_write_pos = 0;
@@ -237,11 +241,12 @@ void sound_init(void)
 	sound_initted = 1;
 
 	fmt.format = AUDIO_S16;
-	fmt.channels = 1;
 #ifdef spu_franxis
+	fmt.channels = 1;
 	fmt.freq = 22050;
 	fmt.samples = 1024;
 #else
+	fmt.channels = 2;
 	fmt.freq = 44100;
 	fmt.samples = 1024;
 #endif
@@ -408,7 +413,7 @@ int main (int argc, char **argv)
 	// spu_dfxsound
 	#ifdef spu_dfxsound
 	{
-	extern int iDisStereo; iDisStereo=1; // 0=stereo, 1=mono
+	extern int iDisStereo; iDisStereo=0; // 0=stereo, 1=mono
 	extern int iUseInterpolation; iUseInterpolation=0; // 0=disabled, 1=enabled
 	extern int iUseReverb; iUseReverb=0; // 0=disabled, 1=enabled
 	}
