@@ -595,7 +595,7 @@ static void gen_SWL_SWR(int count)
 	for (int i = 0; i < count*2-1; i++)
 		DISASM_PSX(pc + i * 4);
 	#endif
-
+#if 0
 	/* First check if memory is writable atm */
 	LW(TEMP_1, PERM_REG_1, off(writeok));
 	backpatch3 = (u32 *)recMem;
@@ -640,14 +640,14 @@ static void gen_SWL_SWR(int count)
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
-
+#endif
 	count *= 2;
 	PC = pc - 4;
-
+#if 0
 	// label_hle:
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch3);
-
+#endif
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
@@ -699,10 +699,10 @@ static void gen_SWL_SWR(int count)
 		PC += 4;
 		if (!count) break;
 	} while (--count);
-
+#if 0
 	// label_exit:
 	fixup_branch(backpatch2);
-
+#endif
 	pc = PC;
 	regBranchUnlock(r1);
 }
