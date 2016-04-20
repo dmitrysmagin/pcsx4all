@@ -82,7 +82,7 @@ typedef struct
 #define MAXCHAN     24
 
 // ~ 1 ms of data
-#define NSSIZE 45
+#define NSSIZE 64
 
 ///////////////////////////////////////////////////////////
 // struct defines
