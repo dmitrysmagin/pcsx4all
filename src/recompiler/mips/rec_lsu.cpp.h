@@ -114,7 +114,7 @@ static void LoadFromAddr(u32 insn)
 	NOP();
 
 	// label_1f80:
-	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	fixup_branch(backpatch1);
 	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
 	SLTIU(TEMP_3, TEMP_2, 0x1000);
 	backpatch5 = (u32 *)recMem;
@@ -130,7 +130,7 @@ static void LoadFromAddr(u32 insn)
 	NOP();
 
 	// label_call_hle:
-	*backpatch5 |= mips_relative_offset(backpatch5, (u32)recMem, 4);
+	fixup_branch(backpatch5);
 	switch (insn) {
 	case 0x80000000: CALLFunc((u32)psxHwRead8); SEB(r2, MIPSREG_V0); break; // LB
 	case 0x90000000: CALLFunc((u32)psxHwRead8); MOV(r2, MIPSREG_V0); break; // LBU
@@ -140,9 +140,9 @@ static void LoadFromAddr(u32 insn)
 	}
 
 	// label_exit:
-	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
-	*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
-	*backpatch6 |= mips_relative_offset(backpatch6, (u32)recMem, 4);
+	fixup_branch(backpatch2);
+	fixup_branch(backpatch3);
+	fixup_branch(backpatch6);
 
 	regMipsChanged(rt);
 	regBranchUnlock(r1);
@@ -199,7 +199,7 @@ static void StoreToAddr(u32 insn)
 	/* This is needed for cache control in bios */
 	// label_error:
 	if (insn == 0xac000000) {
-		*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+		fixup_branch(backpatch3);
 		CALLFunc((u32)psxMemWrite32_error);
 		backpatch4 = (u32 *)recMem;
 		B(0); // b label_exit
@@ -207,7 +207,7 @@ static void StoreToAddr(u32 insn)
 	}
 
 	// label_1f80:
-	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	fixup_branch(backpatch1);
 	ANDI(TEMP_2, MIPSREG_A0, 0xffff);
 	SLTIU(TEMP_3, TEMP_2, 0x1000);
 	backpatch5 = (u32 *)recMem;
@@ -223,7 +223,7 @@ static void StoreToAddr(u32 insn)
 	NOP();
 
 	// label_call_hle:
-	*backpatch5 |= mips_relative_offset(backpatch5, (u32)recMem, 4);
+	fixup_branch(backpatch5);
 	switch (insn) {
 	case 0xa0000000: CALLFunc((u32)psxHwWrite8); break;
 	case 0xa4000000: CALLFunc((u32)psxHwWrite16); break;
@@ -232,12 +232,12 @@ static void StoreToAddr(u32 insn)
 	}
 
 	// label2_exit
-	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+	fixup_branch(backpatch2);
 	if (insn == 0xac000000)
-		*backpatch4 |= mips_relative_offset(backpatch4, (u32)recMem, 4);
+		fixup_branch(backpatch4);
 	else
-		*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
-	*backpatch6 |= mips_relative_offset(backpatch6, (u32)recMem, 4);
+		fixup_branch(backpatch3);
+	fixup_branch(backpatch6);
 
 	regBranchUnlock(r1);
 	regBranchUnlock(r2);
@@ -444,7 +444,7 @@ static void gen_LWL_LWR(int count)
 	PC = pc - 4;
 
 	// label_hle:
-	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
+	fixup_branch(backpatch1);
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -495,7 +495,7 @@ static void gen_LWL_LWR(int count)
 	} while (--count);
 
 	// label_exit:
-	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+	fixup_branch(backpatch2);
 
 	pc = PC;
 	regBranchUnlock(r1);
@@ -572,8 +572,8 @@ static void gen_SWL_SWR(int count)
 	PC = pc - 4;
 
 	// label_hle:
-	*backpatch1 |= mips_relative_offset(backpatch1, (u32)recMem, 4);
-	*backpatch3 |= mips_relative_offset(backpatch3, (u32)recMem, 4);
+	fixup_branch(backpatch1);
+	fixup_branch(backpatch3);
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -628,7 +628,7 @@ static void gen_SWL_SWR(int count)
 	} while (--count);
 
 	// label_exit:
-	*backpatch2 |= mips_relative_offset(backpatch2, (u32)recMem, 4);
+	fixup_branch(backpatch2);
 
 	pc = PC;
 	regBranchUnlock(r1);

@@ -256,5 +256,10 @@ do { \
 #define mips_relative_offset(source, offset, next) \
 	((((u32)(offset) - ((u32)(source) + (next))) >> 2) & 0xFFFF)
 
+#define fixup_branch(BACKPATCH) \
+do { \
+	*( u32*)(BACKPATCH) |= mips_relative_offset(BACKPATCH, (u32)recMem, 4); \
+} while (0)
+
 #endif /* MIPS_CG_H */
 

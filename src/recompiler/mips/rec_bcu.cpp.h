@@ -300,7 +300,7 @@ static void recBLTZ()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
@@ -331,7 +331,7 @@ static void recBGTZ()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
@@ -365,7 +365,7 @@ static void recBLTZAL()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
@@ -399,7 +399,7 @@ static void recBGEZAL()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
@@ -479,7 +479,7 @@ static void recBEQ()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 	regBranchUnlock(br2);
 }
@@ -500,10 +500,8 @@ static void recBNE()
 
 	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 br2 = regMipsToArm(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	//DEBUGG("emitting beq %d(%d), %d(%d) (code 0x%x)\n", br1, _Rs_, br2, _Rt_, psxRegs.code);
 	SetBranch();
 	u32* backpatch = (u32*)recMem;
-	//DEBUGG("encore br1 %d br2 %d\n", br1, br2);
 	write32(0x10000000 | (br1 << 21) | (br2 << 16)); /* beq */
 	write32(0); /* nop */
 
@@ -513,8 +511,7 @@ static void recBNE()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	//DEBUGG("backpatching %p rel to %p -> 0x%x\n", backpatch, recMem, mips_relative_offset(backpatch, (u32)recMem, 4));
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 	regBranchUnlock(br2);
 }
@@ -546,7 +543,7 @@ static void recBLEZ()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
@@ -577,7 +574,7 @@ static void recBGEZ()
 	CALLFunc((u32)psxBranchTest_rec);
 	rec_recompile_end();
 
-	*backpatch |= mips_relative_offset(backpatch, (u32)recMem, 4);
+	fixup_branch(backpatch);
 	regBranchUnlock(br1);
 }
 
