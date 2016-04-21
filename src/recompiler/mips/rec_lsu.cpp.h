@@ -5,6 +5,7 @@
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
 //#define LOG_WL_WR
+//#define LOG_LOADS
 static void disasm_psx(u32 pc)
 {
 	static char buffer[512];
@@ -16,8 +17,10 @@ static void disasm_psx(u32 pc)
 s32 imm_max, imm_min;
 
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
-static int LoadFromConstAddr(u32 insn)
+static int LoadFromConstAddr(int count)
 {
+	u32 insn = psxRegs.code & 0xfc000000;
+
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		/* DEBUGF("known address 0x%x", addr); */
@@ -308,34 +311,42 @@ static void StoreToAddr(u32 insn)
 
 static int calc_loads()
 {
-	int count = 1;
+	int count = 0;
 	u32 PC = pc;
-	u32 opcode1 = psxRegs.code;
-	u32 opcode2 = *(u32 *)((char *)PSXM(PC));
+	u32 opcode = psxRegs.code;
+	u32 rs = _Rs_;
 
-	/* Extra paranoid check if rt == rs */
-	if (_fRt_(opcode1) == _fRs_(opcode1))
-		return count;
+	imm_min = imm_max = _fImm_(opcode);
 
 	/* Allow LB, LBU, LH, LHU and LW */
 	/* rs should be the same, imm and rt could be different */
-	while ((((opcode2 >> 26) == 0x20) || ((opcode2 >> 26) == 0x24) ||
-	        ((opcode2 >> 26) == 0x21) || ((opcode2 >> 26) == 0x25) ||
-	        ((opcode2 >> 26) == 0x23)) &&
-	       (((opcode1 >> 21) & 0x1f) == ((opcode2 >> 21) & 0x1f))) {
+	while ((_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||
+	        _fOp_(opcode) == 0x21 || _fOp_(opcode) == 0x25 ||
+	        _fOp_(opcode) == 0x23) && (rs == _fRs_(opcode))) {
+
+		/* Update min and max immediate values */
+		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
+		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
+
+		opcode = *(u32 *)((char *)PSXM(PC));
 
 		PC += 4;
 		count++;
 
 		/* Extra paranoid check if rt == rs */
-		if (_fRt_(opcode2) == _fRs_(opcode2))
+		if (_fRt_(opcode) == _fRs_(opcode))
 			return count;
 
-		opcode2 = *(u32 *)((char *)PSXM(PC));
 	}
 
-	//if (count > 1)
-	//	printf("LOADS found %d at addr %08x\n", count, pc - 4);
+#ifdef LOG_LOADS
+	if (count) {
+		printf("\nFOUND %d loads, min: %d, max: %d\n", count, imm_min, imm_max);
+		u32 dpc = pc - 4;
+		for (; dpc < PC - 4; dpc += 4)
+			disasm_psx(dpc);
+	}
+#endif
 
 	return count;
 }
@@ -368,7 +379,7 @@ static void recLB()
 	int count = calc_loads();
 
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(0x80000000))
+	if (LoadFromConstAddr(count))
 		return;
 
 	SetUndef(_Rt_);
@@ -381,7 +392,7 @@ static void recLBU()
 	int count = calc_loads();
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(0x90000000))
+	if (LoadFromConstAddr(count))
 		return;
 
 	SetUndef(_Rt_);
@@ -394,7 +405,7 @@ static void recLH()
 	int count = calc_loads();
 
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(0x84000000))
+	if (LoadFromConstAddr(count))
 		return;
 
 	SetUndef(_Rt_);
@@ -407,7 +418,7 @@ static void recLHU()
 	int count = calc_loads();
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(0x94000000))
+	if (LoadFromConstAddr(count))
 		return;
 
 	SetUndef(_Rt_);
@@ -420,7 +431,7 @@ static void recLW()
 	int count = calc_loads();
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(0x8c000000))
+	if (LoadFromConstAddr(count))
 		return;
 
 	SetUndef(_Rt_);
