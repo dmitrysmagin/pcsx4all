@@ -1,5 +1,7 @@
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
+#define USE_CONST_ADDRESSES
+//#define OPTIMIZE_LWL_LWR_SWL_SWR
 
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
@@ -17,6 +19,7 @@ static void disasm_psx(u32 pc)
 s32 imm_max, imm_min;
 
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
+#ifdef USE_CONST_ADDRESSES
 static int LoadFromConstAddr(int count)
 {
 	if (IsConst(_Rs_)) {
@@ -98,6 +101,10 @@ static int StoreToConstAddr(u32 insn)
 
 	return 0;
 }
+#else
+static int LoadFromConstAddr(int count) { (void)count; return 0; }
+static int StoreToConstAddr(u32 insn) { (void)insn; return 0; }
+#endif
 
 #ifdef USE_DIRECT_MEM_ACCESS
 static void LoadFromAddr(u32 insn)
@@ -499,6 +506,7 @@ static void gen_LWL_LWR(int count)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
 	ADDIU(MIPSREG_A0, r1, imm16);
 	LI32(TEMP_1, 0x1ffffffc);
 	AND(TEMP_1, MIPSREG_A0, TEMP_1);
@@ -541,6 +549,7 @@ static void gen_LWL_LWR(int count)
 
 	// label_hle:
 	fixup_branch(backpatch1);
+#endif
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -589,8 +598,10 @@ static void gen_LWL_LWR(int count)
 		PC += 4;
 	} while (--count);
 
+#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
 	// label_exit:
 	fixup_branch(backpatch2);
+#endif
 
 	pc = PC;
 	regBranchUnlock(r1);
@@ -614,7 +625,8 @@ static void gen_SWL_SWR(int count)
 	for (int i = 0; i < count*2-1; i++)
 		DISASM_PSX(pc + i * 4);
 	#endif
-#if 0
+
+#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
 	/* First check if memory is writable atm */
 	LW(TEMP_1, PERM_REG_1, off(writeok));
 	backpatch3 = (u32 *)recMem;
@@ -656,13 +668,14 @@ static void gen_SWL_SWR(int count)
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
-#endif
+
 	PC = pc - 4;
-#if 0
+
 	// label_hle:
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch3);
 #endif
+
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
@@ -714,10 +727,12 @@ static void gen_SWL_SWR(int count)
 		PC += 4;
 		if (!count) break;
 	} while (--count);
-#if 0
+
+#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
 	// label_exit:
 	fixup_branch(backpatch2);
 #endif
+
 	pc = PC;
 	regBranchUnlock(r1);
 }
@@ -759,6 +774,7 @@ static void recLWL()
 {
 	int count = calc_wl_wr(0x22, 0x26);
 
+#ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
@@ -800,6 +816,7 @@ static void recLWL()
 			return;
 		}
 	}
+#endif
 
 	/* FIXME: Weird bugs if count > 2 in Metal Slug X */
 	if (count > 2) count = 2;
@@ -819,6 +836,7 @@ static void recSWL()
 {
 	int count = calc_wl_wr(0x2a, 0x2e);
 
+#ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
@@ -858,6 +876,7 @@ static void recSWL()
 			return;
 		}
 	}
+#endif
 
 	/* FIXME: Weird bugs if count > 1 in Need For Speed III */
 	if (count > 2) count = 2;
