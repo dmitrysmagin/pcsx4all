@@ -19,22 +19,18 @@ s32 imm_max, imm_min;
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
 static int LoadFromConstAddr(int count)
 {
-	u32 insn = psxRegs.code & 0xfc000000;
-
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
-		/* DEBUGF("known address 0x%x", addr); */
 		if ((addr & 0x1fffffff) < 0x200000) {
-			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1;
-			if (rt != rs)
-				r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-			else
-				r1 = r2;
-			s32 imm16 = (s32)(s16)_Imm_;
-			/* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */
+			u32 PC = pc - 4;
+
+			#ifdef WITH_DISASM
+			for (int i = 0; i < count-1; i++)
+				DISASM_PSX(pc + i * 4);
+			#endif
+
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
 			} else if (addr >= 0xa0000000) {
@@ -44,11 +40,23 @@ static int LoadFromConstAddr(int count)
 			}
 
 			XOR(TEMP_2, TEMP_1, r2);
-			OPCODE(insn, r1, TEMP_2, imm16);
-			regMipsChanged(rt);
-			regBranchUnlock(r1);
+
+			do {
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+
+				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
+
+				SetUndef(rt);
+				regMipsChanged(rt);
+				regBranchUnlock(r1);
+				PC += 4;
+			} while (--count);
+
+			pc = PC;
 			regBranchUnlock(r2);
-			SetUndef(_Rt_);
 			return 1;
 		}
 	}
