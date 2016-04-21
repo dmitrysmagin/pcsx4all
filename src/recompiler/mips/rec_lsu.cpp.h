@@ -4,7 +4,7 @@
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
-//#define LOG_LWL_LWR
+//#define LOG_WL_WR
 static void disasm_psx(u32 pc)
 {
 	static char buffer[512];
@@ -603,7 +603,9 @@ static void gen_SWL_SWR(int count)
 	NOP();
 
 	ADDIU(MIPSREG_A0, r1, imm16);
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
+	LI32(TEMP_1, 0x1ffffffc);
+	AND(TEMP_1, MIPSREG_A0, TEMP_1);
+	//EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
 	backpatch1 = (u32 *)recMem;
@@ -620,28 +622,22 @@ static void gen_SWL_SWR(int count)
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
 
 	do {
-		u32 SWL = *(u32 *)((char *)PSXM(PC));
-		u32 SWR = *(u32 *)((char *)PSXM(PC + 4));
-		s32 imm_SWL = (s16)(SWL & 0xffff);
-		s32 imm_SWR = (s16)(SWR & 0xffff);
-		u32 rt = (SWL >> 16) & 0x1f;
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
 		u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 
-		OPCODE((SWL & 0xfc000000), r2, TEMP_2, imm_SWL);
-		if (icount)
-			OPCODE((SWR & 0xfc000000), r2, TEMP_2, imm_SWR);
+		OPCODE((opcode & 0xfc000000), r2, TEMP_2, imm);
 
 		regBranchUnlock(r2);
 
-		PC += (icount ? 8 : 4);
-		if (!icount) break;
+		PC += 4;
 	} while (--icount);
 
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
 #endif
-	count *= 2;
 	PC = pc - 4;
 #if 0
 	// label_hle:
@@ -707,8 +703,8 @@ static void gen_SWL_SWR(int count)
 	regBranchUnlock(r1);
 }
 
-/* Calculate number of lwl or lwr opcodes */
-static int calc_lwl_lwr()
+/* Calculate number of lwl/lwr or swl/swr opcodes */
+static int calc_wl_wr(u32 op1, u32 op2)
 {
 	int count = 0;
 	u32 PC = pc;
@@ -717,18 +713,18 @@ static int calc_lwl_lwr()
 
 	imm_min = imm_max = _fImm_(opcode);
 
-	while ((_fOp_(opcode) == 0x22 || _fOp_(opcode) == 0x26) && (_fRs_(opcode) == rs)) {
+	while ((_fOp_(opcode) == op1 || _fOp_(opcode) == op2) && (_fRs_(opcode) == rs)) {
 
 		/* Update min and max immediate values */
-		if ((_fImm_(opcode) > 0) && (_fImm_(opcode) > imm_max)) imm_max = _fImm_(opcode);
-		if ((_fImm_(opcode) < 0) && (_fImm_(opcode) < imm_min)) imm_min = _fImm_(opcode);
+		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
+		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
 
 		opcode = *(u32 *)((char *)PSXM(PC));
 		PC += 4;
 		count++;
 	}
 
-#ifdef LOG_LWL_LWR
+#ifdef LOG_WL_WR
 	if (count) {
 		printf("\nFOUND %d opcodes, min: %d, max: %d\n", count, imm_min, imm_max);
 		u32 dpc = pc - 4;
@@ -740,52 +736,9 @@ static int calc_lwl_lwr()
 	return count;
 }
 
-/* Calculate LWL/LWR or SWL/SWR opcode pairs
-   return number of pairs or 0 if single opcode is found */
-static int calc_pairs()
-{
-	int count = 1;
-	u32 PC = pc - 4;
-	u32 LWL = *(u32 *)((char *)PSXM(PC));
-	u32 LWR = *(u32 *)((char *)PSXM(PC + 4));
-	u32 nextLWL = *(u32 *)((char *)PSXM(PC + 8));
-	u32 nextLWR = *(u32 *)((char *)PSXM(PC + 12));
-
-	/* Check if LWL/SWL is followed by LWR/SWR because the latter could be
-	   placed in delay slot after jal/jalr/jr */
-	if ((LWL >> 26) == 0x22 && (LWR >> 26) != 0x26) {
-		printf("LWL is not followed by LWR at addr %08x\n", PC);
-		return 0;
-	}
-
-	if ((LWL >> 26) == 0x2a && (LWR >> 26) != 0x2e) {
-		printf("SWL is not followed by SWR at addr %08x\n", PC);
-		return 0;
-	}
-
-	/* LWL/SWL has different rt than LWR/SWR, should never happen in fact */
-	if (((LWL >> 16) & 0x1f) != ((LWR >> 16) & 0x1f)) {
-		printf("LWL/SWL and LWR/SWR target reg don't match at addr %08x!\n", PC);
-		return 0;
-	}
-
-	PC += 16;
-
-	/* opcode and base must coincide, rt and imm could be any */
-	while (((LWL & 0xffe00000) == (nextLWL & 0xffe00000)) &&
-	       ((LWR & 0xffe00000) == (nextLWR & 0xffe00000))) {
-		count++;
-		nextLWL = *(u32 *)((char *)PSXM(PC));
-		nextLWR = *(u32 *)((char *)PSXM(PC + 4));
-		PC += 8;
-	}
-
-	return count;
-}
-
 static void recLWL()
 {
-	int count = calc_lwl_lwr();
+	int count = calc_wl_wr(0x22, 0x26);
 
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
@@ -845,7 +798,7 @@ static void recLWR()
 
 static void recSWL()
 {
-	int count = calc_pairs();
+	int count = calc_wl_wr(0x2a, 0x2e);
 
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
@@ -855,7 +808,7 @@ static void recSWL()
 			u32 PC = pc - 4;
 
 			#ifdef WITH_DISASM
-			for (int i = 0; i < count*2-1; i++)
+			for (int i = 0; i < count-1; i++)
 				DISASM_PSX(pc + i * 4);
 			#endif
 
@@ -870,24 +823,15 @@ static void recSWL()
 			XOR(TEMP_2, TEMP_1, r2);
 
 			do {
-				u32 SWL = *(u32 *)((char *)PSXM(PC));
-				u32 SWR = *(u32 *)((char *)PSXM(PC + 4));
-				s32 imm_SWL = (s16)(SWL & 0xffff);
-				s32 imm_SWR = (s16)(SWR & 0xffff);
-				u32 rt = (SWL >> 16) & 0x1f;
-				u32 r1;
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 
-				if (rt != rs)
-					r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-				else
-					r1 = r2;
-
-				SWL(r1, TEMP_2, imm_SWL);
-				SWR(r1, TEMP_2, imm_SWR);
+				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
 
 				regBranchUnlock(r1);
-				PC += (count ? 8 : 4);
-				if (!count) break;
+				PC += 4;
 			} while (--count);
 
 			pc = PC;
@@ -897,12 +841,13 @@ static void recSWL()
 	}
 
 	/* FIXME: Weird bugs if count > 1 in Need For Speed III */
-	if (count > 1) count = 1;
+	if (count > 2) count = 2;
 
 	gen_SWL_SWR(count);
 }
 
 static void recSWR()
 {
-	gen_SWL_SWR(0); // 0 - sole inst
+	imm_min = imm_max = _Imm_;
+	gen_SWL_SWR(1);
 }
