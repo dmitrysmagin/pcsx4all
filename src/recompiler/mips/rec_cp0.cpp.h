@@ -2,7 +2,7 @@ static void recMFC0()
 {
 // Rt = Cop0->Rd
 	if (!_Rt_) return;
-	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	LW(rt, PERM_REG_1, offCP0(_Rd_));
 	regMipsChanged(_Rt_);
@@ -20,7 +20,7 @@ static void recMTC0()
 {
 // Cop0->Rd = Rt
 
-	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP0(_Rd_));
 	regBranchUnlock(rt);
 }

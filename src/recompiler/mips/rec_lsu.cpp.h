@@ -28,8 +28,8 @@ static int LoadFromConstAddr(u32 insn)
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
-			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+			u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 			s32 imm16 = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
@@ -62,8 +62,8 @@ static int StoreToConstAddr(u32 insn)
 		if ((addr & 0x1fffffff) < 0x200000) {
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
-			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+			u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 			s32 imm16 = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
@@ -99,8 +99,8 @@ static void LoadFromAddr(u32 insn)
 	u32 rt = _Rt_;
 	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch5, *backpatch6;
 
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 	ADDIU(MIPSREG_A0, r1, imm16);
 
 	SRL(TEMP_1, MIPSREG_A0, 16);
@@ -170,8 +170,8 @@ static void StoreToAddr(u32 insn)
 	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch4=0;
 	u32 *backpatch5, *backpatch6;
 
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 	ADDIU(MIPSREG_A0, r1, imm16);
 	MOV(MIPSREG_A1, r2);
@@ -265,8 +265,8 @@ static void LoadFromAddr(u32 insn)
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
 
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
 	ADDIU(MIPSREG_A0, r1, imm16);
 
@@ -290,8 +290,8 @@ static void StoreToAddr(u32 insn)
 	u32 rs = _Rs_;
 	u32 rt = _Rt_;
 
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 	ADDIU(MIPSREG_A0, r1, imm16);
 	MOV(MIPSREG_A1, r2);
@@ -503,8 +503,8 @@ static void gen_LWL_LWR()
 	u32 rt = _Rt_;
 	u32 rs = _Rs_;
 	s32 imm16 = (s32)(s16)_Imm_;
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
 	SRL(MIPSREG_A0, MIPSREG_A0, 2);
@@ -556,8 +556,8 @@ static void gen_SWL_SWR()
 	u32 rt = _Rt_;
 	u32 rs = _Rs_;
 	s32 imm16 = (s32)(s16)_Imm_;
-	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+	u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
 	SRL(MIPSREG_A0, MIPSREG_A0, 2);
@@ -647,8 +647,8 @@ static void recLWL()
 			u32 insn = psxRegs.code & 0xfc000000;
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
-			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+			u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 			s32 imm = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
@@ -696,8 +696,8 @@ static void recSWL()
 			u32 insn = psxRegs.code & 0xfc000000;
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
-			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
+			u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 			s32 imm = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {

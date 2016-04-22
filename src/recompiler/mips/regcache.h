@@ -102,9 +102,9 @@ static void regFreeRegs(void)
 	if (!firstfound) DEBUGF("FATAL ERROR: unable to free register");
 }
 
-static u32 regMipsToArmHelper(u32 regpsx, u32 action, u32 type)
+static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 {
-	//DEBUGF("regMipsToArmHelper regpsx %d action %d type %d reglist_cnt %d", regpsx, action, type, regcache.reglist_cnt);
+	//DEBUGF("regMipsToHostHelper regpsx %d action %d type %d reglist_cnt %d", regpsx, action, type, regcache.reglist_cnt);
 	int regnum = regcache.reglist[regcache.reglist_cnt];
 
 	//DEBUGF("regnum 1 %d", regnum);
@@ -172,7 +172,7 @@ static u32 regMipsToArmHelper(u32 regpsx, u32 action, u32 type)
 	return regnum;
 }
 
-static u32 regMipsToArm(u32 regpsx, u32 action, u32 type)
+static u32 regMipsToHost(u32 regpsx, u32 action, u32 type)
 {
 	/* zero reg is not mapped anywhere */
 	if (!regpsx)
@@ -210,7 +210,7 @@ static u32 regMipsToArm(u32 regpsx, u32 action, u32 type)
 	}
 
 	//DEBUGF("calling helper");
-	return regMipsToArmHelper(regpsx, action, type);
+	return regMipsToHostHelper(regpsx, action, type);
 }
 
 static void regMipsChanged(u32 regpsx)

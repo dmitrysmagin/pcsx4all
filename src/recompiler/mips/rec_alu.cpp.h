@@ -9,11 +9,11 @@ do { \
 	SetUndef(_rt_); \
 	u32 r1, r2; \
 	if (rs == rt) { \
-		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
 	} else { \
-		r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER); \
-		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER); \
+		r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER); \
 	} \
 	insn(r1, r2, imm); \
 	regMipsChanged(rt); \
@@ -42,11 +42,11 @@ do { \
 	SetUndef(_rt_); \
 	u32 r1, r2; \
 	if (rs == rt) { \
-		r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
 	} else { \
-		r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER); \
-		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER); \
+		r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER); \
 	} \
 	insn(r1, r2, imm); \
 	regMipsChanged(rt); \
@@ -70,7 +70,7 @@ do { \
 	u32 rt  = _rt_; \
 	u32 imm = _imm_; \
 	if (!rt) break; \
-	u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER); \
+	u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER); \
 	insn(r1, imm); \
 	regMipsChanged(rt); \
 	regBranchUnlock(r1); \
@@ -87,17 +87,17 @@ do { \
 	u32 r1, r2, r3; \
 	SetUndef(_rd_); \
 	if (rs == rd) { \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
-		r3 = (rd == rt ? r1 : regMipsToArm(rt, REG_LOAD, REG_REGISTER)); \
+		r3 = (rd == rt ? r1 : regMipsToHost(rt, REG_LOAD, REG_REGISTER)); \
 	} else if (rt == rd) { \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_LOAD, REG_REGISTER); \
 		r3 = r1; \
-		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
+		r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER); \
 	} else { \
-		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
-		r3 = (rs == rt ? r2 : regMipsToArm(rt, REG_LOAD, REG_REGISTER)); \
+		r1 = regMipsToHost(rd, REG_FIND, REG_REGISTER); \
+		r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER); \
+		r3 = (rs == rt ? r2 : regMipsToHost(rt, REG_LOAD, REG_REGISTER)); \
 	} \
 	insn(r1, r2, r3); \
 	regMipsChanged(rd); \
@@ -128,11 +128,11 @@ do { \
 	u32 r1, r2; \
 	if (rd == rt) { \
 		if (!sa) break; \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
 	} else { \
-		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_FIND, REG_REGISTER); \
+		r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER); \
 	} \
 	insn(r1, r2, sa); \
 	regMipsChanged(rd); \
@@ -153,17 +153,17 @@ do { \
 	u32 r1, r2, r3; \
 	if (rd == rt) { \
 		if (!rs) break; \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_LOAD, REG_REGISTER); \
 		r2 = r1; \
-		r3 = (rs == rd ? r1 : regMipsToArm(rs, REG_LOAD, REG_REGISTER)); \
+		r3 = (rs == rd ? r1 : regMipsToHost(rs, REG_LOAD, REG_REGISTER)); \
 	} else if (rd == rs) { \
-		r1 = regMipsToArm(rd, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_LOAD, REG_REGISTER); \
 		r3 = r1; \
-		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
+		r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER); \
 	} else { \
-		r1 = regMipsToArm(rd, REG_FIND, REG_REGISTER); \
-		r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER); \
-		r3 = (rs == rt) ? r2 : regMipsToArm(rs, REG_LOAD, REG_REGISTER); \
+		r1 = regMipsToHost(rd, REG_FIND, REG_REGISTER); \
+		r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER); \
+		r3 = (rs == rt) ? r2 : regMipsToHost(rs, REG_LOAD, REG_REGISTER); \
 	} \
 	insn(r1, r2, r3); \
 	regMipsChanged(rd); \

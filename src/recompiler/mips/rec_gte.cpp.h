@@ -72,7 +72,7 @@ static void recCFC2()
 {
 	if (!_Rt_) return;
 
-	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	LW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regMipsChanged(_Rt_);
@@ -81,7 +81,7 @@ static void recCFC2()
 
 static void recCTC2()
 {
-	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
 }
@@ -131,7 +131,7 @@ static void recCFC2()
 {
 	if (!_Rt_) return;
 
-	u32 rt = regMipsToArm(_Rt_, REG_FIND, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	LW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regMipsChanged(_Rt_);
@@ -140,7 +140,7 @@ static void recCFC2()
 
 static void recCTC2()
 {
-	u32 rt = regMipsToArm(_Rt_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regBranchUnlock(rt);
 }

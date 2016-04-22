@@ -288,7 +288,7 @@ static void recBLTZ()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x04010000 | (br1 << 21)); /* bgez */
@@ -319,7 +319,7 @@ static void recBGTZ()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x18000000 | (br1 << 21)); /* blez */
@@ -350,7 +350,7 @@ static void recBLTZAL()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x04010000 | (br1 << 21)); /* bgez */
@@ -384,7 +384,7 @@ static void recBGEZAL()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x04000000 | (br1 << 21)); /* bltz */
@@ -421,7 +421,7 @@ static void recJAL()
 static void recJR()
 {
 // jr Rs
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 
 	MOV(MIPSREG_A1, br1);
@@ -436,8 +436,8 @@ static void recJR()
 static void recJALR()
 {
 // jalr Rs
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 rd = regMipsToArm(_Rd_, REG_FIND, REG_REGISTER);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 	LI32(rd, pc + 4);
 	regMipsChanged(_Rd_);
 
@@ -466,8 +466,8 @@ static void recBEQ()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 br2 = regMipsToArm(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x14000000 | (br1 << 21) | (br2 << 16)); /* bne */
@@ -498,8 +498,8 @@ static void recBNE()
 		SetBranch(); return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 br2 = regMipsToArm(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32* backpatch = (u32*)recMem;
 	write32(0x10000000 | (br1 << 21) | (br2 << 16)); /* beq */
@@ -531,7 +531,7 @@ static void recBLEZ()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x1c000000 | (br1 << 21)); /* bgtz */
@@ -562,7 +562,7 @@ static void recBGEZ()
 		return;
 	}
 
-	u32 br1 = regMipsToArm(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
 	write32(0x04000000 | (br1 << 21)); /* bltz */
