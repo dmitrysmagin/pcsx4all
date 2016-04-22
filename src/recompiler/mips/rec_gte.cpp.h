@@ -76,14 +76,14 @@ static void recCFC2()
 
 	LW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regMipsChanged(_Rt_);
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 static void recCTC2()
 {
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 #elif defined(gte_new) || defined(gte_pcsx)
@@ -135,14 +135,14 @@ static void recCFC2()
 
 	LW(rt, PERM_REG_1, offCP2C(_Rd_));
 	regMipsChanged(_Rt_);
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 static void recCTC2()
 {
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 #endif

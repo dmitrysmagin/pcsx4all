@@ -9,7 +9,7 @@ static void recMULT() {
 		}
 		SW(rsrt, PERM_REG_1, offGPR(32));
 		SW(rsrt, PERM_REG_1, offGPR(33));
-		regBranchUnlock(rsrt);
+		regUnlock(rsrt);
 	} else {
 		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
@@ -20,8 +20,8 @@ static void recMULT() {
 
 		SW(TEMP_1, PERM_REG_1, offGPR(32));
 		SW(TEMP_2, PERM_REG_1, offGPR(33));
-		regBranchUnlock(rs);
-		regBranchUnlock(rt);
+		regUnlock(rs);
+		regUnlock(rt);
 	}
 }
 
@@ -36,7 +36,7 @@ static void recMULTU() {
 		}
 		SW(rsrt, PERM_REG_1, offGPR(32)); // LO
 		SW(rsrt, PERM_REG_1, offGPR(33)); // HI
-		regBranchUnlock(rsrt);
+		regUnlock(rsrt);
 	} else {
 		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
@@ -47,8 +47,8 @@ static void recMULTU() {
 
 		SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
 		SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
-		regBranchUnlock(rs);
-		regBranchUnlock(rt);
+		regUnlock(rs);
+		regUnlock(rt);
 	}
 }
 
@@ -88,14 +88,14 @@ static void recMFHI() {
 
 	LW(rd, PERM_REG_1, offGPR(33));
 	regMipsChanged(_Rd_);
-	regBranchUnlock(rd);
+	regUnlock(rd);
 }
 
 static void recMTHI() {
 // Hi = Rs
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	SW(rs, PERM_REG_1, offGPR(33));
-	regBranchUnlock(rs);
+	regUnlock(rs);
 }
 
 static void recMFLO() {
@@ -106,12 +106,12 @@ static void recMFLO() {
 
 	LW(rd, PERM_REG_1, offGPR(32));
 	regMipsChanged(_Rd_);
-	regBranchUnlock(rd);
+	regUnlock(rd);
 }
 
 static void recMTLO() {
 // Lo = Rs
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	SW(rs, PERM_REG_1, offGPR(32));
-	regBranchUnlock(rs);
+	regUnlock(rs);
 }

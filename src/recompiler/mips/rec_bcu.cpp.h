@@ -301,7 +301,7 @@ static void recBLTZ()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recBGTZ()
@@ -332,7 +332,7 @@ static void recBGTZ()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recBLTZAL()
@@ -366,7 +366,7 @@ static void recBLTZAL()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recBGEZAL()
@@ -400,7 +400,7 @@ static void recBGEZAL()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recJ()
@@ -425,7 +425,7 @@ static void recJR()
 	SetBranch();
 
 	MOV(MIPSREG_A1, br1);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 	regClearJump();
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
@@ -443,7 +443,7 @@ static void recJALR()
 
 	SetBranch();
 	MOV(MIPSREG_A1, br1);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 	regClearJump();
 	LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
 	CALLFunc((u32)psxBranchTest_rec);
@@ -480,8 +480,8 @@ static void recBEQ()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
-	regBranchUnlock(br2);
+	regUnlock(br1);
+	regUnlock(br2);
 }
 
 static void recBNE()
@@ -512,8 +512,8 @@ static void recBNE()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
-	regBranchUnlock(br2);
+	regUnlock(br1);
+	regUnlock(br2);
 }
 
 static void recBLEZ()
@@ -544,7 +544,7 @@ static void recBLEZ()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recBGEZ()
@@ -575,7 +575,7 @@ static void recBGEZ()
 	rec_recompile_end();
 
 	fixup_branch(backpatch);
-	regBranchUnlock(br1);
+	regUnlock(br1);
 }
 
 static void recBREAK() { }

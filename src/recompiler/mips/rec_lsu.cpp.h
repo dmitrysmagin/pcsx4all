@@ -45,8 +45,8 @@ static int LoadFromConstAddr(u32 insn)
 
 			SetUndef(rt);
 			regMipsChanged(rt);
-			regBranchUnlock(r1);
-			regBranchUnlock(r2);
+			regUnlock(r1);
+			regUnlock(r2);
 			return 1;
 		}
 	}
@@ -77,8 +77,8 @@ static int StoreToConstAddr(u32 insn)
 			XOR(TEMP_2, TEMP_1, r2);
 			OPCODE(insn, r1, TEMP_2, imm16);
 
-			regBranchUnlock(r1);
-			regBranchUnlock(r2);
+			regUnlock(r1);
+			regUnlock(r2);
 			return 1;
 		}
 	}
@@ -158,8 +158,8 @@ static void LoadFromAddr(u32 insn)
 	fixup_branch(backpatch6);
 
 	regMipsChanged(rt);
-	regBranchUnlock(r1);
-	regBranchUnlock(r2);
+	regUnlock(r1);
+	regUnlock(r2);
 }
 
 static void StoreToAddr(u32 insn)
@@ -252,8 +252,8 @@ static void StoreToAddr(u32 insn)
 		fixup_branch(backpatch3);
 	fixup_branch(backpatch6);
 
-	regBranchUnlock(r1);
-	regBranchUnlock(r2);
+	regUnlock(r1);
+	regUnlock(r2);
 }
 
 #else
@@ -279,8 +279,8 @@ static void LoadFromAddr(u32 insn)
 	}
 
 	regMipsChanged(rt);
-	regBranchUnlock(r1);
-	regBranchUnlock(r2);
+	regUnlock(r1);
+	regUnlock(r2);
 }
 
 static void StoreToAddr(u32 insn)
@@ -303,8 +303,8 @@ static void StoreToAddr(u32 insn)
 	default: break;
 	}
 
-	regBranchUnlock(r1);
-	regBranchUnlock(r2);
+	regUnlock(r1);
+	regUnlock(r2);
 }
 #endif
 
@@ -541,8 +541,8 @@ static void gen_LWL_LWR()
 
 	SetUndef(rt);
 	regMipsChanged(rt);
-	regBranchUnlock(r2);
-	regBranchUnlock(r1);
+	regUnlock(r2);
+	regUnlock(r1);
 }
 
 static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
@@ -598,8 +598,8 @@ static void gen_SWL_SWR()
 
 	CALLFunc((u32)psxMemWrite32);
 
-	regBranchUnlock(r2);
-	regBranchUnlock(r1);
+	regUnlock(r2);
+	regUnlock(r1);
 }
 
 /* Calculate number of lwl/lwr or swl/swr opcodes */
@@ -664,8 +664,8 @@ static void recLWL()
 
 			SetUndef(rt);
 			regMipsChanged(rt);
-			regBranchUnlock(r1);
-			regBranchUnlock(r2);
+			regUnlock(r1);
+			regUnlock(r2);
 
 			return;
 		}
@@ -711,8 +711,8 @@ static void recSWL()
 			XOR(TEMP_2, TEMP_1, r2);
 			OPCODE(insn, r1, TEMP_2, imm);
 
-			regBranchUnlock(r1);
-			regBranchUnlock(r2);
+			regUnlock(r1);
+			regUnlock(r2);
 			return;
 		}
 	}

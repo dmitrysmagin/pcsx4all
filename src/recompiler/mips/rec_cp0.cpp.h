@@ -6,7 +6,7 @@ static void recMFC0()
 
 	LW(rt, PERM_REG_1, offCP0(_Rd_));
 	regMipsChanged(_Rt_);
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 static void recCFC0()
@@ -22,7 +22,7 @@ static void recMTC0()
 
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP0(_Rd_));
-	regBranchUnlock(rt);
+	regUnlock(rt);
 }
 
 static void recCTC0()

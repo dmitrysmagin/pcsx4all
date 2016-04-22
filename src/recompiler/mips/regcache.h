@@ -222,7 +222,7 @@ static void regMipsChanged(u32 regpsx)
 	regcache.psx[regpsx].psx_ischanged = true;
 }
 
-static void regBranchUnlock(u32 reghost)
+static void regUnlock(u32 reghost)
 {
 	/* do nothing for zero reg */
 	if (!reghost)

@@ -17,8 +17,8 @@ do { \
 	} \
 	insn(r1, r2, imm); \
 	regMipsChanged(rt); \
-	regBranchUnlock(r1); \
-	regBranchUnlock(r2); \
+	regUnlock(r1); \
+	regUnlock(r2); \
 } while (0)
 
 static void recADDI()
@@ -50,8 +50,8 @@ do { \
 	} \
 	insn(r1, r2, imm); \
 	regMipsChanged(rt); \
-	regBranchUnlock(r1); \
-	regBranchUnlock(r2); \
+	regUnlock(r1); \
+	regUnlock(r2); \
 } while (0)
 
 
@@ -73,7 +73,7 @@ do { \
 	u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER); \
 	insn(r1, imm); \
 	regMipsChanged(rt); \
-	regBranchUnlock(r1); \
+	regUnlock(r1); \
 } while (0)
 
 static void recLUI()   { SetConst(_Rt_, ((u16)_ImmU_) << 16); REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
@@ -101,9 +101,9 @@ do { \
 	} \
 	insn(r1, r2, r3); \
 	regMipsChanged(rd); \
-	regBranchUnlock(r1); \
-	regBranchUnlock(r2); \
-	regBranchUnlock(r3); \
+	regUnlock(r1); \
+	regUnlock(r2); \
+	regUnlock(r3); \
 } while (0)
 
 static void recADD()   { REC_RTYPE_RD_RS_RT(ADDU, _Rd_, _Rs_, _Rt_); }
@@ -136,8 +136,8 @@ do { \
 	} \
 	insn(r1, r2, sa); \
 	regMipsChanged(rd); \
-	regBranchUnlock(r1); \
-	regBranchUnlock(r2); \
+	regUnlock(r1); \
+	regUnlock(r2); \
 } while (0)
 
 static void recSLL()   { REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_); }
@@ -167,9 +167,9 @@ do { \
 	} \
 	insn(r1, r2, r3); \
 	regMipsChanged(rd); \
-	regBranchUnlock(r1); \
-	regBranchUnlock(r2); \
-	regBranchUnlock(r3); \
+	regUnlock(r1); \
+	regUnlock(r2); \
+	regUnlock(r3); \
 } while (0)
 
 static void recSLLV()  { REC_RTYPE_RD_RT_RS(SLLV, _Rd_, _Rt_, _Rs_); }
