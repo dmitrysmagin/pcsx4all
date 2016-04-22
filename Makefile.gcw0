@@ -1,13 +1,17 @@
 
 TARGET = pcsx4all
 PORT   = sdl
+
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
 #GPU    = gpu_null
 GPU    = gpu_unai
+
+#SPU   = spu_pcsxrearmed
 #SPU   = spu_dfxsound
 #SPU    = spu_null
 SPU   = spu_franxis
+
 #INTERPRETER = interpreter_pcsx
 INTERPRETER = interpreter_new
 RECOMPILER = mips
@@ -90,6 +94,59 @@ OBJS += \
 OBJS += obj/port/$(PORT)/port.o
 
 OBJS += obj/profiler.o obj/debug.o
+
+#******************************************
+# senquack - spu_pcsxrearmed section BEGIN
+#******************************************
+ifeq ($(SPU),spu_pcsxrearmed)
+#senquack - specify which audio backend to use:
+SOUND_DRIVERS=sdl
+#SOUND_DRIVERS=alsa
+#SOUND_DRIVERS=oss
+#SOUND_DRIVERS=pulseaudio
+
+# spu
+# Note: obj/spu/spu_pcsxrearmed/spu.o will already have been added to OBJS
+#		list previously in Makefile
+OBJS += obj/spu/spu_pcsxrearmed/dma.o obj/spu/spu_pcsxrearmed/freeze.o \
+	obj/spu/spu_pcsxrearmed/out.o obj/spu/spu_pcsxrearmed/nullsnd.o \
+	obj/spu/spu_pcsxrearmed/adsr.o obj/spu/spu_pcsxrearmed/reverb.o \
+	obj/spu/spu_pcsxrearmed/registers.o obj/spu/spu_pcsxrearmed/xa.o
+ifeq "$(ARCH)" "arm"
+OBJS += obj/spu/spu_pcsxrearmed/arm_utils.o
+endif
+ifeq "$(HAVE_C64_TOOLS)" "1"
+obj/spu/spu_pcsxrearmed/spu.o: CFLAGS += -DC64X_DSP
+obj/spu/spu_pcsxrearmed/spu.o: obj/spu/spu_pcsxrearmed/spu_c64x.c
+frontend/menu.o: CFLAGS += -DC64X_DSP
+endif
+ifneq ($(findstring oss,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_OSS
+OBJS += obj/spu/spu_pcsxrearmed/oss.o
+endif
+ifneq ($(findstring alsa,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_ALSA
+OBJS += obj/spu/spu_pcsxrearmed/alsa.o
+LDFLAGS += -lasound
+endif
+ifneq ($(findstring sdl,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_SDL
+OBJS += obj/spu/spu_pcsxrearmed/sdl.o
+endif
+ifneq ($(findstring pulseaudio,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_PULSE
+OBJS += obj/spu/spu_pcsxrearmed/pulseaudio.o
+endif
+ifneq ($(findstring libretro,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_LIBRETRO
+endif
+
+endif
+#******************************************
+# senquack - spu_pcsxrearmed END
+#******************************************
+
+
 
 $(TARGET): $(OBJS)
 	@echo Linking $(TARGET)...
