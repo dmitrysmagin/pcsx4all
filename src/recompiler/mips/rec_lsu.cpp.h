@@ -7,6 +7,8 @@
 
 //#define LOG_WL_WR
 //#define LOG_LOADS
+//#define LOG_STORES
+
 static void disasm_psx(u32 pc)
 {
 	static char buffer[512];
@@ -350,23 +352,36 @@ static int calc_loads()
 
 static int calc_stores()
 {
-	int count = 1;
+	int count = 0;
 	u32 PC = pc;
-	u32 opcode1 = psxRegs.code;
-	u32 opcode2 = *(u32 *)((char *)PSXM(PC));
+	u32 opcode = psxRegs.code;
+	u32 rs = _Rs_;
+
+	imm_min = imm_max = _fImm_(opcode);
 
 	/* Allow SB, SH and SW */
 	/* rs should be the same, imm and rt could be different */
-	while ((((opcode2 >> 26) == 0x28) || ((opcode2 >> 26) == 0x29) ||
-	        ((opcode2 >> 26) == 0x2b)) &&
-	       (((opcode1 >> 21) & 0x1f) == ((opcode2 >> 21) & 0x1f))) {
+	while (((_fOp_(opcode) == 0x28) || (_fOp_(opcode) == 0x29) ||
+	        (_fOp_(opcode) == 0x2b)) && (rs == _fRs_(opcode))) {
+
+		/* Update min and max immediate values */
+		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
+		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
+
+		opcode = *(u32 *)((char *)PSXM(PC));
+
 		PC += 4;
 		count++;
-		opcode2 = *(u32 *)((char *)PSXM(PC));
 	}
 
-	//if (count > 1)
-	//	printf("STORES found %d at addr %08x\n", count, pc - 4);
+#ifdef LOG_STORES
+	if (count) {
+		printf("\nFOUND %d stores, min: %d, max: %d\n", count, imm_min, imm_max);
+		u32 dpc = pc - 4;
+		for (; dpc < PC - 4; dpc += 4)
+			disasm_psx(dpc);
+	}
+#endif
 
 	return count;
 }
