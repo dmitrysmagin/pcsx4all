@@ -41,13 +41,11 @@ RecRegisters regcache;
 /* Spill regs to psxRegs if they are in host regs and were modified */
 static void regClearJump(void)
 {
-	int i;
-
-	for (i = 0; i < 32; i++) {
+	for (int i = 1; i < 32; i++) {
 		if (regcache.psx[i].ismapped) {
 			int mappedto = regcache.psx[i].mappedto;
 
-			if (i != 0 && regcache.psx[i].psx_ischanged) {
+			if (regcache.psx[i].psx_ischanged) {
 				//DEBUGG("mappedto %d pr %d\n", mappedto, PERM_REG_1);
 				SW(mappedto, PERM_REG_1, offGPR(i));
 			}
@@ -76,7 +74,7 @@ static void regFreeRegs(void)
 		if (!regcache.host[hostreg].host_islocked) {
 			int psxreg = regcache.host[hostreg].mappedto;
 
-			if (psxreg && regcache.psx[psxreg].psx_ischanged) {
+			if (regcache.psx[psxreg].psx_ischanged) {
 				SW(hostreg, PERM_REG_1, offGPR(psxreg));
 			}
 
@@ -145,11 +143,7 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 		regcache.host[regnum].ismapped = false;
 		regcache.host[regnum].mappedto = 0;
 
-		if (regpsx) {
-			LW(regnum, PERM_REG_1, offGPR(regpsx));
-		} else {
-			LI16(regnum, 0);
-		}
+		LW(regnum, PERM_REG_1, offGPR(regpsx));
 
 		regcache.reglist_cnt++;
 		//DEBUGF("setting reglist_cnt %d", regcache.reglist_cnt);
@@ -159,11 +153,7 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 	}
 
 	if (action == REG_LOAD) {
-		if (regpsx) {
-			LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
-		} else {
-			LI16(regcache.psx[regpsx].mappedto, 0);
-		}
+		LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
 	}
 
 	regcache.reglist_cnt++;
@@ -190,7 +180,7 @@ static u32 regMipsToHost(u32 regpsx, u32 action, u32 type)
 			//DEBUGF("loadbranch regpsx %d", regpsx);
 			u32 mappedto = regcache.psx[regpsx].mappedto;
 
-			if (regpsx && regcache.psx[regpsx].psx_ischanged) {
+			if (regcache.psx[regpsx].psx_ischanged) {
 				SW(mappedto, PERM_REG_1, offGPR(regpsx));
 			}
 
@@ -234,8 +224,7 @@ static void regUnlock(u32 reghost)
 
 static void regClearBranch(void)
 {
-	int i;
-	for (i = 1; i < 32; i++) {
+	for (int i = 1; i < 32; i++) {
 		if (regcache.psx[i].ismapped && regcache.psx[i].psx_ischanged) {
 			SW(regcache.psx[i].mappedto, PERM_REG_1, offGPR(i));
 		}
@@ -252,7 +241,7 @@ static void regReset()
 	}
 
 	for (i = 0; i < 32; i++) {
-		regcache.host[i].host_type = REG_EMPTY;
+		regcache.host[i].host_type = REG_RESERVED;
 		regcache.host[i].host_age = 0;
 		regcache.host[i].host_use = 0;
 		regcache.host[i].host_islocked = 0;
@@ -260,19 +249,8 @@ static void regReset()
 		regcache.host[i].mappedto = 0;
 	}
 
-	for (i = 0; i < 8 ; i++)
-		regcache.host[i].host_type = REG_RESERVED;
-
-	for (i = MIPSREG_T0; i <= MIPSREG_T7; i++)
-		regcache.host[i].host_type = REG_RESERVED;
-
-	for (i = 24 ; i < 32; i++)
-		regcache.host[i].host_type = REG_RESERVED;
-
-	regcache.host[PERM_REG_1].host_type = REG_RESERVED;
-	regcache.host[TEMP_1].host_type = REG_RESERVED;
-	regcache.host[TEMP_2].host_type = REG_RESERVED;
-	regcache.host[TEMP_3].host_type = REG_RESERVED;
+	for (i = REG_CACHE_START; i < REG_CACHE_END; i++)
+		regcache.host[i].host_type = REG_EMPTY;
 
 	for (i = 0, i2 = 0; i < 32; i++) {
 		if (regcache.host[i].host_type == REG_EMPTY) {
