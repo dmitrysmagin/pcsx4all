@@ -505,6 +505,32 @@ static void gen_LWL_LWR()
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+	u32 *backpatch1, *backpatch2;
+
+	ADDIU(MIPSREG_A0, r1, imm16);
+	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
+	LUI(TEMP_2, 0x80);
+	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	backpatch1 = (u32 *)recMem;
+	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	NOP();
+
+	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+
+	if ((u32)psxM == 0x10000000)
+		LUI(TEMP_2, 0x1000);
+	else
+		LW(TEMP_2, PERM_REG_1, off(psxM));
+
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	OPCODE(insn, r2, TEMP_2, imm16);
+
+	backpatch2 = (u32 *)recMem;
+	B(0); // b label_exit
+	NOP();
+
+	// label_hle:
+	fixup_branch(backpatch1);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
 	SRL(MIPSREG_A0, MIPSREG_A0, 2);
@@ -539,6 +565,9 @@ static void gen_LWL_LWR()
 
 	OR(r2, r2, TEMP_3);
 
+	// label_exit:
+	fixup_branch(backpatch2);
+
 	SetUndef(rt);
 	regMipsChanged(rt);
 	regUnlock(r2);
@@ -558,6 +587,39 @@ static void gen_SWL_SWR()
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
 	u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+	u32 *backpatch1, *backpatch2, *backpatch3;
+
+	/* First check if memory is writable atm */
+	LW(TEMP_1, PERM_REG_1, off(writeok));
+	backpatch3 = (u32 *)recMem;
+	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
+	NOP();
+
+	ADDIU(MIPSREG_A0, r1, imm16);
+	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
+	LUI(TEMP_2, 0x80);
+	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	backpatch1 = (u32 *)recMem;
+	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	NOP();
+
+	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+
+	if ((u32)psxM == 0x10000000)
+		LUI(TEMP_2, 0x1000);
+	else
+		LW(TEMP_2, PERM_REG_1, off(psxM));
+
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	OPCODE(insn, r2, TEMP_2, imm16);
+
+	backpatch2 = (u32 *)recMem;
+	B(0); // b label_exit
+	NOP();
+
+	// label_hle:
+	fixup_branch(backpatch1);
+	fixup_branch(backpatch3);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
 	SRL(MIPSREG_A0, MIPSREG_A0, 2);
@@ -597,6 +659,9 @@ static void gen_SWL_SWR()
 	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
 
 	CALLFunc((u32)psxMemWrite32);
+
+	// label_exit:
+	fixup_branch(backpatch2);
 
 	regUnlock(r2);
 	regUnlock(r1);
