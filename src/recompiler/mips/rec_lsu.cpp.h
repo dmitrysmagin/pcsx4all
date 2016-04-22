@@ -1,7 +1,6 @@
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
-//#define OPTIMIZE_LWL_LWR_SWL_SWR
 
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
@@ -483,118 +482,51 @@ static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
 static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-static void gen_LWL_LWR(int count)
+static void gen_LWL_LWR()
 {
-	int icount = count;
+	u32 insn = psxRegs.code & 0xfc000000;
+	u32 rt = _Rt_;
 	u32 rs = _Rs_;
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 PC = pc - 4;
-	u32 *backpatch1, *backpatch2;
+	u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
 
-	#ifdef WITH_DISASM
-	for (int i = 0; i < count-1; i++)
-		DISASM_PSX(pc + i * 4);
-	#endif
+	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+	SRL(MIPSREG_A0, MIPSREG_A0, 2);
+	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
-	ADDIU(MIPSREG_A0, r1, imm16);
-	LI32(TEMP_1, 0x1ffffffc);
-	AND(TEMP_1, MIPSREG_A0, TEMP_1);
-	//EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	LUI(TEMP_2, 0x80);
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
-	backpatch1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	ADDIU(TEMP_1, r1, imm16);
+	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+	SLL(TEMP_1, TEMP_1, 2);
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
-
-	if ((u32)psxM == 0x10000000)
-		LUI(TEMP_2, 0x1000);
-	else
-		LW(TEMP_2, PERM_REG_1, off(psxM));
+	if (insn == 0x88000000) // LWL
+		LI32(TEMP_2, (u32)LWL_MASK);
+	else			// LWR
+		LI32(TEMP_2, (u32)LWR_MASK);
 
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
+	AND(r2, r2, TEMP_2);
 
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		s32 imm = _fImm_(opcode);
-		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+	if (insn == 0x88000000) // LWL
+		LI32(TEMP_2, (u32)LWL_SHIFT);
+	else			// LWR
+		LI32(TEMP_2, (u32)LWR_SHIFT);
 
-		OPCODE((opcode & 0xfc000000), r2, TEMP_2, imm);
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
 
-		SetUndef(rt);
-		regMipsChanged(rt);
-		regBranchUnlock(r2);
+	if (insn == 0x88000000) // LWL
+		SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
+	else			// LWR
+		SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
 
-		PC += 4;
-	} while (--icount);
+	OR(r2, r2, TEMP_3);
 
-	backpatch2 = (u32 *)recMem;
-	B(0); // b label_exit
-	NOP();
-
-	PC = pc - 4;
-
-	// label_hle:
-	fixup_branch(backpatch1);
-#endif
-
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		u32 insn = opcode & 0xfc000000;
-		u32 rt = _fRt_(opcode);
-		u32 imm16 = _fImm_(opcode);;
-		u32 r2 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-
-		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-		SRL(MIPSREG_A0, MIPSREG_A0, 2);
-		SLL(MIPSREG_A0, MIPSREG_A0, 2);
-		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
-
-		ADDIU(TEMP_1, r1, imm16);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
-
-		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_MASK);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_MASK);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(r2, r2, TEMP_2);
-
-		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_SHIFT);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0x88000000) // LWL
-			SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
-		else			// LWR
-			SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
-
-		OR(r2, r2, TEMP_3);
-
-		SetUndef(rt);
-		regMipsChanged(rt);
-		regBranchUnlock(r2);
-
-		PC += 4;
-	} while (--count);
-
-#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
-	// label_exit:
-	fixup_branch(backpatch2);
-#endif
-
-	pc = PC;
+	SetUndef(rt);
+	regMipsChanged(rt);
+	regBranchUnlock(r2);
 	regBranchUnlock(r1);
 }
 
@@ -603,128 +535,55 @@ static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
 static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-static void gen_SWL_SWR(int count)
+static void gen_SWL_SWR()
 {
-	int icount = count;
+	u32 insn = psxRegs.code & 0xfc000000;
+	u32 rt = _Rt_;
 	u32 rs = _Rs_;
 	s32 imm16 = (s32)(s16)_Imm_;
 	u32 r1 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-	u32 PC = pc - 4;
-	u32 *backpatch1, *backpatch2, *backpatch3;
+	u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 
-	#ifdef WITH_DISASM
-	for (int i = 0; i < count*2-1; i++)
-		DISASM_PSX(pc + i * 4);
-	#endif
+	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+	SRL(MIPSREG_A0, MIPSREG_A0, 2);
+	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
-	/* First check if memory is writable atm */
-	LW(TEMP_1, PERM_REG_1, off(writeok));
-	backpatch3 = (u32 *)recMem;
-	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
-	NOP();
+	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
+	SRL(MIPSREG_A0, MIPSREG_A0, 2);
+	SLL(MIPSREG_A0, MIPSREG_A0, 2);
 
-	ADDIU(MIPSREG_A0, r1, imm16);
-	LI32(TEMP_1, 0x1ffffffc);
-	AND(TEMP_1, MIPSREG_A0, TEMP_1);
-	//EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	LUI(TEMP_2, 0x80);
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
-	backpatch1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	ADDIU(TEMP_1, r1, imm16);
+	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+	SLL(TEMP_1, TEMP_1, 2);
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
-
-	if ((u32)psxM == 0x10000000)
-		LUI(TEMP_2, 0x1000);
-	else
-		LW(TEMP_2, PERM_REG_1, off(psxM));
+	if (insn == 0xa8000000) // SWL
+		LI32(TEMP_2, (u32)SWL_MASK);
+	else			// SWR
+		LI32(TEMP_2, (u32)SWR_MASK);
 
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
+	AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
 
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		s32 imm = _fImm_(opcode);
-		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+	if (insn == 0xa8000000) // SWL
+		LI32(TEMP_2, (u32)SWL_SHIFT);
+	else			// SWR
+		LI32(TEMP_2, (u32)SWR_SHIFT);
 
-		OPCODE((opcode & 0xfc000000), r2, TEMP_2, imm);
+	ADDU(TEMP_2, TEMP_2, TEMP_1);
+	LW(TEMP_2, TEMP_2, 0);
 
-		regBranchUnlock(r2);
+	if (insn == 0xa8000000) // SWL
+		SRLV(TEMP_3, r2, TEMP_2);
+	else			// SWR
+		SLLV(TEMP_3, r2, TEMP_2);
 
-		PC += 4;
-	} while (--icount);
+	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
 
-	backpatch2 = (u32 *)recMem;
-	B(0); // b label_exit
-	NOP();
+	CALLFunc((u32)psxMemWrite32);
 
-	PC = pc - 4;
-
-	// label_hle:
-	fixup_branch(backpatch1);
-	fixup_branch(backpatch3);
-#endif
-
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		u32 insn = opcode & 0xfc000000;
-		u32 rt = ((opcode >> 16) & 0x1f);
-		u32 imm16 = (s32)(s16)(opcode & 0xffff);
-		u32 r2 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-
-		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-		SRL(MIPSREG_A0, MIPSREG_A0, 2);
-		SLL(MIPSREG_A0, MIPSREG_A0, 2);
-		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
-
-		ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-		SRL(MIPSREG_A0, MIPSREG_A0, 2);
-		SLL(MIPSREG_A0, MIPSREG_A0, 2);
-
-		ADDIU(TEMP_1, r1, imm16);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
-
-		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_MASK);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_MASK);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
-
-		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_SHIFT);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0xa8000000) // SWL
-			SRLV(TEMP_3, r2, TEMP_2);
-		else			// SWR
-			SLLV(TEMP_3, r2, TEMP_2);
-
-		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
-
-		CALLFunc((u32)psxMemWrite32);
-
-		regBranchUnlock(r2);
-
-		PC += 4;
-		if (!count) break;
-	} while (--count);
-
-#ifdef OPTIMIZE_LWL_LWR_SWL_SWR
-	// label_exit:
-	fixup_branch(backpatch2);
-#endif
-
-	pc = PC;
+	regBranchUnlock(r2);
 	regBranchUnlock(r1);
 }
 
@@ -764,19 +623,18 @@ static int calc_wl_wr(u32 op1, u32 op2)
 static void recLWL()
 {
 	int count = calc_wl_wr(0x22, 0x26);
+	(void)count;
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
+			u32 insn = psxRegs.code & 0xfc000000;
+			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
-
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
+			u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+			s32 imm = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
@@ -787,58 +645,45 @@ static void recLWL()
 			}
 
 			XOR(TEMP_2, TEMP_1, r2);
+			OPCODE(insn, r1, TEMP_2, imm);
 
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
-
-				SetUndef(rt);
-				regMipsChanged(rt);
-				regBranchUnlock(r1);
-				PC += 4;
-			} while (--count);
-
-			pc = PC;
+			SetUndef(rt);
+			regMipsChanged(rt);
+			regBranchUnlock(r1);
 			regBranchUnlock(r2);
+
 			return;
 		}
 	}
 #endif
 
-	/* FIXME: Weird bugs if count > 2 in Metal Slug X */
-	if (count > 2) count = 2;
+	SetUndef(_Rt_);
 
-	gen_LWL_LWR(count);
+	gen_LWL_LWR();
 }
 
 static void recLWR()
 {
 	SetUndef(_Rt_);
 
-	imm_min = imm_max = _Imm_;
-	gen_LWL_LWR(1);
+	gen_LWL_LWR();
 }
 
 static void recSWL()
 {
 	int count = calc_wl_wr(0x2a, 0x2e);
+	(void)count;
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
+			u32 insn = psxRegs.code & 0xfc000000;
+			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
-
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
+			u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
+			s32 imm = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
@@ -849,34 +694,19 @@ static void recSWL()
 			}
 
 			XOR(TEMP_2, TEMP_1, r2);
+			OPCODE(insn, r1, TEMP_2, imm);
 
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
-
-				regBranchUnlock(r1);
-				PC += 4;
-			} while (--count);
-
-			pc = PC;
+			regBranchUnlock(r1);
 			regBranchUnlock(r2);
 			return;
 		}
 	}
 #endif
 
-	/* FIXME: Weird bugs if count > 1 in Need For Speed III */
-	if (count > 2) count = 2;
-
-	gen_SWL_SWR(count);
+	gen_SWL_SWR();
 }
 
 static void recSWR()
 {
-	imm_min = imm_max = _Imm_;
-	gen_SWL_SWR(1);
+	gen_SWL_SWR();
 }
