@@ -60,19 +60,8 @@ extern void SPUasync(uint32_t, uint32_t);
 static inline long SPU_init(void)
 {
     //senquack - TODO: provide a way to alter default/current configuration:
-//    // SOME SENSIBLE DEFAULTS:
-//	spu_config.iUseReverb = 1;
-//	spu_config.iUseInterpolation = 1;
-//	spu_config.iXAPitch = 0;
-//	spu_config.iVolume = 768;
-//	spu_config.iTempo = 0;
-//	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-//    // LOW-END DEVICE:
-////#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
-//	spu_config.iUseReverb = 0;
-//	spu_config.iUseInterpolation = 0;
-//	spu_config.iTempo = 1;
-//////#endif
+	// ORIGINAL PCSX_ReARMed spu defaults:
+#if 0
     // SOME SENSIBLE DEFAULTS:
 	spu_config.iUseReverb = 1;
 	spu_config.iUseInterpolation = 1;
@@ -80,29 +69,37 @@ static inline long SPU_init(void)
 	spu_config.iVolume = 768;
 	spu_config.iTempo = 0;
 	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-	spu_config.iUseFixedUpdates = 1;    // This is always 1 in libretro's pcsxReARMed
     // LOW-END DEVICE:
-////#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
+#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
-//	spu_config.iTempo = 1;
-////#endif
-
 	spu_config.iTempo = 1;
-    spu_config.iUseThread = 0;
-	spu_config.iUseInterpolation = 0;
-    spu_config.iUseFixedUpdates = 1;
+#endif
+#endif //0
 
-    //senquack - from thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
-    //  Notaz says that setting iTempo=1 restores pcsxreARMed SPU's old behavior, which allows slow emulation
-    //   to not introduce audio dropouts:
+    // PCSX4ALL defaults:
+	spu_config.iUseReverb = 1;
+	spu_config.iUseInterpolation = 1;
+	spu_config.iXAPitch = 0;
+	spu_config.iVolume = 768;
+	spu_config.iUseThread = 1; // no effect if only 1 core is detected
+	spu_config.iUseFixedUpdates = 1;    // This is always set to 1 in libretro's pcsxReARMed
+#if defined(WIZ) || defined(CAANOO) || defined(GCW_ZERO) || defined(HAVE_PRE_ARMV7)
+	spu_config.iUseReverb = 0;
+	spu_config.iUseInterpolation = 0;
+	spu_config.iTempo = 1;     // see note below
+#endif
+
+	//senquack - NOTE REGARDING iTempo config var above
+    // From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
+    // Notaz says that setting iTempo=1 restores pcsxreARMed SPU's old behavior, which allows slow emulation
+    // to not introduce audio dropouts (at least I *think* he's referring to iTempo config setting)
     // "Probably the main change is SPU emulation, there were issues in some games where effects were wrong,
     //  mostly Final Fantasy series, it should be better now. There were also sound sync issues where game would
     //  occasionally lock up (like Valkyrie Profile), it should be stable now.
     //  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double 
     //  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
-    //  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it."
-
+    //  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
 
     int ret = -1;
@@ -160,21 +157,8 @@ static inline void SPU_playADPCMchannel(xa_decode_t *xap)
     SPUplayADPCMchannel(xap);
 }
 
-//senquack - this is a wrapper that adapts newer SPUplayCDDAchannel function taking
-//           short* param and returning a value to cdriso.c (in PCSXReARMed), to
-//           being able to be used with older PSX4ALL code.  I've since adapted
-//           the calling code in cdriso.cpp to use the newer version, so I've
-//           commented this one out:
-#if 0
-static inline void SPU_playCDDAchannel(unsigned char *pcm, int bytes)
-{
-    //senquack - TODO: for now we are ignoring SPUplayCDDAchannel()'s new return value.
-    //            see if it is necessary or worthwhile to update cdriso.c to take advantage of
-    //            new functionality of pcsx_ReARMed's cdriso
-
-    SPUplayCDDAchannel((short *)pcm, bytes);
-}
-#endif //0
+//senquack - note how SPU_playCDDAchannel now returns a feedback value
+//			 to cdriso.cpp:
 static inline int SPU_playCDDAchannel(short *pcm, int bytes)
 {
     return SPUplayCDDAchannel(pcm, bytes);
@@ -188,11 +172,8 @@ static inline long SPU_freeze(uint32_t ulFreezeMode, SPUFreeze_t * pF)
 //senquack - my first attempt, forcing flag 2nd param to 1:
 static inline void SPU_async(unsigned int cycle, unsigned int flags)
 {
-    //senquack - PCSX_ReARMed version takes two parameters, first one is simple to provide,
+    //senquack - PCSX_ReARMed version takes two parameters, first one is psxRegs.cycle,
     //           second one is what amounts to a bool flag.
-    //           TODO: spend some time investigating best way to handle new flags parameter,
-    //            it seems to use new r3000a.h flag PSXINT_SPU_UPDATE and code in
-    //            PCSX_ReARMed folder libpcsxcore/psxdma.h and libpcsxcore/spu.c
     //SPUasync(unsigned int cycle, unsigned int flags)
 
     //senquack force flags to 1 for now:
