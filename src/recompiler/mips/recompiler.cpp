@@ -41,7 +41,6 @@ static u32 psxBranchTest_rec(u32 cycles, u32 pc);
 
 //#define WITH_DISASM
 //#define DEBUGG printf
-#define DEBUGF(aa)
 
 #include "mips_codegen.h"
 #include "disasm.h"
