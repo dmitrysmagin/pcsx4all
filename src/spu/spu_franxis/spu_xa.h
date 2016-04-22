@@ -175,7 +175,7 @@ INLINE void FeedCDDA(unsigned char *pcm, int nBytes)
 	uint16_t *feed=CDDAFeed;
 	uint16_t *start=CDDAStart;
 	uint16_t *end=CDDAEnd;
-	if ((unsigned int)pcm&1)
+	if ((unsigned long)pcm&1)
 	{
 		while(nBytes>0)
 		{
