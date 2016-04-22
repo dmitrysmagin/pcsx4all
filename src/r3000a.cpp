@@ -44,14 +44,14 @@ u32 PSXCLK=33868800; /* 33.8688 Mhz */
 // simply added vars here to indicate at what cycle value the SPU has requested its
 // update, and if an update has been requested.. psxBranchTest() will handle these
 // after it's done handling the emu's interrupts.
-u32 pcsxrearmed_update_pending __attribute__((aligned(4))) = 0;
-u32 pcsxrearmed_update_at_cycle __attribute__((aligned(4))) = 0;
+u32 pcsxrearmed_update_pending = 0;
+u32 pcsxrearmed_update_at_cycle = 0;
 
 //senquack - Added so spu_pcsxrearmed can read current cycle value. Some of its SPU*() functions
 //           take a new "cycles" parameter, and because of circuluar header dependency problems
 //           I must provide a simple pointer to the current cycle value, so the wrapped
 //           functions can be passed it from anywhere in code.
-const u32 * const psxRegs_cycle_valptr __attribute__((aligned(4))) = &psxRegs.cycle 
+const u32 * const psxRegs_cycle_valptr = &psxRegs.cycle;
 #endif //spu_pcsxrearmed
 
 
