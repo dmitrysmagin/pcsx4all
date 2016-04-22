@@ -271,15 +271,27 @@ void psxRcntUpdate()
     {
         psxRcntReset( 3 );
 
-        spuSyncCount++;
         hSyncCount++;
 
+        //senquack - Adapted pcsxReARMed SPU to PSX4ALL:
+#ifdef spu_pcsxrearmed
+        //senquack - in pcsxReARMed, it only calls SPU_async() when vblank start is reached:
+		//NOTE AND TODO: in PCSX_ReARMed, it always compares hSyncCount to 240, regardless of
+		//				 type of PSX being emulated, i.e. PAL would be 256 I think versus 
+		//				 NTSC vblank at 240????
+        if (hSyncCount == 240)								// Original PCSX_ReARMed behavior
+        //if (hSyncCount == VBlankStart[Config.PsxType])	// What *might* be more correct behavior -senquack
+            SPU_async( cycle, 1 );
+#else
         // Update spu.
+        spuSyncCount++;
         if( spuSyncCount >= SPU_UPD_INTERVAL )
         {
             spuSyncCount = 0;
             SPU_async();
         }
+#endif //spu_pcsxrearmed
+
         /*
         // For the best times. :D
         // VSync irq.
