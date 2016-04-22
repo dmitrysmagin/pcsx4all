@@ -502,6 +502,9 @@ int main (int argc, char **argv)
 	#ifndef spu_null
 		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
 		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
+
+        //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
+		if (strcmp(argv[i],"-syncaudio")==0) Config.SyncAudio=true; 
 	#endif
 		// WIZ
 #if 0
