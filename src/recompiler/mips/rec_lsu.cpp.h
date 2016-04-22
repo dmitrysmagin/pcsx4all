@@ -20,19 +20,16 @@ s32 imm_max, imm_min;
 
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
 #ifdef USE_CONST_ADDRESSES
-static int LoadFromConstAddr(int count)
+static int LoadFromConstAddr(u32 insn)
 {
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
 		if ((addr & 0x1fffffff) < 0x200000) {
+			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
-
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
+			u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
+			s32 imm16 = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
@@ -43,22 +40,11 @@ static int LoadFromConstAddr(int count)
 			}
 
 			XOR(TEMP_2, TEMP_1, r2);
+			OPCODE(insn, r1, TEMP_2, imm16);
 
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToArm(rt, REG_FIND, REG_REGISTER);
-
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
-
-				SetUndef(rt);
-				regMipsChanged(rt);
-				regBranchUnlock(r1);
-				PC += 4;
-			} while (--count);
-
-			pc = PC;
+			SetUndef(rt);
+			regMipsChanged(rt);
+			regBranchUnlock(r1);
 			regBranchUnlock(r2);
 			return 1;
 		}
@@ -76,13 +62,9 @@ static int StoreToConstAddr(u32 insn)
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToArm(rs, REG_LOAD, REG_REGISTER);
-			u32 r1;
-			if (rt != rs)
-				r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
-			else
-				r1 = r2;
+			u32 r1 = regMipsToArm(rt, REG_LOAD, REG_REGISTER);
 			s32 imm16 = (s32)(s16)_Imm_;
-			/* DEBUGF("r1 %d r2 %d imm16 %d", r1, r2, imm16); */
+
 			if (addr < 0x200000) {
 				LUI(TEMP_1, 0x1000);
 			} else if (addr >= 0xa0000000) {
@@ -93,6 +75,7 @@ static int StoreToConstAddr(u32 insn)
 
 			XOR(TEMP_2, TEMP_1, r2);
 			OPCODE(insn, r1, TEMP_2, imm16);
+
 			regBranchUnlock(r1);
 			regBranchUnlock(r2);
 			return 1;
@@ -102,7 +85,7 @@ static int StoreToConstAddr(u32 insn)
 	return 0;
 }
 #else
-static int LoadFromConstAddr(int count) { (void)count; return 0; }
+static int LoadFromConstAddr(u32 insn) { (void)insn; return 0; }
 static int StoreToConstAddr(u32 insn) { (void)insn; return 0; }
 #endif
 
@@ -392,9 +375,10 @@ static int calc_stores()
 static void recLB()
 {
 	int count = calc_loads();
+	(void)count;
 
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(count))
+	if (LoadFromConstAddr(0x80000000))
 		return;
 
 	SetUndef(_Rt_);
@@ -405,9 +389,10 @@ static void recLB()
 static void recLBU()
 {
 	int count = calc_loads();
+	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
+	if (LoadFromConstAddr(0x90000000))
 		return;
 
 	SetUndef(_Rt_);
@@ -418,9 +403,10 @@ static void recLBU()
 static void recLH()
 {
 	int count = calc_loads();
+	(void)count;
 
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(count))
+	if (LoadFromConstAddr(0x84000000))
 		return;
 
 	SetUndef(_Rt_);
@@ -431,9 +417,10 @@ static void recLH()
 static void recLHU()
 {
 	int count = calc_loads();
+	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
+	if (LoadFromConstAddr(0x94000000))
 		return;
 
 	SetUndef(_Rt_);
@@ -444,9 +431,10 @@ static void recLHU()
 static void recLW()
 {
 	int count = calc_loads();
+	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
+	if (LoadFromConstAddr(0x8c000000))
 		return;
 
 	SetUndef(_Rt_);
@@ -457,6 +445,7 @@ static void recLW()
 static void recSB()
 {
 	int count = calc_stores();
+	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa0000000))
@@ -468,6 +457,7 @@ static void recSB()
 static void recSH()
 {
 	int count = calc_stores();
+	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa4000000))
@@ -479,6 +469,7 @@ static void recSH()
 static void recSW()
 {
 	int count = calc_stores();
+	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xac000000))
