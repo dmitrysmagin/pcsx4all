@@ -186,6 +186,9 @@ unsigned short pad_read(int num)
 	if (num==0) return pad1; else return pad2;
 }
 
+//senquack - spu_pcsxrearmed has its own sound backends
+#if !defined(spu_pcsxrearmed)
+
 #ifdef spu_franxis
 #define SOUND_BUFFER_SIZE (1024 * 3 * 2)
 #else
@@ -329,6 +332,8 @@ void sound_set(unsigned char *pSound, long lBytes)
 		SDL_UnlockMutex(sound_mutex);
 	}
 }
+
+#endif //spu_pcsxrearmed
 
 
 void video_flip(void)
@@ -498,14 +503,20 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
 		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
 	#endif
+
 		// SPU
 	#ifndef spu_null
 		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
+
+	#ifndef spu_pcsxrearmed
 		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
+	#endif
 
         //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
 		if (strcmp(argv[i],"-syncaudio")==0) Config.SyncAudio=true; 
 	#endif
+
+
 		// WIZ
 #if 0
 		if (strcmp(argv[i],"-ramtweaks")==0) { extern int wiz_ram_tweaks; wiz_ram_tweaks=1; } // RAM tweaks
@@ -515,7 +526,12 @@ int main (int argc, char **argv)
 	}
 	
 
-	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_AUDIO | SDL_INIT_NOPARACHUTE);
+	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
+
+#if !defined(spu_pcsxrearmed)		//spu_pcsxrearmed handles its own audio backends
+	SDL_Init( SDL_INIT_AUDIO );
+#endif
+
 	atexit(SDL_Quit);
 	screen = SDL_SetVideoMode(320, 240, 16, SDL_HWSURFACE);
 	if(screen == NULL) { puts("NO Set VideoMode 320x240x16"); exit(0); }
