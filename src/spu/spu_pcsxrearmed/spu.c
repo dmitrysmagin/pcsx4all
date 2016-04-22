@@ -24,6 +24,14 @@
 #endif
 #include "stdafx.h"
 
+//senquack - Adapted pcsxReARMed SPU to PSX4ALL:
+#include "spu_pcsxrearmed_spuschedule.h"		// For PCSX4ALL adaptation of SPUschedule()
+#include <stdint.h>
+//senquack - Don't want spu worker threadin PCSX4ALL version (only benefits Pandora w/ DSP)
+#undef THREAD_ENABLED
+#undef WANT_THREAD_CODE
+
+
 #define _IN_SPU
 
 #include "externals.h"
@@ -1216,9 +1224,13 @@ void schedule_next_irq(void)
  unsigned int upd_samples;
  int ch;
 
- if (spu.scheduleCallback == NULL)
-  return;
+ //senquack - In this PSX4ALL adaptation, SPU update scheduling is handled directly
+ //           through SPUschedule() in spu_pcsxrearmed_wrapper.h, not through a
+ //           callback function:
+ //if (spu.scheduleCallback == NULL)
+ // return;
 
+ //senquack - TODO: investigate if this is optimal for PCSX4ALL:
  upd_samples = 44100 / 50;
 
  for (ch = 0; ch < MAXCHAN; ch++)
@@ -1242,8 +1254,14 @@ void schedule_next_irq(void)
   }
  }
 
+ //senquack - In this PSX4ALL adaptation, SPU update scheduling is handled directly
+ //           through SPUschedule() in spu_pcsxrearmed_wrapper.h, not through a
+ //           callback function:
+ //senquack TODO: investigate if 50 is optimal divisior for PCSX4ALL:
+ //if (upd_samples < 44100 / 50)
+ // spu.scheduleCallback(upd_samples * 768);
  if (upd_samples < 44100 / 50)
-  spu.scheduleCallback(upd_samples * 768);
+  SPUschedule(upd_samples * 768);
 }
 
 // SPU ASYNC... even newer epsxe func
@@ -1280,9 +1298,11 @@ void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 // leave that func in the linux port, until epsxe linux is using
 // the async function as well
 
-void CALLBACK SPUupdate(void)
-{
-}
+//senquack - disabled this, it just is confusing having both spuUpdate() and also a dummy
+//           SPUupdate() function just for some sort of epsxe compatibility:
+//void CALLBACK SPUupdate(void)
+//{
+//}
 
 // XA AUDIO
 
