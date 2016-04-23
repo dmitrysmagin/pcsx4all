@@ -512,7 +512,7 @@ int main (int argc, char **argv)
 			if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
 		#endif //!spu_pcsxrearmed
 
-        //senquack - Added audio syncronization option; if audio buffer full, main thread blocks (NOT IMPLEMENTED YET, TODO)
+        //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
 		if (strcmp(argv[i],"-syncaudio")==0) Config.SyncAudio=true; 
 	#endif
 
