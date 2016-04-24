@@ -28,7 +28,9 @@ static void recADDI()
 	/* Catch ADDIU reg, $0, imm */
 	if (!_Rs_) {
 		s = 1;
-		//printf("FOUND ADDI reg[%d], $0, %d\n", _Rt_, (s16)(_Imm_));
+		/* Exit if const already loaded */
+		if (IsConst(_Rt_) && iRegs[_Rt_].r == (s32)(s16)(_Imm_))
+			return;
 	}
 
 	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, ((s16)(_Imm_)));
@@ -70,7 +72,9 @@ static void recORI()
 	/* Catch ORI reg, $0, imm */
 	if (!_Rs_) {
 		s = 1;
-		//printf("FOUND ORI reg[%d], $0, %d\n", _Rt_, (s16)(_Imm_));
+		/* Exit if const already loaded */
+		if (IsConst(_Rt_) && iRegs[_Rt_].r == (u16)(_Imm_))
+			return;
 	}
 
 	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_)));
