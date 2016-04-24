@@ -431,32 +431,32 @@ int main (int argc, char **argv)
 
 	// senquack - added spu_pcsxrearmed plugin:
 	#ifdef spu_pcsxrearmed
-		//ORIGINAL PCSX ReARMed SPU defaults (put here for reference):
-		//	spu_config.iUseReverb = 1;
-		//	spu_config.iUseInterpolation = 1;
-		//	spu_config.iXAPitch = 0;
-		//	spu_config.iVolume = 768;
-		//	spu_config.iTempo = 0;
-		//	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-		//	// LOW-END DEVICE:
-		//	#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
-		//		spu_config.iUseReverb = 0;
-		//		spu_config.iUseInterpolation = 0;
-		//		spu_config.iTempo = 1;
-		//	#endif
+	//ORIGINAL PCSX ReARMed SPU defaults (put here for reference):
+	//	spu_config.iUseReverb = 1;
+	//	spu_config.iUseInterpolation = 1;
+	//	spu_config.iXAPitch = 0;
+	//	spu_config.iVolume = 768;
+	//	spu_config.iTempo = 0;
+	//	spu_config.iUseThread = 1; // no effect if only 1 core is detected
+	//	// LOW-END DEVICE:
+	//	#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
+	//		spu_config.iUseReverb = 0;
+	//		spu_config.iUseInterpolation = 0;
+	//		spu_config.iTempo = 1;
+	//	#endif
 
-		// PCSX4ALL defaults:
-		// NOTE: iUseThread *will* have an effect even on a single-core device, but
-		//		 results have yet to be tested. TODO: test if using iUseThread can
-		//		 improve sound dropouts in any cases.
-		spu_config.iHaveConfiguration = 1;	   // *MUST* be set to 1 before calling SPU_Init()
-		spu_config.iUseReverb = 0;
-		spu_config.iUseInterpolation = 0;
-		spu_config.iXAPitch = 0;
-		spu_config.iVolume = 768;              // 1024 is max volume (1.0)
-		spu_config.iUseThread = 0;             // no effect if only 1 core is detected
-		spu_config.iUseFixedUpdates = 1;       // This is always set to 1 in libretro's pcsxReARMed
-		spu_config.iTempo = 1;                 // see note below
+	// PCSX4ALL defaults:
+	// NOTE: iUseThread *will* have an effect even on a single-core device, but
+	//		 results have yet to be tested. TODO: test if using iUseThread can
+	//		 improve sound dropouts in any cases.
+	spu_config.iHaveConfiguration = 1;	// *MUST* be set to 1 before calling SPU_Init()
+	spu_config.iUseReverb = 0;
+	spu_config.iUseInterpolation = 0;
+	spu_config.iXAPitch = 0;
+	spu_config.iVolume = 768;		// 1024 is max volume (1.0)
+	spu_config.iUseThread = 0;		// no effect if only 1 core is detected
+	spu_config.iUseFixedUpdates = 1;	// This is always set to 1 in libretro's pcsxReARMed
+	spu_config.iTempo = 1;			// see note below
 	#endif
 
 	//senquack - NOTE REGARDING iTempo config var above
@@ -470,7 +470,6 @@ int main (int argc, char **argv)
 	//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
 	//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
-	
 	// gpu_dfxvideo
 	#ifdef gpu_dfxvideo
 	extern int UseFrameLimit; UseFrameLimit=1; // limit fps 1=on, 0=off
@@ -559,88 +558,94 @@ int main (int argc, char **argv)
 		//			 TODO: adapt all spu plugins to use this?
 		if (strcmp(argv[i],"-syncaudio")==0) Config.SyncAudio=true; 
 
-		#ifndef spu_pcsxrearmed
-			if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
-			if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
-		#endif //!spu_pcsxrearmed
+	#ifndef spu_pcsxrearmed
+		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
+		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
+	#endif //!spu_pcsxrearmed
 
-		// ----- BEGIN SPU_PCSXREARMED SECTION -----
-		#ifdef spu_pcsxrearmed
-			if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
-			if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
-			if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
+	// ----- BEGIN SPU_PCSXREARMED SECTION -----
+	#ifdef spu_pcsxrearmed
+		if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
+		if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
+		if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
 
-			if (strcmp(argv[i],"-threaded_spu")==0) { spu_config.iUseThread=1; } // Enable SPU thread
-																				 // NOTE: By default, PCSX ReARMed would not launch
-																				 //  a thread if only one core was detected, but I have
-																				 //  changed it to allow it under any case.
-																				 // TODO: test if any benefit is ever achieved
+		// Enable SPU thread
+		// NOTE: By default, PCSX ReARMed would not launch
+		//  a thread if only one core was detected, but I have
+		//  changed it to allow it under any case.
+		// TODO: test if any benefit is ever achieved
+		if (strcmp(argv[i],"-threaded_spu")==0) { spu_config.iUseThread=1; }
+
+		// Don't output fixed number of samples per frame
+		// (unknown if this helps or hurts performance
+		//  or compatibility.) The default in all builds
+		//  of PCSX_ReARMed is "true", so that is also the
+		//  default here.
+		if (strcmp(argv[i],"-nofixedupdates")==0) { spu_config.iUseFixedUpdates=0; }
+
+		// Set interpolation 0=none/1=simple/2=gaussian/3=cubic, default is none
+		if (strcmp(argv[i],"-interpolation")==0) {
+			int val = -1;
+			if (++i < argc) {
+				if (strcmp(argv[i],"none")==0) val=0;
+				if (strcmp(argv[i],"simple")==0) val=1;
+				if (strcmp(argv[i],"gaussian")==0) val=2;
+				if (strcmp(argv[i],"cubic")==0) val=3;
+			} else
+				printf("ERROR: missing value for -interpolation\n");
 			
-			if (strcmp(argv[i],"-nofixedupdates")==0) { spu_config.iUseFixedUpdates=0; } // Don't output fixed number of samples per frame
-																						 // (unknown if this helps or hurts performance
-																						 //  or compatibility.) The default in all builds
-																					     //  of PCSX_ReARMed is "true", so that is also the
-																					     //  default here.
-																								
-			if (strcmp(argv[i],"-interpolation")==0) {		// Set interpolation 0=none/1=simple/2=gaussian/3=cubic, default is none
-				int val = -1;
-				if (++i < argc) {
-					if (strcmp(argv[i],"none")==0) val=0;
-					if (strcmp(argv[i],"simple")==0) val=1;
-					if (strcmp(argv[i],"gaussian")==0) val=2;
-					if (strcmp(argv[i],"cubic")==0) val=3;
-				} else
-					printf("ERROR: missing value for -interpolation\n");
-				
 
-				if (val == -1) {
-					printf("ERROR: -interpolation value must be one of: none,simple,gaussian,cubic\n");
-					param_parse_error = true; break;
-				}
-
-				spu_config.iUseInterpolation = val;
+			if (val == -1) {
+				printf("ERROR: -interpolation value must be one of: none,simple,gaussian,cubic\n");
+				param_parse_error = true; break;
 			}
 
-			if (strcmp(argv[i],"-volume")==0) {		// Set volume level of SPU, 0-1024, default is 768.
-													//  If value is 0, sound will be disabled.
-				int val = -1;	
-				if (++i < argc)
-					val = atoi(argv[i]);
-				else
-					printf("ERROR: missing value for -volume\n");
+			spu_config.iUseInterpolation = val;
+		}
 
-				if (val < 0 || val > 1024) {
-					printf("ERROR: -volume value must be between 0-1024 (0 disables sound)\n");
-					param_parse_error = true; break;
-				}
+		// Set volume level of SPU, 0-1024, default is 768.
+		//  If value is 0, sound will be disabled.
+		if (strcmp(argv[i],"-volume")==0) {
+			int val = -1;
+			if (++i < argc)
+				val = atoi(argv[i]);
+			else
+				printf("ERROR: missing value for -volume\n");
 
-				//temp debug:
-				printf("volume val: %d\n", val);
-
-				spu_config.iVolume = val;
-				if (val == 0) spu_config.iDisabled = 1;
+			if (val < 0 || val > 1024) {
+				printf("ERROR: -volume value must be between 0-1024 (0 disables sound)\n");
+				param_parse_error = true; break;
 			}
 
-			if (strcmp(argv[i],"-notempo")==0) { spu_config.iTempo=0; }  // SPU will issue updates at a rate that ensures better
-																		 //  compatibility, but if the emulator runs too slowly,
-																		 //  audio stutter will be increased. "False" is the
-																		 //  default setting on Pandora/Pyra/Android builds of
-																		 //  PCSX_ReARMed, but Wiz/Caanoo builds used the faster
-																		 //  inaccurate setting, "true", so I've made our default
-																		 //  "true" as well, since we target low-end devices.
-		    //NOTE REGARDING ABOVE SETTING "spu_config.iTempo":
-		    // From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
-		    // Notaz says that setting iTempo=1 restores pcsxreARMed SPU's old behavior, which allows slow emulation
-		    // to not introduce audio dropouts (at least I *think* he's referring to iTempo config setting)
-		    // "Probably the main change is SPU emulation, there were issues in some games where effects were wrong,
-		    //  mostly Final Fantasy series, it should be better now. There were also sound sync issues where game would
-		    //  occasionally lock up (like Valkyrie Profile), it should be stable now.
-		    //  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double 
-		    //  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
-		    //  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
+			//temp debug:
+			printf("volume val: %d\n", val);
 
-		#endif //spu_pcsxrearmed
-		// ----- END SPU_PCSXREARMED SECTION -----
+			spu_config.iVolume = val;
+			if (val == 0) spu_config.iDisabled = 1;
+		}
+
+		// SPU will issue updates at a rate that ensures better
+		//  compatibility, but if the emulator runs too slowly,
+		//  audio stutter will be increased. "False" is the
+		//  default setting on Pandora/Pyra/Android builds of
+		//  PCSX_ReARMed, but Wiz/Caanoo builds used the faster
+		//  inaccurate setting, "true", so I've made our default
+		//  "true" as well, since we target low-end devices.
+		if (strcmp(argv[i],"-notempo")==0) { spu_config.iTempo=0; }
+
+		//NOTE REGARDING ABOVE SETTING "spu_config.iTempo":
+		// From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
+		// Notaz says that setting iTempo=1 restores pcsxreARMed SPU's old behavior, which allows slow emulation
+		// to not introduce audio dropouts (at least I *think* he's referring to iTempo config setting)
+		// "Probably the main change is SPU emulation, there were issues in some games where effects were wrong,
+		//  mostly Final Fantasy series, it should be better now. There were also sound sync issues where game would
+		//  occasionally lock up (like Valkyrie Profile), it should be stable now.
+		//  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double
+		//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
+		//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
+
+	#endif //spu_pcsxrearmed
+	// ----- END SPU_PCSXREARMED SECTION -----
 
 	#endif
 
