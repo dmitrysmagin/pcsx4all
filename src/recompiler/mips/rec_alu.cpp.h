@@ -24,6 +24,13 @@ do { \
 static void recADDI()
 {
 	u32 s = iRegs[_Rs_].s;
+
+	/* Catch ADDIU reg, $0, imm */
+	if (!_Rs_) {
+		s = 1;
+		//printf("FOUND ADDI reg[%d], $0, %d\n", _Rt_, (s16)(_Imm_));
+	}
+
 	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, ((s16)(_Imm_)));
 	if (s)
 		SetConst(_Rt_, iRegs[_Rs_].r + (s16)(_Imm_));
@@ -59,6 +66,13 @@ static void recANDI()  { REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, ((u16)(_ImmU_)));
 static void recORI()
 {
 	u32 s = iRegs[_Rs_].s;
+
+	/* Catch ORI reg, $0, imm */
+	if (!_Rs_) {
+		s = 1;
+		//printf("FOUND ORI reg[%d], $0, %d\n", _Rt_, (s16)(_Imm_));
+	}
+
 	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_)));
 	if (s)
 		SetConst(_Rt_, iRegs[_Rs_].r | ((u16)(_Imm_)));
