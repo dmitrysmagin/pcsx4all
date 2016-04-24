@@ -24,13 +24,9 @@
 #endif
 #include "stdafx.h"
 
-//senquack - Adapted pcsxReARMed SPU to PSX4ALL:
-#include "spu_pcsxrearmed_spuschedule.h"		// For PCSX4ALL adaptation of SPUschedule()
+//senquack - Use PCSX4ALL adaptation of SPUschedule():
 #include <stdint.h>
-//senquack - Don't want spu worker threadin PCSX4ALL version (only benefits Pandora w/ DSP)
-#undef THREAD_ENABLED
-#undef WANT_THREAD_CODE
-
+#include "spu_pcsxrearmed_spuschedule.h"
 
 #define _IN_SPU
 
