@@ -20,7 +20,7 @@
 #ifndef SPU_PCSXREARMED_WRAPPER_H
 #define SPU_PCSXREARMED_WRAPPER_H
 
-//senquack - so we can set some sensible default config values:
+//senquack - added for accessing current configuration settings
 #include "spu_config.h"
 
 //senquack - Some of the ReARMed SPU functions read the "cycles" value from
@@ -59,59 +59,38 @@ extern void SPUasync(uint32_t, uint32_t);
 
 static inline long SPU_init(void)
 {
-    //senquack - TODO: provide a way to alter default/current configuration:
-	// ORIGINAL PCSX_ReARMed spu defaults:
-#if 0
-    // SOME SENSIBLE DEFAULTS:
-	spu_config.iUseReverb = 1;
-	spu_config.iUseInterpolation = 1;
-	spu_config.iXAPitch = 0;
-	spu_config.iVolume = 768;
-	spu_config.iTempo = 0;
-	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-    // LOW-END DEVICE:
-#ifdef HAVE_PRE_ARMV7 /* XXX GPH hack */
-	spu_config.iUseReverb = 0;
-	spu_config.iUseInterpolation = 0;
-	spu_config.iTempo = 1;
-#endif
-#endif //0
+	//senquack - TODO: provide a way to alter default/current configuration:
+	//senquack - added new SPUConfig member to indicate when no configuration has been set:
+	if (spu_config.iHaveConfiguration == 0) {
+		printf("ERROR: SPU plugin 'spu_pcexrearmed' configuration settings not set, aborting.\n");
+		return -1;
+	}
 
-    // PCSX4ALL defaults:
-	spu_config.iUseReverb = 1;
-	spu_config.iUseInterpolation = 1;
-	spu_config.iXAPitch = 0;
-	spu_config.iVolume = 768;
-	spu_config.iUseThread = 1; // no effect if only 1 core is detected
-	spu_config.iUseFixedUpdates = 1;    // This is always set to 1 in libretro's pcsxReARMed
-#if defined(WIZ) || defined(CAANOO) || defined(GCW_ZERO) || defined(HAVE_PRE_ARMV7)
-	spu_config.iUseReverb = 0;
-	spu_config.iUseInterpolation = 0;
-	spu_config.iTempo = 1;     // see note below
-#endif
-
-	//senquack - NOTE REGARDING iTempo config var above
-    // From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
-    // Notaz says that setting iTempo=1 restores pcsxreARMed SPU's old behavior, which allows slow emulation
-    // to not introduce audio dropouts (at least I *think* he's referring to iTempo config setting)
-    // "Probably the main change is SPU emulation, there were issues in some games where effects were wrong,
-    //  mostly Final Fantasy series, it should be better now. There were also sound sync issues where game would
-    //  occasionally lock up (like Valkyrie Profile), it should be stable now.
-    //  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double 
-    //  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
-    //  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
-
-
-    int ret = -1;
-
-    ret = SPUinit();    //senquack - Should be called before SPU_open()
-	if (ret < 0) { printf ("Error initializing SPU plugin spu_pcsxrearmed, SPUInit() returned: %d\n", ret); return -1; }
+	int ret = -1;
+	ret = SPUinit();    //senquack - Should be called before SPU_open()
+	if (ret < 0) { printf ("ERROR initializing SPU plugin 'spu_pcsxrearmed', SPUInit() returned: %d\n", ret); return -1; }
 
 	ret = SPUopen();    //senquack - This initialized the low-level audio backend driver, i.e. OSS,ALSA,SDL,PulseAudio etc
-	if (ret < 0) { printf ("Error opening audio backend for SPU spu_pcsxrearmed, SPUOpen() returned: %d\n", ret); return -1; }
+	if (ret < 0) { printf ("ERROR opening audio backend for SPU 'spu_pcsxrearmed', SPUOpen() returned: %d\n", ret); return -1; }
 
-    printf("-> SPU plugin spu_pcsxrearmed initialized successfully.\n");
-    return 0;
+	printf("-> SPU plugin 'spu_pcsxrearmed' initialized successfully.\n");
+
+	const char* interpol_str[4] = { "none", "simple", "gaussian", "cubic" };
+	assert(spu_config.iUseInterpolation >= 0 && spu_config.iUseInterpolation <= 3);
+	printf("-> SPU plugin using configuration settings:\n"
+		   "    Volume:             %d\n"
+		   "    Disabled:           %d\n"
+		   "    XAPitch:            %d\n"
+		   "    UseReverb:          %d\n"
+		   "    UseInterpolation:   %d (%s)\n"
+		   "    Tempo:              %d\n"
+		   "    UseThread:          %d\n"
+		   "    UseFixedUpdates:    %d\n",
+		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch,
+		   spu_config.iUseReverb, spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
+		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates);
+
+	return 0;
 }
 
 static inline long SPU_shutdown()
