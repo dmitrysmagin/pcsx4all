@@ -23,10 +23,15 @@ extern unsigned get_ticks(void);
 extern void wait_ticks(unsigned s);
 extern void pad_update(void);
 extern unsigned short pad_read(int num);
+
+//senquack - spu_pcsxrearmed has its own sound backends
+#ifndef spu_pcsxrearmed
 extern void sound_init(void);
 extern void sound_close(void);
 extern unsigned long sound_get(void);
 extern void sound_set(unsigned char *pSound, long lBytes);
+#endif //spu_pcsxrearmed
+
 extern void video_flip(void);
 extern void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 extern void video_clear(void);

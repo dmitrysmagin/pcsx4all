@@ -83,6 +83,7 @@ typedef struct {
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
 	u8 Cpu; /* 0=recompiler, 1=interpreter */
 	u8 PsxType; /* 0=ntsc, 1=pal */
+    boolean SyncAudio;  //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
 } PcsxConfig;
 
 extern PcsxConfig Config;

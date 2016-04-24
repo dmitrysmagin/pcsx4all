@@ -103,6 +103,11 @@ typedef struct {
 
 // SPU functions
 
+//senquack - if using spu_pcsxrearmed plugin adapted from PCSX ReArmed, use
+//           PSX4ALL->PCSX_ReARMED SPU wrapper header
+#ifdef spu_pcsxrearmed
+#include "spu/spu_pcsxrearmed/spu_pcsxrearmed_wrapper.h"
+#else
 extern long SPU_init(void);				
 extern long SPU_shutdown(void);	
 extern void SPU_writeRegister(unsigned long, unsigned short);
@@ -115,6 +120,7 @@ extern void SPU_playADPCMchannel(xa_decode_t *);
 extern long SPU_freeze(uint32_t, SPUFreeze_t *);
 extern void SPU_async(void);
 extern void SPU_playCDDAchannel(unsigned char *, int);
+#endif
 
 // PAD functions
 

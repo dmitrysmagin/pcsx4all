@@ -36,6 +36,25 @@ u32 BIAS=3; /* 2 */
 int autobias=0;
 u32 PSXCLK=33868800; /* 33.8688 Mhz */
 
+//senquack - Adapted pcsxReARMed SPU to PSX4ALL:
+#ifdef spu_pcsxrearmed
+//In reARMed, the SPU will set an interrupt flag in psxRegs.interrupt along with
+// appropriate values for what cycle value to fire it at. PSX4ALL's interrupts are
+// not very well documented, so rather than try to add a new interrupt flag, I
+// simply added vars here to indicate at what cycle value the SPU has requested its
+// update, and if an update has been requested.. psxBranchTest() will handle these
+// after it's done handling the emu's interrupts.
+u32 pcsxrearmed_update_pending = 0;
+u32 pcsxrearmed_update_at_cycle = 0;
+
+//senquack - Added so spu_pcsxrearmed can read current cycle value. Some of its SPU*() functions
+//           take a new "cycles" parameter, and because of circuluar header dependency problems
+//           I must provide a simple pointer to the current cycle value, so the wrapped
+//           functions can be passed it from anywhere in code.
+const u32 * const psxRegs_cycle_valptr = &psxRegs.cycle;
+#endif //spu_pcsxrearmed
+
+
 int psxInit() {
 	printf("Running PCSX Version %s (%s).\n", PACKAGE_VERSION, __DATE__);
 
@@ -425,6 +444,18 @@ void psxBranchTest() {
 #endif
 		}
 	}
+
+	//senquack - Adapted pcsxReARMed SPU to PSX4ALL, see notes at top of file
+#ifdef spu_pcsxrearmed
+	if (pcsxrearmed_update_pending) {
+		if (psxRegs.cycle >= pcsxrearmed_update_at_cycle) {
+			//printf("handled pending SPU update\n");
+			SPU_async(psxRegs.cycle, 0);
+			pcsxrearmed_update_pending = 0;
+		}
+	}
+#endif
+
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
 
 	if (psxHu32(0x1070) & psxHu32(0x1074)) {

@@ -161,6 +161,9 @@ static long GetTickCount(void) {
 }
 #endif
 
+//senquack - new spu_pcsxrearmed uses its own version of playthread():
+#ifndef spu_pcsxrearmed
+// ORIGINAL PCSX4ALL version:
 // this thread plays audio data
 #ifdef _WIN32
 static void playthread(void *param)
@@ -242,7 +245,116 @@ static void *playthread(void *param)
 	return NULL;
 #endif
 }
+#else
+//SPU_PCSXREARMED VERSION:
+// NOTE: spu_pcsxrearmed handles sleeping differently than above thread, using the
+//       new SPU's version of SPU_playCDDAchannel that gives feedback in return val
+#ifdef _WIN32
+static void playthread(void *param)
+#else
+static void *playthread(void *param)
 #endif
+{
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_CDR_playthread++;
+#endif
+	long			d, t, i, s;
+	unsigned char	tmp;
+
+	t = GetTickCount();
+
+	while (playing) {
+		if (subChanInterleaved) {
+			s = 0;
+
+			for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
+				// read one sector
+				d = fread(sndbuffer + CD_FRAMESIZE_RAW * i, 1, CD_FRAMESIZE_RAW, cddaHandle);
+				if (d < CD_FRAMESIZE_RAW) {
+					break;
+				}
+
+				s += d;
+
+				// skip the subchannel data
+				fseek(cddaHandle, SUB_FRAMESIZE, SEEK_CUR);
+			}
+		}
+		else {
+			s = fread(sndbuffer, 1, sizeof(sndbuffer), cddaHandle);
+		}
+
+		if (s == 0) {
+			playing = 0;
+			fclose(cddaHandle);
+			cddaHandle = NULL;
+			initial_offset = 0;
+			break;
+		}
+
+        //senquack - Adapted spu_pcsxrearmed plugin and it supports new features, adapted
+        //           this section of code from pcsx_rearmed/libpcsxcore/cdriso.c:
+        int ret = 0;
+		if (!cdr.Muted && playing) {
+			if (cddaBigEndian) {
+				for (i = 0; i < s / 2; i++) {
+					tmp = sndbuffer[i * 2];
+					sndbuffer[i * 2] = sndbuffer[i * 2 + 1];
+					sndbuffer[i * 2 + 1] = tmp;
+				}
+			}
+
+			// can't do it yet due to readahead..
+			//cdrAttenuate((short *)sndbuffer, s / 4, 1);
+			do {
+                //senquack - pcsxReARMed version of SPU_playCDDAchannel gives some
+                //           feedback in a return value:
+				ret = SPU_playCDDAchannel((short *)sndbuffer, s);
+
+				if (ret == 0x7761)
+					usleep(6 * 1000);
+			} while (ret == 0x7761 && playing); // rearmed_wait
+		}
+
+		if (ret != 0x676f) { // !rearmed_go
+			// do approx sleep
+			long now;
+
+            //senquack - disabled pcsxReARMed-specific stuff we don't have (yet)
+			//// HACK: stop feeding data while emu is paused
+			//extern int stop;
+			//while (stop && playing)
+			//	usleep(10000);
+
+            long osleep;
+
+			now = GetTickCount();
+			osleep = t - now;
+			if (osleep <= 0) {
+				osleep = 1;
+				t = now;
+			}
+			else if (osleep > CDDA_FRAMETIME) {
+				osleep = CDDA_FRAMETIME;
+				t = now;
+			}
+
+			usleep(osleep * 1000);
+			t += CDDA_FRAMETIME;
+		}
+
+		cddaCurOffset += s;
+	}
+
+#ifdef _WIN32
+	_endthread();
+#else
+	pthread_exit(0);
+	return NULL;
+#endif
+}
+#endif //spu_pcsxrearmed
+#endif //spu_franxis
 
 // stop the CDDA playback
 static void stopCDDA(void) {

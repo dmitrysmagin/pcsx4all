@@ -43,6 +43,9 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 	u32 size;
 
 	switch (chcr) {
+        //senquack TODO: Look at the first two cases here and compare to Notaz's PCSX_ReARMed,
+		//				 if using new spu_pcsxrearmed causes problems. I haven't touched the
+		//				 original PCSX4ALL code here:
 		case 0x01000201: //cpu to spu transfer
 #ifdef PSXDMA_LOG
 			PSXDMA_LOG("*** DMA4 SPU - mem2spu *** %x addr = %x size = %x\n", chcr, madr, bcr);
