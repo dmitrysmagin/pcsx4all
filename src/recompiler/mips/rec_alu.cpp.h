@@ -76,7 +76,18 @@ do { \
 	regUnlock(r1); \
 } while (0)
 
-static void recLUI()   { SetConst(_Rt_, ((u16)_ImmU_) << 16); REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_))); }
+static void recLUI()
+{
+	u32 rt = _Rt_;
+	u32 imm =((u16)_ImmU_) << 16;
+
+	/* Avoid loading the same constant more than once */
+	if (IsConst(rt) && iRegs[rt].r == imm)
+		return;
+
+	SetConst(rt, imm);
+	REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_)));
+}
 
 #define REC_RTYPE_RD_RS_RT(insn, _rd_, _rs_, _rt_) \
 do { \
