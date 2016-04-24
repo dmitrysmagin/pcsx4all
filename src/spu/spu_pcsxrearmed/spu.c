@@ -1421,8 +1421,12 @@ static void init_spu_thread(void)
 {
  int ret;
 
- if (sysconf(_SC_NPROCESSORS_ONLN) <= 1)
-  return;
+ //senquack: allow creating thread even on single-core system, even though it
+ //          likely will degrade performance. It can only be enabled via
+ //          commandline switch. It might benefit us if we end up getting
+ //          the GL GPU plugin ported, as GL API will often block main thread.
+ //if (sysconf(_SC_NPROCESSORS_ONLN) <= 1)
+ // return;
 
  worker = calloc(1, sizeof(*worker));
  if (worker == NULL)
@@ -1437,6 +1441,8 @@ static void init_spu_thread(void)
  ret = pthread_create(&t.thread, NULL, spu_worker_thread, NULL);
  if (ret != 0)
   goto fail_thread;
+
+ printf("Started spu_worker_thread()\n"); //senquack - print some status if started
 
  spu_config.iThreadAvail = 1;
  return;
@@ -1497,7 +1503,11 @@ long CALLBACK SPUinit(void)
  if (spu_config.iVolume == 0)
   spu_config.iVolume = 768; // 1024 is 1.0
 
- init_spu_thread();
+ //senquack - only start thread if iUseThread==1:
+ //           NOTE: if emulator eventually allows settings to be changed without retart,
+ //                 init_spu_thread() will need to be called on setting change.
+ if (spu_config.iUseThread)
+  init_spu_thread();
 
  for (i = 0; i < MAXCHAN; i++)                         // loop sound channels
   {
