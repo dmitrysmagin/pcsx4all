@@ -1500,8 +1500,15 @@ long CALLBACK SPUinit(void)
 
  SetupStreams();                                       // prepare streaming
 
- if (spu_config.iVolume == 0)
-  spu_config.iVolume = 768; // 1024 is 1.0
+ //senquack - Allow volume setting of 0. We do have separate -silent command line
+ //           switch that allows total muting (forces use of null backend driver).
+ //           If iVolume is 0, assume the user or emu-launcher knows what they're
+ //           doing and don't touch it. This will also allow better syncing of
+ //           emu <-> output audio rate when the user still wants a quiet game,
+ //           but using -silent switch and nullspu driver would desync audio.
+ // ORIGINAL LINES HERE COMMENTED OUT:
+ //if (spu_config.iVolume == 0)
+ // spu_config.iVolume = 768; // 1024 is 1.0
 
  //senquack - only start thread if iUseThread==1:
  //           NOTE: if emulator eventually allows settings to be changed without retart,

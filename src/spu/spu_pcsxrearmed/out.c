@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include "out.h"
 
+#include "spu_config.h"	//senquack - to read new iDisabled setting
+
 #define MAX_OUT_DRIVERS 5
 
 static struct out_driver out_drivers[MAX_OUT_DRIVERS];
@@ -18,23 +20,29 @@ void SetupSound(void)
 	int i;
 
 	if (driver_count == 0) {
+
+		//senquack - added iDisabled setting to force muting / use of nullspu driver
+		if (spu_config.iDisabled) {
+			REGISTER_DRIVER(none);
+		} else {
 #ifdef HAVE_OSS
-		REGISTER_DRIVER(oss);
+			REGISTER_DRIVER(oss);
 #endif
 #ifdef HAVE_ALSA
-		REGISTER_DRIVER(alsa);
+			REGISTER_DRIVER(alsa);
 #endif
 #ifdef HAVE_SDL
-		REGISTER_DRIVER(sdl);
+			REGISTER_DRIVER(sdl);
 #endif
 #ifdef HAVE_PULSE
-		REGISTER_DRIVER(pulse);
+			REGISTER_DRIVER(pulse);
 #endif
 #ifdef HAVE_LIBRETRO
-		REGISTER_DRIVER(libretro);
+			REGISTER_DRIVER(libretro);
 #else
-		REGISTER_DRIVER(none);
+			REGISTER_DRIVER(none);
 #endif
+		}
 	}
 
 	for (i = 0; i < driver_count; i++)
