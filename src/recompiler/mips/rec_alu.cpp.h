@@ -150,6 +150,7 @@ do { \
 	u32 rt = _rt_; \
 	u32 sa = _sa_; \
 	if (!rd) break; \
+	SetUndef(_rd_); \
 	u32 r1, r2; \
 	if (rd == rt) { \
 		if (!sa) break; \
@@ -175,6 +176,7 @@ do { \
 	u32 rt = _rt_; \
 	u32 rs = _rs_; \
 	if (!rd) break; \
+	SetUndef(_rd_); \
 	u32 r1, r2, r3; \
 	if (rd == rt) { \
 		if (!rs) break; \
