@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include "out.h"
 
+#include <sched.h>       // senquack - To get Linux sched_yield()
 #include "spu_config.h"  // senquack - To get spu settings
 #include "psxcommon.h"   // senquack - To get emu settings
 
@@ -30,21 +31,27 @@
 //int				iBufSize = 0;
 //volatile int	iReadPos = 0, iWritePos = 0;
 
-//senquack - in sdl/port.cpp, dsmagin was using SOUND_BUFFER_SIZE = 1024*4*4 = 16384, 
+//senquack - in sdl/port.cpp, dsmagin was using SOUND_BUFFER_SIZE = 16384 bytes
 //		and I've used that here too as it seems to work well and taking modulus
-//		is fast bitwise-op. Perhaps make size a commandline option?
+//		is fast bitwise-op. Perhaps make size a commandline option (enforcing
+//		power-of-two so we can do: (&=SOUND_BUFFER_SIZE-1) to modulus by variable?
 #define SOUND_BUFFER_SIZE 16384
 #define ROOM_IN_BUFFER (SOUND_BUFFER_SIZE - buffered_bytes)
 static unsigned *sound_buffer = NULL;
 static unsigned int buf_read_pos = 0;
 static unsigned int buf_write_pos = 0;
-static unsigned buffered_bytes = 0;
+static unsigned buffered_bytes = 0;     // Shared with SDL audio thread callback (fence!)
 static unsigned sync_audio = 0;         // Does emu yield when audio output buffer is full?
 
 //senquack - Old mutex vars we added to sync audio (no longer used unless
 //           debugging/verifying sound with '-use_old_audio_out_mutex' switch)
 SDL_mutex *sound_mutex = NULL;
 SDL_cond *sound_cv = NULL;
+
+
+////////////////////////////////////////
+// BEGIN SDL AUDIO CALLBACK FUNCTIONS //
+////////////////////////////////////////	
 
 //senquack - Original PCSX-Rearmed dfsound SPU code (for reference):
 //static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
@@ -64,7 +71,39 @@ SDL_cond *sound_cv = NULL;
 //		--len;
 //	}
 //}
-static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
+
+//senquack-Newer SDL audio callback that uses GCC atomic vars
+static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
+	uint8_t *out_buf = (uint8_t *)stream;
+	uint8_t *in_buf = (uint8_t *)sound_buffer;
+
+	unsigned bytes_to_copy = (len > buffered_bytes) ? buffered_bytes : len;
+
+	if (bytes_to_copy > 0) {
+		if (buf_read_pos + bytes_to_copy <= SOUND_BUFFER_SIZE ) {
+			memcpy(out_buf, in_buf + buf_read_pos, bytes_to_copy);
+		} else {
+			int tail = SOUND_BUFFER_SIZE - buf_read_pos;
+			memcpy(out_buf, in_buf + buf_read_pos, tail);
+			memcpy(out_buf + tail, in_buf, bytes_to_copy - tail);
+		}
+
+		buf_read_pos = (buf_read_pos + bytes_to_copy) % SOUND_BUFFER_SIZE;
+
+		// Atomically decrement 'buffered_bytes' by 'bytes_to_copy'
+		__sync_fetch_and_sub(&buffered_bytes, bytes_to_copy);
+	}
+
+	// If the callback asked for more samples than we had, zero-fill remainder:
+	if (len - bytes_to_copy > 0)
+		memset(out_buf + bytes_to_copy, 0, len - bytes_to_copy);
+}
+
+//senquack-Older SDL audio callback that used a mutex and condition var to
+//         signal to main thread that there's more room in sound buffer.
+//		   If Config.SyncAudio==0, sound_mutex ptr will remain NULL and
+//         sdl_feed() will just drop samples there's no space for.
+static void SOUND_FillAudio_Mutex(void *unused, Uint8 *stream, int len) {
 	//senquack-adapted from dsmagin's sdl/port.cpp, but if we have less buffered
 	// than requested, just write what we have and zero-fill the remainder:
 
@@ -98,6 +137,10 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
 		SDL_UnlockMutex(sound_mutex);
 	}
 }
+//////////////////////////////////////
+// END SDL AUDIO CALLBACK FUNCTIONS //
+//////////////////////////////////////
+
 
 static void InitSDL() {
 	if (SDL_WasInit(SDL_INIT_EVERYTHING)) {
@@ -128,13 +171,25 @@ static void DestroySDL() {
 }
 
 static int sdl_init(void) {
-	SDL_AudioSpec				spec;
-
 	//senquack
 	//if (pSndBuffer != NULL) return -1;
 	if (sound_buffer != NULL) return -1;
 
 	InitSDL();
+
+	SDL_AudioSpec				spec;
+
+	//senquack - Added mutex based on dsmagin's port.cpp code:
+	//           (Now deprecated and only left in for debug/verification of
+	//            newer mutex-free atomic buffer code)
+	if (spu_config.iUseOldAudioMutex) {
+		printf("Creating audio output mutex\n");
+		sound_mutex = SDL_CreateMutex();
+		sound_cv = SDL_CreateCond();
+		spec.callback = SOUND_FillAudio_Mutex;
+	} else {
+		spec.callback = SOUND_FillAudio_Atomic;
+	}
 
 	spec.freq = 44100;
 	spec.format = AUDIO_S16SYS;
@@ -142,15 +197,12 @@ static int sdl_init(void) {
 	//senquack - TODO: PCSX_ReARMed had 512 hard-coded, but is that suitable for PCSX4ALL on low-end handhelds?
 	//spec.samples = 512;
 	spec.samples = 1024;	//senquack - made 1024 for now, to match port.cpp's settings ..TODO: Makefile should define
-	spec.callback = SOUND_FillAudio;
 
 	if (SDL_OpenAudio(&spec, NULL) < 0) {
 		DestroySDL();
 		return -1;
 	}
 
-	//senquack - Adapted from dsmagin's sdl/port.cpp:
-	//senquack - use calloc, not malloc, to get zero-filled buffer:
 	//iBufSize = BUFFER_SIZE;
 	//pSndBuffer = (short *)malloc(iBufSize * sizeof(short));
 	//if (pSndBuffer == NULL) {
@@ -160,23 +212,17 @@ static int sdl_init(void) {
 	//iReadPos = 0;
 	//iWritePos = 0;
 
+	//senquack - use calloc, not malloc, to get zero-filled buffer:
 	sound_buffer = (unsigned *)calloc(SOUND_BUFFER_SIZE,1);
 	if (sound_buffer == NULL) {
+		printf("-> ERROR: SPU plugin could not allocate %d-byte sound buffer\n", SOUND_BUFFER_SIZE);
 		SDL_CloseAudio();
 		return -1;
 	}
+
 	buf_read_pos = 0;
 	buf_write_pos = 0;
-
 	sync_audio = Config.SyncAudio;
-
-	//senquack - Added mutex based on dsmagin's port.cpp code. (Now deprecated
-	//           and left in for debug/verification of newer mutex-free buffer code)
-	if (sync_audio) {
-		sound_mutex = SDL_CreateMutex();
-		sound_cv = SDL_CreateCond();
-		printf("SPU using SDL audio output mutex\n");
-	}
 
 	SDL_PauseAudio(0);
 	return 0;
@@ -220,6 +266,10 @@ static int sdl_busy(void) {
 	return 0;
 }
 
+////////////////////////////////////////////////
+// BEGIN EMU SPU -> SDL BUFFER FILL FUNCTIONS //
+////////////////////////////////////////////////
+
 //Feed samples from emu into intermediate buffer
 //senquack - original pcsxrearmed code:
 #if 0
@@ -241,25 +291,58 @@ static void sdl_feed(void *pSound, int lBytes) {
 }
 #endif //0
 
-//senquack - Adapted from dsmagin's sdl/port.cpp sound_mix() function, but
-//           waits until there is room in buffer for full copy
-static void sdl_feed(void *pSound, int lBytes) {
+//senquack-Newer sdl_feed() function that uses a shared atomic var to
+//         coordinate with SDL audio callback function.
+static void sdl_feed_atomic(void *pSound, int lBytes) {
+	//sound_running = 1;
+
+	unsigned bytes_to_copy = lBytes;
+
+	if (sync_audio) {
+		//senquack - Yield timeslices until we have all the room we need:
+		while (ROOM_IN_BUFFER < lBytes) sched_yield();
+	} else {
+		// Just drop the samples that cannot fit:
+		if (ROOM_IN_BUFFER == 0) return;
+		if (bytes_to_copy > ROOM_IN_BUFFER) bytes_to_copy = ROOM_IN_BUFFER;
+	}
+
+	uint8_t *in_buf = (uint8_t *)pSound;
+	uint8_t *out_buf = (uint8_t *)sound_buffer;
+
+	if (buf_write_pos + bytes_to_copy <= SOUND_BUFFER_SIZE ) {
+		memcpy(out_buf + buf_write_pos, in_buf, bytes_to_copy);
+	} else {
+		int tail = SOUND_BUFFER_SIZE - buf_write_pos;
+		memcpy(out_buf + buf_write_pos, in_buf, tail);
+		memcpy(out_buf, in_buf + tail, bytes_to_copy - tail);
+	}
+
+	buf_write_pos = (buf_write_pos + bytes_to_copy) % SOUND_BUFFER_SIZE;
+
+	// Atomically increment 'buffered_bytes' by 'bytes_to_copy':
+	__sync_fetch_and_add(&buffered_bytes, bytes_to_copy);
+}
+
+//senquack-Older sdl_feed() function that used a mutex and condition var to
+//         coordinate with SDL audio callback function.
+//         If Config.SyncAudio==0, sound_mutex ptr will remain NULL and
+//         this function will just drop samples there's no space for.
+//         Primarily adapted from dsmagin's port/sdl/port.cpp sound_mix()
+static void sdl_feed_mutex(void *pSound, int lBytes) {
 //	sound_running = 1;
 
-	if (sound_mutex)
-		SDL_LockMutex(sound_mutex);
+	if (sound_mutex) SDL_LockMutex(sound_mutex);
 
 	int bytes_to_copy = lBytes;
 
 	if (sound_mutex) {
-		//senquack - Block until we have all the room we need:
-		while (ROOM_IN_BUFFER < lBytes)
-			SDL_CondWait(sound_cv, sound_mutex);
+		// Block until we have all the room we need:
+		while (ROOM_IN_BUFFER < lBytes) SDL_CondWait(sound_cv, sound_mutex);
 	} else {
 		// Just drop the samples that cannot fit:
 		if (ROOM_IN_BUFFER == 0) return;
-		if (bytes_to_copy > ROOM_IN_BUFFER)
-			bytes_to_copy = ROOM_IN_BUFFER;
+		if (bytes_to_copy > ROOM_IN_BUFFER) bytes_to_copy = ROOM_IN_BUFFER;
 	}
 
 	uint8_t *in_buf = (uint8_t *)pSound;
@@ -281,11 +364,29 @@ static void sdl_feed(void *pSound, int lBytes) {
 	}
 }
 
+
+//////////////////////////////////////////////
+// END EMU SPU -> SDL BUFFER FILL FUNCTIONS //
+//////////////////////////////////////////////
+
+
 void out_register_sdl(struct out_driver *drv)
 {
 	drv->name = "sdl";
 	drv->init = sdl_init;
 	drv->finish = sdl_finish;
 	drv->busy = sdl_busy;
-	drv->feed = sdl_feed;
+	
+	//senquack - newer atomic feed function is default:
+	if (spu_config.iUseOldAudioMutex) {
+		// TEMP REMOVE DEBUG
+		printf("using sdl_feed_mutex()\n");
+		drv->feed = sdl_feed_mutex;
+	}
+	else
+	{
+		// TEMP REMOVE DEBUG
+		printf("using sdl_feed_atomic()\n");
+		drv->feed = sdl_feed_atomic;
+	}
 }
