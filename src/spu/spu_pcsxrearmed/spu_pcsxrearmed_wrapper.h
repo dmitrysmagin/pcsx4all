@@ -21,6 +21,7 @@
 #define SPU_PCSXREARMED_WRAPPER_H
 
 #include "spu_config.h"	//To access SPU configuration settings
+#include "psxcommon.h"  //To access emu configuration settings
 
 //senquack - Some of the ReARMed SPU functions read the "cycles" value from
 //           psxRegs.cycle, and I've provided a pointer to it in r3000a.cpp.
@@ -78,7 +79,7 @@ static inline long SPU_init(void)
 	assert(spu_config.iUseInterpolation >= 0 && spu_config.iUseInterpolation <= 3);
 	printf("-> SPU plugin using configuration settings:\n"
 		   "    Volume:             %d\n"
-		   "    Disabled:           %d\n"
+		   "    Disabled (-silent): %d\n"
 		   "    XAPitch:            %d\n"
 		   "    UseReverb:          %d\n"
 		   "    UseInterpolation:   %d (%s)\n"
@@ -90,7 +91,12 @@ static inline long SPU_init(void)
 		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch, spu_config.iUseReverb,
 		   spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
 		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates,
-		   spu_config.iUseOldAudioMutex, spu_config.iSyncAudio);
+		   spu_config.iUseOldAudioMutex, Config.SyncAudio);
+
+	//senquack TODO: allow nullspu backend driver of spu_pcsxrearmed to provide simulated
+	//               audio sync?
+	if (Config.SyncAudio == 1 && spu_config.iDisabled == true)
+		printf("-> WARNING: '-silent' option in effect; nullspu cannot sync emu to audio (yet).\n");
 
 	return 0;
 }
