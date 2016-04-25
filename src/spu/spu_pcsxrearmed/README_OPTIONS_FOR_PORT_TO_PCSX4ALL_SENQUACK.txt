@@ -1,5 +1,5 @@
-Recommended settings (STRONGLY recommend -syncaudio)
--xa -cdda -bios -syncaudio
+Recommended settings:
+-xa -cdda -bios
 
 Until we add a -h switch to show help, I'll refer people to this
 TXT file listing the various options of the spu_pcsxrearmed SPU
@@ -7,11 +7,20 @@ plugin I ported from PCSX ReARMed (credit goes to Notaz), which is
 a heavily modified version of the P.E.O.P.S dfsound plugin by Pete.
 -senquack Apr 24 2016
 
+**************
+- REVISIONS: -
+**************
+Apr 25 2016:
+  * Audio syncing is now on by default. Use -nosyncaudio to disable.
+  * New option '-use_old_audio_mutex' enables old method of syncing audio,
+    using mutex and condition variable). Default is now to use non-locking
+    atomic shared var to syncronize SDL audio thread with emu.
+
 **********************************
-* Optional settings you can try: *
+- Optional settings you can try: -
 **********************************
--syncaudio      (emulator will always wait when audio output buffer is full)
--interpolation none,simple,gaussian,cubic
+-nosyncaudio    (Emu won't wait and instead drop samples if output buffer full.)
+-interpolation none,simple,gaussian,cubic  (upsamples audio, using more CPU)
 -reverb         (enables reverb)
 -xapitch	    (enable support for XA music/sfx speed pitch changes)
 -notempo        (uses slower, more-compatible SPU cycle estimations, which
