@@ -180,8 +180,7 @@ static void StoreToAddr(u32 insn)
 
 	/* Invalidate recRAM[addr+imm16] pointer */
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
-	SRL(TEMP_1, TEMP_1, 2);
-	SLL(TEMP_1, TEMP_1, 2);
+	INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
 	LW(TEMP_2, PERM_REG_1, off(reserved));
 	ADDU(TEMP_1, TEMP_1, TEMP_2);
 	SW(0, TEMP_1, 0);
@@ -486,8 +485,7 @@ static void gen_LWL_LWR()
 	fixup_branch(backpatch1);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
 	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
 	ADDIU(TEMP_1, r1, imm16);
@@ -575,13 +573,11 @@ static void gen_SWL_SWR()
 	fixup_branch(backpatch3);
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
 	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
 	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	SRL(MIPSREG_A0, MIPSREG_A0, 2);
-	SLL(MIPSREG_A0, MIPSREG_A0, 2);
+	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
 
 	ADDIU(TEMP_1, r1, imm16);
 	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
