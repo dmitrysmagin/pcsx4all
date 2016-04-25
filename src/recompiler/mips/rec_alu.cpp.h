@@ -170,9 +170,35 @@ do { \
 	regUnlock(r2); \
 } while (0)
 
-static void recSLL()   { REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_); }
-static void recSRL()   { REC_RTYPE_RD_RT_SA(SRL, _Rd_, _Rt_, _Sa_); }
-static void recSRA()   { REC_RTYPE_RD_RT_SA(SRA, _Rd_, _Rt_, _Sa_); }
+static void recSLL()
+{
+	u32 s = iRegs[_Rt_].s;
+
+	REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_);
+
+	if (s)
+		SetConst(_Rd_, iRegs[_Rt_].r << _Sa_);
+}
+
+static void recSRL()
+{
+	u32 s = iRegs[_Rt_].s;
+
+	REC_RTYPE_RD_RT_SA(SRL, _Rd_, _Rt_, _Sa_);
+
+	if (s)
+		SetConst(_Rd_, (u32)iRegs[_Rt_].r >> _Sa_);
+}
+
+static void recSRA()
+{
+	u32 s = iRegs[_Rt_].s;
+
+	REC_RTYPE_RD_RT_SA(SRA, _Rd_, _Rt_, _Sa_);
+
+	if (s)
+		SetConst(_Rd_, (s32)iRegs[_Rt_].r >> _Sa_);
+}
 
 #define REC_RTYPE_RD_RT_RS(insn, _rd_, _rt_, _rs_) \
 do { \
