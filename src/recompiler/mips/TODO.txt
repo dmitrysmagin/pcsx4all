@@ -10,16 +10,16 @@ What's already done:
    zero register unlike arm. This reduces code and make it more
    readable.
  - Implemented code generation for DIV/DIVU.
+ - Implemented LWL/LWR/SWL/SWR code generation
+ - Implemented direct single memory reads/writes (inlined psxMemRead/Write)
  - GTE code is adapted for new gte core.
 
 TODO list
 
 * recompiler:
 
-  - Add direct memory reads/writes (inlined psxMemRead/Write in fact)
   - Add forward analysis for sequential reads/writes
   - Add proper support for autobias and cycle counting
-  - Implement LWL/LWR/SWL/SWR code generation
   - Implement GTE code generation
 
 * constants caching
