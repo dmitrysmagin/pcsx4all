@@ -10,6 +10,7 @@ a heavily modified version of the P.E.O.P.S dfsound plugin by Pete.
 **********************************
 * Optional settings you can try: *
 **********************************
+-syncaudio      (emulator will always wait when audio output buffer is full)
 -interpolation none,simple,gaussian,cubic
 -reverb         (enables reverb)
 -xapitch	    (enable support for XA music/sfx speed pitch changes)
@@ -27,3 +28,6 @@ a heavily modified version of the P.E.O.P.S dfsound plugin by Pete.
 -volume 0..1024  (1024 is max volume, 0 will mute sound but keep the SPU plugin
                   running for max compatibility & allowing -syncaudio option
                   to have an effect. Use -silent flag to disable SPU plugin.)
+-use_old_audio_mutex  (Don't use newer mutex-free SDL audio output code.
+                       Only use this flag for debugging/verification, as the
+                       newer code uses more efficient method)

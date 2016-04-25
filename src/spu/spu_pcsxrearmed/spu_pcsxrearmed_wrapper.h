@@ -84,10 +84,13 @@ static inline long SPU_init(void)
 		   "    UseInterpolation:   %d (%s)\n"
 		   "    Tempo:              %d\n"
 		   "    UseThread:          %d\n"
-		   "    UseFixedUpdates:    %d\n",
-		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch,
-		   spu_config.iUseReverb, spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
-		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates);
+		   "    UseFixedUpdates:    %d\n"
+		   "    UseOldAudioMutex:   %d\n"
+		   "    SyncAudio:          %d\n",
+		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch, spu_config.iUseReverb,
+		   spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
+		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates,
+		   spu_config.iUseOldAudioMutex, spu_config.iSyncAudio);
 
 	return 0;
 }
