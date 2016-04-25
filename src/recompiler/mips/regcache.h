@@ -100,7 +100,7 @@ static void regFreeRegs(void)
 	if (!firstfound) DEBUGF("FATAL ERROR: unable to free register");
 }
 
-static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
+static u32 regAllocHost()
 {
 	//DEBUGF("regMipsToHostHelper regpsx %d action %d type %d reglist_cnt %d", regpsx, action, type, regcache.reglist_cnt);
 	int regnum = regcache.reglist[regcache.reglist_cnt];
@@ -126,6 +126,16 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 			regClearJump();
 	}
 
+	regcache.reglist_cnt++;
+	//DEBUGF("setting reglist_cnt %d", regcache.reglist_cnt);
+
+	return regnum;
+}
+
+static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
+{
+	int regnum = regAllocHost();
+
 	regcache.host[regnum].host_type = type;
 	regcache.host[regnum].host_islocked++;
 	regcache.psx[regpsx].psx_ischanged = false;
@@ -145,9 +155,6 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 
 		LW(regnum, PERM_REG_1, offGPR(regpsx));
 
-		regcache.reglist_cnt++;
-		//DEBUGF("setting reglist_cnt %d", regcache.reglist_cnt);
-
 		//DEBUGF("regnum 3 %d", regnum);
 		return regnum;
 	}
@@ -155,9 +162,6 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 	if (action == REG_LOAD) {
 		LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
 	}
-
-	regcache.reglist_cnt++;
-	//DEBUGF("setting reglist_cnt %d (regnum 4 %d)", regcache.reglist_cnt, regnum);
 
 	return regnum;
 }
