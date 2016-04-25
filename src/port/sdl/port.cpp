@@ -613,15 +613,13 @@ int main (int argc, char **argv)
 				printf("ERROR: missing value for -volume\n");
 
 			if (val < 0 || val > 1024) {
-				printf("ERROR: -volume value must be between 0-1024 (0 disables sound)\n");
+				printf("ERROR: -volume value must be between 0-1024. Value of 0 will mute sound\n"
+						"        but SPU plugin will still run, ensuring best compatibility.\n"
+						"        Use -silent flag to disable SPU plugin entirely.\n");
 				param_parse_error = true; break;
 			}
 
-			//temp debug:
-			printf("volume val: %d\n", val);
-
 			spu_config.iVolume = val;
-			if (val == 0) spu_config.iDisabled = 1;
 		}
 
 		// SPU will issue updates at a rate that ensures better

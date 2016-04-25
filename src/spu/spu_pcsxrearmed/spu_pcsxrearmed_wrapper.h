@@ -20,11 +20,11 @@
 #ifndef SPU_PCSXREARMED_WRAPPER_H
 #define SPU_PCSXREARMED_WRAPPER_H
 
-//senquack - added for accessing current configuration settings
-#include "spu_config.h"
+#include "spu_config.h"	//To access SPU configuration settings
 
 //senquack - Some of the ReARMed SPU functions read the "cycles" value from
-//           psxRegs.cycle, and I've provided a pointer to it in r3000a.cpp:
+//           psxRegs.cycle, and I've provided a pointer to it in r3000a.cpp.
+//           Not having to include "r3000a.h" avoids circuluar dependency hell.
 extern const uint32_t* const psxRegs_cycle_valptr;
 
 // SPU Functions
@@ -59,10 +59,9 @@ extern void SPUasync(uint32_t, uint32_t);
 
 static inline long SPU_init(void)
 {
-	//senquack - TODO: provide a way to alter default/current configuration:
 	//senquack - added new SPUConfig member to indicate when no configuration has been set:
 	if (spu_config.iHaveConfiguration == 0) {
-		printf("ERROR: SPU plugin 'spu_pcexrearmed' configuration settings not set, aborting.\n");
+		printf("ERROR: SPU plugin 'spu_pcsxrearmed' configuration settings not set, aborting.\n");
 		return -1;
 	}
 
@@ -131,13 +130,18 @@ static inline void SPU_readDMAMem(unsigned short *pusPSXMem, int iSize)
     SPUreadDMAMem(pusPSXMem, iSize, *psxRegs_cycle_valptr);
 }
 
+//senquack - TODO: perhaps this should provide feedback the same way the CDDA
+//                 function below it does, to avoid dropped XA frames.
+//                 Notaz didn't add similar feedback retval to his ADPCM function,
+//                 though, and I wonder why. Looking at cdriso.cpp, frames might be
+//                 dropped when XAbuffer[] is full, and caller perhaps doesn't know.
 static inline void SPU_playADPCMchannel(xa_decode_t *xap)
 {
     SPUplayADPCMchannel(xap);
 }
 
-//senquack - note how SPU_playCDDAchannel now returns a feedback value
-//			 to cdriso.cpp:
+//senquack - note how Notaz's SPU_playCDDAchannel() now returns a feedback value
+//			 to caller thread in cdriso.cpp:
 static inline int SPU_playCDDAchannel(short *pcm, int bytes)
 {
     return SPUplayCDDAchannel(pcm, bytes);
@@ -148,14 +152,10 @@ static inline long SPU_freeze(uint32_t ulFreezeMode, SPUFreeze_t * pF)
     return SPUfreeze(ulFreezeMode, pF, *psxRegs_cycle_valptr);
 }
 
-//senquack - my first attempt, forcing flag 2nd param to 1:
+//senquack - PCSX_ReARMed version takes two parameters, first one is psxRegs.cycle,
+//           second one used as a simple bool flag.
 static inline void SPU_async(unsigned int cycle, unsigned int flags)
 {
-    //senquack - PCSX_ReARMed version takes two parameters, first one is psxRegs.cycle,
-    //           second one is what amounts to a bool flag.
-    //SPUasync(unsigned int cycle, unsigned int flags)
-
-    //senquack force flags to 1 for now:
     SPUasync(*psxRegs_cycle_valptr, flags);
 }
 
