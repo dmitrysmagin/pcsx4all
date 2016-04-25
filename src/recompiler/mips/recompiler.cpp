@@ -200,7 +200,7 @@ void clear_insn_cache(void *start, void *end, int flags)
 
 static u32 recRecompile()
 {
-	psxRegs.reserved = (void *)psxMemWLUT;
+	psxRegs.reserved = (void *)recRAM;
 
 	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
 		recReset();
