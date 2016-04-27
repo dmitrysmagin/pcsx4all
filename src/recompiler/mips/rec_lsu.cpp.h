@@ -224,6 +224,10 @@ static int calc_loads()
 
 	imm_min = imm_max = _fImm_(opcode);
 
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
+
 	/* Allow LB, LBU, LH, LHU and LW */
 	/* rs should be the same, imm and rt could be different */
 	while ((_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||
@@ -265,6 +269,10 @@ static int calc_stores()
 	u32 rs = _Rs_;
 
 	imm_min = imm_max = _fImm_(opcode);
+
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
 
 	/* Allow SB, SH and SW */
 	/* rs should be the same, imm and rt could be different */
@@ -580,6 +588,10 @@ static int calc_wl_wr(u32 op1, u32 op2)
 	u32 rs = _Rs_; // base reg
 
 	imm_min = imm_max = _fImm_(opcode);
+
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
 
 	while ((_fOp_(opcode) == op1 || _fOp_(opcode) == op2) && (_fRs_(opcode) == rs)) {
 
