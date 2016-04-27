@@ -278,3 +278,15 @@ static void regUpdate(void)
 		}
 	}
 }
+
+static RecRegisters regcache_bak;
+
+static void regPushState()
+{
+	memcpy(&regcache_bak, &regcache, sizeof(regcache));
+}
+
+static void regPopState()
+{
+	memcpy(&regcache, &regcache_bak, sizeof(regcache));
+}
