@@ -89,20 +89,23 @@ static int StoreToConstAddr(u32 insn)
 	return 0;
 }
 
-static void LoadFromAddr(u32 insn)
+static void LoadFromAddr(int count)
 {
 	// Rt = [Rs + imm16]
-	s32 imm16 = (s32)(s16)_Imm_;
-	u32 rs = _Rs_;
-	u32 rt = _Rt_;
+	int icount = count;
+	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 PC = pc - 4;
 	u32 *backpatch1, *backpatch2;
 
-	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
-
-	ADDIU(MIPSREG_A0, r1, imm16);
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
 
 #ifdef USE_DIRECT_MEM_ACCESS
+	regPushState();
+
+	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
@@ -118,32 +121,65 @@ static void LoadFromAddr(u32 insn)
 		LW(TEMP_2, PERM_REG_1, off(psxM));
 
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	OPCODE(insn, r2, TEMP_2, imm16);
+
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+
+		PC += 4;
+	} while (--icount);
 
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
 
+	PC = pc - 4;
+
+	regPopState();
+
 	// label_hle:
 	fixup_branch(backpatch1);
 #endif
 
-	switch (insn) {
-	case 0x80000000: CALLFunc((u32)psxMemRead8); SEB(r2, MIPSREG_V0); break; // LB
-	case 0x90000000: CALLFunc((u32)psxMemRead8); MOV(r2, MIPSREG_V0); break; // LBU
-	case 0x84000000: CALLFunc((u32)psxMemRead16); SEH(r2, MIPSREG_V0); break; // LH
-	case 0x94000000: CALLFunc((u32)psxMemRead16); MOV(r2, MIPSREG_V0); break; // LHU
-	case 0x8c000000: CALLFunc((u32)psxMemRead32); MOV(r2, MIPSREG_V0); break; // LW
-	}
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		u32 rt = _fRt_(opcode);
+		u32 imm = _fImm_(opcode);;
+		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+		ADDIU(MIPSREG_A0, r1, imm);
+
+		switch (opcode & 0xfc000000) {
+		case 0x80000000: CALLFunc((u32)psxMemRead8); SEB(r2, MIPSREG_V0); break; // LB
+		case 0x90000000: CALLFunc((u32)psxMemRead8); MOV(r2, MIPSREG_V0); break; // LBU
+		case 0x84000000: CALLFunc((u32)psxMemRead16); SEH(r2, MIPSREG_V0); break; // LH
+		case 0x94000000: CALLFunc((u32)psxMemRead16); MOV(r2, MIPSREG_V0); break; // LHU
+		case 0x8c000000: CALLFunc((u32)psxMemRead32); MOV(r2, MIPSREG_V0); break; // LW
+		}
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+
+		PC += 4;
+	} while (--count);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
 	fixup_branch(backpatch2);
 #endif
 
-	regMipsChanged(rt);
+	pc = PC;
+
 	regUnlock(r1);
-	regUnlock(r2);
 }
 
 static void StoreToAddr(u32 insn)
@@ -312,7 +348,7 @@ static void recLB()
 
 	SetUndef(_Rt_);
 
-	LoadFromAddr(0x80000000);
+	LoadFromAddr(count);
 }
 
 static void recLBU()
@@ -326,7 +362,7 @@ static void recLBU()
 
 	SetUndef(_Rt_);
 
-	LoadFromAddr(0x90000000);
+	LoadFromAddr(count);
 }
 
 static void recLH()
@@ -340,7 +376,7 @@ static void recLH()
 
 	SetUndef(_Rt_);
 
-	LoadFromAddr(0x84000000);
+	LoadFromAddr(count);
 }
 
 static void recLHU()
@@ -354,7 +390,7 @@ static void recLHU()
 
 	SetUndef(_Rt_);
 
-	LoadFromAddr(0x94000000);
+	LoadFromAddr(count);
 }
 
 static void recLW()
@@ -368,7 +404,7 @@ static void recLW()
 
 	SetUndef(_Rt_);
 
-	LoadFromAddr(0x8c000000);
+	LoadFromAddr(count);
 }
 
 static void recSB()
