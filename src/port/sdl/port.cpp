@@ -476,9 +476,9 @@ int main (int argc, char **argv)
 
 	// gpu_dfxvideo
 	#ifdef gpu_dfxvideo
-	extern int UseFrameLimit; UseFrameLimit=1; // limit fps 1=on, 0=off
-	extern int UseFrameSkip; UseFrameSkip=1; // frame skip 1=on, 0=off
-	extern int iFrameLimit; iFrameLimit=2; // fps limit 2=auto 1=fFrameRate, 0=off
+	extern int UseFrameLimit; UseFrameLimit=0; // limit fps 1=on, 0=off
+	extern int UseFrameSkip; UseFrameSkip=0; // frame skip 1=on, 0=off
+	extern int iFrameLimit; iFrameLimit=0; // fps limit 2=auto 1=fFrameRate, 0=off
 	extern float fFrameRate; fFrameRate=200.0f; // fps
 	extern int iUseDither; iUseDither=0; // 0=off, 1=game dependant, 2=always
 	extern int iUseFixes; iUseFixes=0; // use game fixes
