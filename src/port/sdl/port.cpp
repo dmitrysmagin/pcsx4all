@@ -424,6 +424,9 @@ int main (int argc, char **argv)
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
 
+	//senquack - Added config var SyncAudio and default setting is 1 (sync)
+	Config.SyncAudio=1;	/* 1=emu waits if audio output buffer is full */
+
 	// spu_dfxsound
 	#ifdef spu_dfxsound
 	{
@@ -453,14 +456,15 @@ int main (int argc, char **argv)
 	// NOTE: iUseThread *will* have an effect even on a single-core device, but
 	//		 results have yet to be tested. TODO: test if using iUseThread can
 	//		 improve sound dropouts in any cases.
-	spu_config.iHaveConfiguration = 1;	// *MUST* be set to 1 before calling SPU_Init()
+	spu_config.iHaveConfiguration = 1;    // *MUST* be set to 1 before calling SPU_Init()
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
 	spu_config.iXAPitch = 0;
-	spu_config.iVolume = 768;		// 1024 is max volume (1.0)
-	spu_config.iUseThread = 0;		// no effect if only 1 core is detected
-	spu_config.iUseFixedUpdates = 1;	// This is always set to 1 in libretro's pcsxReARMed
-	spu_config.iTempo = 1;			// see note below
+	spu_config.iVolume = 768;             // 1024 is max volume (1.0)
+	spu_config.iUseThread = 0;            // no effect if only 1 core is detected
+	spu_config.iUseFixedUpdates = 1;      // This is always set to 1 in libretro's pcsxReARMed
+	spu_config.iUseOldAudioMutex = 0;     // Use older code in SDL audio backend (FOR DEBUG/VERIFY)
+	spu_config.iTempo = 1;                // see note below
 	#endif
 
 	//senquack - NOTE REGARDING iTempo config var above
@@ -558,9 +562,10 @@ int main (int argc, char **argv)
 		// SPU
 
 	#ifndef spu_null
-        //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
+        //senquack - Added audio syncronization option: if audio buffer full, main thread waits.
+		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
 		//			 TODO: adapt all spu plugins to use this?
-		if (strcmp(argv[i],"-syncaudio")==0) Config.SyncAudio=true; 
+		if (strcmp(argv[i],"-nosyncaudio")==0) Config.SyncAudio=false;
 
 	#ifndef spu_pcsxrearmed
 		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
@@ -572,6 +577,10 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
 		if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
 		if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
+
+		// Use older mutex-style code in SDL audio backend instead of new atomic code.
+		//  (For debugging / verification / comparison against newer non-mutex code)
+		if (strcmp(argv[i],"-use_old_audio_mutex")==0) { spu_config.iUseOldAudioMutex = 1; }
 
 		// Enable SPU thread
 		// NOTE: By default, PCSX ReARMed would not launch
@@ -587,7 +596,7 @@ int main (int argc, char **argv)
 		//  default here.
 		if (strcmp(argv[i],"-nofixedupdates")==0) { spu_config.iUseFixedUpdates=0; }
 
-		// Set interpolation 0=none/1=simple/2=gaussian/3=cubic, default is none
+		// Set interpolation none/simple/gaussian/cubic, default is none
 		if (strcmp(argv[i],"-interpolation")==0) {
 			int val = -1;
 			if (++i < argc) {
@@ -617,15 +626,13 @@ int main (int argc, char **argv)
 				printf("ERROR: missing value for -volume\n");
 
 			if (val < 0 || val > 1024) {
-				printf("ERROR: -volume value must be between 0-1024 (0 disables sound)\n");
+				printf("ERROR: -volume value must be between 0-1024. Value of 0 will mute sound\n"
+						"        but SPU plugin will still run, ensuring best compatibility.\n"
+						"        Use -silent flag to disable SPU plugin entirely.\n");
 				param_parse_error = true; break;
 			}
 
-			//temp debug:
-			printf("volume val: %d\n", val);
-
 			spu_config.iVolume = val;
-			if (val == 0) spu_config.iDisabled = 1;
 		}
 
 		// SPU will issue updates at a rate that ensures better
