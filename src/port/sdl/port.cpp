@@ -34,9 +34,11 @@ enum {
 SDL_Surface	*screen=NULL;
 unsigned short *SCREEN=NULL;
 
+#ifdef gpu_unai
 /* FPS showing */
 extern char msg[36];
 extern bool show_fps;
+#endif
 
 #ifdef DEBUG_FAST_MEMORY
 unsigned long long totalreads=0;
@@ -350,8 +352,10 @@ void video_flip(void)
 	const unsigned suma=(screen->pitch/2)-320;
 //	const unsigned suma=(1024)-160;
 #endif
+#ifdef gpu_unai
 	if (show_fps)
 		port_printf(5,5,msg);
+#endif
 	for(j=0;j<240;j++) {
 		for(i=0;i<(320/(2*8));i++) {
 			*dst++=*src++;
