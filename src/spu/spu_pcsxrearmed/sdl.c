@@ -20,8 +20,6 @@
 #include <SDL.h>
 #include <stdint.h>
 #include "out.h"
-
-#include <sched.h>       // senquack - To get Linux sched_yield()
 #include "spu_config.h"  // senquack - To get spu settings
 #include "psxcommon.h"   // senquack - To get emu settings
 
@@ -35,19 +33,23 @@
 //		and I've used that here too as it seems to work well and taking modulus
 //		is fast bitwise-op. Perhaps make size a commandline option (enforcing
 //		power-of-two so we can do: (&=SOUND_BUFFER_SIZE-1) to modulus by variable?
-#define SOUND_BUFFER_SIZE 16384
+#define SOUND_BUFFER_SIZE 16384        // Size in bytes
 #define ROOM_IN_BUFFER (SOUND_BUFFER_SIZE - buffered_bytes)
-static unsigned *sound_buffer = NULL;
+static unsigned *sound_buffer = NULL;  // Sample ring buffer
 static unsigned int buf_read_pos = 0;
 static unsigned int buf_write_pos = 0;
-static unsigned buffered_bytes = 0;     // Shared with SDL audio thread callback (fence!)
-static unsigned sync_audio = 0;         // Does emu yield when audio output buffer is full?
+static unsigned waiting_to_feed = 0;   // Set to 1 when emu is waiting for room in output buffer
+
+//VARS THAT ARE SHARED BETWEEN MAIN THREAD AND AUDIO-CALLBACK THREAD (fence!):
+static unsigned buffered_bytes = 0;    // How many bytes are in the ring buffer
+
+//senquack - New semaphore for atomic versions of feed/callback functions:
+static SDL_sem *sound_sem = NULL;
 
 //senquack - Old mutex vars we added to sync audio (no longer used unless
 //           debugging/verifying sound with '-use_old_audio_out_mutex' switch)
-SDL_mutex *sound_mutex = NULL;
-SDL_cond *sound_cv = NULL;
-
+static SDL_mutex *sound_mutex = NULL;
+static SDL_cond *sound_cv = NULL;
 
 ////////////////////////////////////////
 // BEGIN SDL AUDIO CALLBACK FUNCTIONS //
@@ -72,7 +74,7 @@ SDL_cond *sound_cv = NULL;
 //	}
 //}
 
-//senquack-Newer SDL audio callback that uses GCC atomic vars
+//senquack-Newer SDL audio callback that uses GCC atomic var
 static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
 	uint8_t *out_buf = (uint8_t *)stream;
 	uint8_t *in_buf = (uint8_t *)sound_buffer;
@@ -83,7 +85,7 @@ static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
 		if (buf_read_pos + bytes_to_copy <= SOUND_BUFFER_SIZE ) {
 			memcpy(out_buf, in_buf + buf_read_pos, bytes_to_copy);
 		} else {
-			int tail = SOUND_BUFFER_SIZE - buf_read_pos;
+			unsigned tail = SOUND_BUFFER_SIZE - buf_read_pos;
 			memcpy(out_buf, in_buf + buf_read_pos, tail);
 			memcpy(out_buf + tail, in_buf, bytes_to_copy - tail);
 		}
@@ -91,12 +93,17 @@ static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
 		buf_read_pos = (buf_read_pos + bytes_to_copy) % SOUND_BUFFER_SIZE;
 
 		// Atomically decrement 'buffered_bytes' by 'bytes_to_copy'
+		// TODO: If ever ported to SDL2.0, its API offers portable atomics:
 		__sync_fetch_and_sub(&buffered_bytes, bytes_to_copy);
 	}
 
 	// If the callback asked for more samples than we had, zero-fill remainder:
 	if (len - bytes_to_copy > 0)
 		memset(out_buf + bytes_to_copy, 0, len - bytes_to_copy);
+
+	// Signal emu thread that room is available:
+	if (waiting_to_feed)
+		SDL_SemPost(sound_sem);
 }
 
 //senquack-Older SDL audio callback that used a mutex and condition var to
@@ -163,6 +170,10 @@ static void DestroySDL() {
 		SDL_DestroyMutex(sound_mutex);
 	}
 
+	//senquack - added sempahore:
+	if (sound_sem)
+		SDL_DestroySemaphore(sound_sem);
+
 	if (SDL_WasInit(SDL_INIT_EVERYTHING & ~SDL_INIT_AUDIO)) {
 		SDL_QuitSubSystem(SDL_INIT_AUDIO);
 	} else {
@@ -181,13 +192,25 @@ static int sdl_init(void) {
 
 	//senquack - Added mutex based on dsmagin's port.cpp code:
 	//           (Now deprecated and only left in for debug/verification of
-	//            newer mutex-free atomic buffer code)
+	//            newer mutex-free atomic buffer code using sempahore)
 	if (spu_config.iUseOldAudioMutex) {
-		printf("Creating audio output mutex\n");
-		sound_mutex = SDL_CreateMutex();
-		sound_cv = SDL_CreateCond();
+		if (Config.SyncAudio) {
+			sound_mutex = SDL_CreateMutex();
+			sound_cv = SDL_CreateCond();
+			if (sound_mutex)
+				printf("Created SDL audio output mutex successfully.\n");
+			else
+				printf("Failed to create SDL audio output mutex, audio will not be synced.\n");
+		}
 		spec.callback = SOUND_FillAudio_Mutex;
 	} else {
+		if (Config.SyncAudio) {
+			sound_sem = SDL_CreateSemaphore(0);
+			if (sound_sem)
+				printf("Created SDL audio output semaphore successfully.\n");
+			else
+				printf("Failed to create SDL audio output semaphore, audio will not be synced.\n");
+		}
 		spec.callback = SOUND_FillAudio_Atomic;
 	}
 
@@ -222,8 +245,6 @@ static int sdl_init(void) {
 
 	buf_read_pos = 0;
 	buf_write_pos = 0;
-	sync_audio = Config.SyncAudio;
-
 	SDL_PauseAudio(0);
 	return 0;
 }
@@ -298,9 +319,13 @@ static void sdl_feed_atomic(void *pSound, int lBytes) {
 
 	unsigned bytes_to_copy = lBytes;
 
-	if (sync_audio) {
-		//senquack - Yield timeslices until we have all the room we need:
-		while (ROOM_IN_BUFFER < lBytes) sched_yield();
+	if (sound_sem) {
+		while (ROOM_IN_BUFFER < lBytes) {
+			//senquack - Wait until semaphore is posted by audio callback:
+			waiting_to_feed = 1;
+			SDL_SemWait(sound_sem);
+		}
+		waiting_to_feed = 0;
 	} else {
 		// Just drop the samples that cannot fit:
 		if (ROOM_IN_BUFFER == 0) return;
@@ -321,6 +346,7 @@ static void sdl_feed_atomic(void *pSound, int lBytes) {
 	buf_write_pos = (buf_write_pos + bytes_to_copy) % SOUND_BUFFER_SIZE;
 
 	// Atomically increment 'buffered_bytes' by 'bytes_to_copy':
+	// TODO: If ever ported to SDL2.0, its API offers portable atomics:
 	__sync_fetch_and_add(&buffered_bytes, bytes_to_copy);
 }
 
@@ -378,15 +404,8 @@ void out_register_sdl(struct out_driver *drv)
 	drv->busy = sdl_busy;
 	
 	//senquack - newer atomic feed function is default:
-	if (spu_config.iUseOldAudioMutex) {
-		// TEMP REMOVE DEBUG
-		printf("using sdl_feed_mutex()\n");
+	if (spu_config.iUseOldAudioMutex)
 		drv->feed = sdl_feed_mutex;
-	}
 	else
-	{
-		// TEMP REMOVE DEBUG
-		printf("using sdl_feed_atomic()\n");
 		drv->feed = sdl_feed_atomic;
-	}
 }
