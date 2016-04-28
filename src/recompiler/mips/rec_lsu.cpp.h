@@ -372,13 +372,10 @@ static int calc_stores()
 static void recLB()
 {
 	int count = calc_loads();
-	(void)count;
 
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(0x80000000))
 		return;
-
-	SetUndef(_Rt_);
 
 	LoadFromAddr(count);
 }
@@ -386,13 +383,10 @@ static void recLB()
 static void recLBU()
 {
 	int count = calc_loads();
-	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x90000000))
 		return;
-
-	SetUndef(_Rt_);
 
 	LoadFromAddr(count);
 }
@@ -400,13 +394,10 @@ static void recLBU()
 static void recLH()
 {
 	int count = calc_loads();
-	(void)count;
 
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(0x84000000))
 		return;
-
-	SetUndef(_Rt_);
 
 	LoadFromAddr(count);
 }
@@ -414,13 +405,10 @@ static void recLH()
 static void recLHU()
 {
 	int count = calc_loads();
-	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x94000000))
 		return;
-
-	SetUndef(_Rt_);
 
 	LoadFromAddr(count);
 }
@@ -428,13 +416,10 @@ static void recLHU()
 static void recLW()
 {
 	int count = calc_loads();
-	(void)count;
 
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(0x8c000000))
 		return;
-
-	SetUndef(_Rt_);
 
 	LoadFromAddr(count);
 }
@@ -442,7 +427,6 @@ static void recLW()
 static void recSB()
 {
 	int count = calc_stores();
-	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa0000000))
@@ -454,7 +438,6 @@ static void recSB()
 static void recSH()
 {
 	int count = calc_stores();
-	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xa4000000))
@@ -466,7 +449,6 @@ static void recSH()
 static void recSW()
 {
 	int count = calc_stores();
-	(void)count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(0xac000000))
@@ -763,7 +745,6 @@ static int calc_wl_wr(u32 op1, u32 op2)
 static void recLWL()
 {
 	int count = calc_wl_wr(0x22, 0x26);
-	(void)count;
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
@@ -808,7 +789,6 @@ static void recLWR()
 static void recSWL()
 {
 	int count = calc_wl_wr(0x2a, 0x2e);
-	(void)count;
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
