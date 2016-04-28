@@ -600,15 +600,20 @@ static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
 static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-static void gen_SWL_SWR()
+static void gen_SWL_SWR(int count)
 {
-	u32 insn = psxRegs.code & 0xfc000000;
-	u32 rt = _Rt_;
-	u32 rs = _Rs_;
-	s32 imm16 = (s32)(s16)_Imm_;
-	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+	int icount = count;
+	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 PC = pc - 4;
 	u32 *backpatch1, *backpatch2, *backpatch3;
+
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
+
+#ifdef USE_DIRECT_MEM_ACCESS
+	regPushState();
 
 	/* First check if memory is writable atm */
 	LW(TEMP_1, PERM_REG_1, off(writeok));
@@ -616,7 +621,7 @@ static void gen_SWL_SWR()
 	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
 	NOP();
 
-	ADDIU(MIPSREG_A0, r1, imm16);
+	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
@@ -632,57 +637,89 @@ static void gen_SWL_SWR()
 		LW(TEMP_2, PERM_REG_1, off(psxM));
 
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	OPCODE(insn, r2, TEMP_2, imm16);
+
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+		PC += 4;
+
+		regUnlock(r2);
+	} while (--icount);
 
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
 
+	PC = pc - 4;
+
+	regPopState();
+
 	// label_hle:
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch3);
+#endif
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
-	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		u32 insn = opcode & 0xfc000000;
+		u32 rt = _fRt_(opcode);
+		u32 imm = _fImm_(opcode);;
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
+		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
+		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
+		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-	ADDIU(TEMP_1, r1, imm16);
-	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-	SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
+		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
 
-	if (insn == 0xa8000000) // SWL
-		LI32(TEMP_2, (u32)SWL_MASK);
-	else			// SWR
-		LI32(TEMP_2, (u32)SWR_MASK);
+		ADDIU(TEMP_1, r1, imm);
+		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
+		if (insn == 0xa8000000) // SWL
+			LI32(TEMP_2, (u32)SWL_MASK);
+		else			// SWR
+			LI32(TEMP_2, (u32)SWR_MASK);
 
-	if (insn == 0xa8000000) // SWL
-		LI32(TEMP_2, (u32)SWL_SHIFT);
-	else			// SWR
-		LI32(TEMP_2, (u32)SWR_SHIFT);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
+		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
+		if (insn == 0xa8000000) // SWL
+			LI32(TEMP_2, (u32)SWL_SHIFT);
+		else			// SWR
+			LI32(TEMP_2, (u32)SWR_SHIFT);
 
-	if (insn == 0xa8000000) // SWL
-		SRLV(TEMP_3, r2, TEMP_2);
-	else			// SWR
-		SLLV(TEMP_3, r2, TEMP_2);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
 
-	OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
+		if (insn == 0xa8000000) // SWL
+			SRLV(TEMP_3, r2, TEMP_2);
+		else			// SWR
+			SLLV(TEMP_3, r2, TEMP_2);
 
-	CALLFunc((u32)psxMemWrite32);
+		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
 
+		CALLFunc((u32)psxMemWrite32);
+
+		PC += 4;
+
+		regUnlock(r2);
+	} while (--count);
+
+#ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
 	fixup_branch(backpatch2);
+#endif
 
-	regUnlock(r2);
+	pc = PC;
+
 	regUnlock(r1);
 }
 
@@ -802,10 +839,10 @@ static void recSWL()
 	}
 #endif
 
-	gen_SWL_SWR();
+	gen_SWL_SWR(count);
 }
 
 static void recSWR()
 {
-	gen_SWL_SWR();
+	gen_SWL_SWR(1);
 }
