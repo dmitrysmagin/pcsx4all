@@ -498,7 +498,7 @@ static void gen_LWL_LWR(int count)
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
 		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
@@ -526,7 +526,7 @@ static void gen_LWL_LWR(int count)
 		u32 insn = opcode & 0xfc000000;
 		u32 rt = _fRt_(opcode);
 		u32 imm = _fImm_(opcode);;
-		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
 		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
@@ -754,7 +754,7 @@ static void recLWL()
 			u32 rt = _Rt_;
 			u32 rs = _Rs_;
 			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+			u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 			s32 imm = (s32)(s16)_Imm_;
 
 			if (addr < 0x200000) {
