@@ -480,17 +480,22 @@ static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
 static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
 static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
 
-static void gen_LWL_LWR()
+static void gen_LWL_LWR(int count)
 {
-	u32 insn = psxRegs.code & 0xfc000000;
-	u32 rt = _Rt_;
-	u32 rs = _Rs_;
-	s32 imm16 = (s32)(s16)_Imm_;
-	u32 r1 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-	u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+	int icount = count;
+	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 PC = pc - 4;
 	u32 *backpatch1, *backpatch2;
 
-	ADDIU(MIPSREG_A0, r1, imm16);
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
+
+#ifdef USE_DIRECT_MEM_ACCESS
+	regPushState();
+
+	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
@@ -506,53 +511,87 @@ static void gen_LWL_LWR()
 		LW(TEMP_2, PERM_REG_1, off(psxM));
 
 	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	OPCODE(insn, r2, TEMP_2, imm16);
+
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+
+		PC += 4;
+	} while (--icount);
 
 	backpatch2 = (u32 *)recMem;
 	B(0); // b label_exit
 	NOP();
 
+	PC = pc - 4;
+
+	regPopState();
+
 	// label_hle:
 	fixup_branch(backpatch1);
+#endif
 
-	ADDIU(MIPSREG_A0, r1, imm16); // a0 = r1 & ~3
-	INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
-	CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		u32 insn = opcode & 0xfc000000;
+		u32 rt = _fRt_(opcode);
+		u32 imm = _fImm_(opcode);;
+		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
-	ADDIU(TEMP_1, r1, imm16);
-	ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-	SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
+		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
+		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
 
-	if (insn == 0x88000000) // LWL
-		LI32(TEMP_2, (u32)LWL_MASK);
-	else			// LWR
-		LI32(TEMP_2, (u32)LWR_MASK);
+		ADDIU(TEMP_1, r1, imm);
+		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
-	AND(r2, r2, TEMP_2);
+		if (insn == 0x88000000) // LWL
+			LI32(TEMP_2, (u32)LWL_MASK);
+		else			// LWR
+			LI32(TEMP_2, (u32)LWR_MASK);
 
-	if (insn == 0x88000000) // LWL
-		LI32(TEMP_2, (u32)LWL_SHIFT);
-	else			// LWR
-		LI32(TEMP_2, (u32)LWR_SHIFT);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
+		AND(r2, r2, TEMP_2);
 
-	ADDU(TEMP_2, TEMP_2, TEMP_1);
-	LW(TEMP_2, TEMP_2, 0);
+		if (insn == 0x88000000) // LWL
+			LI32(TEMP_2, (u32)LWL_SHIFT);
+		else			// LWR
+			LI32(TEMP_2, (u32)LWR_SHIFT);
 
-	if (insn == 0x88000000) // LWL
-		SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
-	else			// LWR
-		SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+		LW(TEMP_2, TEMP_2, 0);
 
-	OR(r2, r2, TEMP_3);
+		if (insn == 0x88000000) // LWL
+			SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
+		else			// LWR
+			SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
 
+		OR(r2, r2, TEMP_3);
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+
+		PC += 4;
+	} while (--count);
+
+#ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
 	fixup_branch(backpatch2);
+#endif
 
-	SetUndef(rt);
-	regMipsChanged(rt);
-	regUnlock(r2);
+	pc = PC;
+
 	regUnlock(r1);
 }
 
@@ -721,16 +760,12 @@ static void recLWL()
 	}
 #endif
 
-	SetUndef(_Rt_);
-
-	gen_LWL_LWR();
+	gen_LWL_LWR(count);
 }
 
 static void recLWR()
 {
-	SetUndef(_Rt_);
-
-	gen_LWL_LWR();
+	gen_LWL_LWR(1);
 }
 
 static void recSWL()
