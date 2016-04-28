@@ -40,6 +40,11 @@ extern char msg[36];
 extern bool show_fps;
 #endif
 
+#ifdef gpu_dfxvideo
+bool dfx_show_fps;
+extern float fps_cur;
+#endif
+
 #ifdef DEBUG_FAST_MEMORY
 unsigned long long totalreads=0;
 unsigned long long totalreads_ok=0;
@@ -356,6 +361,13 @@ void video_flip(void)
 	if (show_fps)
 		port_printf(5,5,msg);
 #endif
+#ifdef gpu_dfxvideo
+	if (dfx_show_fps) {
+		char msg[256];
+		sprintf(msg, "FPS: %02.02f", fps_cur);
+		port_printf(5,5,msg);
+	}
+#endif
 	for(j=0;j<240;j++) {
 		for(i=0;i<(320/(2*8));i++) {
 			*dst++=*src++;
@@ -551,6 +563,9 @@ int main (int argc, char **argv)
 		}
 		if (strcmp(argv[i],"-adjust")==0) { PSXCLK=(u32)((double)PSXCLK*atof(argv[i+1])); }
 		// GPU
+	#ifdef gpu_dfxvideo
+		if (strcmp(argv[i],"-showfps")==0) { dfx_show_fps=true; } // show FPS
+	#endif
 	#ifdef gpu_unai
 		if (strcmp(argv[i],"-showfps")==0) { show_fps=true; } // show FPS
 		if (strcmp(argv[i],"-framelimit")==0) { extern bool frameLimit; frameLimit=true; } // frame limit
