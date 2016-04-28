@@ -142,12 +142,12 @@ static void CheckFrameRate(void)
       }
     }
    else if(UseFrameLimit) FrameCap();
-   calcfps();                                          // -> calc fps display in skipping mode
   }
  else                                                  // non-skipping mode:
   {
    if(UseFrameLimit) FrameCap();                       // -> do it
   }
+   calcfps();
 }
 
 static void FrameSkip(void)
