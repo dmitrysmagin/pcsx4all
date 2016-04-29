@@ -1,7 +1,8 @@
 /*
- * mips-codegen.h
+ * mips_codegen.h
  *
  * Copyright (c) 2009 Ulrich Hecht
+ * Copyright (c) 2016 modified by Dmitry Smagin
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
