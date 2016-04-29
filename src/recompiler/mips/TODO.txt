@@ -1,20 +1,3 @@
-
-Mips-to-mips recompiler by Ulrich Hecht, modified by Dmitry Smagin
-
-What's already done:
-
- - The whole recompiler is adapted for pcsx4all 2.3
- - Code is greatly cleaned up from dead code and leftovers from arm
-   recompiler.
- - Zero register optimizations are removed, since mips has harware
-   zero register unlike arm. This reduces code and make it more
-   readable.
- - Implemented code generation for DIV/DIVU.
- - Implemented consequent LWL/LWR/SWL/SWR optimizations
- - Implemented consequent stores/writes optimizations
- - Improved constant caching, eliminated useless const reloads
- - GTE code is adapted for new gte core.
-
 TODO list
 
 * recompiler:
