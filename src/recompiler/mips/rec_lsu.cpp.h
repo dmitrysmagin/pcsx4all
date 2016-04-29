@@ -748,29 +748,40 @@ static void recLWL()
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
-		if ((addr & 0x1fffffff) < 0x200000) {
-			u32 insn = psxRegs.code & 0xfc000000;
-			u32 rt = _Rt_;
-			u32 rs = _Rs_;
-			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-			s32 imm = (s32)(s16)_Imm_;
+		u32 addr = iRegs[_Rs_].r + imm_min;
+		if ((addr & 0x1fffffff) < 0x800000) {
+			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+			u32 PC = pc - 4;
 
-			if (addr < 0x200000) {
-				LUI(TEMP_1, 0x1000);
-			} else if (addr >= 0xa0000000) {
-				LUI(TEMP_1, 0xb000);
+			#ifdef WITH_DISASM
+			for (int i = 0; i < count-1; i++)
+				DISASM_PSX(pc + i * 4);
+			#endif
+
+			if ((u32)psxM == 0x10000000) {
+				LUI(TEMP_2, 0x1000);
+				INS(TEMP_2, r2, 0, 0x15);
 			} else {
-				LUI(TEMP_1, 0x9000);
+				LW(TEMP_2, PERM_REG_1, off(psxM));
+				EXT(TEMP_1, r2, 0, 0x15);
+				ADDU(TEMP_2, TEMP_2, TEMP_1);
 			}
 
-			XOR(TEMP_2, TEMP_1, r2);
-			OPCODE(insn, r1, TEMP_2, imm);
+			do {
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-			SetUndef(rt);
-			regMipsChanged(rt);
-			regUnlock(r1);
+				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
+
+				SetUndef(rt);
+				regMipsChanged(rt);
+				regUnlock(r1);
+				PC += 4;
+			} while (--count);
+
+			pc = PC;
 			regUnlock(r2);
 
 			return;
@@ -792,27 +803,38 @@ static void recSWL()
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + ((s32)(s16)_Imm_);
-		if ((addr & 0x1fffffff) < 0x200000) {
-			u32 insn = psxRegs.code & 0xfc000000;
-			u32 rt = _Rt_;
-			u32 rs = _Rs_;
-			u32 r2 = regMipsToHost(rs, REG_LOAD, REG_REGISTER);
-			u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-			s32 imm = (s32)(s16)_Imm_;
+		u32 addr = iRegs[_Rs_].r + imm_min;
+		if ((addr & 0x1fffffff) < 0x800000) {
+			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+			u32 PC = pc - 4;
 
-			if (addr < 0x200000) {
-				LUI(TEMP_1, 0x1000);
-			} else if (addr >= 0xa0000000) {
-				LUI(TEMP_1, 0xb000);
+			#ifdef WITH_DISASM
+			for (int i = 0; i < count-1; i++)
+				DISASM_PSX(pc + i * 4);
+			#endif
+
+			if ((u32)psxM == 0x10000000) {
+				LUI(TEMP_2, 0x1000);
+				INS(TEMP_2, r2, 0, 0x15);
 			} else {
-				LUI(TEMP_1, 0x9000);
+				LW(TEMP_2, PERM_REG_1, off(psxM));
+				EXT(TEMP_1, r2, 0, 0x15);
+				ADDU(TEMP_2, TEMP_2, TEMP_1);
 			}
 
-			XOR(TEMP_2, TEMP_1, r2);
-			OPCODE(insn, r1, TEMP_2, imm);
+			do {
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-			regUnlock(r1);
+				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
+
+				regUnlock(r1);
+				PC += 4;
+			} while (--count);
+
+			pc = PC;
 			regUnlock(r2);
 			return;
 		}
