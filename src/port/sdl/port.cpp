@@ -439,6 +439,11 @@ int main (int argc, char **argv)
 	//senquack - Added config var SyncAudio and default setting is 1 (sync)
 	Config.SyncAudio=1;	/* 1=emu waits if audio output buffer is full */
 
+	//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
+	//           than they'd normally be issued when SPU's XA buffer is not
+	//           full. This fixes droupouts in music/speech on slow devices.
+	Config.ForcedXAUpdates=1;  /* default is 1=allow forced XA updates */
+
 	// spu_dfxsound
 	#ifdef spu_dfxsound
 	{
@@ -562,6 +567,17 @@ int main (int argc, char **argv)
 			}
 		}
 		if (strcmp(argv[i],"-adjust")==0) { PSXCLK=(u32)((double)PSXCLK*atof(argv[i+1])); }
+
+		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
+		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
+		//           TODO: adapt all spu plugins to use this?
+		if (strcmp(argv[i],"-nosyncaudio")==0) Config.SyncAudio=0;
+
+		//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
+		//           than they'd normally be issued when SPU's XA buffer is not
+		//           full. This fixes droupouts in music/speech on slow devices.
+		if (strcmp(argv[i],"-noforcedxaupdates")==0) Config.ForcedXAUpdates=0;
+
 		// GPU
 	#ifdef gpu_dfxvideo
 		if (strcmp(argv[i],"-showfps")==0) { dfx_show_fps=true; } // show FPS
@@ -577,10 +593,6 @@ int main (int argc, char **argv)
 		// SPU
 
 	#ifndef spu_null
-        //senquack - Added audio syncronization option: if audio buffer full, main thread waits.
-		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
-		//			 TODO: adapt all spu plugins to use this?
-		if (strcmp(argv[i],"-nosyncaudio")==0) Config.SyncAudio=false;
 
 	#ifndef spu_pcsxrearmed
 		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex

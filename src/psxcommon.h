@@ -83,7 +83,15 @@ typedef struct {
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
 	u8 Cpu; /* 0=recompiler, 1=interpreter */
 	u8 PsxType; /* 0=ntsc, 1=pal */
-    boolean SyncAudio;  //senquack - Added audio syncronization option; if audio buffer full, main thread blocks
+
+	//senquack - Added audio syncronization option; if audio buffer is full,
+	//           main thread blocks
+	boolean SyncAudio;
+
+	//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
+	//           than they'd normally be issued when SPU's XA buffer is not
+	//           full. This fixes droupouts in music/speech on slow devices.
+	boolean ForcedXAUpdates; 
 } PcsxConfig;
 
 extern PcsxConfig Config;
