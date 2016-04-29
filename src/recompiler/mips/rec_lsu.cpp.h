@@ -152,7 +152,7 @@ static void LoadFromAddr(int count)
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 rt = _fRt_(opcode);
-		u32 imm = _fImm_(opcode);;
+		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm);
@@ -256,7 +256,7 @@ static void StoreToAddr(int count)
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 rt = _fRt_(opcode);
-		u32 imm = _fImm_(opcode);;
+		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm);
@@ -525,7 +525,7 @@ static void gen_LWL_LWR(int count)
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
 		u32 rt = _fRt_(opcode);
-		u32 imm = _fImm_(opcode);;
+		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
@@ -650,7 +650,7 @@ static void gen_SWL_SWR(int count)
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
 		u32 rt = _fRt_(opcode);
-		u32 imm = _fImm_(opcode);;
+		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
