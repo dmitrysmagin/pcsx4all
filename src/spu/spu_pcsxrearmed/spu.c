@@ -1337,6 +1337,8 @@ static void SetupStreams(void)
  spu.XAEnd   = spu.XAStart + 44100;
  spu.XAPlay  = spu.XAStart;
  spu.XAFeed  = spu.XAStart;
+ //senquack - Added UpdateXABufferRoom in xa.c:
+ UpdateXABufferRoom();
 
  spu.CDDAStart =                                       // alloc cdda buffer
   (uint32_t *)malloc(CDDA_BUFFER_SIZE);
