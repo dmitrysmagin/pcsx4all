@@ -677,7 +677,27 @@ void cdrReadInterrupt() {
 		AddIrqQueue(CdlPause, 0x1000);
 	}
 	else {
+		//senquack - original emu code:
+#ifndef spu_pcsxrearmed
 		CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+#else
+		//senquack - Fixed XA audio dropouts on slow devices by adding
+		// new SPU_getADPCMBufferRoom() function that allows emu to know when
+		// SPU's ADPCM buffer is not full and schedule a CDREAD_INT interrupt
+		// twice as soon as normal, to keep the buffer full. Before, the
+		// XA/ADPCM SPU buffer would never fill.
+		// NOTE: just this check here alone is not enough -- cdrWrite3() can
+		//  override the cycle times of the scheduled CDREAD_INT, so we must
+		//  do the same buffer-room check there as well.
+		if (Config.ForcedXAUpdates && SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) {
+			// Buffer not full, schedule an interrupt twice as soon as normal:
+			CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 4) : (cdReadTime / 2));
+		} else {
+			// Buffer is pretty full, just schedule interrupt at normal time:
+			CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+		}
+#endif
+
 	}
 	psxHu32ref(0x1070) |= SWAP32((u32)0x4);
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
@@ -1080,7 +1100,29 @@ void cdrWrite3(unsigned char rt) {
 			CDR_INT(cdr.eCycle);
 		}
 		if (cdr.Reading && !cdr.ResultReady) {
+#ifndef spu_pcsxrearmed
+			//senquack - original emu code:
 			CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+#else
+			//senquack - XA audio dropouts fix, using new SPU_getADPCMBufferRoom()
+			// function I added to spu_pcsxrearmed. See my comments inside
+			// cdrReadInterrupt() further above in this file.
+			
+			//senquack - determine if XA audio is being played (determined the
+			// tests to perform here from reading cdrReadInterrupt() code)
+			if ((!cdr.Muted) && (cdr.Mode & 0x40) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
+				if (Config.ForcedXAUpdates && SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) {
+					// Buffer not full, schedule an interrupt twice as soon as normal:
+					CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 4) : (cdReadTime / 2));
+				} else {
+					// Buffer is pretty full, just schedule interrupt at normal time:
+					CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+				}
+			} else {
+				// Schedule interrupt at normal time:
+				CDREAD_INT((cdr.Mode & 0x80) ? (cdReadTime / 2) : cdReadTime);
+			}
+#endif //spu_pcsxrearmed
 		}
 		return;
 	}
