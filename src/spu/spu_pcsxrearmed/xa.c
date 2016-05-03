@@ -25,7 +25,6 @@
 ////////////////////////////////////////////////////////////////////////
 // XA GLOBALS
 ////////////////////////////////////////////////////////////////////////
-
 static int gauss_ptr = 0;
 static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -33,6 +32,32 @@ static int gauss_window[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 #define gvall(x) gauss_window[(gauss_ptr+x)&3]
 #define gvalr0 gauss_window[4+gauss_ptr]
 #define gvalr(x) gauss_window[4+((gauss_ptr+x)&3)]
+
+////////////////////////////////////////////////////////////////////////
+// UpdateXABufferRoom
+//
+// senquack - I added this function when fixing XA audio dropouts on
+//            slower devices/games.
+//
+// It updates new XABufferRoom var: the unused size of the XA sample buffer,
+// in number of stereo samples. When new setting Config.ForcedXAUpdates
+// is enabled, it is used in cdrom.cpp to determine if a CDREAD_INT
+// interrupt should be queued sooner than it normally would be,
+// ensuring XA buffer isn't emptied. Accessed via new wrapper function
+// SPU_getADPCMBufferRoom().
+// 
+////////////////////////////////////////////////////////////////////////
+
+INLINE void UpdateXABufferRoom()
+{
+	int xa_buf_size = spu.XAEnd-spu.XAStart; // SHOULD BE 44100
+	int xa_used_space = spu.XAFeed - spu.XAPlay;
+	if (xa_used_space < 0)
+		xa_used_space += xa_buf_size;
+
+	int xa_unused_space = xa_buf_size - xa_used_space;
+	spu.XABufferRoom = xa_unused_space;
+}
 
 ////////////////////////////////////////////////////////////////////////
 // MIX XA & CDDA
@@ -82,6 +107,9 @@ INLINE void MixXA(int *SSumLR, int ns_to, int decode_pos)
    spu.spuMem[cursor + 0x400/2] = v >> 16;
    cursor = (cursor + 1) & 0x1ff;
   }
+
+  //senquack - update new XABufferRoom variable now that data's been read:
+  UpdateXABufferRoom();
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -105,6 +133,7 @@ static unsigned long timeGetTime_spu()
 // FEED XA 
 ////////////////////////////////////////////////////////////////////////
 
+//senquack - Modified while fixing XA audio underruns on slow devices
 INLINE void FeedXA(xa_decode_t *xap)
 {
  int sinc,spos,i,iSize,iPlace,vl,vr;
@@ -114,6 +143,7 @@ INLINE void FeedXA(xa_decode_t *xap)
  spu.xapGlobal = xap;                                  // store info for save states
  spu.XARepeat  = 100;                                  // set up repeat
 
+ //senquack - this XA_HACK stuff was in rearmed code (was not me!)
 #if 0//def XA_HACK
  iSize=((45500*xap->nsamples)/xap->freq);              // get size
 #else
@@ -121,10 +151,44 @@ INLINE void FeedXA(xa_decode_t *xap)
 #endif
  if(!iSize) return;                                    // none? bye
 
- if(spu.XAFeed<spu.XAPlay) iPlace=spu.XAPlay-spu.XAFeed; // how much space in my buf?
- else              iPlace=(spu.XAEnd-spu.XAFeed) + (spu.XAPlay-spu.XAStart);
+ //senquack - I added replacement buffer-size-checking code below after
+ // some struggle. It now seems to be correct after much experimentation.
+ // The XA buffer never filled more than one XA audio frame, even when I forced
+ // CDR_READ interrupts to be generated faster than normal. After replacing
+ // if/else below with use of new XABufferRoom variable, updated by new
+ // UpdateXABufferRoom() function when buffer is read/written to, buffer
+ // is now getting filled as it should. Further improvements on slow devices
+ // came from issuing CDR_READ interrupts faster than normal in cdrom.cpp
+ // when new GetXABufferRoom() indicates buffer has room for more data.
+ //if(spu.XAFeed<spu.XAPlay) iPlace=spu.XAPlay-spu.XAFeed; // how much space in my buf?
+ //else              iPlace=(spu.XAEnd-spu.XAFeed) + (spu.XAPlay-spu.XAStart);
+ //if(iPlace==0) return;                                 // no place at all
 
- if(iPlace==0) return;                                 // no place at all
+ //senquack - Print buffer size debugging statistics
+#if 0
+ static int print_xa_ctr = 0;
+ if (print_xa_ctr++ > 20) {
+	 int xa_buf_size = spu.XAEnd-spu.XAStart; // SHOULD BE 44100
+	 int xa_used_space = spu.XAFeed - spu.XAPlay;
+	 if (xa_used_space < 0)
+		 xa_used_space += xa_buf_size;
+
+	 int xa_unused_space = xa_buf_size - xa_used_space;
+     printf("XAF: %p XAP: %p iSize: %d bufsize: %d  used: %d  unused: %d\n",
+             spu.XAFeed, spu.XAPlay, iSize, xa_buf_size, xa_used_space, xa_unused_space);
+     print_xa_ctr = 0;
+     if (xa_unused_space < iSize)
+         printf("FeedXA() error: buffer full, %d samples cannot fit and will be dropped.\n", iSize);
+ }
+#endif //0
+
+ //senquack - Use new XABufferRoom variable to determine if there is room:
+ if (spu.XABufferRoom < iSize)
+     return;
+ iPlace = iSize;    //senquack - seems to be the correct value for iPlace to be
+
+ //senquack - END REPLACEMENT CODE
+
 
  //----------------------------------------------------//
  if(spu_config.iXAPitch)                               // pitch change option?
@@ -373,6 +437,9 @@ INLINE void FeedXA(xa_decode_t *xap)
       }
     }
   }
+
+  //senquack - update new XABufferRoom variable now that data's been added:
+  UpdateXABufferRoom();
 }
 
 ////////////////////////////////////////////////////////////////////////

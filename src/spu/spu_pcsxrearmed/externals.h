@@ -209,6 +209,9 @@ typedef struct
  unsigned int  * XAPlay;
  unsigned int  * XAStart;
  unsigned int  * XAEnd;
+ //senquack - Added this, see new function SPU_getADPCMBufferRoom() in
+ // spu_pcsxrearmed_wrapper.h and UpdateXABufferRoom() in xa.c
+ unsigned int    XABufferRoom;
 
  unsigned int  * CDDAFeed;
  unsigned int  * CDDAPlay;

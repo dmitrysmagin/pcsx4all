@@ -279,9 +279,19 @@ void psxRcntUpdate()
 		//NOTE AND TODO: in PCSX_ReARMed, it always compares hSyncCount to 240, regardless of
 		//				 type of PSX being emulated, i.e. PAL would be 256 I think versus 
 		//				 NTSC vblank at 240????
-        if (hSyncCount == 240)								// Original PCSX_ReARMed behavior
-        //if (hSyncCount == VBlankStart[Config.PsxType])	// What *might* be more correct behavior -senquack
+        //if (hSyncCount == 240)								// Original PCSX_ReARMed behavior
+        ////if (hSyncCount == VBlankStart[Config.PsxType])	// What *might* be more correct behavior -senquack
+        //    SPU_async( cycle, 1 );
+		//senquack - Calling SPU_async() at such an infrequent interval as above
+		// causes audio dropouts on slow devices like GCW. I've made it update
+		// twice as often for now.
+		//TODO: Frequency of updates might need to be configurable if we ever
+		// use video output with VSYNC enabled, for instance GCW Zero's GLES
+		// driver demands it. That might cause frame rate to drop to 30,
+		// making audio drop out again even after the change below..
+        if (hSyncCount == 120 || hSyncCount == 240)
             SPU_async( cycle, 1 );
+
 #else
         // Update spu.
         spuSyncCount++;

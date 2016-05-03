@@ -576,7 +576,10 @@ int main (int argc, char **argv)
 		//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
 		//           than they'd normally be issued when SPU's XA buffer is not
 		//           full. This fixes droupouts in music/speech on slow devices.
-		if (strcmp(argv[i],"-noforcedxaupdates")==0) Config.ForcedXAUpdates=0;
+		if (strcmp(argv[i],"-noforcedxaupdates")==0) {
+			printf("Forced XA audio updates are disabled.\n");
+			Config.ForcedXAUpdates=0;
+		}
 
 		// GPU
 	#ifdef gpu_dfxvideo

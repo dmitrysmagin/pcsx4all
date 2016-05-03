@@ -43,6 +43,7 @@ extern unsigned short SPUreadDMA(void);
 extern void SPUwriteDMAMem(unsigned short *, int, unsigned int);
 extern void SPUreadDMAMem(unsigned short *, int, unsigned int);
 extern void SPUplayADPCMchannel(xa_decode_t *);
+extern unsigned int SPUgetADPCMBufferRoom(); //senquack - added function
 extern int  SPUplayCDDAchannel(short *, int);
 extern void SPUregisterCallback(void (CALLBACK *callback)(void));
 extern void SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int cycles_after));
@@ -139,14 +140,18 @@ static inline void SPU_readDMAMem(unsigned short *pusPSXMem, int iSize)
     SPUreadDMAMem(pusPSXMem, iSize, *psxRegs_cycle_valptr);
 }
 
-//senquack - TODO: perhaps this should provide feedback the same way the CDDA
-//                 function below it does, to avoid dropped XA frames.
-//                 Notaz didn't add similar feedback retval to his ADPCM function,
-//                 though, and I wonder why. Looking at cdriso.cpp, frames might be
-//                 dropped when XAbuffer[] is full, and caller perhaps doesn't know.
 static inline void SPU_playADPCMchannel(xa_decode_t *xap)
 {
     SPUplayADPCMchannel(xap);
+}
+
+// senquack - I added this function when fixing XA audio dropouts on
+//            slower devices/games. (used in cdrom.cpp, see notes
+//            for cdrReadInterrupt() there or UpdateXABufferRoom() and
+//            FeedXA() in xa.c
+static inline unsigned int SPU_getADPCMBufferRoom()
+{
+	return SPUgetADPCMBufferRoom();
 }
 
 //senquack - note how Notaz's SPU_playCDDAchannel() now returns a feedback value
