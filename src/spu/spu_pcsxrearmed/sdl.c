@@ -98,8 +98,10 @@ static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
 	}
 
 	// If the callback asked for more samples than we had, zero-fill remainder:
-	if (len - bytes_to_copy > 0)
+	if (len - bytes_to_copy > 0) {
 		memset(out_buf + bytes_to_copy, 0, len - bytes_to_copy);
+		//printf("SDL audio callback underrun by %d bytes\n", len - bytes_to_copy);
+	}
 
 	// Signal emu thread that room is available:
 	if (waiting_to_feed)

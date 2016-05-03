@@ -7,19 +7,12 @@ plugin I ported from PCSX ReARMed (credit goes to Notaz), which is
 a heavily modified version of the P.E.O.P.S dfsound plugin by Pete.
 -senquack Apr 24 2016
 
-**************
-- REVISIONS: -
-**************
-Apr 25 2016:
-  * Audio syncing is now on by default. Use -nosyncaudio to disable.
-  * New option '-use_old_audio_mutex' enables old method of syncing audio,
-    using mutex and condition variable). Default is now to use non-locking
-    atomic shared var to syncronize SDL audio thread with emu.
-
 **********************************
 - Optional settings you can try: -
 **********************************
 -nosyncaudio    (Emu won't wait and instead drop samples if output buffer full.)
+-noforcedxaupdates (Don't use new feature that issues more frequent CD read
+                    interrupts to keep XA audio buffer full)
 -interpolation none,simple,gaussian,cubic  (upsamples audio, using more CPU)
 -reverb         (enables reverb)
 -xapitch	    (enable support for XA music/sfx speed pitch changes)
@@ -40,3 +33,31 @@ Apr 25 2016:
 -use_old_audio_mutex  (Don't use newer mutex-free SDL audio output code.
                        Only use this flag for debugging/verification, as the
                        newer code uses more efficient method)
+
+**************
+- REVISIONS: -
+**************
+May 3  2016:
+  * XA audio buffer was never filling and causing music/speech dropouts
+    on slower devices because of two reasons:
+    1.) Original FeedXA() was not properly detecting available unused space
+        in buffer.
+    2.) CD read interrupts (CDREAD_INT) are issued at a fixed rate that
+        does not take into account slow emulation or used size of buffer.
+    3.) General audio dropouts being caused by too-infrequent calls to
+        SPU_async() in psxcounters.cpp. The original PCSX_ReARMed emu
+        would only call it once per frame, but this is too seldom for slow
+        devices. It is now called twice per frame, and this might be made
+        a configurable setting in the future.
+
+    These issues have now been fixed and XA audio is greatly improved.
+    There is a chance that the new behavior could cause some incompatibilities,
+    and you can try the new -noforcedxaupdates option to restore the
+    original behavior.
+
+Apr 25 2016:
+  * Audio syncing is now on by default. Use -nosyncaudio to disable.
+  * New option '-use_old_audio_mutex' enables old method of syncing audio,
+    using mutex and condition variable). Default is now to use non-locking
+    atomic shared var to syncronize SDL audio thread with emu.
+
