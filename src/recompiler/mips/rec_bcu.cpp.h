@@ -193,7 +193,7 @@ static void recSYSCALL()
 }
 
 /* Set a pending branch */
-static INLINE void SetBranch()
+static void SetBranch()
 {
 	branch = 1;
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
@@ -204,7 +204,7 @@ static INLINE void SetBranch()
 	branch = 0;
 }
 
-static INLINE void iJumpNormal(u32 branchPC)
+static void iJumpNormal(u32 branchPC)
 {
 	branch = 1;
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
@@ -224,7 +224,7 @@ static INLINE void iJumpNormal(u32 branchPC)
 	end_block = 1;
 }
 
-static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
+static void iJumpAL(u32 branchPC, u32 linkpc)
 {
 	branch = 1;
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
@@ -247,7 +247,7 @@ static INLINE void iJumpAL(u32 branchPC, u32 linkpc)
 	end_block = 1;
 }
 
-static INLINE void iJump(u32 branchPC)
+static void iJump(u32 branchPC)
 {
 	branch = 1;
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));

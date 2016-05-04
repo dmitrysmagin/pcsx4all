@@ -37,9 +37,6 @@ void psxMemWrite32_error(u32 mem, u32 value);
 /* forward declaration */
 static u32 psxBranchTest_rec(u32 cycles, u32 pc);
 
-#undef INLINE
-#define INLINE		inline
-
 //#define WITH_DISASM
 //#define DEBUGG printf
 
