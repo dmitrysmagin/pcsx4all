@@ -247,32 +247,6 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 	end_block = 1;
 }
 
-static void iJump(u32 branchPC)
-{
-	branch = 1;
-	psxRegs.code = *(u32 *)((char *)PSXM(pc));
-	DISASM_PSX(pc);
-	pc+=4;
-
-	recBSC[psxRegs.code>>26]();
-
-	branch = 0;
-
-	if (ibranch > 0) {
-		regClearJump();
-		LI32(MIPSREG_A1, branchPC);
-		LI32(MIPSREG_A0, ((blockcycles+((pc-oldpc)/4)))*BIAS);
-		CALLFunc((u32)psxBranchTest_rec);
-		end_block = 1;
-		return;
-	}
-
-	ibranch++;
-	blockcycles += ((pc-oldpc)/4);
-	oldpc = pc = branchPC;
-	recClear(branchPC, 1);
-}
-
 static void recBLTZ()
 {
 // Branch if Rs < 0

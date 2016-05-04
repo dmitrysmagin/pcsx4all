@@ -98,7 +98,6 @@ u32	*recMemStart;
 u32	isInBios = 0;
 u32	loadedpermregs = 0;
 u32	end_block = 0;
-int	ibranch;
 u32	blockcycles = 0;
 
 #ifdef WITH_DISASM
@@ -212,7 +211,6 @@ static u32 recRecompile()
 
 	PC_REC32(psxRegs.pc) = (u32)recMem;
 	oldpc = pc = psxRegs.pc;
-	ibranch = 0;
 
 	DISASM_INIT();
 
