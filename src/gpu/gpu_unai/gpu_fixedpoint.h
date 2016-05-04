@@ -38,7 +38,8 @@ s32 s_invTable[(1<<TABLE_BITS)];
 INLINE  fixed i2x(const int   _x) { return  ((_x)<<FIXED_BITS); }
 INLINE  fixed x2i(const fixed _x) { return  ((_x)>>FIXED_BITS); }
 
-#ifdef __arm__
+//senquack - MIPS32 happens to have same instruction/format:
+#if defined(__arm__) || (__mips == 32)
 INLINE u32 Log2(u32 x) { u32 res; asm("clz %0,%1" : "=r" (res) : "r" (x)); return 32-res; }
 #else
 INLINE u32 Log2(u32 x) { u32 i = 0; for ( ; x > 0; ++i, x >>= 1); return i - 1; }
