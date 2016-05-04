@@ -21,8 +21,12 @@
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSetTexture(u16 tpage)
 {
-	long tp;
-	long tx, ty;
+	//senquack - 64-bit fix (from Notaz)
+	//long tp;
+	//long tx, ty;
+	u32 tp;
+	u32 tx, ty;
+
 	GPU_GP1 = (GPU_GP1 & ~0x7FF) | (tpage & 0x7FF);
 
 	TextureWindow[0]&= ~TextureWindow[2];
@@ -461,8 +465,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0xE5:
 			{
 				const u32 temp = PacketBuffer.U4[0];
-				DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
-				DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+				//senquack - 64-bit fix from Notaz:
+				//DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
+				//DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+				DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
+				DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));
 			}
 			break;
