@@ -214,6 +214,9 @@ do { \
 #define BEQZ(rs, offset)	BEQ(rs, 0, offset)
 #define B(offset)		BEQ(0, 0, offset)
 
+#define BNE(rs, rt, offset) \
+	write32(0x14000000 | (rs << 21) | (rt << 16) | (offset >> 2))
+
 #define NOP() \
 	write32(0)
 

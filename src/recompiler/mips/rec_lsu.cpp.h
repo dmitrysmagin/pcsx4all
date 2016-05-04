@@ -25,6 +25,11 @@ static int LoadFromConstAddr(int count)
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
+
+		/* Check if addr and addr+imm are in the same 2MB region */
+		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
+			return 0;
+
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -73,6 +78,11 @@ static int StoreToConstAddr(int count)
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
+
+		/* Check if addr and addr+imm are in the same 2MB region */
+		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
+			return 0;
+
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -119,7 +129,7 @@ static void LoadFromAddr(int count)
 	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch1, *backpatch2;
+	u32 *backpatch1, *backpatch2, *backpatch4;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -133,8 +143,18 @@ static void LoadFromAddr(int count)
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
+
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	NOP();
+
+	/* Check if addr and addr+imm are in the same 2MB region */
+	LUI(TEMP_1, 0xe0);
+	AND(TEMP_2, MIPSREG_A0, TEMP_1);
+	AND(TEMP_3, r1, TEMP_1);
+
+	backpatch4 = (u32 *)recMem;
+	BNE(TEMP_2, TEMP_3, 0); // bne temp_2, temp_3, label_hle
 	NOP();
 
 	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
@@ -171,6 +191,7 @@ static void LoadFromAddr(int count)
 
 	// label_hle:
 	fixup_branch(backpatch1);
+	fixup_branch(backpatch4);
 #endif
 
 	do {
@@ -211,7 +232,7 @@ static void StoreToAddr(int count)
 	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch1, *backpatch2, *backpatch3;
+	u32 *backpatch1, *backpatch2, *backpatch3, *backpatch4;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -233,6 +254,15 @@ static void StoreToAddr(int count)
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	NOP();
+
+	/* Check if addr and addr+imm are in the same 2MB region */
+	LUI(TEMP_1, 0xe0);
+	AND(TEMP_2, MIPSREG_A0, TEMP_1);
+	AND(TEMP_3, r1, TEMP_1);
+
+	backpatch4 = (u32 *)recMem;
+	BNE(TEMP_2, TEMP_3, 0); // bne temp_2, temp_3, label_hle
 	NOP();
 
 	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
@@ -275,6 +305,7 @@ static void StoreToAddr(int count)
 	// label_hle:
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch3);
+	fixup_branch(backpatch4);
 #endif
 
 	do {
