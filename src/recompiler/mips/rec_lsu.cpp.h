@@ -428,6 +428,8 @@ static void recLB()
 {
 	int count = calc_loads();
 
+	if (autobias) cycles_pending += count;
+
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(count))
 		return;
@@ -438,6 +440,8 @@ static void recLB()
 static void recLBU()
 {
 	int count = calc_loads();
+
+	if (autobias) cycles_pending += count;
 
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(count))
@@ -450,6 +454,8 @@ static void recLH()
 {
 	int count = calc_loads();
 
+	if (autobias) cycles_pending += count;
+
 	// Rt = mem[Rs + Im] (signed)
 	if (LoadFromConstAddr(count))
 		return;
@@ -460,6 +466,8 @@ static void recLH()
 static void recLHU()
 {
 	int count = calc_loads();
+
+	if (autobias) cycles_pending += count;
 
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(count))
@@ -472,6 +480,8 @@ static void recLW()
 {
 	int count = calc_loads();
 
+	if (autobias) cycles_pending += count;
+
 	// Rt = mem[Rs + Im] (unsigned)
 	if (LoadFromConstAddr(count))
 		return;
@@ -482,6 +492,8 @@ static void recLW()
 static void recSB()
 {
 	int count = calc_stores();
+
+	if (autobias) cycles_pending += count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(count))
@@ -494,6 +506,8 @@ static void recSH()
 {
 	int count = calc_stores();
 
+	if (autobias) cycles_pending += count;
+
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(count))
 		return;
@@ -504,6 +518,8 @@ static void recSH()
 static void recSW()
 {
 	int count = calc_stores();
+
+	if (autobias) cycles_pending += count;
 
 	// mem[Rs + Im] = Rt
 	if (StoreToConstAddr(count))
@@ -801,6 +817,8 @@ static void recLWL()
 {
 	int count = calc_wl_wr(0x22, 0x26);
 
+	if (autobias) cycles_pending += count;
+
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
@@ -849,12 +867,16 @@ static void recLWL()
 
 static void recLWR()
 {
+	if (autobias) cycles_pending += 1;
+
 	gen_LWL_LWR(1);
 }
 
 static void recSWL()
 {
 	int count = calc_wl_wr(0x2a, 0x2e);
+
+	if (autobias) cycles_pending += count;
 
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
@@ -901,5 +923,7 @@ static void recSWL()
 
 static void recSWR()
 {
+	if (autobias) cycles_pending += 1;
+
 	gen_SWL_SWR(1);
 }

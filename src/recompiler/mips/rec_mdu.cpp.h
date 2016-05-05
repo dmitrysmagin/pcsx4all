@@ -1,5 +1,6 @@
 static void recMULT() {
 // Lo/Hi = Rs * Rt (signed)
+	if (autobias) cycles_pending += 11;
 	if (!_Rt_ || !_Rs_) {
 		u32 rsrt;
 		if (!_Rt_) {
@@ -27,6 +28,7 @@ static void recMULT() {
 
 static void recMULTU() {
 // Lo/Hi = Rs * Rt (unsigned)
+	if (autobias) cycles_pending += 11;
 	if (!_Rt_ || !_Rs_) {
 		u32 rsrt;
 		if (!_Rt_) {
@@ -55,6 +57,7 @@ static void recMULTU() {
 static void recDIV()
 {
 // Hi, Lo = rs / rt signed
+	if (autobias) cycles_pending += 34;
 	if (!_Rt_) return;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
@@ -69,6 +72,7 @@ static void recDIV()
 static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
+	if (autobias) cycles_pending += 34;
 	if (!_Rt_) return;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
