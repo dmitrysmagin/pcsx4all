@@ -98,7 +98,7 @@ u32	*recMemStart;
 u32	isInBios = 0;
 u32	loadedpermregs = 0;
 u32	end_block = 0;
-u32	blockcycles = 0;
+u32	cycles_pending = 0;
 
 #ifdef WITH_DISASM
 
@@ -207,7 +207,7 @@ static u32 recRecompile()
 
 	regReset();
 
-	blockcycles = 0;
+	cycles_pending = 0;
 
 	PC_REC32(psxRegs.pc) = (u32)recMem;
 	oldpc = pc = psxRegs.pc;
