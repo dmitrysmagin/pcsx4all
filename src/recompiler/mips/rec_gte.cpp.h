@@ -27,8 +27,8 @@ void gte##f(); void rec##f() \
 	CALLFunc((u32)gte##f); \
 }
 
-CP2_FUNC2(MFC2, 2);
-CP2_FUNC2(MTC2, 2);
+//CP2_FUNC2(MFC2, 2);
+//CP2_FUNC2(MTC2, 2);
 CP2_FUNC(LWC2, 3);
 CP2_FUNC(SWC2, 4);
 CP2_FUNC3(DCPL, 8);
@@ -71,6 +71,50 @@ static void recCTC2()
 	if (autobias) cycles_pending += 2;
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 	SW(rt, PERM_REG_1, offCP2C(_Rd_));
+	regUnlock(rt);
+}
+
+static void recMFC2()
+{
+	if (autobias) cycles_pending += 2;
+	if (!_Rt_) return;
+
+	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
+
+	if (_Rd_ == 29) {
+		LW(rt, PERM_REG_1, off(CP2D.r[9])); // gteIR1
+		SRL(rt, rt, 7);
+		ANDI(rt, rt, 0x1f);
+		LW(TEMP_1, PERM_REG_1, off(CP2D.r[10])); // gteIR2
+		SRL(TEMP_1, TEMP_1, 7);
+		ANDI(TEMP_1, TEMP_1, 0x1f);
+		SLL(TEMP_1, TEMP_1, 5);
+		OR(rt, rt, TEMP_1);
+		LW(TEMP_1, PERM_REG_1, off(CP2D.r[11])); // gteIR3
+		SRL(TEMP_1, TEMP_1, 7);
+		ANDI(TEMP_1, TEMP_1, 0x1f);
+		SLL(TEMP_1, TEMP_1, 10);
+		OR(rt, rt, TEMP_1);
+		SW(rt, PERM_REG_1, off(CP2D.r[29]));
+	} else {
+		LW(rt, PERM_REG_1, off(CP2D.r[_Rd_]));
+	}
+
+	regMipsChanged(_Rt_);
+	regUnlock(rt);
+}
+
+// defined in gte_old/gte.cpp
+// TODO: expand it inline here
+void MTC2(unsigned long value, int reg);
+
+static void recMTC2()
+{
+	if (autobias) cycles_pending += 2;
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+	MOV(MIPSREG_A0, rt);
+	LI32(MIPSREG_A1, _Rd_);
+	CALLFunc((u32)MTC2);
 	regUnlock(rt);
 }
 
