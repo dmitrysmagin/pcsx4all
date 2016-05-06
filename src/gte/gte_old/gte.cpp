@@ -195,7 +195,7 @@ inline void asm_get_count(int a,int* i)
         );
 }
 #endif
-__inline void MTC2(unsigned long value, int reg) {
+/*__inline*/ void MTC2(unsigned long value, int reg) {
 	int a;
 
 	switch(reg) {
