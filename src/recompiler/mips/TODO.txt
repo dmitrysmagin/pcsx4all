@@ -2,7 +2,6 @@ TODO list
 
 * recompiler:
 
-  - Add proper support for autobias and cycle counting
   - Implement GTE code generation
 
 * constants caching
