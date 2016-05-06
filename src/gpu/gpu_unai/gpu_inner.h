@@ -76,6 +76,7 @@ INLINE void gpuPixelFn(u16 *pixel,const u16 data)
 		if (BM==1) gpuBlending01(uSrc, uDst);
 		if (BM==2) gpuBlending02(uSrc, uDst);
 		if (BM==3) gpuBlending03(uSrc, uDst);
+
 		if(MB) { *pixel = uSrc | 0x8000; }
 		else   { *pixel = uSrc; }
 	}
@@ -142,6 +143,13 @@ INLINE void  gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 
 			if (MB) { *pDst = uSrc | 0x8000; }
 			else    { *pDst = uSrc; }
+
+			//senquack - Did not apply "Silent Hill" mask-bit fix to here.
+			// It is hard to tell from scarce documentation available and
+			//  lack of comments in code, but I believe the tile-span
+			//  functions here should not bother to preserve any source MSB,
+			//  as they are not drawing from a texture.
+
 			endtile: pDst++;
 		}
 		while (--count);
@@ -181,6 +189,14 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 	u8 rgb; if (TM==1) rgb = ((u8*)pTxt)[u0>>1];
 	u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
 
+	//senquack - 'Silent Hill' white rectangles around characters fix:
+	// MSB of pixel from source texture was not preserved across calls to
+	// gpuBlendingXX() macros.. we must save it if calling them:
+	// NOTE: it was gpuPolySpanFn() that cause the Silent Hill glitches, but
+	// from reading the few PSX HW docs available, MSB should be transferred
+	// whenever a texture is being read.
+	u16 srcMSB;
+
 	do
 	{
 		//  MASKING
@@ -192,6 +208,9 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		if (TM==3) { uSrc = pTxt[u0]; u0=(u0+1)&mask; }
 		if (!uSrc) goto endsprite;
 
+		//senquack - save source MSB:
+		if (!MB) { srcMSB = uSrc & 0x8000; }
+		
 		//  BLEND
 		if(B)
 		{
@@ -219,9 +238,12 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 			{ if(!MB) uSrc&= 0x7fff;               }
 		}
 
+		//senquack - 'Silent Hill' fix: MSB of pixel from source texture
+		// was not preserved by calls to gpuBlendingXX() macros.. Now it
+		// is saved in srcMSB before calling them:
 		if (MB) { *pDst = uSrc | 0x8000; }
-		else    { *pDst = uSrc; }
-		
+		else    { *pDst = uSrc | srcMSB; }
+
 		endsprite: pDst++;
 	}
 	while (--count);
@@ -303,6 +325,7 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 					if (BM==1) gpuBlending01(uSrc, uDst);
 					if (BM==2) gpuBlending02(uSrc, uDst);
 					if (BM==3) gpuBlending03(uSrc, uDst);
+
 					if (MB) { *pDst = uSrc | 0x8000; }
 					else    { *pDst = uSrc; }
 					endtile: pDst++;
@@ -341,8 +364,10 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 					//  light
 					gpuLightingRGB(uSrc,lCol);
 				}
+
 				if (MB) { *pDst = uSrc | 0x8000; }
 				else    { *pDst = uSrc; }
+
 				endgou: pDst++; lCol=(lCol+linc);
 			}
 			while (--count);
@@ -350,6 +375,11 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 	}
 	else
 	{
+		//senquack - 'Silent Hill' white rectangles around characters fix:
+		// MSB of pixel from source texture was not preserved across calls to
+		// gpuBlendingXX() macros.. we must save it if calling them:
+		u16 srcMSB;
+
 		// TEXTURE
 		u16 uDst;
 		u16 uSrc;
@@ -374,6 +404,10 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 			if (TM==1) { u32 tu=(tCor>>23); u32 tv=(tCor<<4)&(0xff<<11); u8 rgb=((u8*)_TBA)[tv+(tu>>1)]; uSrc=_CBA[(rgb>>((tu&1)<<2))&0xf]; if(!uSrc) goto endpoly; }
 			if (TM==2) { uSrc = _CBA[(((u8*)_TBA)[(tCor>>23)+((tCor<<4)&(0xff<<11))])]; if(!uSrc)  goto endpoly; }
 			if (TM==3) { uSrc = _TBA[(tCor>>23)+((tCor<<3)&(0xff<<10))]; if(!uSrc)  goto endpoly; }
+
+			//senquack - Silent Hill fix
+			if (!MB) { srcMSB = uSrc & 0x8000; }
+
 			//  blend
 			if(B)
 			{
@@ -396,11 +430,23 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 			else
 			{
 				//  light
-				if(L)  { gpuLightingTXT(uSrc, lCol); } else if(!MB) { uSrc&= 0x7fff; }
+
+				//senquack - While fixing Silent Hill white-rectangles bug, I
+				// noticed uSrc was being masked unnecessarily here:
+				//if(L)  { gpuLightingTXT(uSrc, lCol); } else if(!MB) { uSrc&= 0x7fff; }
+				if(L)  { gpuLightingTXT(uSrc, lCol); }
 			}
+
+			//senquack - 'Silent Hill' fix: MSB of pixel from source texture
+			// was not preserved by calls to gpuBlendingXX() macros.. Now it
+			// is saved in srcMSB before calling them:
+			//if (MB) { *pDst = uSrc | 0x8000; }
+			//else    { *pDst = uSrc; }
 			if (MB) { *pDst = uSrc | 0x8000; }
-			else    { *pDst = uSrc; }
+			else    { *pDst = uSrc | srcMSB; }
+
 			endpoly: pDst++;
+
 			tCor=(tCor+tinc)&tmsk;
 			if (L&&G) lCol=(lCol+linc);
 		}
