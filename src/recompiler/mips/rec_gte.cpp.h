@@ -4,7 +4,6 @@
 void gte##f(u32 code, u32 pc); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
-	/* TODO: Remove */ regClearJump(); \
 	LI32(MIPSREG_A0, psxRegs.code); \
 	LI32(MIPSREG_A1, pc); \
 	CALLFunc((u32)gte##f); \
@@ -14,7 +13,6 @@ void gte##f(u32 code, u32 pc); void rec##f() \
 void gte##f(u32 code); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
-	/* TODO: Remove */ regClearJump(); \
 	LI32(MIPSREG_A0, psxRegs.code); \
 	CALLFunc((u32)gte##f); \
 }
@@ -23,7 +21,6 @@ void gte##f(u32 code); void rec##f() \
 void gte##f(); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
-	/* TODO: Remove */ regClearJump(); \
 	CALLFunc((u32)gte##f); \
 }
 
