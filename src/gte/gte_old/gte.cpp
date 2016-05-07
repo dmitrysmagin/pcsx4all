@@ -177,24 +177,7 @@ __inline unsigned long MFC2(int reg) {
 			return psxRegs.CP2D.r[reg];
 	}
 }
-#if 0
-inline void asm_get_count(int a,int* i)
-{
-        __asm__ __volatile__
-        (
-                "li $t1,32\n"
-		"1:\n"
-                "sub $t1,$t1,1\n"
-                "li $t0,1\n"
-                "sll $t0,$t0,$t1\n"
-                "and $t0,%1,$t0\n"
-                "beq $t0,0,1b\n"
-                "add %0,$t1,0\n"
-                : "=r"(*i)
-                : "r"(a)
-        );
-}
-#endif
+
 /*__inline*/ void MTC2(unsigned long value, int reg) {
 	int a;
 
@@ -250,14 +233,12 @@ inline void asm_get_count(int a,int* i)
 			} else {
 				psxRegs.CP2D.r[31] = 32;
 			}
-#elif defined(__LINUX__) || defined(__MINGW32__)
+#elif defined(__GNUC__) && __GNUC__ >= 4
 			if (a > 0) {
-				__asm__ ("bsrl %1, %0\n" : "=r"(a) : "r"(a) );
-				psxRegs.CP2D.r[31] = 31 - a;
+				psxRegs.CP2D.r[31] = __builtin_clz(a);
 			} else if (a < 0) {
-				a^= 0xffffffff;
-				__asm__ ("bsrl %1, %0\n" : "=r"(a) : "r"(a) );
-				psxRegs.CP2D.r[31] = 31 - a;
+				a ^= 0xffffffff;
+				psxRegs.CP2D.r[31] = __builtin_clz(a);
 			} else {
 				psxRegs.CP2D.r[31] = 32;
 			}
@@ -265,41 +246,11 @@ inline void asm_get_count(int a,int* i)
 			if (a > 0) {
 				int i;
 				for (i=31; (a & (1 << i)) == 0 && i >= 0; i--);
-#if 0
-				__asm__ __volatile__
-        			(
-			                "li $t1,32\n"
-					"1:\n"
-			                "sub $t1,$t1,1\n"
-			                "li $t0,1\n"
-			                "sll $t0,$t0,$t1\n"
-			                "and $t0,%1,$t0\n"
-			                "beq $t0,0,1b\n"
-			                "add %0,$t1,0\n"
-			                : "=r"(i)
-			                : "r"(a)
-			        );
-#endif
 				psxRegs.CP2D.r[31] = 31 - i;
 			} else if (a < 0) {
 				int i;
-				a^= 0xffffffff;
+				a ^= 0xffffffff;
 				for (i=31; (a & (1 << i)) == 0 && i >= 0; i--);
-#if 0
-				__asm__ __volatile__
-        			(
-			                "li $t1,32\n"
-					"1:\n"
-			                "sub $t1,$t1,1\n"
-			                "li $t0,1\n"
-			                "sll $t0,$t0,$t1\n"
-			                "and $t0,%1,$t0\n"
-			                "beq $t0,0,1b\n"
-			                "add %0,$t1,0\n"
-			                : "=r"(i)
-			                : "r"(a)
-			        );
-#endif
 				psxRegs.CP2D.r[31] = 31 - i;
 			} else {
 				psxRegs.CP2D.r[31] = 32;
