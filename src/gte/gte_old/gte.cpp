@@ -178,7 +178,7 @@ __inline unsigned long MFC2(int reg) {
 	}
 }
 
-/*__inline*/ void MTC2(unsigned long value, int reg) {
+__inline void MTC2(unsigned long value, int reg) {
 	int a;
 
 	switch(reg) {
