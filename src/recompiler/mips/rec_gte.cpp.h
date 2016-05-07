@@ -91,17 +91,59 @@ static void emitMFC2(u32 rt, u32 reg)
 	}
 }
 
-// defined in gte_old/gte.cpp
-// TODO: expand it inline here
-void MTC2(unsigned long value, int reg);
-
-/* TODO: emit inline, don't call MTC2() */
 /* move from host rt to cp2 reg */
 static void emitMTC2(u32 rt, u32 reg)
 {
-	MOV(MIPSREG_A0, rt);
-	LI32(MIPSREG_A1, reg);
-	CALLFunc((u32)MTC2);
+	switch (reg) {
+	case 8: case 9: case 10: case 11:
+		SEH(TEMP_1, rt);
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[reg]));
+		break;
+	case 15:
+		LW(TEMP_1, PERM_REG_1, off(CP2D.p[13]));
+		SW(TEMP_1, PERM_REG_1, off(CP2D.p[12])); // gteSXY0 = gteSXY1;
+		LW(TEMP_1, PERM_REG_1, off(CP2D.p[14]));
+		SW(TEMP_1, PERM_REG_1, off(CP2D.p[13])); // gteSXY1 = gteSXY2;
+
+		SW(rt, PERM_REG_1, off(CP2D.p[14])); // gteSXY2 = value;
+		SW(rt, PERM_REG_1, off(CP2D.p[15])); // gteSXYP = value;
+		break;
+	case 16: case 17: case 18: case 19:
+		ANDI(TEMP_1, rt, 0xffff);
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[reg]));
+		break;
+	case 28:
+		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+		EXT(TEMP_1, rt, 0, 5);
+		SLL(TEMP_1, TEMP_1, 7);
+		// gteIR1 = ((value      ) & 0x1f) << 7;
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[9]));
+		EXT(TEMP_1, rt, 5, 5);
+		SLL(TEMP_1, TEMP_1, 7);
+		// gteIR2 = ((value >>  5) & 0x1f) << 7;
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[10]));
+		EXT(TEMP_1, rt, 10, 5);
+		SLL(TEMP_1, TEMP_1, 7);
+		// gteIR3 = ((value >> 10) & 0x1f) << 7;
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[11]));
+		break;
+	case 30:
+		u32 *backpatch;
+		SW(rt, PERM_REG_1, off(CP2D.r[30]));
+		SLT(1, rt, 0);
+		backpatch = (u32 *)recMem;
+		BEQZ(1, 0);
+		MOV(TEMP_1, rt); // delay slot
+
+		NOR(TEMP_1, 0, rt); // temp_1 = rt ^ -1
+		fixup_branch(backpatch);
+		CLZ(TEMP_1, TEMP_1);
+		SW(TEMP_1, PERM_REG_1, off(CP2D.r[31]));
+		break;
+	default:
+		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+		break;
+	}
 }
 
 static void recMFC2()

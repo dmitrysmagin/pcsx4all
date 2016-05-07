@@ -234,6 +234,9 @@ do { \
 #define SEH(rd, rt) \
 	write32(0x7C000620 | (rt << 16) | (rd << 11))
 
+#define CLZ(rd, rs) \
+	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
+
 /* start of the recompiled block */
 #define rec_recompile_start() \
 do { \
