@@ -79,12 +79,10 @@ static void emitMFC2(u32 rt, u32 reg)
 		EXT(rt, rt, 7, 5);
 		LW(TEMP_1, PERM_REG_1, off(CP2D.r[10])); // gteIR2
 		EXT(TEMP_1, TEMP_1, 7, 5);
-		SLL(TEMP_1, TEMP_1, 5);
-		OR(rt, rt, TEMP_1);
+		INS(rt, TEMP_1, 5, 5);
 		LW(TEMP_1, PERM_REG_1, off(CP2D.r[11])); // gteIR3
 		EXT(TEMP_1, TEMP_1, 7, 5);
-		SLL(TEMP_1, TEMP_1, 10);
-		OR(rt, rt, TEMP_1);
+		INS(rt, TEMP_1, 10, 5);
 		SW(rt, PERM_REG_1, off(CP2D.r[29]));
 	} else {
 		LW(rt, PERM_REG_1, off(CP2D.r[reg]));
