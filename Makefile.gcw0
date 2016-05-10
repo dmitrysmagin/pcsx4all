@@ -7,10 +7,10 @@ PORT   = sdl
 #GPU    = gpu_null
 GPU    = gpu_unai
 
-#SPU   = spu_pcsxrearmed
+SPU    = spu_pcsxrearmed
 #SPU   = spu_dfxsound
 #SPU    = spu_null
-SPU   = spu_franxis
+#SPU   = spu_franxis
 
 #INTERPRETER = interpreter_pcsx
 INTERPRETER = interpreter_new
