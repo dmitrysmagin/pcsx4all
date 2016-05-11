@@ -31,6 +31,7 @@ MCD2_FILE = \"mcd002.mcr\"
 
 CFLAGS = -g -O2 -DGCW_ZERO \
 	 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align \
+	 -Wno-unused-value -Wno-write-strings -Wno-narrowing \
 	 -Waggregate-return -Wno-cast-align \
 	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-D$(GPU) -Isrc/port/$(PORT) \
