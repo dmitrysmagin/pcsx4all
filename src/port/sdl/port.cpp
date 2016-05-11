@@ -380,7 +380,7 @@ void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 		ptr+=320;
 		pVideo+=width;
 	}
-	
+
 	video_flip();
 }
 
@@ -396,11 +396,9 @@ int main (int argc, char **argv)
 	char filename[256];
 	const char *cdrfilename=GetIsoFile();
 
-// CHUI: Y esto???? Peta en Linux al salir	
-//	*stdout = *stderr;
 	filename[0] = '\0'; /* Executable file name */
 	savename[0] = '\0'; /* SaveState file name */
-	
+
 	// PCSX
 	Config.Xa=1; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
@@ -471,7 +469,7 @@ int main (int argc, char **argv)
 	// "Probably the main change is SPU emulation, there were issues in some games where effects were wrong,
 	//  mostly Final Fantasy series, it should be better now. There were also sound sync issues where game would
 	//  occasionally lock up (like Valkyrie Profile), it should be stable now.
-	//  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double 
+	//  Changed sync has a side effect however - if the emulator is not fast enough (may happen with double
 	//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
 	//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
@@ -503,21 +501,12 @@ int main (int argc, char **argv)
 	extern unsigned int autoFrameSkip; autoFrameSkip=1; /* auto frameskip */
 	extern signed int framesToSkip; framesToSkip=0; /* frames to skip */
 	#endif
-	
+
 	// gpu_unai
 	#ifdef gpu_unai
 	extern int skipCount; skipCount=0; /* frame skip (0,1,2,3...) */
 	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
 	#endif
-	
-	SetIsoFile("/tmp/wipe.bin");
-	//SetIsoFile("../isos/bubble.bin");
-	//SetIsoFile("../isos/bustmove.bin");
-	//SetIsoFile("../isos/castle.bin");
-	//SetIsoFile("../isos/cotton.iso");
-	//SetIsoFile("../isos/ridge.bin");
-	//SetIsoFile("../isos/TEKKEN3.BIN");
-	//SetIsoFile("../isos/yoyo.bin");
 
 	// command line options
 	bool param_parse_error=0;
@@ -616,7 +605,7 @@ int main (int argc, char **argv)
 				if (strcmp(argv[i],"cubic")==0) val=3;
 			} else
 				printf("ERROR: missing value for -interpolation\n");
-			
+
 
 			if (val == -1) {
 				printf("ERROR: -interpolation value must be one of: none,simple,gaussian,cubic\n");
@@ -678,7 +667,7 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-frontend")==0) { strcpy(frontend,argv[i+1]); } // Frontend
 #endif
 	}
-	
+
 	if (param_parse_error) {
 		printf("Failed to parse command-line parameters, exiting.\n");
 		exit(1);
@@ -688,7 +677,7 @@ int main (int argc, char **argv)
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 
 #if !defined(spu_pcsxrearmed)		//spu_pcsxrearmed handles its own audio backends
-	SDL_Init( SDL_INIT_AUDIO );
+	SDL_Init(SDL_INIT_AUDIO);
 #endif
 
 	atexit(SDL_Quit);
@@ -714,22 +703,45 @@ int main (int argc, char **argv)
 		pcsx4all_exit();
 	}
 
-	psxReset();	
+	psxReset();
 
-	if (cdrfilename[0]!='\0') { if (CheckCdrom() == -1) { printf("Failed checking ISO image.\n"); SetIsoFile(NULL); }
-	else { if (LoadCdrom() == -1) { printf("Failed loading ISO image.\n"); SetIsoFile(NULL); } } }
-	if (filename[0]!='\0') { if (Load(filename) == -1) { printf("Failed loading executable.\n"); filename[0]='\0'; } }
-//	if (cdrfilename[0]!='\0') { printf("Running ISO image: %s.\n",cdrfilename); }
-	if (filename[0]!='\0') { printf("Running executable: %s.\n",filename); }
-	if ((cdrfilename[0]=='\0') && (filename[0]=='\0') && (Config.HLE==0)) { printf("Running BIOS.\n"); }
+	if (cdrfilename[0] != '\0') {
+		if (CheckCdrom() == -1) {
+			printf("Failed checking ISO image.\n");
+			SetIsoFile(NULL);
+		} else {
+			printf("Running ISO image: %s.\n", cdrfilename);
+			if (LoadCdrom() == -1) {
+				printf("Failed loading ISO image.\n");
+				SetIsoFile(NULL);
+			}
+		}
+	}
 
-	if ((cdrfilename[0]!='\0') || (filename[0]!='\0') || (Config.HLE==0))
-	{
-		if (savename[0]) SaveState_filename=(char*)&savename;
+	if (filename[0] != '\0') {
+		if (Load(filename) == -1) {
+			printf("Failed loading executable.\n");
+			filename[0]='\0';
+		}
+	}
+
+	if (filename[0] != '\0') {
+		printf("Running executable: %s.\n",filename);
+	}
+
+	if ((cdrfilename[0] == '\0') && (filename[0] == '\0') && (Config.HLE == 0)) {
+		printf("Running BIOS.\n");
+	}
+
+	if ((cdrfilename[0] != '\0') || (filename[0] != '\0') || (Config.HLE == 0)) {
+		if (savename[0])
+			SaveState_filename = (char *)&savename;
 #ifdef DEBUG_PCSX4ALL
-		if (savename[0]) LoadState(savename); // Load save-state
+		if (savename[0])
+			LoadState(savename); // Load save-state
 #else
-		if ((autosavestate) && (savename[0])) LoadState(savename); // Load save-state
+		if ((autosavestate) && (savename[0]))
+			LoadState(savename); // Load save-state
 #endif
 		pcsx4all_prof_start(PCSX4ALL_PROF_CPU);
 		psxCpu->Execute();
@@ -737,7 +749,7 @@ int main (int argc, char **argv)
 	}
 
 	pcsx4all_exit(); // exit
-	
+
 	return 0;
 }
 
