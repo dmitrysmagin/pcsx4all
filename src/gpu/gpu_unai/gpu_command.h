@@ -21,9 +21,18 @@
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSetTexture(u16 tpage)
 {
-	long tp;
-	long tx, ty;
-	GPU_GP1 = (GPU_GP1 & ~0x7FF) | (tpage & 0x7FF);
+	//senquack - 64-bit fix (from Notaz)
+	//long tp;
+	//long tx, ty;
+	u32 tp;
+	u32 tx, ty;
+
+	//senquack - From Notaz's '64-bit issues' commit, he changed the following,
+	//           in pcsx_rearmed's gpu_unai, but there was no associated comment.
+	//           This fix makes Unai's code match gpu_drhell's GPU code
+	// https://github.com/notaz/pcsx_rearmed/commit/4144e9abc1fb8420e08e0a5ef48a9ceba7f26661
+	//GPU_GP1 = (GPU_GP1 & ~0x7FF) | (tpage & 0x7FF);
+	GPU_GP1 = (GPU_GP1 & ~0x1FF) | (tpage & 0x1FF);
 
 	TextureWindow[0]&= ~TextureWindow[2];
 	TextureWindow[1]&= ~TextureWindow[3];
@@ -31,6 +40,12 @@ INLINE void gpuSetTexture(u16 tpage)
 	tp = (tpage >> 7) & 3;
 	tx = (tpage & 0x0F) << 6;
 	ty = (tpage & 0x10) << 4;
+
+	//senquack - Added this line from same commit by Notaz as above comment mentions:
+	//           As you can see from 'tx += ' line just below the added line, it
+	//           would be shifting by undefined amount should tp equal a value
+	//           more than 2, so I suppose this is a good check to do.
+	if (tp == 3) tp = 2;
 
 	tx += (TextureWindow[0] >> (2 - tp));
 	ty += TextureWindow[1];
@@ -461,8 +476,11 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0xE5:
 			{
 				const u32 temp = PacketBuffer.U4[0];
-				DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
-				DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+				//senquack - 64-bit fix from Notaz:
+				//DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
+				//DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
+				DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
+				DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));
 			}
 			break;

@@ -32,14 +32,14 @@ extern unsigned long sound_get(void);
 extern void sound_set(unsigned char *pSound, long lBytes);
 #endif //spu_pcsxrearmed
 
+extern unsigned short* video_get_screenptr();   //senquack - added
 extern void video_flip(void);
+//senquack - TODO: remove video_set() or adapt it
 extern void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 extern void video_clear(void);
 extern void pcsx4all_exit(void);
 extern void port_printf(int x,int y,char *text);
 extern void port_sync(void);
 extern void port_mute(void);
-
-extern unsigned short *SCREEN;
 
 #endif

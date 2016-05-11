@@ -465,7 +465,9 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 	{
 		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
 		// lower 16 bit
-		u32 data = (unsigned long)pvram[px];
+		//senquack - 64-bit fix (from notaz)
+		//u32 data = (unsigned long)pvram[px];
+		u32 data = (u32)pvram[px];
 
 		if (++px>=x_end) 
 		{
@@ -475,7 +477,9 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 
 		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
 		// higher 16 bit (always, even if it's an odd width)
-		data |= (unsigned long)(pvram[px])<<16;
+		//senquack - 64-bit fix (from notaz)
+		//data |= (unsigned long)(pvram[px])<<16;
+		data |= (u32)(pvram[px])<<16;
 		
 		*dmaAddress++ = data;
 
@@ -697,7 +701,8 @@ static void gpuVideoOutput(void)
 	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
 	if (h0 == 480) h1 = Min2(h1*2,480);
 
-	u16* dest_screen16 = SCREEN;
+	//senquack - added new function video_get_screenptr() in port/sdl/port.cpp
+	u16* dest_screen16 = video_get_screenptr();
 	u16* src_screen16  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0,y0)];
 	bool isRGB24 = (GPU_GP1 & 0x00200000 ? true : false);
 
@@ -792,13 +797,8 @@ static void GPU_frameskip (bool show)
 			else 		sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/60 SPD=%3d%%",DisplayArea[2],DisplayArea[3],(GPU_GP1&0x00200000?24:15),frames_fps,((frames_fps*1001)/600));
 			frames_fps=0;
 			prev_fps=now;
-#ifndef __arm__
-			port_printf(5,5,msg);
-#endif
 		}
-#ifdef __arm__
 		port_printf(5,5,msg);
-#endif
 	}
 
 	// Update frameskip

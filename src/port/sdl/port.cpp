@@ -31,8 +31,10 @@ enum {
 	DKEY_TOTAL
 };
 
-SDL_Surface	*screen=NULL;
-unsigned short *SCREEN=NULL;
+static SDL_Surface *screen=NULL;
+static bool drawing_directly=true;
+// If emu doesn't draw directly to screen, this is where it will draw:
+static unsigned short *emu_screen=NULL;
 
 #ifdef gpu_unai
 /* FPS showing */
@@ -347,19 +349,28 @@ void sound_set(unsigned char *pSound, long lBytes)
 #endif //spu_pcsxrearmed
 
 
+//senquack - emu now draws to u16* pointer it receives from new function
+//           video_get_screenptr(). It assumes pointer points to 320x240x16bpp
+//           array it can draw into, but knows nothing more than that. Once it
+//           is done drawing, it calls video_flip(). If we passed it a pointer
+//           directly to our screen surface (meaning we are using 320x240x16
+//           video mode), the screen is already locked.
 void video_flip(void)
 {
-	int i,j;
-	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
-	unsigned *src=(unsigned *)SCREEN,*dst=(unsigned *)screen->pixels;
-#ifndef ANDROID
-	const unsigned suma=(screen->pitch/2)-320;
-//	const unsigned suma=(1024)-160;
-#endif
-#ifdef gpu_unai
-	if (show_fps)
-		port_printf(5,5,msg);
-#endif
+	unsigned *src=NULL, *dst=NULL;   // Used when not drawing directly to screen
+
+	if (!drawing_directly) {
+		if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+		src=(unsigned *)emu_screen;
+		dst=(unsigned *)screen->pixels;
+	}
+
+	//senquack - gpu_unai was already calling port_printf() directly
+//#ifdef gpu_unai
+//	if (show_fps)
+//		port_printf(5,5,msg);
+//#endif
+
 #ifdef gpu_dfxvideo
 	if (dfx_show_fps) {
 		char msg[256];
@@ -367,29 +378,57 @@ void video_flip(void)
 		port_printf(5,5,msg);
 	}
 #endif
-	for(j=0;j<240;j++) {
-		for(i=0;i<(320/(2*8));i++) {
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-		}
+
+	if (!drawing_directly) {
+		//senquack - TODO: clean up this cruft, add support for scaling to
+		// arbitrary resolutions/bit-depths for platforms that don't support
+		// fullscreen 320x240 16bpp video mode
+
+		int i,j;
+
 #ifndef ANDROID
-		dst+=suma;
+		const unsigned suma=(screen->pitch/2)-320;
+		//	const unsigned suma=(1024)-160;
 #endif
+
+		for(j=0;j<240;j++) {
+			for(i=0;i<(320/(2*8));i++) {
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+				*dst++=*src++;
+			}
+#ifndef ANDROID
+			dst+=suma;
+#endif
+		}
 	}
+
 	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 	SDL_Flip(screen);
 }
 
+//senquack - Added direct emu->screen drawing, returns pointer to a
+// 320x240x16 buffer the emu can draw into, preferably directly.
+unsigned short* video_get_screenptr()
+{
+	if (drawing_directly) {
+		if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+		return (unsigned short*)screen->pixels;
+	} else {
+		return emu_screen;
+	}
+}
+
+//senquack - TODO: Enhance, allow scaling and use IPU if beneficial
 void video_set(unsigned short* pVideo,unsigned int width,unsigned int height)
 {
 	int y;
-	unsigned short *ptr=SCREEN;
+	unsigned short *ptr=video_get_screenptr();
 	int w=(width>320?320:width);
 	int h=(height>240?240:height);
 
@@ -405,7 +444,10 @@ void video_set(unsigned short* pVideo,unsigned int width,unsigned int height)
 
 void video_clear(void)
 {
+	//senquack - addeded locking of screen
+	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	memset(screen->pixels, 0, screen->pitch*screen->h);
+	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 }
 
 static char savename[256];
@@ -711,11 +753,14 @@ int main (int argc, char **argv)
 #endif
 
 	atexit(SDL_Quit);
+
+	if (!drawing_directly)
+		emu_screen=(unsigned short*)calloc(320*240,2);
+
 	screen = SDL_SetVideoMode(320, 240, 16, SDL_HWSURFACE);
 	if(screen == NULL) { puts("NO Set VideoMode 320x240x16"); exit(0); }
 	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
-	SCREEN=(unsigned short*)calloc(320*240,2);
 
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
@@ -841,21 +886,27 @@ void port_printf(int x,int y,char *text)
 		0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00,0x70,0x18,0x30,0x1C,0x30,0x18,0x70,0x00,
 		0x00,0x00,0x76,0xDC,0x00,0x00,0x00,0x00,0x10,0x28,0x10,0x54,0xAA,0x44,0x00,0x00,
 	};
-	unsigned short *screen=(SCREEN+x+y*320);
-	for (int i=0;i<strlen(text);i++) {
 
+	// Will lock the screen surface if drawing_directly==true:
+	unsigned short *screen_ptr=(video_get_screenptr()+x+y*320);
+
+	for (int i=0;i<strlen(text);i++) {
 		for (int l=0;l<8;l++) {
-			screen[l*320+0]=(fontdata8x8[((text[i])*8)+l]&0x80)?0xffff:0x0000;
-			screen[l*320+1]=(fontdata8x8[((text[i])*8)+l]&0x40)?0xffff:0x0000;
-			screen[l*320+2]=(fontdata8x8[((text[i])*8)+l]&0x20)?0xffff:0x0000;
-			screen[l*320+3]=(fontdata8x8[((text[i])*8)+l]&0x10)?0xffff:0x0000;
-			screen[l*320+4]=(fontdata8x8[((text[i])*8)+l]&0x08)?0xffff:0x0000;
-			screen[l*320+5]=(fontdata8x8[((text[i])*8)+l]&0x04)?0xffff:0x0000;
-			screen[l*320+6]=(fontdata8x8[((text[i])*8)+l]&0x02)?0xffff:0x0000;
-			screen[l*320+7]=(fontdata8x8[((text[i])*8)+l]&0x01)?0xffff:0x0000;
+			screen_ptr[l*320+0]=(fontdata8x8[((text[i])*8)+l]&0x80)?0xffff:0x0000;
+			screen_ptr[l*320+1]=(fontdata8x8[((text[i])*8)+l]&0x40)?0xffff:0x0000;
+			screen_ptr[l*320+2]=(fontdata8x8[((text[i])*8)+l]&0x20)?0xffff:0x0000;
+			screen_ptr[l*320+3]=(fontdata8x8[((text[i])*8)+l]&0x10)?0xffff:0x0000;
+			screen_ptr[l*320+4]=(fontdata8x8[((text[i])*8)+l]&0x08)?0xffff:0x0000;
+			screen_ptr[l*320+5]=(fontdata8x8[((text[i])*8)+l]&0x04)?0xffff:0x0000;
+			screen_ptr[l*320+6]=(fontdata8x8[((text[i])*8)+l]&0x02)?0xffff:0x0000;
+			screen_ptr[l*320+7]=(fontdata8x8[((text[i])*8)+l]&0x01)?0xffff:0x0000;
 		}
-		screen+=8;
+		screen_ptr+=8;
 	}
+
+	// Recursive lock will still be held by emu afterwards:
+	if (drawing_directly)
+		if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 }
 
 void port_sync(void)
