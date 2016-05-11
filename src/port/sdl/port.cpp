@@ -77,6 +77,37 @@ void pcsx4all_exit(void)
 	exit(0);
 }
 
+static struct {
+	int key;
+	int bit;
+} keymap[] = {
+	{ SDLK_UP,		DKEY_UP },
+	{ SDLK_DOWN,		DKEY_DOWN },
+	{ SDLK_LEFT,		DKEY_LEFT },
+	{ SDLK_RIGHT,		DKEY_RIGHT },
+#ifdef GCW_ZERO
+	{ SDLK_LSHIFT,		DKEY_SQUARE },
+	{ SDLK_LCTRL,		DKEY_CIRCLE },
+	{ SDLK_SPACE,		DKEY_TRIANGLE },
+	{ SDLK_LALT,		DKEY_CROSS },
+	{ SDLK_TAB,		DKEY_L1 },
+	{ SDLK_BACKSPACE,	DKEY_R1 },
+	{ SDLK_ESCAPE,		DKEY_SELECT },
+#else
+	{ SDLK_a,		DKEY_SQUARE },
+	{ SDLK_x,		DKEY_CIRCLE },
+	{ SDLK_s,		DKEY_TRIANGLE },
+	{ SDLK_z,		DKEY_CROSS },
+	{ SDLK_q,		DKEY_L1 },
+	{ SDLK_w,		DKEY_R1 },
+	{ SDLK_e,		DKEY_L2 },
+	{ SDLK_r,		DKEY_R2 },
+	{ SDLK_BACKSPACE,	DKEY_SELECT },
+#endif
+	{ SDLK_RETURN,		DKEY_START },
+	{ 0, 0 }
+};
+
 static unsigned short pad1=0xffff;
 static unsigned short pad2=0xffff;
 
@@ -84,113 +115,81 @@ static int autosavestate=0;
 
 void pad_update(void)
 {
-  SDL_Event event;
+	SDL_Event event;
+	Uint8 *keys = SDL_GetKeyState(NULL);
 
-  while(SDL_PollEvent(&event))
-  {
-	  switch(event.type)
-	  {
-// CHUI: Salida por SDL_QUIT por comodidad...
-		  case SDL_QUIT:
-			if (autosavestate) {	
+	while (SDL_PollEvent(&event)) {
+		switch (event.type) {
+		case SDL_QUIT:
+			if (autosavestate) {
 				toExit=1;
 				toSaveState=1;
-			}else
+			} else
 				pcsx4all_exit();
 			break;
-		  case SDL_KEYDOWN:
-			switch(event.key.keysym.sym)
-			{
-				case SDLK_UP:    pad1 &= ~(1 << DKEY_UP);    break;
-				case SDLK_DOWN:  pad1 &= ~(1 << DKEY_DOWN);  break;
-				case SDLK_LEFT:  pad1 &= ~(1 << DKEY_LEFT);  break;
-				case SDLK_RIGHT: pad1 &= ~(1 << DKEY_RIGHT); break;
-
-#ifdef GCW_ZERO
-				case SDLK_LSHIFT: pad1 &= ~(1 << DKEY_SQUARE); break;
-				case SDLK_LCTRL: pad1 &= ~(1 << DKEY_CIRCLE); break;
-				case SDLK_SPACE: pad1 &= ~(1 << DKEY_TRIANGLE); break;
-				case SDLK_LALT: pad1 &= ~(1 << DKEY_CROSS); break;
-
-				case SDLK_TAB: pad1 &= ~(1 << DKEY_L1); break;
-				case SDLK_BACKSPACE: pad1 &= ~(1 << DKEY_R1); break;
-#else
-				case SDLK_a: pad1 &= ~(1 << DKEY_SQUARE); break;
-				case SDLK_x: pad1 &= ~(1 << DKEY_CIRCLE); break;
-				case SDLK_y:
-				case SDLK_s: pad1 &= ~(1 << DKEY_TRIANGLE); break;
-				case SDLK_b:
-				case SDLK_z: pad1 &= ~(1 << DKEY_CROSS); break;
-
-				case SDLK_w: pad1 &= ~(1 << DKEY_L1); break;
-				case SDLK_e: pad1 &= ~(1 << DKEY_R1); break;
-#endif
-				case SDLK_RETURN: pad1 &= ~(1 << DKEY_START); break;
+		case SDL_KEYDOWN:
+			switch (event.key.keysym.sym) {
 #ifndef GCW_ZERO
-				case SDLK_BACKSPACE: pad1 &= ~(1 << DKEY_SELECT); break;
-
-				case 0:
+			case SDLK_ESCAPE:
+				event.type = SDL_QUIT;
+				SDL_PushEvent(&event);
+				break;
 #endif
-				case SDLK_ESCAPE:
-					if (autosavestate) {	
-						toExit=1;
-						toSaveState=1;
-					}else
-						pcsx4all_exit();
-					break;
 #ifdef DEBUG_FRAME
-				case SDLK_F12: dbg_enable_frame(); break;
+			case SDLK_F12: dbg_enable_frame(); break;
 #endif
-				case SDLK_F1: 
-						   if ((!toLoadState)&&(!toSaveState))
-							  toLoadState=1;
-						   break;
-				case SDLK_F2: 
-						   if ((!toLoadState)&&(!toSaveState))
-							  toSaveState=1;
-						   break;
+			case SDLK_F1:
+					   if ((!toLoadState)&&(!toSaveState))
+						  toLoadState=1;
+					   break;
+			case SDLK_F2:
+					   if ((!toLoadState)&&(!toSaveState))
+						  toSaveState=1;
+					   break;
 
 #ifdef gpu_unai
-				case SDLK_v: { show_fps=!show_fps; } break;
+			case SDLK_v: { show_fps=!show_fps; } break;
 #endif
-						   
-				default: break;
+			default: break;
 			}
 			break;
-		case SDL_KEYUP:
-			switch(event.key.keysym.sym)
-			{
-				case SDLK_UP:    pad1 |= (1 << DKEY_UP);    break;
-				case SDLK_DOWN:  pad1 |= (1 << DKEY_DOWN);  break;
-				case SDLK_LEFT:  pad1 |= (1 << DKEY_LEFT);  break;
-				case SDLK_RIGHT: pad1 |= (1 << DKEY_RIGHT); break;
-#ifdef GCW_ZERO
-				case SDLK_LSHIFT: pad1 |= (1 << DKEY_SQUARE); break;
-				case SDLK_LCTRL: pad1 |= (1 << DKEY_CIRCLE); break;
-				case SDLK_SPACE: pad1 |= (1 << DKEY_TRIANGLE); break;
-				case SDLK_LALT: pad1 |= (1 << DKEY_CROSS); break;
 
-				case SDLK_TAB: pad1 |= (1 << DKEY_L1); break;
-				case SDLK_BACKSPACE: pad1 |= (1 << DKEY_R1); break;
-#else
-				case SDLK_a: pad1 |= (1 << DKEY_SQUARE); break;
-				case SDLK_x: pad1 |= (1 << DKEY_CIRCLE); break;
-				case SDLK_s: pad1 |= (1 << DKEY_TRIANGLE); break;
-				case SDLK_z: pad1 |= (1 << DKEY_CROSS); break;
-
-				case SDLK_w: pad1 |= (1 << DKEY_L1); break;
-				case SDLK_e: pad1 |= (1 << DKEY_R1); break;
-#endif
-				case SDLK_RETURN: pad1 |= (1 << DKEY_START); break;
-#ifndef GCW_ZERO
-				case SDLK_BACKSPACE: pad1 |= (1 << DKEY_SELECT); break;
-#endif
-				default: break;
-			}
-			break;
 		default: break;
-	  }
-  }
+		}
+	}
+
+	int k = 0;
+	while (keymap[k].key) {
+		if (keys[keymap[k].key]) {
+			pad1 &= ~(1 << keymap[k].bit);
+		} else {
+			pad1 |= (1 << keymap[k].bit);
+		}
+		k++;
+	}
+
+	/* Special key combos for GCW-Zero */
+#ifdef GCW_ZERO
+	// SELECT+L1 for L2
+	if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
+		pad1 &= ~(1 << DKEY_L2);
+	} else {
+		pad1 |= (1 << DKEY_L2);
+	}
+
+	// SELECT+R1 for R2
+	if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
+		pad1 &= ~(1 << DKEY_R2);
+	} else {
+		pad1 |= (1 << DKEY_R2);
+	}
+
+	// SELECT+START for exit
+	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN]) {
+		event.type = SDL_QUIT;
+		SDL_PushEvent(&event);
+	}
+#endif
 }
 
 unsigned short pad_read(int num)
