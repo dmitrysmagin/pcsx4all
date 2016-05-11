@@ -31,8 +31,8 @@ enum {
 	DKEY_TOTAL
 };
 
-SDL_Surface	*screen=NULL;
-unsigned short *SCREEN=NULL;
+static SDL_Surface *screen;
+unsigned short *SCREEN;
 
 #ifdef gpu_unai
 /* FPS showing */
@@ -349,10 +349,6 @@ void sound_set(unsigned char *pSound, long lBytes)
 
 void video_flip(void)
 {
-	int i,j;
-	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
-	unsigned *src=(unsigned *)SCREEN,*dst=(unsigned *)screen->pixels;
-
 #ifdef gpu_unai
 	if (show_fps)
 		port_printf(5,5,msg);
@@ -364,23 +360,14 @@ void video_flip(void)
 		port_printf(5,5,msg);
 	}
 #endif
-	for(j=0;j<240;j++) {
-		for(i=0;i<(320/(2*8));i++) {
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-			*dst++=*src++;
-		}
-	}
-	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
+
+	if (SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 	SDL_Flip(screen);
+	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 }
 
-void video_set(unsigned short* pVideo,unsigned int width,unsigned int height)
+/* This is used by gpu_dfxvideo only as it doesn't scale itself */
+void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 {
 	int y;
 	unsigned short *ptr=SCREEN;
@@ -705,11 +692,17 @@ int main (int argc, char **argv)
 #endif
 
 	atexit(SDL_Quit);
+
 	screen = SDL_SetVideoMode(320, 240, 16, SDL_HWSURFACE);
-	if(screen == NULL) { puts("NO Set VideoMode 320x240x16"); exit(0); }
-	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+	if (!screen) {
+		puts("NO Set VideoMode 320x240x16");
+		exit(0);
+	}
+
+	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
-	SCREEN=(unsigned short*)calloc(320*240,2);
+
+	SCREEN = (Uint16 *)screen->pixels;
 
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
