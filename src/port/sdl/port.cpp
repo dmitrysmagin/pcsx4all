@@ -352,10 +352,7 @@ void video_flip(void)
 	int i,j;
 	if(SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
 	unsigned *src=(unsigned *)SCREEN,*dst=(unsigned *)screen->pixels;
-#ifndef ANDROID
-	const unsigned suma=(screen->pitch/2)-320;
-//	const unsigned suma=(1024)-160;
-#endif
+
 #ifdef gpu_unai
 	if (show_fps)
 		port_printf(5,5,msg);
@@ -378,9 +375,6 @@ void video_flip(void)
 			*dst++=*src++;
 			*dst++=*src++;
 		}
-#ifndef ANDROID
-		dst+=suma;
-#endif
 	}
 	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 	SDL_Flip(screen);
@@ -427,7 +421,7 @@ int main (int argc, char **argv)
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=1; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	Config.HLE=1; /* 0=BIOS, 1=HLE */
-#if defined(ANDROID) || defined (PSXREC)
+#if defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 #else
 	Config.Cpu=1; /* 0=recompiler, 1=interpreter */
