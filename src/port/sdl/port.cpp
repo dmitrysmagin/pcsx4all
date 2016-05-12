@@ -77,6 +77,26 @@ void pcsx4all_exit(void)
 	exit(0);
 }
 
+static int autosavestate = 0;
+static int saveslot = 0;
+static char savename[256];
+
+static void state_load()
+{
+	sprintf(savename, "%s.%d.sav", CdromId, saveslot);
+	SaveState_filename = (char *)&savename;
+	if ((!toLoadState) && (!toSaveState))
+		toLoadState = 1;
+}
+
+static void state_save()
+{
+	sprintf(savename, "%s.%d.sav", CdromId, saveslot);
+	SaveState_filename = (char *)&savename;
+	if ((!toLoadState) && (!toSaveState))
+		toSaveState = 1;
+}
+
 static struct {
 	int key;
 	int bit;
@@ -111,8 +131,6 @@ static struct {
 static unsigned short pad1=0xffff;
 static unsigned short pad2=0xffff;
 
-static int autosavestate=0;
-
 void pad_update(void)
 {
 	SDL_Event event;
@@ -138,14 +156,8 @@ void pad_update(void)
 #ifdef DEBUG_FRAME
 			case SDLK_F12: dbg_enable_frame(); break;
 #endif
-			case SDLK_F1:
-					   if ((!toLoadState)&&(!toSaveState))
-						  toLoadState=1;
-					   break;
-			case SDLK_F2:
-					   if ((!toLoadState)&&(!toSaveState))
-						  toSaveState=1;
-					   break;
+			case SDLK_F1: state_load(); break;
+			case SDLK_F2: state_save(); break;
 
 #ifdef gpu_unai
 			case SDLK_v: { show_fps=!show_fps; } break;
@@ -388,8 +400,6 @@ void video_clear(void)
 {
 	memset(screen->pixels, 0, screen->pitch*screen->h);
 }
-
-static char savename[256];
 
 int main (int argc, char **argv)
 {
@@ -734,8 +744,6 @@ int main (int argc, char **argv)
 	}
 
 	if ((cdrfilename[0] != '\0') || (filename[0] != '\0') || (Config.HLE == 0)) {
-		if (savename[0])
-			SaveState_filename = (char *)&savename;
 #ifdef DEBUG_PCSX4ALL
 		if (savename[0])
 			LoadState(savename); // Load save-state
