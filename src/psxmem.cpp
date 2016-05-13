@@ -126,15 +126,17 @@ int psxMemInit() {
 
 void psxMemReset() {
 	FILE *f = NULL;
+	char bios[MAXPATHLEN];
 
 	memset(psxM, 0, 0x00200000);
 	memset(psxP, 0, 0x00010000);
 
 	if (Config.HLE==FALSE) {
-		f = fopen(BIOS_FILE, "rb");
+		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);
+		f = fopen(bios, "rb");
 
 		if (f == NULL) {
-			printf ("Could not open BIOS:\"%s\". Enabling HLE Bios!\n", BIOS_FILE);
+			printf ("Could not open BIOS:\"%s\". Enabling HLE Bios!\n", bios);
 			memset(psxR, 0, 0x80000);
 				Config.HLE = TRUE;
 		} else {

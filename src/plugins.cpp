@@ -29,8 +29,8 @@ int LoadPlugins(void) {
 	const char *cdrfilename=NULL;
 
 	ReleasePlugins();
-	
-    LoadMcds(MCD1_FILE,MCD2_FILE);
+
+	LoadMcds(Config.Mcd1, Config.Mcd2);
 
 	ret = CDR_init();
 	if (ret < 0) { printf ("Error initializing CD-ROM plugin: %d\n", ret); return -1; }

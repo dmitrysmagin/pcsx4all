@@ -292,11 +292,11 @@ unsigned char sioRead8() {
 					switch (CtrlReg & 0x2002) {
 						case 0x0002:
 							memcpy(Mcd1Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(MCD1_FILE, Mcd1Data, (adrL | (adrH << 8)) * 128, 128);
+							SaveMcd(Config.Mcd1, Mcd1Data, (adrL | (adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
 							memcpy(Mcd2Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(MCD2_FILE, Mcd2Data, (adrL | (adrH << 8)) * 128, 128);
+							SaveMcd(Config.Mcd2, Mcd2Data, (adrL | (adrH << 8)) * 128, 128);
 							break;
 					}
 				}

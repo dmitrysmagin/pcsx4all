@@ -74,6 +74,10 @@ typedef uint8_t boolean;
 #endif
 
 typedef struct {
+	char Mcd1[MAXPATHLEN];
+	char Mcd2[MAXPATHLEN];
+	char Bios[MAXPATHLEN];
+	char BiosDir[MAXPATHLEN];
 	boolean Xa; /* 0=XA enabled, 1=XA disabled */
 	boolean Mdec; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	boolean PsxAuto; /* 1=autodetect system (pal or ntsc) */
