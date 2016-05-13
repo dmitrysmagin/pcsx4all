@@ -1,3 +1,6 @@
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "port.h"
 #include "r3000a.h"
@@ -77,13 +80,41 @@ void pcsx4all_exit(void)
 	exit(0);
 }
 
+static char homedir[256] =	"./.pcsx4all";
+static char sstatesdir[256] =	"./.pcsx4all/sstates";
+static char memcardsdir[256] =	"./.pcsx4all/memcards";
+static char biosdir[256] =	"./.pcsx4all/bios";
+
+#ifdef __WIN32__
+	#define MKDIR(A) mkdir(A)
+#else
+	#define MKDIR(A) mkdir(A, 0777)
+#endif
+
+static void setup_paths()
+{
+#ifndef __WIN32__
+	char *home = getenv("HOME");
+	if(home) {
+		sprintf(homedir, "%s/.pcsx4all", home);
+		sprintf(sstatesdir, "%s/sstates", homedir);
+		sprintf(memcardsdir, "%s/memcards", homedir);
+		sprintf(biosdir, "%s/bios", homedir);
+	}
+#endif
+	MKDIR(homedir);
+	MKDIR(sstatesdir);
+	MKDIR(memcardsdir);
+	MKDIR(biosdir);
+}
+
 static int autosavestate = 0;
 static int saveslot = 0;
 static char savename[256];
 
 static void state_load()
 {
-	sprintf(savename, "%s.%d.sav", CdromId, saveslot);
+	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
 	SaveState_filename = (char *)&savename;
 	if ((!toLoadState) && (!toSaveState))
 		toLoadState = 1;
@@ -91,7 +122,7 @@ static void state_load()
 
 static void state_save()
 {
-	sprintf(savename, "%s.%d.sav", CdromId, saveslot);
+	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
 	SaveState_filename = (char *)&savename;
 	if ((!toLoadState) && (!toSaveState))
 		toSaveState = 1;
@@ -409,7 +440,14 @@ int main (int argc, char **argv)
 	filename[0] = '\0'; /* Executable file name */
 	savename[0] = '\0'; /* SaveState file name */
 
+	setup_paths();
+
 	// PCSX
+	sprintf(Config.Mcd1, "%s/%s", memcardsdir, MCD1_FILE);
+	sprintf(Config.Mcd2, "%s/%s", memcardsdir, MCD2_FILE);
+	strcpy(Config.BiosDir, biosdir);
+	strcpy(Config.Bios, BIOS_FILE);
+
 	Config.Xa=1; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
