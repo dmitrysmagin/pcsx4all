@@ -159,6 +159,11 @@ int main (int argc, char **argv)
 	savename[0] = '\0'; /* SaveState file name */
 	
 	// PCSX default values
+	strcpy(Config.Mcd1, MCD1_FILE);
+	strcpy(Config.Mcd2, MCD2_FILE);
+	strcpy(Config.BiosDir, ".");
+	strcpy(Config.Bios, BIOS_FILE);
+
 	Config.Xa=1; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
