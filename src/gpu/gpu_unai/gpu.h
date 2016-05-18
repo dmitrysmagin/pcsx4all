@@ -40,6 +40,21 @@ typedef unsigned short		u16;
 typedef unsigned int		u32;
 typedef unsigned long long	u64;
 
+//senquack - Converted GPU_SWAP() macro from one specifying temporary var
+//           as parameter to template function that doesn't need one.
+//           (Would rather not use std::swap())
+template<class T> INLINE void SwapValues(T &x, T &y)
+{
+	T tmp = x; x = y; y = tmp;
+}
+//TODO: Change all gpu code to use SwapValues() directly:
+#define GPU_SWAP(x,y,temp) SwapValues(x,y)
+
+INLINE s32 GPU_DIV(s32 rs, s32 rt)
+{
+	return rt ? (SDIV(rs,rt)) : (0);
+}
+
 #include "gpu_fixedpoint.h"
 
 ///////////////////////////////////////////////////////////////////////////////

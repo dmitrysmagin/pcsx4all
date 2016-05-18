@@ -131,8 +131,6 @@ u32 *last_dma=NULL; /* last dma pointer */
 #define CHKMAX_X 1024
 #define CHKMAX_Y 512
 
-#define	GPU_SWAP(a,b,t)	{(t)=(a);(a)=(b);(b)=(t);}
-
 #define IS_PAL (GPU_GP1&(0x08<<17))
 
 ///////////////////////////////////////////////////////////////////////////////
