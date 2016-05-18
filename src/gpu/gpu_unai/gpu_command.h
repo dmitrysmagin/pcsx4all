@@ -453,6 +453,9 @@ void gpuSendPacketFunction(const int PRIM)
 				TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
 				TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
 				TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
+				//senquack - new vars must be updated whenever texture window is changed:
+				u4_msk = i2x(TextureWindow[2]) | ((1 << FIXED_BITS) - 1);
+				v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
 				gpuSetTexture(GPU_GP1);
 				DO_LOG(("TextureWindow(0x%x)\n",PRIM));
 			}
