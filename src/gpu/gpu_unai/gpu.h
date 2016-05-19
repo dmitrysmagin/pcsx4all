@@ -55,6 +55,10 @@ INLINE s32 GPU_DIV(s32 rs, s32 rt)
 	return rt ? (SDIV(rs,rt)) : (0);
 }
 
+//senquack - version of above that doesn't check for div-by-zero
+//           (caller *must* check!)
+#define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
+
 #include "gpu_fixedpoint.h"
 
 ///////////////////////////////////////////////////////////////////////////////
