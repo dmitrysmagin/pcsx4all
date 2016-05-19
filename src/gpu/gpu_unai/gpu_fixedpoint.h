@@ -89,6 +89,8 @@ INLINE float FloatInv(const float x)
 // BEGIN INVERSE APPROXIMATION SECTION
 // (Has not been updated or tested with new 22.10 fixed-point
 //  code that has replaced Unai's 16.16 original code.
+// DISABLED FOR NOW:
+#if 0
 
 //  big precision inverse table.
 #define TABLE_BITS 16
@@ -137,6 +139,7 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
   xInv(_b, iFact, iShift);
   return xInvMulx(_a, iFact, iShift);
 }
+#endif //0
 // END INVERSE APPROXIMATION SECTION
 
 ///////////////////////////////////////////////////////////////////////////
