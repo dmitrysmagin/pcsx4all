@@ -94,7 +94,18 @@ s32   r4, dr4;
 s32   g4, dg4;
 s32   b4, db4;
 u32   lInc;
-u32   tInc, tMsk;
+//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
+//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
+//           another word and increment both u4,v4 with one instruction.
+//           During the course of fixing gpu_unai's polygon rendering issues,
+//           I ultimately found it was impossible to keep them combined like
+//           that, as pixel dropouts would always occur, particularly in NFS3
+//           sky background, perhaps from the reduced accuracy. Now they are
+//           incremented individually with du4 and dv4, and masked separetely,
+//           using new vars u4_msk, v4_msk, which store fixed-point masks.
+//           These are updated whenever TextureWindow[2] or [3] are changed.
+//u32   tInc, tMsk;
+u32 u4_msk, v4_msk;
 
 GPUPacket PacketBuffer;
 // FRAME_BUFFER_SIZE is defined in bytes; 512K is guard memory for out of range reads
@@ -119,8 +130,6 @@ u32 *last_dma=NULL; /* last dma pointer */
 
 #define CHKMAX_X 1024
 #define CHKMAX_Y 512
-
-#define	GPU_SWAP(a,b,t)	{(t)=(a);(a)=(b);(b)=(t);}
 
 #define IS_PAL (GPU_GP1&(0x08<<17))
 
@@ -159,6 +168,11 @@ INLINE void gpuReset(void)
 	DisplayArea[5] = 240;
 	linesInterlace=linesInterlace_user;
 	blit_mask=0;
+
+	//senquack - new vars must be updated whenever texture window is changed:
+	//           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
+	u4_msk = i2x(TextureWindow[2]) | ((1 << FIXED_BITS) - 1);
+	v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -166,11 +180,17 @@ bool  GPU_init(void)
 {
 	gpuReset();
 
+	//senquack - disabled for now (has not been tested with new 22.10
+	// fixed-point code and was inaccurate to begin with)
+	// See notes in gpu_fixed.h
+#if 0
 	// s_invTable
 	for(unsigned int i=1;i<=(1<<TABLE_BITS);++i)
 	{
 		s_invTable[i-1]=0x7fffffff/i;
 	}
+#endif //0
+
 	fb_dirty = true;
 	last_dma = NULL;
 	return (0);

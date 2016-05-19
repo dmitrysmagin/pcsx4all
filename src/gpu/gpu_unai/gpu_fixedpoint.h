@@ -21,22 +21,80 @@
 #ifndef FIXED_H
 #define FIXED_H
 
+//senquack - Added optional float math support:
+//#define GPU_UNAI_USE_FLOATMATH
+
+//#if defined(HAVE_FPU) || (__mips_hard_float == 1)
+//#define GPU_UNAI_USE_FLOATMATH
+//#endif
+
+//senquack - If float math is enabled, this option will use multiply-
+//           by-inverse to do divisions. (I did not find this to speed things
+//           up on GCW Zero platform, so have left it commented-out for now)
+//           
+//#define GPU_UNAI_USE_FLOAT_DIV_MULTINV
+
 typedef s32 fixed;
 
-#define TABLE_BITS 16
-
-#define FIXED_BITS 16
+//senquack - The gpu_drhell poly routines I adapted use 22.10 fixed point,
+//           while original Unai used 16.16:
+//#define FIXED_BITS 16
+#define FIXED_BITS 10
 
 #define fixed_ZERO ((fixed)0)
 #define fixed_ONE  ((fixed)1<<FIXED_BITS)
 #define fixed_TWO  ((fixed)2<<FIXED_BITS)
 #define fixed_HALF ((fixed)((1<<FIXED_BITS)>>1))
 
-//  big precision inverse table.
-s32 s_invTable[(1<<TABLE_BITS)];
+#define fixed_LOMASK ((fixed)((1<<FIXED_BITS)-1))
+#define fixed_HIMASK ((fixed)(~fixed_LOMASK))
 
-INLINE  fixed i2x(const int   _x) { return  ((_x)<<FIXED_BITS); }
-INLINE  fixed x2i(const fixed _x) { return  ((_x)>>FIXED_BITS); }
+// int<->fixed conversions:
+#define i2x(x) ((x)<<FIXED_BITS)
+#define x2i(x) ((x)>>FIXED_BITS)
+
+INLINE fixed FixedCeil(const fixed x)
+{
+	return (x + (fixed_ONE - 1)) & fixed_HIMASK;
+}
+
+INLINE s32 FixedCeilToInt(const fixed x)
+{
+	return (x + (fixed_ONE - 1)) >> FIXED_BITS;
+}
+
+//senquack - float<->fixed conversions:
+#define f2x(x) ((s32)((x) * (float)(1<<FIXED_BITS)))
+#define x2f(x) ((float)(x) / (float)(1<<FIXED_BITS))
+
+//senquack - floating point reciprocal:
+//NOTE: These assume x is always != 0 !!!
+#ifdef GPU_UNAI_USE_FLOATMATH
+#if defined(_MIPS_ARCH_MIPS32R2) || (__mips == 64)
+INLINE float FloatInv(const float x)
+{
+	float res;
+	asm("recip.s %0,%1" : "=f" (res) : "f" (x));
+	return res;
+}
+#else
+INLINE float FloatInv(const float x)
+{
+	return (1.0f / x);
+}
+#endif
+#endif
+
+
+// BEGIN INVERSE APPROXIMATION SECTION
+// (Has not been updated or tested with new 22.10 fixed-point
+//  code that has replaced Unai's 16.16 original code.
+// DISABLED FOR NOW:
+#if 0
+
+//  big precision inverse table.
+#define TABLE_BITS 16
+s32 s_invTable[(1<<TABLE_BITS)];
 
 //senquack - MIPS32 happens to have same instruction/format:
 #if defined(__arm__) || (__mips == 32)
@@ -81,6 +139,8 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
   xInv(_b, iFact, iShift);
   return xInvMulx(_a, iFact, iShift);
 }
+#endif //0
+// END INVERSE APPROXIMATION SECTION
 
 ///////////////////////////////////////////////////////////////////////////
 template<typename T>

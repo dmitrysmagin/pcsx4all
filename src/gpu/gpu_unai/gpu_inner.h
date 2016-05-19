@@ -284,6 +284,10 @@ const PS gpuSpriteSpanDrivers[256] =
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Polygon innerloops generator
+
+//senquack - Original UNAI code, has been replaced with newer function below it.
+//           (kept original here for future reference)
+#if 0
 template<const int CF>
 INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 {
@@ -294,6 +298,170 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 		{
 			// NO GOURAUD
 			u16 data;
+			if (L) { u32 lCol=((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); gpuLightingRGB(data,lCol); }
+			else data=PixelData;
+			if ((!M)&&(!B))
+			{
+				if (MB) { data = data | 0x8000; }
+				do { *pDst++ = data; } while (--count);
+			}
+			else if ((M)&&(!B))
+			{
+				if (MB) { data = data | 0x8000; }
+				do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
+			}
+			else
+			{
+				u16 uSrc;
+				u16 uDst;
+				u32 uMsk; if (BM==0) uMsk=0x7BDE;
+				u32 bMsk; if (BI) bMsk=blit_mask;
+				do
+				{
+					// blit-mask
+					if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endtile; }
+					//  masking
+					uDst = *pDst;
+					if(M) { if (uDst&0x8000) goto endtile;  }
+					uSrc = data;
+					//  blend
+					if (BM==0) gpuBlending00(uSrc, uDst);
+					if (BM==1) gpuBlending01(uSrc, uDst);
+					if (BM==2) gpuBlending02(uSrc, uDst);
+					if (BM==3) gpuBlending03(uSrc, uDst);
+					if (MB) { *pDst = uSrc | 0x8000; }
+					else    { *pDst = uSrc; }
+					endtile: pDst++;
+				}
+				while (--count);
+			}
+		}
+		else
+		{
+			// GOURAUD
+			u16 uDst;
+			u16 uSrc;
+			u32 linc=lInc;
+			u32 lCol=((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21));
+			u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
+			u32 bMsk; if (BI) bMsk=blit_mask;
+			do
+			{
+				// blit-mask
+				if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endgou; }
+				//  masking
+				if(M) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
+				//  blend
+				if(B)
+				{
+					//  light
+					gpuLightingRGB(uSrc,lCol);
+					if(!M)    { uDst = *pDst; }
+					if (BM==0) gpuBlending00(uSrc, uDst);
+					if (BM==1) gpuBlending01(uSrc, uDst);
+					if (BM==2) gpuBlending02(uSrc, uDst);
+					if (BM==3) gpuBlending03(uSrc, uDst);
+				}
+				else
+				{
+					//  light
+					gpuLightingRGB(uSrc,lCol);
+				}
+				if (MB) { *pDst = uSrc | 0x8000; }
+				else    { *pDst = uSrc; }
+				endgou: pDst++; lCol=(lCol+linc);
+			}
+			while (--count);
+		}
+	}
+	else
+	{
+		// TEXTURE
+		u16 uDst;
+		u16 uSrc;
+		u32 linc; if (L&&G) linc=lInc;
+		u32 tinc=tInc;
+		u32 tmsk=tMsk;
+		u32 tCor = ((u32)( u4<<7)&0x7fff0000) | ((u32)( v4>>9)&0x00007fff); tCor&= tmsk;
+		const u16* _TBA=TBA;
+		const u16* _CBA; if (TM!=3) _CBA=CBA;
+		u32 lCol;
+		if(L && !G) { lCol = ((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); }
+		else if(L && G) { lCol = ((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21)); 	}
+		u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
+		u32 bMsk; if (BI) bMsk=blit_mask;
+		do
+		{
+			// blit-mask
+			if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endpoly; }
+			//  masking
+			if(M) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
+			//  texture
+			if (TM==1) { u32 tu=(tCor>>23); u32 tv=(tCor<<4)&(0xff<<11); u8 rgb=((u8*)_TBA)[tv+(tu>>1)]; uSrc=_CBA[(rgb>>((tu&1)<<2))&0xf]; if(!uSrc) goto endpoly; }
+			if (TM==2) { uSrc = _CBA[(((u8*)_TBA)[(tCor>>23)+((tCor<<4)&(0xff<<11))])]; if(!uSrc)  goto endpoly; }
+			if (TM==3) { uSrc = _TBA[(tCor>>23)+((tCor<<3)&(0xff<<10))]; if(!uSrc)  goto endpoly; }
+			//  blend
+			if(B)
+			{
+				if (uSrc&0x8000)
+				{
+					//  light
+					if(L) gpuLightingTXT(uSrc, lCol);
+					if(!M)    { uDst = *pDst; }
+					if (BM==0) gpuBlending00(uSrc, uDst);
+					if (BM==1) gpuBlending01(uSrc, uDst);
+					if (BM==2) gpuBlending02(uSrc, uDst);
+					if (BM==3) gpuBlending03(uSrc, uDst);
+				}
+				else
+				{
+					// light
+					if(L) gpuLightingTXT(uSrc, lCol);
+				}
+			}
+			else
+			{
+				//  light
+				if(L)  { gpuLightingTXT(uSrc, lCol); } else if(!MB) { uSrc&= 0x7fff; }
+			}
+			if (MB) { *pDst = uSrc | 0x8000; }
+			else    { *pDst = uSrc; }
+			endpoly: pDst++;
+			tCor=(tCor+tinc)&tmsk;
+			if (L&&G) lCol=(lCol+linc);
+		}
+		while (--count);
+	}
+}
+#endif // ^^^ DISABLED ORIGINAL VERSION ^^^
+
+//senquack - Newer version of above with following changes:
+//           * Adapted to work with new poly routings in gpu_raster_polygon.h
+//             adapted from DrHell GPU. They are less glitchy and use 22.10
+//             fixed-point instead of original UNAI's 16.16.
+//           * Texture coordinates are no longer packed together into one
+//             unsigned int. This seems to lose too much accuracy (they each
+//             end up being only 8.7 fixed-point that way) and pixel-droupouts
+//             were noticeable both with original code and current DrHell
+//             adaptations. An example would be the sky in NFS3. Now, they are
+//             stored in separate ints, using separate masks.
+//           * Function is no longer INLINE, as it was always called
+//             through a function pointer.
+//           * Function now ensures the mask bit of source texture is preserved
+//             across calls to blending functions (Silent Hill rectangles fix)
+template<const int CF>
+void gpuPolySpanFn(u16 *pDst, u32 count)
+{
+	if (!TM)
+	{	
+		// NO TEXTURE
+		if (!G)
+		{
+			// NO GOURAUD
+			u16 data;
+
+			//senquack - NOTE: if no Gouraud shading is used, b4,g4,r4 contain integers,
+			//           not fixed-point (this is behavior of original code)
 			if (L) { u32 lCol=((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); gpuLightingRGB(data,lCol); }
 			else data=PixelData;
 			if ((!M)&&(!B))
@@ -339,7 +507,11 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 			u16 uDst;
 			u16 uSrc;
 			u32 linc=lInc;
-			u32 lCol=((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21));
+
+			//senquack - DRHELL poly code uses 22.10 fixed point, while UNAI used 16.16:
+			//u32 lCol=((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21));
+			u32 lCol=((u32)(b4>>8)&(0x03ff)) | ((u32)(g4<<3)&(0x07ff<<10)) | ((u32)(r4<<14)&(0x07ff<<21));
+
 			u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
 			u32 bMsk; if (BI) bMsk=blit_mask;
 			do
@@ -384,26 +556,57 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 		u16 uDst;
 		u16 uSrc;
 		u32 linc; if (L&&G) linc=lInc;
-		u32 tinc=tInc;
-		u32 tmsk=tMsk;
-		u32 tCor = ((u32)( u4<<7)&0x7fff0000) | ((u32)( v4>>9)&0x00007fff); tCor&= tmsk;
+
+		//senquack - note: original UNAI code had u4/v4 packed into one
+		// 32-bit unsigned int, but this proved to lose too much accuracy
+		// (pixel drouputs noticeable in NFS3 sky), so now are separate vars.
+		// u4_msk/v4_msk are new global vars (u4 and v4 were already globals)
+		// TODO: find better way of passing parameters like u4/v4/r4 etc
+		//       into this function than original pass-through-globals method.
+		u32 l_u4_msk = u4_msk;      u32 l_v4_msk = v4_msk;
+		u32 l_u4 = u4 & l_u4_msk;   u32 l_v4 = v4 & l_v4_msk;
+		u32 l_du4 = du4;            u32 l_dv4 = dv4;
+
 		const u16* _TBA=TBA;
 		const u16* _CBA; if (TM!=3) _CBA=CBA;
 		u32 lCol;
+
+		//senquack - After adapting DrHell poly code to replace Unai's glitchy
+		// routines, it was necessary to adjust for the differences in fixed
+		// point: DrHell is 22.10, Unai used 16.16. In the following two lines,
+		// the top line expected b4,g4,r4 to be integers, as it is not using
+		// Gouraud shading, so it needed no adjustment. The bottom line did
+		// need adjustment for fixed point changes.
 		if(L && !G) { lCol = ((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); }
-		else if(L && G) { lCol = ((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21)); 	}
+		else if(L && G) { lCol = ((u32)(b4>>8)&(0x03ff)) | ((u32)(g4<<3)&(0x07ff<<10)) | ((u32)(r4<<14)&(0x07ff<<21)); 	}
+
 		u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
 		u32 bMsk; if (BI) bMsk=blit_mask;
+
 		do
 		{
 			// blit-mask
 			if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endpoly; }
 			//  masking
 			if(M) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
-			//  texture
-			if (TM==1) { u32 tu=(tCor>>23); u32 tv=(tCor<<4)&(0xff<<11); u8 rgb=((u8*)_TBA)[tv+(tu>>1)]; uSrc=_CBA[(rgb>>((tu&1)<<2))&0xf]; if(!uSrc) goto endpoly; }
-			if (TM==2) { uSrc = _CBA[(((u8*)_TBA)[(tCor>>23)+((tCor<<4)&(0xff<<11))])]; if(!uSrc)  goto endpoly; }
-			if (TM==3) { uSrc = _TBA[(tCor>>23)+((tCor<<3)&(0xff<<10))]; if(!uSrc)  goto endpoly; }
+
+			//senquack - adapted to work with new 22.10 fixed point routines:
+			//           (UNAI originally used 16.16)
+			if (TM==1) { 
+				u32 tu=(l_u4>>10);
+				u32 tv=(l_v4<<1)&(0xff<<11);
+				u8 rgb=((u8*)_TBA)[tv+(tu>>1)];
+				uSrc=_CBA[(rgb>>((tu&1)<<2))&0xf];
+				if(!uSrc) goto endpoly;
+			}
+			if (TM==2) {
+				uSrc = _CBA[(((u8*)_TBA)[(l_u4>>10)+((l_v4<<1)&(0xff<<11))])];
+				if(!uSrc)  goto endpoly;
+			}
+			if (TM==3) {
+				uSrc = _TBA[(l_u4>>10)+((l_v4)&(0xff<<10))];
+				if(!uSrc)  goto endpoly;
+			}
 
 			//senquack - Silent Hill fix
 			if (!MB) { srcMSB = uSrc & 0x8000; }
@@ -447,7 +650,9 @@ INLINE void  gpuPolySpanFn(u16 *pDst, u32 count)
 
 			endpoly: pDst++;
 
-			tCor=(tCor+tinc)&tmsk;
+			l_u4 = (l_u4 + l_du4) & l_u4_msk;
+			l_v4 = (l_v4 + l_dv4) & l_v4_msk;
+
 			if (L&&G) lCol=(lCol+linc);
 		}
 		while (--count);

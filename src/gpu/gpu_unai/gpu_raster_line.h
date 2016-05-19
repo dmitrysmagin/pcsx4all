@@ -26,13 +26,6 @@
 #define GPU_DIGITS  16
 #define GPU_DIGITSC (GPU_DIGITS+3)
 
-//senquack - 64-bit fix from Notaz:
-//INLINE long GPU_DIV(long rs, long rt)
-INLINE s32 GPU_DIV(s32 rs, s32 rt)
-{
-	return rt ? (SDIV(rs,rt)) : (0);
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawLF(const PD gpuPixelDriver)
 {
