@@ -351,10 +351,14 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 		du4 = dv4 = 0;
 	}
 #else
-	du4 = (dx4 != 0) ? (fixed)((du4 << FIXED_BITS) / (float)(dx4)) : 0;
-	dv4 = (dx4 != 0) ? (fixed)((dv4 << FIXED_BITS) / (float)(dx4)) : 0;
+	if (dx4 != 0) {
+		float fdiv = dx4;
+		du4 = (fixed)((du4 << FIXED_BITS) / fdiv);
+		dv4 = (fixed)((dv4 << FIXED_BITS) / fdiv);
+	} else {
+		du4 = dv4 = 0;
+	}
 #endif
-
 #else
 	if (dx4 != 0) {
 		du4 = GPU_FAST_DIV(du4 << FIXED_BITS, dx4);
@@ -373,28 +377,27 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 			u3 = i2x(u0);  v3 = i2x(v0);
 			if (dx < 0) {
 #ifdef GPU_UNAI_USE_FLOATMATH
-				if ((y2 - y0) != 0) {
 #ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
+				if ((y2 - y0) != 0) {
 					float finv = FloatInv(y2 - y0);
 					dx3 = (fixed)(((x2 - x0) << FIXED_BITS) * finv);
 					du3 = (fixed)(((u2 - u0) << FIXED_BITS) * finv);
 					dv3 = (fixed)(((v2 - v0) << FIXED_BITS) * finv);
+				} else {
+					dx3 = du3 = dv3 = 0;
+				}
+				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
 #else
+				if ((y2 - y0) != 0) {
 					float fdiv = y2 - y0;
 					dx3 = (fixed)(((x2 - x0) << FIXED_BITS) / fdiv);
 					du3 = (fixed)(((u2 - u0) << FIXED_BITS) / fdiv);
 					dv3 = (fixed)(((v2 - v0) << FIXED_BITS) / fdiv);
-#endif
 				} else {
 					dx3 = du3 = dv3 = 0;
 				}
-
-#ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
-				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
-#else
 				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) / (float)(y1 - y0)) : 0;
 #endif
-
 #else
 				if ((y2 - y0) != 0) {
 					dx3 = GPU_FAST_DIV((x2 - x0) << FIXED_BITS, (y2 - y0));
@@ -416,7 +419,6 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) * FloatInv(y2 - y0)) : 0;
 #else
 				if ((y1 - y0) != 0) {
@@ -427,10 +429,8 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
 #endif
-
 #else
 				if ((y1 - y0) != 0) {
 					dx3 = GPU_FAST_DIV((x1 - x0) << FIXED_BITS, (y1 - y0));
@@ -439,7 +439,6 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? GPU_FAST_DIV((x2 - x0) << FIXED_BITS, (y2 - y0)) : 0;
 #endif
 			}
@@ -486,10 +485,9 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 					du3 = (fixed)(((u2 - u1) << FIXED_BITS) / fdiv);
 					dv3 = (fixed)(((v2 - v1) << FIXED_BITS) / fdiv);
 				} else {
-					dx3 = du3 = dv3;
+					dx3 = du3 = dv3 = 0;
 				}
 #endif
-
 #else 
 				if ((y2 - y1) != 0) {
 					dx3 = GPU_FAST_DIV((x2 - x1) << FIXED_BITS, (y2 - y1));
@@ -632,15 +630,14 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 	}
 #else
 	if (dx4 != 0) {
-		float ftmp = dx4;
-		dr4 = (fixed)((dr4 << FIXED_BITS) / ftmp);
-		dg4 = (fixed)((dg4 << FIXED_BITS) / ftmp);
-		db4 = (fixed)((db4 << FIXED_BITS) / ftmp);
+		float fdiv = dx4;
+		dr4 = (fixed)((dr4 << FIXED_BITS) / fdiv);
+		dg4 = (fixed)((dg4 << FIXED_BITS) / fdiv);
+		db4 = (fixed)((db4 << FIXED_BITS) / fdiv);
 	} else {
 		dr4 = dg4 = db4 = 0;
 	}
 #endif
-
 #else
 	if (dx4 != 0) {
 		dr4 = GPU_FAST_DIV(dr4 << FIXED_BITS, dx4);
@@ -678,17 +675,19 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
 #else
-				dx3 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
-				dr3 = ((y2 - y0) != 0) ? (fixed)(((r2 - r0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
-				dg3 = ((y2 - y0) != 0) ? (fixed)(((g2 - g0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
-				db3 = ((y2 - y0) != 0) ? (fixed)(((b2 - b0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
-
+				if ((y2 - y0) != 0) {
+					float fdiv = y2 - y0;
+					dx3 = (fixed)(((x2 - x0) << FIXED_BITS) / fdiv);
+					dr3 = (fixed)(((r2 - r0) << FIXED_BITS) / fdiv);
+					dg3 = (fixed)(((g2 - g0) << FIXED_BITS) / fdiv);
+					db3 = (fixed)(((b2 - b0) << FIXED_BITS) / fdiv);
+				} else {
+					dx3 = dr3 = dg3 = db3 = 0;
+				}
 				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) / (float)(y1 - y0)) : 0;
 #endif
-				
 #else
 				if ((y2 - y0) != 0) {
 					dx3 = GPU_FAST_DIV((x2 - x0) << FIXED_BITS, (y2 - y0));
@@ -712,22 +711,19 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) * FloatInv(y2 - y0)) : 0;
 #else
 				if ((y1 - y0) != 0) {
-					float ftmp = y1 - y0;
-					dx3 = (fixed)(((x1 - x0) << FIXED_BITS) / ftmp);
-					dr3 = (fixed)(((r1 - r0) << FIXED_BITS) / ftmp);
-					dg3 = (fixed)(((g1 - g0) << FIXED_BITS) / ftmp);
-					db3 = (fixed)(((b1 - b0) << FIXED_BITS) / ftmp);
+					float fdiv = y1 - y0;
+					dx3 = (fixed)(((x1 - x0) << FIXED_BITS) / fdiv);
+					dr3 = (fixed)(((r1 - r0) << FIXED_BITS) / fdiv);
+					dg3 = (fixed)(((g1 - g0) << FIXED_BITS) / fdiv);
+					db3 = (fixed)(((b1 - b0) << FIXED_BITS) / fdiv);
 				} else {
 					dx3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) / (float)(y2 - y0)) : 0;
 #endif
-
 #else
 				if ((y1 - y0) != 0) {
 					dx3 = GPU_FAST_DIV((x1 - x0) << FIXED_BITS, (y1 - y0));
@@ -759,7 +755,6 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 #else
 				dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
 #endif
-
 #else
 				dx4 = ((y2 - y1) != 0) ? GPU_FAST_DIV((x2 - x1) << FIXED_BITS, (y2 - y1)) : 0;
 #endif
@@ -782,17 +777,16 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 				}
 #else
 				if ((y2 - y1) != 0) {
-					float ftmp = y2 - y1;
-					dx3 = (fixed)(((x2 - x1) << FIXED_BITS) / ftmp);
-					dr3 = (fixed)(((r2 - r1) << FIXED_BITS) / ftmp);
-					dg3 = (fixed)(((g2 - g1) << FIXED_BITS) / ftmp);
-					db3 = (fixed)(((b2 - b1) << FIXED_BITS) / ftmp);
+					float fdiv = y2 - y1;
+					dx3 = (fixed)(((x2 - x1) << FIXED_BITS) / fdiv);
+					dr3 = (fixed)(((r2 - r1) << FIXED_BITS) / fdiv);
+					dg3 = (fixed)(((g2 - g1) << FIXED_BITS) / fdiv);
+					db3 = (fixed)(((b2 - b1) << FIXED_BITS) / fdiv);
 				} else {
 					dx3 = dr3 = dg3 = db3 = 0;
 				}
 
 #endif
-
 #else
 				if ((y2 - y1) != 0) {
 					dx3 = GPU_FAST_DIV((x2 - x1) << FIXED_BITS, (y2 - y1));
@@ -953,16 +947,16 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 	}
 #else
 	if (dx4 != 0) {
-		du4 = (fixed)((du4 << FIXED_BITS) / (float)(dx4));
-		dv4 = (fixed)((dv4 << FIXED_BITS) / (float)(dx4));
-		dr4 = (fixed)((dr4 << FIXED_BITS) / (float)(dx4));
-		dg4 = (fixed)((dg4 << FIXED_BITS) / (float)(dx4));
-		db4 = (fixed)((db4 << FIXED_BITS) / (float)(dx4));
+		float fdiv = dx4;
+		du4 = (fixed)((du4 << FIXED_BITS) / fdiv);
+		dv4 = (fixed)((dv4 << FIXED_BITS) / fdiv);
+		dr4 = (fixed)((dr4 << FIXED_BITS) / fdiv);
+		dg4 = (fixed)((dg4 << FIXED_BITS) / fdiv);
+		db4 = (fixed)((db4 << FIXED_BITS) / fdiv);
 	} else {
 		du4 = dv4 = dr4 = dg4 = db4 = 0;
 	}
 #endif
-
 #else
 	if (dx4 != 0) {
 		du4 = GPU_FAST_DIV(du4 << FIXED_BITS, dx4);
@@ -1002,7 +996,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) * FloatInv(y1 - y0)) : 0;
 #else
 				if ((y2 - y0) != 0) {
@@ -1016,10 +1009,8 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y1 - y0) != 0) ? (fixed)(((x1 - x0) << FIXED_BITS) / (float)(y1 - y0)) : 0;
 #endif
-
 #else
 				if ((y2 - y0) != 0) {
 					dx3 = GPU_FAST_DIV((x2 - x0) << FIXED_BITS, (y2 - y0));
@@ -1031,7 +1022,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y1 - y0) != 0) ? GPU_FAST_DIV((x1 - x0) << FIXED_BITS, (y1 - y0)) : 0;
 #endif
 			} else {
@@ -1048,7 +1038,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) * FloatInv(y2 - y0)) : 0;
 #else
 				if ((y1 - y0) != 0) {
@@ -1062,7 +1051,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? (fixed)(((x2 - x0) << FIXED_BITS) / float(y2 - y0)) : 0;
 #endif
 
@@ -1077,7 +1065,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 				} else {
 					dx3 = du3 = dv3 = dr3 = dg3 = db3 = 0;
 				}
-
 				dx4 = ((y2 - y0) != 0) ? GPU_FAST_DIV((x2 - x0) << FIXED_BITS, (y2 - y0)) : 0;
 #endif
 			}
@@ -1103,7 +1090,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 #else
 				dx4 = ((y2 - y1) != 0) ? (fixed)(((x2 - x1) << FIXED_BITS) / (float)(y2 - y1)) : 0;
 #endif
-
 #else
 				dx4 = ((y2 - y1) != 0) ? GPU_FAST_DIV((x2 - x1) << FIXED_BITS, (y2 - y1)) : 0;
 #endif

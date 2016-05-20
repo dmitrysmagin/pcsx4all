@@ -21,19 +21,6 @@
 #ifndef FIXED_H
 #define FIXED_H
 
-//senquack - Added optional float math support:
-//#define GPU_UNAI_USE_FLOATMATH
-
-//#if defined(HAVE_FPU) || (__mips_hard_float == 1)
-//#define GPU_UNAI_USE_FLOATMATH
-//#endif
-
-//senquack - If float math is enabled, this option will use multiply-
-//           by-inverse to do divisions. (I did not find this to speed things
-//           up on GCW Zero platform, so have left it commented-out for now)
-//           
-//#define GPU_UNAI_USE_FLOAT_DIV_MULTINV
-
 typedef s32 fixed;
 
 //senquack - The gpu_drhell poly routines I adapted use 22.10 fixed point,
