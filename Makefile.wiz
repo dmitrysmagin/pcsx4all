@@ -46,6 +46,14 @@ CFLAGS = -mcpu=arm926ej-s -mtune=arm926ej-s $(DEVLIBS) \
 	# -Wstrict-prototypes -Wbad-function-cast
     # -Wshadow
 
+#senquack- Following will force use of inaccurate fixed-point division
+#          using original inverse-lookup-table. It is faster on systems
+#          lacking an integer divide unit or FPU, but will result in some
+#          occasional pixel dropouts or texture glitches.
+#          If it is not specified, the ARM ASM fixed-point division routines
+#          in src/port/wiz/div.S will be used for all polygon division math.
+CFLAGS += -DGPU_UNAI_USE_INT_DIV_MULTINV
+
 #CFLAGS += -DPROFILER_PCSX4ALL
 #CFLAGS += -DPROFILER_PCSX4ALL_RESET=8000
 #CFLAGS += -DDEBUG_PCSX4ALL
