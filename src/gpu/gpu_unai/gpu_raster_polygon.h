@@ -147,7 +147,12 @@ void gpuDrawF3(const PP gpuPolySpanDriver)
 #endif
 			}
 		} else {
+			//senquack - break out of final loop if nothing to be drawn (1st loop
+			//           must always be taken to setup dx3/dx4)
+			if (y1 == y2) break;
+
 			ya = y1;  yb = y2;
+
 			if (dx < 0) {
 				x3 = i2x(x0) + (dx3 * (y1 - y0));
 				x4 = i2x(x1);
@@ -433,7 +438,12 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 #endif
 			}
 		} else {
+			//senquack - break out of final loop if nothing to be drawn (1st loop
+			//           must always be taken to setup dx3/dx4)
+			if (y1 == y2) break;
+
 			ya = y1;  yb = y2;
+
 			if (dx < 0) {
 				x3 = i2x(x0);
 				x4 = i2x(x1);
@@ -783,7 +793,12 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 #endif
 			}
 		} else {
+			//senquack - break out of final loop if nothing to be drawn (1st loop
+			//           must always be taken to setup dx3/dx4)
+			if (y1 == y2) break;
+
 			ya = y1;  yb = y2;
+
 			if (dx < 0) {
 				x3 = i2x(x0);  x4 = i2x(x1);
 				r3 = i2x(r0);  g3 = i2x(g0);  b3 = i2x(b0);
@@ -1176,7 +1191,12 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 #endif
 			}
 		} else {
+			//senquack - break out of final loop if nothing to be drawn (1st loop
+			//           must always be taken to setup dx3/dx4)
+			if (y1 == y2) break;
+
 			ya = y1;  yb = y2;
+
 			if (dx < 0) {
 				x3 = i2x(x0);  x4 = i2x(x1);
 				u3 = i2x(u0);  v3 = i2x(v0);
