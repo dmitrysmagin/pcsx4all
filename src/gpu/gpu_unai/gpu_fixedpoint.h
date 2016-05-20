@@ -24,7 +24,7 @@
 typedef s32 fixed;
 
 //senquack - The gpu_drhell poly routines I adapted use 22.10 fixed point,
-//           while original Unai used 16.16:
+//           while original Unai used 16.16: (see README_senquack.txt)
 //#define FIXED_BITS 16
 #define FIXED_BITS 10
 
