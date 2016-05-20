@@ -407,6 +407,8 @@ void video_flip(void)
 	if (SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 	SDL_Flip(screen);
 	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+
+	SCREEN = (Uint16 *)screen->pixels;
 }
 
 /* This is used by gpu_dfxvideo only as it doesn't scale itself */
@@ -730,7 +732,13 @@ int main (int argc, char **argv)
 
 	atexit(SDL_Quit);
 
-	screen = SDL_SetVideoMode(320, 240, 16, SDL_HWSURFACE);
+#ifdef SDL_TRIPLEBUF
+	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+#else
+	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+#endif
+
+	screen = SDL_SetVideoMode(320, 240, 16, flags);
 	if (!screen) {
 		puts("NO Set VideoMode 320x240x16");
 		exit(0);
