@@ -72,12 +72,10 @@ INLINE float FloatInv(const float x)
 #endif
 #endif
 
-
-// BEGIN INVERSE APPROXIMATION SECTION
-// (Has not been updated or tested with new 22.10 fixed-point
-//  code that has replaced Unai's 16.16 original code.
-// DISABLED FOR NOW:
-#if 0
+///////////////////////////////////////////////////////////////////////////
+// --- BEGIN INVERSE APPROXIMATION SECTION ---
+///////////////////////////////////////////////////////////////////////////
+#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
 
 //  big precision inverse table.
 #define TABLE_BITS 16
@@ -100,7 +98,9 @@ INLINE  void  xInv (const fixed _b, s32& iFactor_, s32& iShift_)
     u32 uDen = (uD>>uLog);
     iFactor_ = s_invTable[uDen];
     iFactor_ = (_b<0) ? -iFactor_ :iFactor_;
-    iShift_  = 15+uLog;
+    //senquack - Adapted to 22.10 fixed point (originally 16.16):
+    //iShift_  = 15+uLog;
+    iShift_  = 21+uLog;
   }
   else
   {
@@ -126,8 +126,10 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
   xInv(_b, iFact, iShift);
   return xInvMulx(_a, iFact, iShift);
 }
-#endif //0
-// END INVERSE APPROXIMATION SECTION
+#endif // GPU_UNAI_USE_INT_DIV_MULTINV
+///////////////////////////////////////////////////////////////////////////
+// --- END INVERSE APPROXIMATION SECTION ---
+///////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////
 template<typename T>

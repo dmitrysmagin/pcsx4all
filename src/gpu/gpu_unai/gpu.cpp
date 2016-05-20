@@ -180,16 +180,13 @@ bool  GPU_init(void)
 {
 	gpuReset();
 
-	//senquack - disabled for now (has not been tested with new 22.10
-	// fixed-point code and was inaccurate to begin with)
-	// See notes in gpu_fixed.h
-#if 0
+#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
 	// s_invTable
 	for(unsigned int i=1;i<=(1<<TABLE_BITS);++i)
 	{
 		s_invTable[i-1]=0x7fffffff/i;
 	}
-#endif //0
+#endif
 
 	fb_dirty = true;
 	last_dma = NULL;
