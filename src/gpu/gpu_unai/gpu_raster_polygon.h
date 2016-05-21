@@ -31,19 +31,6 @@
 	if(y2<0) { if((y0-y2)>CHKMAX_Y) return; if((y1-y2)>CHKMAX_Y) return; } \
 }
 
-//senquack - added (adapted from peops gpu_dfxvideo).. ensures that coordinates
-// are stripped down to 11-bit signed values (-1024..+1023), as that is how
-// the original hardware interprets them (ignoring bits 15..11)
-#define GPU_ADJUSTCOORD3() \
-{ \
-	x0=((x0<<21)>>21); \
-	x1=((x1<<21)>>21); \
-	x2=((x2<<21)>>21); \
-	y0=((y0<<21)>>21); \
-	y1=((y1<<21)>>21); \
-	y2=((y2<<21)>>21); \
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal polygon drawing functions
 ///////////////////////////////////////////////////////////////////////////////
@@ -69,7 +56,6 @@ void gpuDrawF3(const PP gpuPolySpanDriver)
 	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[5]);
 	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[6]);
 	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[7]);
-	GPU_ADJUSTCOORD3();
 	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];   x1 += DrawingOffset[0];   x2 += DrawingOffset[0];
@@ -239,7 +225,6 @@ void gpuDrawFT3(const PP gpuPolySpanDriver)
 	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
 	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
 	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
-	GPU_ADJUSTCOORD3();
 	GPU_TESTRANGE3();
 
 	x0 += DrawingOffset[0];  x1 += DrawingOffset[0];  x2 += DrawingOffset[0];
@@ -585,7 +570,6 @@ void gpuDrawG3(const PP gpuPolySpanDriver)
 	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[7] );
 	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[10]);
 	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[11]);
-	GPU_ADJUSTCOORD3();
 	GPU_TESTRANGE3();
 	
 	x0 += DrawingOffset[0];  x1 += DrawingOffset[0];  x2 += DrawingOffset[0];
@@ -951,7 +935,6 @@ void gpuDrawGT3(const PP gpuPolySpanDriver)
 	y1 = GPU_EXPANDSIGN(PacketBuffer.S2[9] );
 	x2 = GPU_EXPANDSIGN(PacketBuffer.S2[14]);
 	y2 = GPU_EXPANDSIGN(PacketBuffer.S2[15]);
-	GPU_ADJUSTCOORD3();
 	GPU_TESTRANGE3();
 	
 	x0 += DrawingOffset[0];  x1 += DrawingOffset[0];  x2 += DrawingOffset[0];
