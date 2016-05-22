@@ -22,6 +22,10 @@
 * R3000A CPU functions.
 */
 
+//senquack - May 22 2016 NOTE: 
+// These have all been updated to use new PSXINT_* interrupts enum and intCycle
+// struct from PCSX Reloaded/Rearmed (much cleaner, no magic numbers)
+
 #include "r3000a.h"
 #include "cdrom.h"
 #include "mdec.h"
@@ -201,50 +205,56 @@ INLINE void psxCalculateIoCycle() {
 #endif
 
 	if (psxRegs.interrupt) {
-		if (psxRegs.interrupt & 0x80) {
-			unsigned n=psxRegs.intCycle[7]+psxRegs.intCycle[7+1];
+		if ((psxRegs.interrupt & (1 << PSXINT_SIO)) { // sio
+			unsigned n = psxRegs.intCycle[PSXINT_SIO].sCycle + psxRegs.intCycle[PSXINT_SIO].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[7]=%u+ iC[8]=%u\n",n,psxRegs.intCycle[7],psxRegs.intCycle[7+1]);
+			dbgf("\t%u iC[PSXINT_SIO].sCycle=%u + iC[PSXINT_SIO].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_SIO].sCycle, psxRegs.intCycle[PSXINT_SIO].cycle);
 #endif
 			if (n<value)
 				value=n;
 		}
-		if (psxRegs.interrupt & 0x04) { // cdr
-			unsigned n=psxRegs.intCycle[2]+psxRegs.intCycle[2+1];
+		if (psxRegs.interrupt & (1 << PSXINT_CDR)) { // cdr
+			unsigned n = psxRegs.intCycle[PSXINT_CDR].sCycle + psxRegs.intCycle[PSXINT_CDR].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[2]=%u+ iC[3]=%u\n",n,psxRegs.intCycle[2],psxRegs.intCycle[2+1]);
+			dbgf("\t%u iC[PSXINT_CDR].sCycle=%u + iC[PSXINT_CDR].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_CDR].sCycle, psxRegs.intCycle[PSXINT_CDR].cycle);
 #endif
 			if (n<value)
 				value=n;
 		}
-		if (psxRegs.interrupt & 0x040000) { // cdr read
-			unsigned n=psxRegs.intCycle[2+16]+psxRegs.intCycle[2+16+1];
+		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
+			unsigned n = psxRegs.intCycle[PSXINT_CDREAD].sCycle + psxRegs.intCycle[PSXINT_CDREAD].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[18]=%u+ iC[19]=%u\n",n,psxRegs.intCycle[2+16],psxRegs.intCycle[2+16+1]);
+			dbgf("\t%u iC[PSXINT_CDREAD].sCycle=%u + iC[PSXINT_CDREAD].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_CDREAD].sCycle, psxRegs.intCycle[PSXINT_CDREAD].cycle);
 #endif
 			if (n<value)
 				value=n;
 		}
-		if (psxRegs.interrupt & 0x01000000) { // gpu dma
-			unsigned n=psxRegs.intCycle[3+24]+psxRegs.intCycle[3+24+1];
+		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
+			unsigned n = psxRegs.intCycle[PSXINT_GPUDMA].sCycle + psxRegs.intCycle[PSXINT_GPUDMA].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[27]=%u+ iC[28]=%u\n",n,psxRegs.intCycle[3+24],psxRegs.intCycle[3+24+1]);
+			dbgf("\t%u iC[PSXINT_GPUDMA].sCycle=%u + iC[PSXINT_GPUDMA].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_GPUDMA].sCycle, psxRegs.intCycle[PSXINT_GPUDMA].cycle);
 #endif
 			if (n<value)
 				value=n;
 		}
-		if (psxRegs.interrupt & 0x02000000) { // mdec out dma
-			unsigned n=psxRegs.intCycle[5+24]+psxRegs.intCycle[5+24+1];
+		if (psxRegs.interrupt & (1 << PSXINT_MDECOUTDMA)) { // mdec out dma
+			unsigned n = psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle + psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[29]=%u+ iC[30]=%u\n",n,psxRegs.intCycle[5+24],psxRegs.intCycle[5+24+1]);
+			dbgf("\t%u iC[PSXINT_MDECOUTDMA].sCycle=%u + iC[PSXINT_MDECOUTDMA].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle, psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle);
 #endif
 			if (n<value)
 				value=n;
 		}
-		if (psxRegs.interrupt & 0x04000000) { // spu dma
-			unsigned n=psxRegs.intCycle[1+24]+psxRegs.intCycle[1+24+1];
+		if (psxRegs.interrupt & (1 << PSXINT_SPUDMA)) { // spu dma
+			unsigned n = psxRegs.intCycle[PSXINT_SPUDMA].sCycle + psxRegs.intCycle[PSXINT_SPUDMA].cycle;
 #ifdef DEBUG_CPU_OPCODES
-			dbgf("\t%u iC[25]=%u+ iC[26]=%u\n",n,psxRegs.intCycle[1+24],psxRegs.intCycle[1+24+1]);
+			dbgf("\t%u iC[PSXINT_SPUDMA].sCycle=%u + iC[PSXINT_SPUDMA].cycle=%u\n", n,
+					psxRegs.intCycle[PSXINT_SPUDMA].sCycle, psxRegs.intCycle[PSXINT_SPUDMA].cycle);
 #endif
 			if (n<value)
 				value=n;
@@ -284,6 +294,11 @@ void psxBranchTest() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxBranchTest++;
 #endif
+
+	//senquack - NOTE: This DEBUG block has been updated to use new PSXINT_*
+	// interrupts enum and intCycle struct from PCSX Reloaded/Rearmed.
+	// This older DEBUG code is not a part of newer PCSXR code, so could be
+	// removed in the future (TODO):
 #ifdef DEBUG_IO_CYCLE_COUNTER
 //	printf("%i (%i)\n",psxRegs.cycle,psxRegs.io_cycle_counter);
 //CHUI: Si no supera el umbral no comprueba nada
@@ -296,40 +311,46 @@ void psxBranchTest() {
 			printf("ERROR: cycle (%i) - nexts (%i) >= next (%i). io=%i\n",psxRegs.cycle,psxNextsCounter,psxNextCounter,psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if (psxRegs.interrupt & 0x80) // sio
-			if ((psxRegs.cycle - psxRegs.intCycle[7]) >= psxRegs.intCycle[7+1])
+		if (psxRegs.interrupt & (1 << PSXINT_SIO)) { // sio
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle) >= psxRegs.intCycle[PSXINT_SIO].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[7] (%i) >= intCycle[8] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[7],psxRegs.intCycle[7+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_SIO].sCycle (%i) >= intCycle[PSXINT_SIO].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_SIO].sCycle, psxRegs.intCycle[PSXINT_SIO].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if (psxRegs.interrupt & 0x04) // cdr
-			if ((psxRegs.cycle - psxRegs.intCycle[2]) >= psxRegs.intCycle[2+1])
+		if (psxRegs.interrupt & (1 << PSXINT_CDR)) { // cdr
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDR].sCycle) >= psxRegs.intCycle[PSXINT_CDR].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[2] (%i) >= intCycle[3] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[2],psxRegs.intCycle[2+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_CDR].sCycle (%i) >= intCycle[PSXINT_CDR].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_CDR].sCycle, psxRegs.intCycle[PSXINT_CDR].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if (psxRegs.interrupt & 0x040000) // cdr read
-			if ((psxRegs.cycle - psxRegs.intCycle[2+16]) >= psxRegs.intCycle[2+16+1])
+		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[18] (%i) >= intCycle[19] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[2+16],psxRegs.intCycle[2+16+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_CDREAD].sCycle (%i) >= intCycle[PSXINT_CDREAD].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_CDREAD].sCycle, psxRegs.intCycle[PSXINT_CDREAD].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if (psxRegs.interrupt & 0x01000000) // gpu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[3+24]) >= psxRegs.intCycle[3+24+1])
+		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUDMA].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[27] (%i) >= intCycle[28] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[3+24],psxRegs.intCycle[3+24+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_GPUDMA].sCycle (%i) >= intCycle[PSXINT_GPUDMA].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_GPUDMA].sCycle, psxRegs.intCycle[PSXINT_GPUDMA].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-		if (psxRegs.interrupt & 0x02000000) // mdec out dma
-			if ((psxRegs.cycle - psxRegs.intCycle[5+24]) >= psxRegs.intCycle[5+24+1])
+		if (psxRegs.interrupt & (1 << PSXINT_MDECOUTDMA)) { // mdec out dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[29] (%i) >= intCycle[30] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[5+24],psxRegs.intCycle[5+24+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_MDECOUTDMA].sCycle (%i) >= intCycle[PSXINT_MDECOUTDMA].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle, psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
-        	if (psxRegs.interrupt & 0x04000000) // spu dma
-            		if ((psxRegs.cycle - psxRegs.intCycle[1+24]) >= psxRegs.intCycle[1+24+1])
+		if (psxRegs.interrupt & (1 << PSXINT_SPUDMA)) { // spu dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_SPUDMA].cycle)
 		{
-			printf("ERROR: cycle (%i) - intCycle[25] (%i) >= intCycle[26] (%i). io=%i\n",psxRegs.cycle,psxRegs.intCycle[1+24],psxRegs.intCycle[1+24+1],psxRegs.io_cycle_counter);
+			printf("ERROR: cycle (%i) - intCycle[PSXINT_SPUDMA].sCycle (%i) >= intCycle[PSXINT_SPUDMA].cycle (%i). io=%i\n",
+					psxRegs.cycle, psxRegs.intCycle[PSXINT_SPUDMA].sCycle, psxRegs.intCycle[PSXINT_SPUDMA].cycle, psxRegs.io_cycle_counter);
 			pcsx4all_exit();
 		}
 		if (psxHu32(0x1070) & psxHu32(0x1074))
@@ -367,78 +388,84 @@ void psxBranchTest() {
 #ifndef USE_BRANCH_TEST_CALCULATE
 	unsigned value=psxNextCounter+psxNextsCounter;
 #endif
+
+//senquack - NOTE: This DEBUG block has been updated to use new PSXINT_*
+// interrupts enum and intCycle struct from PCSX Reloaded/Rearmed.
+// This older DEBUG code is not a part of newer PCSXR code, so could be
+// removed in the future (TODO):
 #ifdef DEBUG_BIOS
 	dbgf("Counters %u %u, IntCycle:",psxNextCounter,psxNextsCounter);
-	for(unsigned i=0;i<32;i++){
-		if (!(i&7)) dbgf("\n\t%.2u:",i);
-		dbgf(" %u", psxRegs.intCycle[i]);
+	for(unsigned i=0;i<PSXINT_COUNT;i++){
+		dbgf("\n\t%.2u:", i);
+		dbgf(" sCycle:%u cycle:%u", psxRegs.intCycle[i].sCycle, psxRegs.intCycle[i].cycle);
 	}
 	dbg("");
 #endif
 
 	if (psxRegs.interrupt) {
-		if (psxRegs.interrupt & 0x80) { // sio
-			if ((psxRegs.cycle - psxRegs.intCycle[7]) >= psxRegs.intCycle[7+1]) {
-				psxRegs.interrupt&=~0x80;
+		//senquack - TODO: add support for new Config.Sio option of PCSXR?
+		if ((psxRegs.interrupt & (1 << PSXINT_SIO)) /* && !Config.Sio */ ) { // sio
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SIO].sCycle) >= psxRegs.intCycle[PSXINT_SIO].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_SIO);
 				sioInterrupt();
 			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[7]+psxRegs.intCycle[7+1];
+			unsigned n = psxRegs.intCycle[PSXINT_SIO].sCycle + psxRegs.intCycle[PSXINT_SIO].cycle;
 			if (n<value)
 				value=n;
 #endif
 		}
-		if (psxRegs.interrupt & 0x04) { // cdr
-			if ((psxRegs.cycle - psxRegs.intCycle[2]) >= psxRegs.intCycle[2+1]) {
-				psxRegs.interrupt&=~0x04;
+		if (psxRegs.interrupt & (1 << PSXINT_CDR)) { // cdr
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDR].sCycle) >= psxRegs.intCycle[PSXINT_CDR].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_CDR);
 				cdrInterrupt();
 			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[2]+psxRegs.intCycle[2+1];
+			unsigned n = psxRegs.intCycle[PSXINT_CDR].sCycle + psxRegs.intCycle[PSXINT_CDR].cycle;
 			if (n<value)
 				value=n;
 #endif
 		}
-		if (psxRegs.interrupt & 0x040000) { // cdr read
-			if ((psxRegs.cycle - psxRegs.intCycle[2+16]) >= psxRegs.intCycle[2+16+1]) {
-				psxRegs.interrupt&=~0x040000;
+		if (psxRegs.interrupt & (1 << PSXINT_CDREAD)) { // cdr read
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDREAD].sCycle) >= psxRegs.intCycle[PSXINT_CDREAD].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_CDREAD);
 				cdrReadInterrupt();
 			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[2+16]+psxRegs.intCycle[2+16+1];
+			unsigned n = psxRegs.intCycle[PSXINT_CDREAD].sCycle + psxRegs.intCycle[PSXINT_CDREAD].cycle;
 			if (n<value)
 				value=n;
 #endif
 		}
-		if (psxRegs.interrupt & 0x01000000) { // gpu dma
-			if ((psxRegs.cycle - psxRegs.intCycle[3+24]) >= psxRegs.intCycle[3+24+1]) {
-				psxRegs.interrupt&=~0x01000000;
+		if (psxRegs.interrupt & (1 << PSXINT_GPUDMA)) { // gpu dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_GPUDMA);
 				gpuInterrupt();
 			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[3+24]+psxRegs.intCycle[3+24+1];
+			unsigned n = psxRegs.intCycle[PSXINT_GPUDMA].sCycle + psxRegs.intCycle[PSXINT_GPUDMA].cycle;
 			if (n<value)
 				value=n;
 #endif
 		}
-		if (psxRegs.interrupt & 0x02000000) { // mdec out dma
-			if ((psxRegs.cycle - psxRegs.intCycle[5+24]) >= psxRegs.intCycle[5+24+1]) {
-				psxRegs.interrupt&=~0x02000000;
+		if (psxRegs.interrupt & (1 << PSXINT_MDECOUTDMA)) { // mdec out dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_MDECOUTDMA);
 				mdec1Interrupt();
 			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[5+24]+psxRegs.intCycle[5+24+1];
+			unsigned n = psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle + psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle;
 			if (n<value)
 				value=n;
 #endif
 		}
-        	if (psxRegs.interrupt & 0x04000000) { // spu dma
-            		if ((psxRegs.cycle - psxRegs.intCycle[1+24]) >= psxRegs.intCycle[1+24+1]) {
-                		psxRegs.interrupt&=~0x04000000;
-                		spuInterrupt();
-        		}
+		if (psxRegs.interrupt & (1 << PSXINT_SPUDMA)) { // spu dma
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUDMA].sCycle) >= psxRegs.intCycle[PSXINT_SPUDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_SPUDMA);
+				spuInterrupt();
+			}
 #ifndef USE_BRANCH_TEST_CALCULATE
-			unsigned n=psxRegs.intCycle[5+24]+psxRegs.intCycle[5+24+1];
+			unsigned n = psxRegs.intCycle[PSXINT_SPUDMA].sCycle + psxRegs.intCycle[PSXINT_SPUDMA].cycle;
 			if (n<value)
 				value=n;
 #endif
@@ -446,6 +473,7 @@ void psxBranchTest() {
 	}
 
 	//senquack - Adapted pcsxReARMed SPU to PSX4ALL, see notes at top of file
+	// TODO: Move this to above block and use new PSXINT_SPU_UPDATE 
 #ifdef spu_pcsxrearmed
 	if (pcsxrearmed_update_pending) {
 		if (psxRegs.cycle >= pcsxrearmed_update_at_cycle) {

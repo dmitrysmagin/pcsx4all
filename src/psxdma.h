@@ -26,28 +26,32 @@
 #include "psxhw.h"
 #include "psxmem.h"
 
+//senquack - NOTE: These macros have been updated to use new PSXINT_*
+// interrupts enum and intCycle struct (much cleaner than before)
+// from PCSX Reloaded/Rearmed
+
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 #define GPUDMA_INT(eCycle) { \
 	ResetIoCycle(); \
-	psxRegs.interrupt |= 0x01000000; \
-	psxRegs.intCycle[3+24+1] = eCycle; \
-	psxRegs.intCycle[3+24] = psxRegs.cycle; \
+	psxRegs.interrupt |= (1 << PSXINT_GPUDMA); \
+	psxRegs.intCycle[PSXINT_GPUDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_GPUDMA].sCycle = psxRegs.cycle; \
 }
 
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 #define SPUDMA_INT(eCycle) { \
     ResetIoCycle(); \
-    psxRegs.interrupt |= 0x04000000; \
-    psxRegs.intCycle[1 + 24 + 1] = eCycle; \
-    psxRegs.intCycle[1 + 24] = psxRegs.cycle; \
+	psxRegs.interrupt |= (1 << PSXINT_SPUDMA); \
+	psxRegs.intCycle[PSXINT_SPUDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_SPUDMA].sCycle = psxRegs.cycle; \
 }
 
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 #define MDECOUTDMA_INT(eCycle) { \
 	ResetIoCycle(); \
-	psxRegs.interrupt |= 0x02000000; \
-	psxRegs.intCycle[5+24+1] = eCycle; \
-	psxRegs.intCycle[5+24] = psxRegs.cycle; \
+	psxRegs.interrupt |= (1 << PSXINT_MDECOUTDMA); \
+	psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle = psxRegs.cycle; \
 }
 
 extern void psxDma2(u32 madr, u32 bcr, u32 chcr);

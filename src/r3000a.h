@@ -142,6 +142,25 @@ typedef union {
 	PAIR p[32];
 } psxCP2Ctrl;
 
+enum {
+	PSXINT_SIO = 0,
+	PSXINT_CDR,
+	PSXINT_CDREAD,
+	PSXINT_GPUDMA,
+	PSXINT_MDECOUTDMA,
+	PSXINT_SPUDMA,
+	PSXINT_GPUBUSY,
+	PSXINT_MDECINDMA,
+	PSXINT_GPUOTCDMA,
+	PSXINT_CDRDMA,
+	PSXINT_NEWDRC_CHECK,
+	PSXINT_RCNT,
+	PSXINT_CDRLID,
+	PSXINT_CDRPLAY,
+	PSXINT_SPU_UPDATE,
+	PSXINT_COUNT
+};
+
 typedef struct {
 	psxGPRRegs GPR;		/* General Purpose Registers */
 	psxCP0Regs CP0;		/* Coprocessor0 Registers */
@@ -151,7 +170,11 @@ typedef struct {
     u32 code;			/* The instruction */
 	u32 cycle;
 	u32 interrupt;
-	u32 intCycle[32];
+
+	//senquack - Converted to newer PCSXR struct:
+	//u32 intCycle[32];
+	struct { u32 sCycle, cycle; } intCycle[32];
+
 // CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
 // CHUI: Añado el puntero a la memoria PSX

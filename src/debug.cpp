@@ -94,11 +94,16 @@ void dbgregsCop(void *r) {
 			if (!((i+1)&3)) fprintf(DEBUG_STR_FILE,"\n");
 		}
 		fprintf(DEBUG_STR_FILE,"\n");
-		for(i=0;i<32;i++) {
-			fprintf(DEBUG_STR_FILE," INT %.2i=%.8X",i,regs->intCycle[i]);
-			if (!((i+1)&3)) fprintf(DEBUG_STR_FILE,"\n");
+
+		//senquack - NOTE: This has all been updated to use new PSXINT_*
+		// interrupts enum and intCycle struct (much cleaner than before)
+		// from PCSX Reloaded/Rearmed
+		for(i=0;i<PSXINT_COUNT;i++) {
+			fprintf(DEBUG_STR_FILE," INT %.2i sCycle:%.8X cycle:%.8X\n",
+					i, regs->intCycle[i].sCycle, regs->intCycle[i].cycle);
 		}
 		fprintf(DEBUG_STR_FILE,"\n");
+
 #ifdef DEBUG_PCSX4ALL_FFLUSH
 		fflush(DEBUG_STR_FILE);
 #endif

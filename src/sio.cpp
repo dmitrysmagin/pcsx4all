@@ -49,7 +49,9 @@
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];
-unsigned char cardh[4] = { 0x00, 0x00, 0x5a, 0x5d };
+//senquack - updated to match PCSXR code:
+static unsigned char cardh1[4] = { 0xff, 0x08, 0x5a, 0x5d };
+static unsigned char cardh2[4] = { 0xff, 0x08, 0x5a, 0x5d };
 
 //static unsigned short StatReg = 0x002b;
 // Transfer Ready and the Buffer is Empty
@@ -65,6 +67,7 @@ static unsigned char adrH,adrL;
 static unsigned int padst;
 
 char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
+char McdDisable[2]; //senquack - added from PCSXR
 
 static u32 sio_cycle; /* for SIO_INT() */
 void sioInit(void) {
@@ -74,6 +77,11 @@ void sioInit(void) {
 		sio_cycle=200*BIAS; /* for SIO_INT() */
 }
 
+//senquack - Updated to use PSXINT_* enum and intCycle struct (much cleaner than before)
+//           Also, takes an argument eCycle whereas before it took none.
+//           TODO: PCSXR code has SIO_INT take a parameter that always ends up being
+//             535 (SIO_CYCLES) but I've left PCSX4ALL using this older SIO_INT(void)
+//           TODO: Add support for newer PCSXR Config.Sio option
 // clk cycle byte
 INLINE void SIO_INT(void) {
 #ifdef DEBUG_ANALYSIS
@@ -81,9 +89,9 @@ INLINE void SIO_INT(void) {
 #endif
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
-	psxRegs.interrupt |= 0x80;
-	psxRegs.intCycle[7 + 1] = sio_cycle;
-	psxRegs.intCycle[7] = psxRegs.cycle;
+	psxRegs.interrupt |= (1 << PSXINT_SIO); \
+	psxRegs.intCycle[PSXINT_SIO].cycle = sio_cycle; \
+	psxRegs.intCycle[PSXINT_SIO].sCycle = psxRegs.cycle; \
 }
 
 void sioWrite8(unsigned char value) {
@@ -93,6 +101,8 @@ void sioWrite8(unsigned char value) {
 #ifdef PAD_LOG
 	PAD_LOG("sio write8 %x\n", value);
 #endif
+	//senquack - all calls to SIO_INT() here now pass param SIO_CYCLES
+	//           whereas before they passed nothing:
 	switch (padst) {
 		case 1: SIO_INT();
 			if ((value&0x40) == 0x40) {
@@ -205,8 +215,17 @@ void sioWrite8(unsigned char value) {
 			return;
 		case 5:	
 			parp++;
+			//senquack - updated to match PCSXR code:
+			if ((rdwr == 1 && parp == 132) ||
+			    (rdwr == 2 && parp == 129)) {
+				// clear "new card" flags
+				if (CtrlReg & 0x2000)
+					cardh2[1] &= ~8;
+				else
+					cardh1[1] &= ~8;
+			}
 			if (rdwr == 2) {
-				if (parp < 128) buf[parp+1] = value;
+				if (parp < 128) buf[parp + 1] = value;
 			}
 			SIO_INT();
 			return;
@@ -227,13 +246,31 @@ void sioWrite8(unsigned char value) {
 			SIO_INT();
 			return;
 		case 0x81: // start memcard
+			if (CtrlReg & 0x2000)
+			{
+				if (McdDisable[1])
+					goto no_device;
+				memcpy(buf, cardh2, 4);
+			}
+			else
+			{
+				if (McdDisable[0])
+					goto no_device;
+				memcpy(buf, cardh1, 4);
+			}
 			StatReg |= RX_RDY;
-			memcpy(buf, cardh, 4);
 			parp = 0;
 			bufcount = 3;
 			mcdst = 1;
 			rdwr = 0;
 			SIO_INT();
+			return;
+		default:
+		no_device:
+			StatReg |= RX_RDY;
+			buf[0] = 0xff;
+			parp = 0;
+			bufcount = 0;
 			return;
 	}
 }
@@ -257,10 +294,12 @@ void sioWriteCtrl16(unsigned short value) {
 #endif
 	CtrlReg = value & ~RESET_ERR;
 	if (value & RESET_ERR) StatReg &= ~IRQ;
-	if ((CtrlReg & SIO_RESET) || (!CtrlReg)) {
+	//senquack - Updated to match PCSXR:
+	//if ((CtrlReg & SIO_RESET) || (!CtrlReg)) {
+	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
 		padst = 0; mcdst = 0; parp = 0;
 		StatReg = TX_RDY | TX_EMPTY;
-		psxRegs.interrupt&=~0x80;
+		psxRegs.interrupt &= ~(1 << PSXINT_SIO);
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 		ResetIoCycle();
 	}
@@ -359,8 +398,18 @@ void LoadMcd(int mcd, char *str) {
 	FILE *f;
 	char *data = NULL;
 
-	if (mcd == 1) data = Mcd1Data;
-	if (mcd == 2) data = Mcd2Data;
+	//senquack - updated to match PCSXR code:
+	if (mcd != 1 && mcd != 2)
+		return;
+	if (mcd == 1) {
+		data = Mcd1Data;
+		cardh1[1] |= 8; // mark as new
+	}
+	if (mcd == 2) {
+		data = Mcd2Data;
+		cardh2[1] |= 8;
+	}
+
 
 	if (*str == 0) {
 		sprintf(str, "memcards/card%d.mcd", mcd);
@@ -690,6 +739,13 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 	int i, x;
 
 	memset(Info, 0, sizeof(McdBlock));
+
+	//senquack - updated to match PCSXR code:
+	if (mcd != 1 && mcd != 2)
+		return;
+
+	if (McdDisable[mcd - 1])
+		return;
 
 	if (mcd == 1) data = Mcd1Data;
 	if (mcd == 2) data = Mcd2Data;
