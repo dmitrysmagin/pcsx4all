@@ -54,6 +54,24 @@
 	psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle = psxRegs.cycle; \
 }
 
+#define MDECINDMA_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_MDECINDMA); \
+	psxRegs.intCycle[PSXINT_MDECINDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_MDECINDMA].sCycle = psxRegs.cycle; \
+}
+
+#define GPUOTCDMA_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_GPUOTCDMA); \
+	psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle = psxRegs.cycle; \
+}
+
+#define CDRDMA_INT(eCycle) { \
+	psxRegs.interrupt |= (1 << PSXINT_CDRDMA); \
+	psxRegs.intCycle[PSXINT_CDRDMA].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_CDRDMA].sCycle = psxRegs.cycle; \
+}
+
 extern void psxDma2(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma3(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma4(u32 madr, u32 bcr, u32 chcr);

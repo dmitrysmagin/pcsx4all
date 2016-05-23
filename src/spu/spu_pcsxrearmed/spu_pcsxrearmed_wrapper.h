@@ -128,16 +128,14 @@ static inline unsigned short SPU_readDMA()
     return SPU_readDMA();
 }
 
-static inline void SPU_writeDMAMem(unsigned short *pusPSXMem, int iSize)
+static inline void SPU_writeDMAMem(unsigned short *pusPSXMem, int iSize, unsigned int cycles)
 {
-    //senquack - PCSX_ReArmed version takes additional 3rd parameter, cycles:
-    SPUwriteDMAMem(pusPSXMem, iSize, *psxRegs_cycle_valptr);
+    SPUwriteDMAMem(pusPSXMem, iSize, cycles);
 }
 
-static inline void SPU_readDMAMem(unsigned short *pusPSXMem, int iSize)
+static inline void SPU_readDMAMem(unsigned short *pusPSXMem, int iSize, unsigned int cycles)
 {
-    //senquack - PCSX_ReArmed version takes additional 3rd parameter, cycles:
-    SPUreadDMAMem(pusPSXMem, iSize, *psxRegs_cycle_valptr);
+    SPUreadDMAMem(pusPSXMem, iSize, cycles);
 }
 
 static inline void SPU_playADPCMchannel(xa_decode_t *xap)

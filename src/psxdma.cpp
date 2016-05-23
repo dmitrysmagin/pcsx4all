@@ -27,32 +27,49 @@
 // Dma0/1 in Mdec.c
 // Dma3   in CdRom.c
 
-void spuInterrupt(void) {
+//senquack - Updated to new PCSX Reloaded/Rearmed code:
+void spuInterrupt() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_spuInterrupt++;
 #endif
-    HW_DMA4_CHCR &= SWAP32(~0x01000000);
-    DMA_INTERRUPT(4);
+	if (HW_DMA4_CHCR & SWAP32(0x01000000))
+	{
+		HW_DMA4_CHCR &= SWAP32(~0x01000000);
+		DMA_INTERRUPT(4);
+	}
 }
 
+//senquack - Updated to new PCSX Reloaded/Rearmed code:
 void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxDma4++;
 #endif
 	u16 *ptr;
-	u32 size;
+	u32 words;
 
 	switch (chcr) {
-        //senquack TODO: Look at the first two cases here and compare to Notaz's PCSX_ReARMed,
-		//				 if using new spu_pcsxrearmed causes problems. I haven't touched the
-		//				 original PCSX4ALL code here:
 		case 0x01000201: //cpu to spu transfer
 #ifdef PSXDMA_LOG
 			PSXDMA_LOG("*** DMA4 SPU - mem2spu *** %x addr = %x size = %x\n", chcr, madr, bcr);
 #endif
 			ptr = (u16 *)PSXM(madr);
-			SPU_writeDMAMem(ptr, (bcr >> 16) * (bcr & 0xffff) * 2);
-			SPUDMA_INT((bcr >> 16) * (bcr & 0xffff) / 2);
+			if (ptr == NULL) {
+#ifdef CPU_LOG
+				CPU_LOG("*** DMA4 SPU - mem2spu *** NULL Pointer!!!\n");
+#endif
+				break;
+			}
+			words = (bcr >> 16) * (bcr & 0xffff);
+
+#ifdef spu_pcsxrearmed
+			SPU_writeDMAMem(ptr, words * 2, psxRegs.cycle);
+#else
+			//senquack - older SPU plugins like spu_franxis don't take cycles param:
+			SPU_writeDMAMem(ptr, words * 2);
+#endif
+
+			HW_DMA4_MADR = SWAPu32(madr + words * 4);
+			SPUDMA_INT(words / 2);
 			return;
 
 		case 0x01000200: //spu to cpu transfer
@@ -60,12 +77,28 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			PSXDMA_LOG("*** DMA4 SPU - spu2mem *** %x addr = %x size = %x\n", chcr, madr, bcr);
 #endif
 			ptr = (u16 *)PSXM(madr);
-			size = (bcr >> 16) * (bcr & 0xffff) * 2;
-    		SPU_readDMAMem(ptr, size);
-			#ifdef PSXREC
-			psxCpu->Clear(madr, size);
-			#endif
-			break;
+			if (ptr == NULL) {
+#ifdef CPU_LOG
+				CPU_LOG("*** DMA4 SPU - spu2mem *** NULL Pointer!!!\n");
+#endif
+				break;
+			}
+			words = (bcr >> 16) * (bcr & 0xffff);
+
+#ifdef spu_pcsxrearmed
+			SPU_readDMAMem(ptr, words * 2, psxRegs.cycle);
+#else
+			//senquack - older SPU plugins like spu_franxis don't take cycles param:
+			SPU_readDMAMem(ptr, words * 2);
+#endif
+
+			//senquack - Original PCSX4ALL code had this statement surrounded by
+			//           #ifdef PSXREC, but newer Reloaded/Rearmed code doesn't:
+			psxCpu->Clear(madr, words);
+
+			HW_DMA4_MADR = SWAPu32(madr + words * 4);
+			SPUDMA_INT(words / 2);
+			return;
 
 #ifdef PSXDMA_LOG
 		default:
