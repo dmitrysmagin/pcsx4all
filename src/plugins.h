@@ -90,7 +90,7 @@ extern long CDR_close(void);
 extern long CDR_getTN(unsigned char *);
 extern long CDR_getTD(unsigned char , unsigned char *);
 extern long CDR_readTrack(unsigned char *);
-extern unsigned char *CDR_getBuffer(void);
+extern unsigned char *(*CDR_getBuffer)(void);
 extern long CDR_play(unsigned char *);
 extern long CDR_stop(void);
 extern long CDR_getStatus(struct CdrStat *);
