@@ -1,3 +1,4 @@
+#include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -7,6 +8,11 @@
 #include "plugins.h"
 #include "profiler.h"
 #include <SDL.h>
+
+/* PATH_MAX inclusion */
+#ifdef __MINGW32__
+#include <limits.h>
+#endif
 
 //senquack
 #ifdef spu_pcsxrearmed
@@ -80,10 +86,10 @@ void pcsx4all_exit(void)
 	exit(0);
 }
 
-static char homedir[256] =	"./.pcsx4all";
-static char sstatesdir[256] =	"./.pcsx4all/sstates";
-static char memcardsdir[256] =	"./.pcsx4all/memcards";
-static char biosdir[256] =	"./.pcsx4all/bios";
+static char homedir[PATH_MAX] =	"./.pcsx4all";
+static char sstatesdir[PATH_MAX] =	"./.pcsx4all/sstates";
+static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
+static char biosdir[PATH_MAX] =	"./.pcsx4all/bios";
 
 #ifdef __WIN32__
 	#define MKDIR(A) mkdir(A)
@@ -95,13 +101,17 @@ static void setup_paths()
 {
 #ifndef __WIN32__
 	char *home = getenv("HOME");
+#else
+	char buf[PATH_MAX];
+	char *home = getcwd(buf, PATH_MAX);
+#endif
 	if(home) {
 		sprintf(homedir, "%s/.pcsx4all", home);
 		sprintf(sstatesdir, "%s/sstates", homedir);
 		sprintf(memcardsdir, "%s/memcards", homedir);
 		sprintf(biosdir, "%s/bios", homedir);
 	}
-#endif
+
 	MKDIR(homedir);
 	MKDIR(sstatesdir);
 	MKDIR(memcardsdir);
