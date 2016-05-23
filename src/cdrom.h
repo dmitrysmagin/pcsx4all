@@ -48,12 +48,20 @@ typedef struct {
 
 	unsigned char StatP;
 
-	unsigned char Transfer[CD_FRAMESIZE_RAW];
-	unsigned char *pTransfer;
+	unsigned char Transfer[DATA_SIZE];
+	struct {
+		unsigned char Track;
+		unsigned char Index;
+		unsigned char Relative[3];
+		unsigned char Absolute[3];
+	} subq;
+	unsigned char TrackChanged;
+	unsigned char pad1[3];
+	unsigned int  freeze_ver;
 
 	unsigned char Prev[4];
 	unsigned char Param[8];
-	unsigned char Result[8];
+	unsigned char Result[16];
 
 	unsigned char ParamC;
 	unsigned char ParamP;
@@ -62,12 +70,14 @@ typedef struct {
 	unsigned char ResultReady;
 	unsigned char Cmd;
 	unsigned char Readed;
+	unsigned char SetlocPending;
 	u32 Reading;
 
 	unsigned char ResultTN[6];
 	unsigned char ResultTD[4];
+	unsigned char SetSectorPlay[4];
+	unsigned char SetSectorEnd[4];
 	unsigned char SetSector[4];
-	unsigned char SetSectorSeek[4];
 	unsigned char Track;
 	boolean Play, Muted;
 	int CurTrack;
@@ -80,25 +90,44 @@ typedef struct {
 
 	int Init;
 
-	unsigned char Irq;
+	u16 Irq;
+	u8 IrqRepeated;
 	u32 eCycle;
 
-	boolean Seeked;
+	u8 Seeked;
+
+	u8 DriveState;
+	u8 FastForward;
+	u8 FastBackward;
+	u8 pad;
+
+	u8 AttenuatorLeftToLeft, AttenuatorLeftToRight;
+	u8 AttenuatorRightToRight, AttenuatorRightToLeft;
+	u8 AttenuatorLeftToLeftT, AttenuatorLeftToRightT;
+	u8 AttenuatorRightToRightT, AttenuatorRightToLeftT;
 } cdrStruct;
 
 extern cdrStruct cdr;
 
-extern void cdrReset(void);
-extern void cdrInterrupt(void);
-extern void cdrReadInterrupt(void);
-extern unsigned char cdrRead0(void);
-extern unsigned char cdrRead1(void);
-extern unsigned char cdrRead2(void);
-extern unsigned char cdrRead3(void);
-extern void cdrWrite0(unsigned char rt);
-extern void cdrWrite1(unsigned char rt);
-extern void cdrWrite2(unsigned char rt);
-extern void cdrWrite3(unsigned char rt);
-extern int cdrFreeze(gzFile f, int Mode);
+void cdrReset();
+void cdrAttenuate(s16 *buf, int samples, int stereo);
+void cdrInterrupt();
+void cdrReadInterrupt();
+void cdrRepplayInterrupt();
+void cdrLidSeekInterrupt();
+void cdrPlayInterrupt();
+void cdrDmaInterrupt();
+void LidInterrupt();
+unsigned char cdrRead0(void);
+unsigned char cdrRead1(void);
+unsigned char cdrRead2(void);
+unsigned char cdrRead3(void);
+void cdrWrite0(unsigned char rt);
+void cdrWrite1(unsigned char rt);
+void cdrWrite2(unsigned char rt);
+void cdrWrite3(unsigned char rt);
+int cdrFreeze(void *f, int Mode);
+
+u16 calcCrc(const u8 *d, const int len);
 
 #endif /* __CDROM_H__ */

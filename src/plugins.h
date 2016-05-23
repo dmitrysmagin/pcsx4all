@@ -68,6 +68,7 @@ struct CdrStat {
 	unsigned char Time[3];
 };
 
+//senquack - updated to newer PCSX Reloaded/Rearmed code:
 struct SubQ {
 	char res0[12];
 	unsigned char ControlAndADR;
@@ -76,6 +77,7 @@ struct SubQ {
 	unsigned char TrackRelativeAddress[3];
 	unsigned char Filler;
 	unsigned char AbsoluteAddress[3];
+	unsigned char CRC[2];
 	char res1[72];
 };
 
