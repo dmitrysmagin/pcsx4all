@@ -755,8 +755,9 @@ static int parsecue(const char *isofile) {
 				sscanf(linebuf, " FILE %255s", tmpb);
 
 			// absolute path?
-			ti[numtracks + 1].handle = fopen(tmpb, "rb");
-			if (ti[numtracks + 1].handle == NULL) {
+			/* HACK: Assume always relative paths, needed for frontend */
+			/*ti[numtracks + 1].handle = fopen(tmpb, "rb");
+			if (ti[numtracks + 1].handle == NULL)*/ {
 				// relative to .cue?
 				tmp = strrchr(tmpb, '\\');
 				if (tmp == NULL)
