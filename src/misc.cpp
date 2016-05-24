@@ -144,6 +144,8 @@ int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 	return 0;
 }
 
+//senquack - TODO: replace this and other CDROM-related functions with newer
+// ones from PCSX Reloaded/Rearmed
 int LoadCdrom() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_LoadCdrom++;
@@ -246,10 +248,18 @@ int LoadCdrom() {
 			rcnts[1].cycleStart=38317871;
 			rcnts[2].cycleStart=38317926;
 			rcnts[3].cycleStart=38330430;
+			//senquack - Not sure what the meaning of any of these values is,
+			// but it must be disabled after updating rest of code to PCSX
+			// Rearmed/Reloaded. intCycle is now a struct and interrupts are
+			// no longer undocumented magic numbers, but instead defined
+			// through an enum. Furthermore, Rearmed/Reloaded
+			// doesn't have any of this stuff listed here:
+#if 0
 			psxRegs.intCycle[2]=38224629;
 			psxRegs.intCycle[3]=4096;
 			psxRegs.intCycle[18]=37699116;
 			psxRegs.intCycle[19]=225792;
+#endif //0
 			psxSetSyncs(249,16);
 		} else {
 			psxRegs.cycle=73033893;
@@ -260,10 +270,13 @@ int LoadCdrom() {
 			rcnts[1].cycleStart=73019547;
 			rcnts[2].cycleStart=73019613;
 			rcnts[3].cycleStart=73033524;
+			//senquack - see comment directly above
+#if 0
 			psxRegs.intCycle[2]=72891387;
 			psxRegs.intCycle[3]=4096;
 			psxRegs.intCycle[18]=72365592;
 			psxRegs.intCycle[19]=225792;
+#endif //0
 			psxSetSyncs(286,4);
 		}
 		rcnts[0].mode=5120;
