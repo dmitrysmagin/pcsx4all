@@ -474,6 +474,12 @@ void psxBranchTest() {
 		//senquack - NOTE: all the remaining PSXINT_* cases here are new ones
 		// introduced from PCSX Reloaded/Rearmed:
 
+		if (psxRegs.interrupt & (1 << PSXINT_MDECINDMA)) { // mdec in
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECINDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_MDECINDMA);
+				mdec0Interrupt();
+			}
+		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDRDMA)) { // cdrom
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_CDRDMA].sCycle) >= psxRegs.intCycle[PSXINT_CDRDMA].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_CDRDMA);
