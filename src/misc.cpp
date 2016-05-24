@@ -22,10 +22,19 @@
 * Miscellaneous functions, including savesates and CD-ROM loading.
 */
 
+//senquack NOTE: CDROM functions have been updated to PCSX Reloaded code
+// TODO: update remaining functions like BIOS/savestates?
+
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
+//senquack - TODO: add PPF patch support from PCSX Rearmed?
+//#include "ppf.h"
 #include "port.h"
+
+#ifdef _WIN32
+#define strncasecmp _strnicmp
+#endif
 
 char CdromId[10] = "";
 char CdromLabel[33] = "";
@@ -58,28 +67,32 @@ struct iso_directory_record {
 };
 
 void mmssdd( char *b, char *p )
- {
+{
 	int m, s, d;
-#ifndef __arm__
-	int block = (b[0]&0xff) | ((b[1]&0xff)<<8) | ((b[2]&0xff)<<16) | (b[3]<<24);
+#if defined(__arm__)
+	unsigned char *u = (void *)b;
+	int block = (u[3] << 24) | (u[2] << 16) | (u[1] << 8) | u[0];
+#elif defined(__BIGENDIAN__)
+	int block = (b[0] & 0xff) | ((b[1] & 0xff) << 8) | ((b[2] & 0xff) << 16) | (b[3] << 24);
 #else
-	int block = b[0] | (b[1]<<8) | (b[2]<<16) | (b[3]<<24);
+	int block = *((int*)b);
 #endif
-	
+
 	block += 150;
-	m = block / 4500;			// minuten
-	block = block - m * 4500;	// minuten rest
-	s = block / 75;				// sekunden
-	d = block - s * 75;			// sekunden rest
-	
-	m = ( ( m / 10 ) << 4 ) | m % 10;
-	s = ( ( s / 10 ) << 4 ) | s % 10;
-	d = ( ( d / 10 ) << 4 ) | d % 10;	
-	
+	m = block / 4500;			// minutes
+	block = block - m * 4500;	// minutes rest
+	s = block / 75;				// seconds
+	d = block - s * 75;			// seconds rest
+
+	m = ((m / 10) << 4) | m % 10;
+	s = ((s / 10) << 4) | s % 10;
+	d = ((d / 10) << 4) | d % 10;	
+
 	p[0] = m;
 	p[1] = s;
 	p[2] = d;
 }
+
 #define incTime() \
 	time[0] = btoi(time[0]); time[1] = btoi(time[1]); time[2] = btoi(time[2]); \
 	time[2]++; \
@@ -93,6 +106,8 @@ void mmssdd( char *b, char *p )
 	} \
 	time[0] = itob(time[0]); time[1] = itob(time[1]); time[2] = itob(time[2]);
 
+//senquack - TODO: add PPF support from PCSX Rearmed?
+// (its misc.c has call to CheckPPFCache() here)
 #define READTRACK() \
 	if (CDR_readTrack(time) == -1) return -1; \
 	buf = CDR_getBuffer(); \
@@ -108,7 +123,8 @@ void mmssdd( char *b, char *p )
 
 int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 	struct iso_directory_record *dir;
-	char ddir[4096];
+	int retval = -1;
+	u8 ddir[4096];
 	u8 *buf;
 	int i;
 
@@ -121,7 +137,7 @@ int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 		if (dir->length[0] == 0) {
 			return -1;
 		}
-		i += dir->length[0];
+		i += (u8)dir->length[0];
 
 		if (dir->flags[0] & 0x2) { // it's a dir
 			if (!strncasecmp((char *)&dir->name[0], filename, dir->name_len[0])) {
@@ -132,37 +148,64 @@ int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 				mmssdd(dir->extent, (char *)time);
 				READDIR(ddir);
 				i = 0;
-				mdir = (u8*)ddir;
+				mdir = ddir;
 			}
 		} else {
 			if (!strncasecmp((char *)&dir->name[0], filename, strlen(filename))) {
 				mmssdd(dir->extent, (char *)time);
+				retval = 0;
 				break;
 			}
 		}
 	}
-	return 0;
+	return retval;
 }
 
-//senquack - TODO: replace this and other CDROM-related functions with newer
-// ones from PCSX Reloaded/Rearmed
+//senquack - These two arrays and following 'fake_bios_gpu_setup()'
+// were introduced during update to PCSX Rearmed code.
+static const unsigned int gpu_ctl_def[] = {
+	0x00000000, 0x01000000, 0x03000000, 0x04000000,
+	0x05000800, 0x06c60260, 0x0703fc10, 0x08000027,
+};
+
+static const unsigned int gpu_data_def[] = {
+	0xe100360b, 0xe2000000, 0xe3000800, 0xe4077e7f,
+	0xe5001000, 0xe6000000,
+	0x02000000, 0x00000000, 0x01ff03ff,
+};
+
+static void fake_bios_gpu_setup(void)
+{
+	int i;
+
+	for (i = 0; i < sizeof(gpu_ctl_def) / sizeof(gpu_ctl_def[0]); i++)
+		GPU_writeStatus(gpu_ctl_def[i]);
+
+	for (i = 0; i < sizeof(gpu_data_def) / sizeof(gpu_data_def[0]); i++)
+		GPU_writeData(gpu_data_def[i]);
+}
+
+//senquack - NOTE: original version (before updating to PCSX Rearmed code
+// on May 24 2016 had undocumented CPU debugging #ifdef's.
 int LoadCdrom() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_LoadCdrom++;
 #endif
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
-	u8 time[4];
-	unsigned char *buf;
+	u8 time[4], *buf;
 	u8 mdir[4096];
 	char exename[256];
 
-#ifndef DEBUG_CPU
+	// not the best place to do it, but since BIOS boot logo killer
+	// is just below, do it here
+	fake_bios_gpu_setup();
+
 	if (!Config.HLE) {
+		// skip BIOS logos
 		psxRegs.pc = psxRegs.GPR.n.ra;
 		return 0;
 	}
-#endif
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
 
@@ -186,11 +229,11 @@ int LoadCdrom() {
 		// read the SYSTEM.CNF
 		READTRACK();
 
-		sscanf((char *)buf + 12, "BOOT = cdrom:\\%256s", exename);
+		sscanf((char *)buf + 12, "BOOT = cdrom:\\%255s", exename);
 		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf((char *)buf + 12, "BOOT = cdrom:%256s", exename);
+			sscanf((char *)buf + 12, "BOOT = cdrom:%255s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
-				char *ptr = strstr((char*)buf + 12, "cdrom:");
+				char *ptr = strstr((char *)buf + 12, "cdrom:");
 				if (ptr != NULL) {
 					ptr += 6;
 					while (*ptr == '\\' || *ptr == '/') ptr++;
@@ -212,99 +255,15 @@ int LoadCdrom() {
 
 	memcpy(&tmpHead, buf + 12, sizeof(EXE_HEADER));
 
-#ifdef DEBUG_CPU
-	if (Config.HLE)
-#endif
-	{
-		psxRegs.pc = SWAP32(tmpHead.pc0);
-		psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
-		psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
-		if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
-#ifdef DEBUG_CPU
-		psxRegs.GPR.r[1]=0x00000025;
-		psxRegs.GPR.r[2]=0x00000001;
-		psxRegs.GPR.r[4]=0x00000001;
-		psxRegs.GPR.r[7]=0x0000002A;
-		psxRegs.GPR.r[8]=0x801FFF00;
-		psxRegs.GPR.r[10]=0x0000002D;
-		psxRegs.GPR.r[11]=0x8002B8C0;
-		psxRegs.GPR.r[12]=0x00000023;
-		psxRegs.GPR.r[13]=0x0000002B;
-		psxRegs.GPR.r[14]=0xA0010000;
-		psxRegs.GPR.r[16]=0xA000B870;
-		psxRegs.GPR.r[24]=0x00000001;
-		psxRegs.GPR.r[26]=0xBFC0D968;
-		psxRegs.GPR.r[27]=0x00000F1C;
-		psxRegs.GPR.r[29]=0x801FFF00;
-		psxRegs.GPR.r[30]=0x801FFF00;
-		psxRegs.GPR.r[31]=0xBFC03D60;
-		psxRegs.GPR.r[33]=0x00000008;
-		if (autobias) {
-			psxRegs.cycle=38332544;
-			psxRegs.io_cycle_counter=38332584;
-			psxNextCounter=2137;
-			psxNextsCounter=38330447;
-			rcnts[0].cycleStart=38317816;
-			rcnts[1].cycleStart=38317871;
-			rcnts[2].cycleStart=38317926;
-			rcnts[3].cycleStart=38330430;
-			//senquack - Not sure what the meaning of any of these values is,
-			// but it must be disabled after updating rest of code to PCSX
-			// Rearmed/Reloaded. intCycle is now a struct and interrupts are
-			// no longer undocumented magic numbers, but instead defined
-			// through an enum. Furthermore, Rearmed/Reloaded
-			// doesn't have any of this stuff listed here:
-#if 0
-			psxRegs.intCycle[2]=38224629;
-			psxRegs.intCycle[3]=4096;
-			psxRegs.intCycle[18]=37699116;
-			psxRegs.intCycle[19]=225792;
-#endif //0
-			psxSetSyncs(249,16);
-		} else {
-			psxRegs.cycle=73033893;
-			psxRegs.io_cycle_counter=73035678;
-			psxNextCounter=2130;
-			psxNextsCounter=73033548;
-			rcnts[0].cycleStart=73019481;
-			rcnts[1].cycleStart=73019547;
-			rcnts[2].cycleStart=73019613;
-			rcnts[3].cycleStart=73033524;
-			//senquack - see comment directly above
-#if 0
-			psxRegs.intCycle[2]=72891387;
-			psxRegs.intCycle[3]=4096;
-			psxRegs.intCycle[18]=72365592;
-			psxRegs.intCycle[19]=225792;
-#endif //0
-			psxSetSyncs(286,4);
-		}
-		rcnts[0].mode=5120;
-		rcnts[1].mode=5120;
-		rcnts[2].mode=5120;
-		rcnts[3].mode=3080;
-		rcnts[0].cycle=65535;
-		rcnts[1].cycle=65535;
-		rcnts[2].cycle=65535;
-		rcnts[3].cycle=2154;
-	} else {
-		unsigned new_pc=SWAP32(tmpHead.pc0);
-		int back=isdbg();
-		dbg_disable();
-		psxRegs.pc = psxRegs.GPR.n.ra;
-		while (psxRegs.pc != new_pc)
-			psxCpu->ExecuteBlock(new_pc);
-		if (back)
-			dbg_enable();
-#endif
-	}
+	psxRegs.pc = SWAP32(tmpHead.pc0);
+	psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
+	psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
+	if (psxRegs.GPR.n.sp == 0) psxRegs.GPR.n.sp = 0x801fff00;
 
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
-	#ifdef PSXREC
-		psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
-	#endif
+	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -319,22 +278,6 @@ int LoadCdrom() {
 		tmpHead.t_addr += 2048;
 	}
 
-#ifdef DEBUG_CPU
-	dbgpsxregs();
-	dbgf("Cycle %u, Next %u %u, Syncs %u %u\n",psxRegs.cycle,psxNextCounter,psxNextsCounter,psxGetHSync(),psxGetSpuSync());
-	for(unsigned n=0;n<4;n++)
-		dbgf("CNT%u mode=%i,target=%i,rate=%i,irq=%i,cnt=%i,stt=%i,c=%i,cs=%i\n",n,rcnts[n].mode,rcnts[n].target,rcnts[n].rate,rcnts[n].irq,rcnts[n].counterState,rcnts[n].irqState,rcnts[n].cycle,rcnts[n].cycleStart);
-	dbgsum("Load",psxRegs.psxH,0x10000);
-	for(unsigned i=0;i<0x10000;i++)
-		if (((unsigned char *)psxRegs.psxH)[i])
-			dbgf("psxH[0x%X]=0x%X\n",i,(((unsigned char *)psxRegs.psxH)[i]));
-	dbgf("Counters %u %u, IntCycle:",psxNextCounter,psxNextsCounter);
-	for(unsigned i=0;i<32;i++){
-		if (!(i&7)) dbgf("\n\t%.2u:",i);
-		dbgf(" %u", psxRegs.intCycle[i]);
-	}
-	dbg("");
-#endif
 	return 0;
 }
 
@@ -344,11 +287,12 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 #endif
 	struct iso_directory_record *dir;
 	u8 time[4],*buf;
-	unsigned char mdir[4096];
+	u8 mdir[4096];
 	char exename[256];
 	u32 size, addr;
+	void *mem;
 
-	sscanf(filename, "cdrom:\\%256s", exename);
+	sscanf(filename, "cdrom:\\%255s", exename);
 
 	time[0] = itob(0); time[1] = itob(2); time[2] = itob(0x10);
 
@@ -369,15 +313,15 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	size = head->t_size;
 	addr = head->t_addr;
 
-	#ifdef PSXREC
-		psxCpu->Clear(addr, size/4);
-	#endif
+	psxCpu->Clear(addr, size / 4);
 
 	while (size & ~2047) {
 		incTime();
 		READTRACK();
 
-		memcpy((void *)PSXM(addr), buf + 12, 2048);
+		mem = PSXM(addr);
+		if (mem)
+			memcpy(mem, buf + 12, 2048);
 
 		size -= 2048;
 		addr += 2048;
@@ -394,7 +338,10 @@ int CheckCdrom() {
 	unsigned char time[4], *buf;
 	unsigned char mdir[4096];
 	char exename[256];
-	int i, c;
+	int i, len, c;
+
+	//senquack - TODO: add PPF patch support from PCSX Rearmed?
+	//FreePPFCache();
 
 	time[0] = itob(0);
 	time[1] = itob(2);
@@ -402,8 +349,9 @@ int CheckCdrom() {
 
 	READTRACK();
 
-	CdromLabel[0] = '\0';
-	CdromId[0] = '\0';
+	memset(CdromLabel, 0, sizeof(CdromLabel));
+	memset(CdromId, 0, sizeof(CdromId));
+	memset(exename, 0, sizeof(exename));
 
 	strncpy(CdromLabel, (char*)buf + 52, 32);
 
@@ -417,9 +365,9 @@ int CheckCdrom() {
 	if (GetCdromFile(mdir, time, "SYSTEM.CNF;1") != -1) {
 		READTRACK();
 
-		sscanf((char *)buf + 12, "BOOT = cdrom:\\%256s", exename);
+		sscanf((char *)buf + 12, "BOOT = cdrom:\\%255s", exename);
 		if (GetCdromFile(mdir, time, exename) == -1) {
-			sscanf((char *)buf + 12, "BOOT = cdrom:%256s", exename);
+			sscanf((char *)buf + 12, "BOOT = cdrom:%255s", exename);
 			if (GetCdromFile(mdir, time, exename) == -1) {
 				char *ptr = strstr((char *)buf + 12, "cdrom:");			// possibly the executable is in some subdir
 				if (ptr != NULL) {
@@ -443,21 +391,26 @@ int CheckCdrom() {
 		return -1;		// SYSTEM.CNF and PSX.EXE not found
 
 	if (CdromId[0] == '\0') {
-		i = strlen(exename);
-		if (i >= 2) {
-			if (exename[i - 2] == ';') i-= 2;
-			c = 8; i--;
-			while (i >= 0 && c >= 0) {
-				if (isalnum(exename[i])) CdromId[c--] = exename[i];
-				i--;
-			}
+		len = strlen(exename);
+		c = 0;
+		for (i = 0; i < len; ++i) {
+			if (exename[i] == ';' || c >= sizeof(CdromId) - 1)
+				break;
+			if (isalnum(exename[i]))
+				CdromId[c++] = exename[i];
 		}
 	}
+
+	if (CdromId[0] == '\0')
+		strcpy(CdromId, "SLUS99999");
 
 	if (Config.PsxAuto) { // autodetect system (pal or ntsc)
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
+
+		//senquack - This was carried over from older PCSX4ALL code during
+		// update of this function to use PCSX Rearmed code
 		psxRcntUVtarget();
 	}
 
@@ -467,7 +420,11 @@ int CheckCdrom() {
 #ifndef DEBUG_BIOS
 	printf("CD-ROM Label: %.32s\n", CdromLabel);
 	printf("CD-ROM ID: %.9s\n", CdromId);
+	printf("CD-ROM EXE Name: %.255s\n", exename);
 #endif
+
+	//senquack - TODO: add PPF patch support from PCSX Rearmed?
+	//BuildPPFCache();
 
 	return 0;
 }
@@ -528,9 +485,7 @@ int Load(const char *ExePath) {
 				if (mem != NULL) {
 					fseek(tmpFile, 0x800, SEEK_SET);		
                     fread(mem, section_size, 1, tmpFile);
-					#ifdef PSXREC
-						psxCpu->Clear(section_address, section_size / 4);
-					#endif
+					psxCpu->Clear(section_address, section_size / 4);
 				}
 				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
@@ -556,9 +511,7 @@ int Load(const char *ExePath) {
 							mem = PSXM(section_address);
 							if (mem != NULL) {
                                 fread(mem, section_size, 1, tmpFile);
-								#ifdef PSXREC
-									psxCpu->Clear(section_address, section_size / 4);
-								#endif
+								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;
 						case 3: /* register loading (PC only?) */
