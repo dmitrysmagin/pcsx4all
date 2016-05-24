@@ -24,7 +24,12 @@
 #include "psxcommon.h"
 #include "r3000a.h"
 
+#ifndef _WIN32
 #define CALLBACK
+#else
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 #include "psemu_plugin_defs.h"
 #include "decode_xa.h"
