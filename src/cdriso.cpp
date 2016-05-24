@@ -19,10 +19,15 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
+//senquack - NOTE: Code here adapted from newer PCSX Rearmed/Reloaded code
+// TODO: Add spu_franxis support back in? (Was a bit of a hackish SPU plugin)
+
 #include "psxcommon.h"
 #include "plugins.h"
 #include "cdrom.h"
-//#include "cdriso.h"
+#include "cdriso.h"
+
+//senquack - TODO: add .PPF patch file / SBI sub file support from PCSX Rearmed/Reloaded?
 //#include "ppf.h"
 
 #ifdef _WIN32
@@ -1241,6 +1246,9 @@ static int opensubfile(const char *isoname) {
 
 	return 0;
 }
+
+//senquack - TODO: add PPF (ppf.c) patch file / SBI support from
+// PCSX Rearmed? (Disabled this for now)
 #if 0
 static int opensbifile(const char *isoname) {
 	char		sbiname[MAXPATHLEN];
@@ -1261,6 +1269,7 @@ static int opensbifile(const char *isoname) {
 	return LoadSBI(sbiname, s);
 }
 #endif
+
 static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 {
 	fseek(f, base + sector * CD_FRAMESIZE_RAW, SEEK_SET);
@@ -1633,6 +1642,22 @@ long CDR_getTD(unsigned char track, unsigned char *buffer) {
 	return 0;
 }
 
+// decode 'raw' subchannel data ripped by cdrdao
+static void DecodeRawSubData(void) {
+	unsigned char subQData[12];
+	int i;
+
+	memset(subQData, 0, sizeof(subQData));
+
+	for (i = 0; i < 8 * 12; i++) {
+		if (subbuffer[i] & (1 << 6)) { // only subchannel Q is needed
+			subQData[i >> 3] |= (1 << (7 - (i & 7)));
+		}
+	}
+
+	memcpy(&subbuffer[12], subQData, 12);
+}
+
 // read track
 // time: byte 0 - minute; byte 1 - second; byte 2 - frame
 // uses bcd format
@@ -1782,6 +1807,10 @@ long CDR_readCDDA(unsigned char m, unsigned char s, unsigned char f, unsigned ch
 	}
 
 	return 0;
+}
+
+void cdrIsoInit(void) {
+	numtracks = 0;
 }
 
 int cdrIsoActive(void) {
