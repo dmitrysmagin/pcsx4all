@@ -32,24 +32,24 @@ extern const uint32_t* const psxRegs_cycle_valptr;
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern long SPUinit(void);				
-extern long SPUopen(void);				
-extern long SPUshutdown(void);	
-extern long SPUclose(void);			
-extern void SPUwriteRegister(unsigned long, unsigned short, unsigned int);
-extern unsigned short SPUreadRegister(unsigned long);
-extern void SPUwriteDMA(unsigned short);
-extern unsigned short SPUreadDMA(void);
-extern void SPUwriteDMAMem(unsigned short *, int, unsigned int);
-extern void SPUreadDMAMem(unsigned short *, int, unsigned int);
-extern void SPUplayADPCMchannel(xa_decode_t *);
-extern unsigned int SPUgetADPCMBufferRoom(); //senquack - added function
-extern int  SPUplayCDDAchannel(short *, int);
-extern void SPUregisterCallback(void (CALLBACK *callback)(void));
-extern void SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int cycles_after));
-extern long SPUconfigure(void);
-extern long SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
-extern void SPUasync(uint32_t, uint32_t);
+extern long CALLBACK SPUinit(void);
+extern long CALLBACK SPUopen(void);
+extern long CALLBACK SPUshutdown(void);
+extern long CALLBACK SPUclose(void);
+extern void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
+extern unsigned short CALLBACK SPUreadRegister(unsigned long);
+extern void CALLBACK SPUwriteDMA(unsigned short);
+extern unsigned short CALLBACK SPUreadDMA(void);
+extern void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
+extern void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
+extern void CALLBACK SPUplayADPCMchannel(xa_decode_t *);
+extern unsigned int CALLBACK SPUgetADPCMBufferRoom(); //senquack - added function
+extern int  CALLBACK SPUplayCDDAchannel(short *, int);
+extern void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void));
+extern void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int cycles_after));
+extern long CALLBACK SPUconfigure(void);
+extern long CALLBACK SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
+extern void CALLBACK SPUasync(uint32_t, uint32_t);
 #ifdef __cplusplus
 }
 #endif
