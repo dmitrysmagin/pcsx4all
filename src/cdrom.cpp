@@ -1220,7 +1220,11 @@ void cdrReadInterrupt() {
 	// XA/ADPCM SPU buffer would never fill.
 	// TODO: Is it also necessary to do this for CdlReadN/CdlReadS case in
 	//  new cdrInterrupt() code taken from Reloaded/Rearmed?
-	if (Config.ForcedXAUpdates && SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) {
+	// New fix May 24 2016: After updating all CDROM code to newer PCSX
+	//  Reloaded/Rearmed code, this hack would cause Castlevania SOTN Konami
+	//  intro FMV to freeze game before main menu would appear: Had to add
+	//  check for cdr.FirstSector == 0 to fix this.
+	if (cdr.FirstSector == 0 && Config.ForcedXAUpdates && SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) {
 		// Buffer not full, schedule an interrupt twice as soon as normal:
 		CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 4) : (cdReadTime / 2));
 	} else {
