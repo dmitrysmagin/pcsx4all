@@ -26,10 +26,13 @@ enum  {
 	KEY_A=1<<12,	KEY_B=1<<13,		KEY_X=1<<14,	KEY_Y=1<<15,
 };
 
-unsigned int key_read(void)
+static u32 ret = 0;
+
+static inline void key_reset() { ret = 0; }
+
+static unsigned int key_read(void)
 {
 	SDL_Event event;
-	static u32 ret = 0;
 
 	while (SDL_PollEvent(&event))  {
 		switch (event.type) {
@@ -224,7 +227,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 
 		if (keys & KEY_SELECT) {
 			FREE_LIST();
-			timer_delay(100);
+			key_reset();
 			return NULL;
 		}
 
@@ -282,7 +285,9 @@ char *FileReq(char *dir, const char *ext, char *result)
 
 				ChDir(cwd);
 				cwd = GetCwd();
+
 				FREE_LIST();
+				key_reset();
 			} else {
 				sprintf(result, "%s/%s", cwd, filereq_dir_items[cursor_pos].name);
 
@@ -291,6 +296,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 				video_flip();
 
 				FREE_LIST();
+				key_reset();
 				return result;
 			}
 		}
@@ -748,7 +754,7 @@ static int gui_RunMenu(MENU *menu)
 
 		// check keys
 		if (keys & KEY_SELECT) {
-			timer_delay(100);
+			key_reset();
 			return 0;
 		} else if (keys & KEY_UP) {
 			if (--menu->cur < 0)
@@ -758,7 +764,7 @@ static int gui_RunMenu(MENU *menu)
 				menu->cur = 0;
 		} else if (keys & KEY_A) {
 			if (mi->on_press_a) {
-				timer_delay(500);
+				key_reset();
 				int result = (*mi->on_press_a)();
 				if (result)
 					return result;
