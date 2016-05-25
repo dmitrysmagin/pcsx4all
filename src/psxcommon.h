@@ -88,6 +88,9 @@ typedef struct {
 	u8 Cpu; /* 0=recompiler, 1=interpreter */
 	u8 PsxType; /* 0=ntsc, 1=pal */
 
+	//senquack - added Config.SpuIrq option from PCSX Rearmed/Reloaded:
+	boolean SpuIrq; /* 1=SPU IRQ always enabled (needed for audio in some games) */
+
 	//senquack - Added audio syncronization option; if audio buffer is full,
 	//           main thread blocks
 	boolean SyncAudio;

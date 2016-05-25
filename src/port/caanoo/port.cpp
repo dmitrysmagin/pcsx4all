@@ -172,6 +172,7 @@ int main (int argc, char **argv)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
+	Config.SpuIrq=0; /* 1=SPU IRQ always on, fixes some games */
 
 	/*
 	// spu_dfxsound
@@ -253,6 +254,7 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-interpreter")==0) Config.Cpu=1; // Interpreter enabled
 		if (strcmp(argv[i],"-rcntfix")==0) Config.RCntFix=1; // Parasite Eve 2, Vandal Hearts 1/2 Fix
 		if (strcmp(argv[i],"-vsyncwa")==0) Config.VSyncWA=1; // InuYasha Sengoku Battle Fix
+		if (strcmp(argv[i],"-spuirq")==0) Config.SpuIrq=1; // SPU IRQ always enabled (fixes audio in some games)
 		if (strcmp(argv[i],"-iso")==0) SetIsoFile(argv[i+1]); // Set ISO file
 		if (strcmp(argv[i],"-file")==0) strcpy(filename,argv[i+1]); // Set executable file
 		if (strcmp(argv[i],"-savestate")==0) strcpy(savename,argv[i+1]); // Set SaveState file
