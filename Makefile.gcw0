@@ -93,6 +93,7 @@ OBJS += \
 	obj/zlib/inffast.o obj/zlib/infutil.o
 
 OBJS += obj/port/$(PORT)/port.o
+OBJS += obj/port/$(PORT)/frontend.o
 
 OBJS += obj/profiler.o obj/debug.o
 
