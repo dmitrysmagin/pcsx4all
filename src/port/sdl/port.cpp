@@ -119,7 +119,7 @@ static void setup_paths()
 }
 
 static int autosavestate = 0;
-static int saveslot = 0;
+int saveslot = 0;
 static char savename[256];
 
 static void state_load()
@@ -761,6 +761,13 @@ int main (int argc, char **argv)
 
 	SCREEN = (Uint16 *)screen->pixels;
 
+	if (argc < 2 || cdrfilename[0] == '\0') {
+		if (!SelectGame()) {
+			printf("ERROR: missing filename for -iso\n");
+			pcsx4all_exit();
+		}
+	}
+
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
 		pcsx4all_exit();
@@ -837,7 +844,7 @@ void wait_ticks(unsigned s)
 #endif
 }
 
-void port_printf(int x,int y,char *text)
+void port_printf(int x, int y, const char *text)
 {
 	static const unsigned char fontdata8x8[] =
 	{
