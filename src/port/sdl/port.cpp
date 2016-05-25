@@ -68,6 +68,9 @@ unsigned long long totalwrites_mh=0;
 unsigned iocycle_saltado=0;
 unsigned iocycle_ok=0;
 #endif
+
+static bool pcsx4all_initted = false;
+
 void pcsx4all_exit(void)
 {
 	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
@@ -80,8 +83,12 @@ void pcsx4all_exit(void)
 #endif
 	pcsx4all_prof_show();
 	dbg_print_analysis();
-	ReleasePlugins();
-	psxShutdown();
+
+	if (pcsx4all_initted == true) {
+		ReleasePlugins();
+		psxShutdown();
+	}
+
 	SDL_Quit();
 	exit(0);
 }
@@ -777,6 +784,8 @@ int main (int argc, char **argv)
 		printf("Failed loading plugins.\n");
 		pcsx4all_exit();
 	}
+
+	pcsx4all_initted = true;
 
 	psxReset();
 
