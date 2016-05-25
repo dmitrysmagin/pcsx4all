@@ -1,15 +1,20 @@
 
 TARGET = pcsx4all.exe
 PORT   = sdl
+
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
 #GPU    = gpu_null
 GPU    = gpu_unai
+
+#SPU    = spu_pcsxrearmed
 #SPU   = spu_dfxsound
 SPU    = spu_null
 #SPU   = spu_franxis
+
 #INTERPRETER = interpreter_pcsx
 INTERPRETER = interpreter_new
+
 #GTE   = gte_pcsx
 GTE    = gte_new
 
@@ -24,10 +29,15 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -g -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
-	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -Isrc/port/$(PORT) \
+CFLAGS = -g -O2 -march=i686 \
+	-Wall -Wno-sign-compare -Wunused -Wpointer-arith \
+	-Wno-unused-value -Wno-write-strings -Wno-narrowing \
+	-Waggregate-return -Wno-cast-align \
+	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
+	-D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
-	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
+	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
+	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
 	`sdl-config --cflags`
 
@@ -47,13 +57,17 @@ CFLAGS = -g -O2 -march=i686 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wc
 
 LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image
 
-OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter \
-	obj/interpreter/$(INTERPRETER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+OBJDIRS = \
+	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
+	obj/interpreter obj/interpreter/$(INTERPRETER) \
+	obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
 all: maketree $(TARGET)
 
-OBJS = obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o obj/psxcounters.o \
-	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
+OBJS = \
+	obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o \
+	obj/psxcounters.o obj/psxdma.o obj/psxbios.o obj/psxhle.o \
+	obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
 	obj/gte/$(GTE)/gte.o obj/mdec.o \
 	obj/decode_xa.o obj/cdriso.o obj/cdrom.o obj/sio.o obj/pad.o
 
@@ -61,14 +75,67 @@ OBJS += obj/gpu/$(GPU)/gpu.o
 
 OBJS += obj/spu/$(SPU)/spu.o
 
-OBJS += obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o obj/zlib/gzio.o \
-    obj/zlib/uncompr.o obj/zlib/deflate.o obj/zlib/trees.o obj/zlib/zutil.o \
-    obj/zlib/inflate.o obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
-    obj/zlib/inffast.o obj/zlib/infutil.o
+OBJS += \
+	obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o \
+	obj/zlib/gzio.o obj/zlib/uncompr.o obj/zlib/deflate.o \
+	obj/zlib/trees.o obj/zlib/zutil.o obj/zlib/inflate.o \
+	obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
+	obj/zlib/inffast.o obj/zlib/infutil.o
 
 OBJS += obj/port/$(PORT)/port.o
 
 OBJS += obj/profiler.o obj/debug.o
+
+#******************************************
+# senquack - spu_pcsxrearmed section BEGIN
+#******************************************
+ifeq ($(SPU),spu_pcsxrearmed)
+#senquack - specify which audio backend to use:
+SOUND_DRIVERS=sdl
+#SOUND_DRIVERS=alsa
+#SOUND_DRIVERS=oss
+#SOUND_DRIVERS=pulseaudio
+
+# spu
+# Note: obj/spu/spu_pcsxrearmed/spu.o will already have been added to OBJS
+#		list previously in Makefile
+OBJS += obj/spu/spu_pcsxrearmed/dma.o obj/spu/spu_pcsxrearmed/freeze.o \
+	obj/spu/spu_pcsxrearmed/out.o obj/spu/spu_pcsxrearmed/nullsnd.o \
+	obj/spu/spu_pcsxrearmed/adsr.o obj/spu/spu_pcsxrearmed/reverb.o \
+	obj/spu/spu_pcsxrearmed/registers.o obj/spu/spu_pcsxrearmed/xa.o
+ifeq "$(ARCH)" "arm"
+OBJS += obj/spu/spu_pcsxrearmed/arm_utils.o
+endif
+ifeq "$(HAVE_C64_TOOLS)" "1"
+obj/spu/spu_pcsxrearmed/spu.o: CFLAGS += -DC64X_DSP
+obj/spu/spu_pcsxrearmed/spu.o: obj/spu/spu_pcsxrearmed/spu_c64x.c
+frontend/menu.o: CFLAGS += -DC64X_DSP
+endif
+ifneq ($(findstring oss,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_OSS
+OBJS += obj/spu/spu_pcsxrearmed/oss.o
+endif
+ifneq ($(findstring alsa,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_ALSA
+OBJS += obj/spu/spu_pcsxrearmed/alsa.o
+LDFLAGS += -lasound
+endif
+ifneq ($(findstring sdl,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_SDL
+OBJS += obj/spu/spu_pcsxrearmed/sdl.o
+endif
+ifneq ($(findstring pulseaudio,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_PULSE
+OBJS += obj/spu/spu_pcsxrearmed/pulseaudio.o
+endif
+ifneq ($(findstring libretro,$(SOUND_DRIVERS)),)
+obj/spu/spu_pcsxrearmed/out.o: CFLAGS += -DHAVE_LIBRETRO
+endif
+
+endif
+#******************************************
+# senquack - spu_pcsxrearmed END
+#******************************************
 
 $(TARGET): $(OBJS) 
 	@echo Linking $(TARGET)...
