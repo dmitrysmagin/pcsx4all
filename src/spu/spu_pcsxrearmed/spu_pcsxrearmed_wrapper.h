@@ -159,6 +159,12 @@ static inline int SPU_playCDDAchannel(short *pcm, int bytes)
     return SPUplayCDDAchannel(pcm, bytes);
 }
 
+//senquack - IRQ callback (implemented via AcknowledgeSPUIRQ() in PCSX4ALL plugins.cpp)
+static inline void CALLBACK SPU_registerCallback(void (CALLBACK *callback)(void))
+{
+	SPUregisterCallback(callback);
+}
+
 static inline long SPU_freeze(uint32_t ulFreezeMode, SPUFreeze_t * pF)
 {
     return SPUfreeze(ulFreezeMode, pF, *psxRegs_cycle_valptr);

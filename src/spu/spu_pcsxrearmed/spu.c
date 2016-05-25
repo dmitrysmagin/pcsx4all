@@ -1618,6 +1618,10 @@ void CALLBACK SPUabout(void)
 // SETUP CALLBACKS
 // this functions will be called once, 
 // passes a callback that should be called on SPU-IRQ/cdda volume change
+//senquack - NOTE: this is an important function to register, as SPU
+// IRQs will not be acknowledged otherwise, leading to repeating/missing sfx
+// problems in games like NFS3, Grandia, Fifa98, Chrono Cross, etc. Implemented
+// in PCSX4ALL via new function AcknowledgeSPUIRQ() in plugins.cpp.
 void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void))
 {
  spu.irqCallback = callback;

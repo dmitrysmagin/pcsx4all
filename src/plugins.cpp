@@ -41,6 +41,16 @@ int LoadPlugins(void) {
 	ret = SPU_init();
 	if (ret < 0) { printf ("Error initializing SPU plugin: %d\n", ret); return -1; }
 
+#ifdef spu_pcsxrearmed
+	//senquack - NOTE: this is an important function to call, as SPU
+	// IRQs will not be acknowledged otherwise, leading to repeating sound
+	// problems in games like NFS3, Grandia, Fifa98, and some games will
+	// lack music like Chrono Cross FMV music, THPS2 etc.
+	// Only spu_pcsxrearmed supports this (older SPU plugins all had
+	// problems with sound in these games.. TODO: add support?)
+	SPUregisterCallback(AcknowledgeSPUIRQ);
+#endif
+
 	cdrfilename=GetIsoFile();
 	if (cdrfilename[0] != '\0') {
 		ret=CDR_open();
@@ -56,3 +66,16 @@ void ReleasePlugins(void) {
 	GPU_shutdown();
 	SPU_shutdown();
 }
+
+//senquack - A generic function SPU plugins can use to acknowledge SPU interrupts:
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void CALLBACK AcknowledgeSPUIRQ(void) {
+	psxHu32ref(0x1070) |= SWAPu32(0x200);
+}
+
+#ifdef __cplusplus
+}
+#endif
