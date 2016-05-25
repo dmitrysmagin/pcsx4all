@@ -154,7 +154,10 @@ do { \
 	num_items = 0; \
 } while (0)
 
-static char *wildcards[] = {"iso", "bin", "img", "mdf", "cue", NULL };
+static char *wildcards[] = {
+	"bin", "img", "mdf", "iso", "cue", "z",
+	"bz",  "znx", "pbp", "cbn", NULL
+};
 
 static s32 check_ext(const char *name)
 {
