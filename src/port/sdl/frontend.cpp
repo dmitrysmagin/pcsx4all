@@ -579,6 +579,24 @@ static char *syncaudio_show()
 	return buf;
 }
 
+static int spuirq_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.SpuIrq < 1) Config.SpuIrq = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.SpuIrq > 0) Config.SpuIrq = 0;
+	}
+
+	return 0;
+}
+
+static char *spuirq_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.SpuIrq ? "on" : "off");
+	return buf;
+}
+
 #ifdef spu_pcsxrearmed
 static int interpolation_alter(u32 keys)
 {
@@ -626,6 +644,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
 #endif
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
+	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef spu_pcsxrearmed
 	{(char *)"[SPU] Interpolation     ", NULL, &interpolation_alter, &interpolation_show},
 #endif
