@@ -525,6 +525,24 @@ static char *cdda_show()
 	return buf;
 }
 
+static int forcedxa_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.ForcedXAUpdates == 0) Config.ForcedXAUpdates = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.ForcedXAUpdates == 1) Config.ForcedXAUpdates = 0;
+	}
+
+	return 0;
+}
+
+static char *forcedxa_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.ForcedXAUpdates ? "on" : "off");
+	return buf;
+}
+
 static int RCntFix_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -637,6 +655,7 @@ static MENUITEM gui_SettingsItems[] = {
 #endif
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
 	{(char *)"[PSX] CDDA audio        ", NULL, &cdda_alter, &cdda_show},
+	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"[PSX] RCntFix           ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"[PSX] VSyncWA           ", NULL, &VSyncWA_alter, &VSyncWA_show},
 #ifdef gpu_unai
@@ -653,7 +672,7 @@ static MENUITEM gui_SettingsItems[] = {
 };
 
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 120, (MENUITEM *)&gui_SettingsItems };
+static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 110, (MENUITEM *)&gui_SettingsItems };
 
 static int gui_LoadIso()
 {
