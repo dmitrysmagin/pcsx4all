@@ -1148,6 +1148,9 @@ void cdrReadInterrupt() {
 		return;
 	}
 
+	int cdread_irq_cycles = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
+	int read_rescheduled = 0;
+
 	cdr.OCUP = 1;
 	SetResultSize(1);
 	cdr.StatP |= STATUS_READ|STATUS_ROTATING;
@@ -1185,6 +1188,10 @@ void cdrReadInterrupt() {
 			cdr.Channel = cdr.Transfer[4 + 1];
 		}
 
+#ifdef spu_pcsxrearmed
+		int was_first_sector = (cdr.FirstSector == 1);
+#endif
+
 		if((cdr.Transfer[4 + 2] & 0x4) &&
 			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
 			 (cdr.Transfer[4 + 0] == cdr.File)) {
@@ -1196,6 +1203,24 @@ void cdrReadInterrupt() {
 			}
 			else cdr.FirstSector = -1;
 		}
+
+#ifdef spu_pcsxrearmed
+		// senquack - if XA ADPCM buffer is not full, schedule next CDREAD_INT
+		//  IRQ twice as soon as normal, to avoid audio dropouts. Only do this
+		//  every other IRQ, or else games can hang (Konami intro FMV in
+		//  Castlevania SOTN). Don't do it on first sector, as that might
+		//  cause similar troubles.
+		// TODO: Is it also necessary to do this for CdlReadN/CdlReadS case in
+		//  new cdrInterrupt() code taken from Reloaded/Rearmed?
+		// TODO: Only spu_pcsxrearmed has new SPU_getADPCMBufferRoom().. add to others?
+		if ((!was_first_sector) && (cdr.FirstSector != -1) &&
+				(!cdr.ReadRescheduled) && Config.ForcedXAUpdates &&
+				(SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4)) {
+			cdread_irq_cycles /= 2;
+			cdr.ReadRescheduled = 1;
+			read_rescheduled = 1;
+		}
+#endif
 	}
 
 	cdr.SetSectorPlay[2]++;
@@ -1209,29 +1234,9 @@ void cdrReadInterrupt() {
 	}
 
 	cdr.Readed = 0;
+	if (!read_rescheduled) cdr.ReadRescheduled = 0;
 
-#ifndef spu_pcsxrearmed
-	CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
-#else
-	//senquack - Fixed XA audio dropouts on slow devices by adding
-	// new SPU_getADPCMBufferRoom() function that allows emu to know when
-	// SPU's ADPCM buffer is not full and schedule a CDREAD_INT interrupt
-	// twice as soon as normal, to keep the buffer full. Before, the
-	// XA/ADPCM SPU buffer would never fill.
-	// TODO: Is it also necessary to do this for CdlReadN/CdlReadS case in
-	//  new cdrInterrupt() code taken from Reloaded/Rearmed?
-	// New fix May 24 2016: After updating all CDROM code to newer PCSX
-	//  Reloaded/Rearmed code, this hack would cause Castlevania SOTN Konami
-	//  intro FMV to freeze game before main menu would appear: Had to add
-	//  check for cdr.FirstSector == 0 to fix this.
-	if (cdr.FirstSector == 0 && Config.ForcedXAUpdates && SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) {
-		// Buffer not full, schedule an interrupt twice as soon as normal:
-		CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 4) : (cdReadTime / 2));
-	} else {
-		// Buffer is pretty full, just schedule interrupt at normal time:
-		CDREAD_INT((cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime);
-	}
-#endif
+	CDREAD_INT(cdread_irq_cycles);
 
 	/*
 	Croc 2: $40 - only FORM1 (*)
@@ -1619,6 +1624,7 @@ void cdrReset() {
 	cdr.Stat = NoIntr;
 	cdr.DriveState = DRIVESTATE_STANDBY;
 	cdr.StatP = STATUS_ROTATING;
+	cdr.ReadRescheduled = 0;
 	pTransfer = cdr.Transfer;
 
 	//senquack - cdReadTime is a var in PCSX4ALL, not a const

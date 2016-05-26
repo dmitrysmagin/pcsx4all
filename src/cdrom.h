@@ -95,6 +95,7 @@ typedef struct {
 	u32 eCycle;
 
 	u8 Seeked;
+	u8 ReadRescheduled;
 
 	u8 DriveState;
 	u8 FastForward;
