@@ -12,8 +12,8 @@ GPU    = gpu_unai
 SPU    = spu_null
 #SPU   = spu_franxis
 
-#INTERPRETER = interpreter_pcsx
-INTERPRETER = interpreter_new
+INTERPRETER = interpreter_pcsx
+#INTERPRETER = interpreter_new
 
 #GTE   = gte_pcsx
 GTE    = gte_new
