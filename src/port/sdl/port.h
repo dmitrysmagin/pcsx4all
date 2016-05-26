@@ -39,5 +39,6 @@ extern void port_mute(void);
 extern unsigned short *SCREEN;
 
 int SelectGame();
+int GameMenu();
 
 #endif

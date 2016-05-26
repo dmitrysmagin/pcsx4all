@@ -246,8 +246,7 @@ void pad_update(void)
 
 	// SELECT+START for exit
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN]) {
-		event.type = SDL_QUIT;
-		SDL_PushEvent(&event);
+		GameMenu();
 	}
 #endif
 }

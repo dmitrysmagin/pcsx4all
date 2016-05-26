@@ -379,14 +379,23 @@ static char *state_show()
 static MENUITEM gui_MainMenuItems[] = {
 	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
 	{(char *)"Settings", &gui_Settings, NULL, NULL},
-	{(char *)"Load state", NULL, &state_alter, &state_show},
-	{(char *)"Save state", NULL, &state_alter, &state_show},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
 };
 
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_MainMenuItems };
+
+static MENUITEM gui_GameMenuItems[] = {
+	{(char *)"Change CD", NULL, NULL, NULL},
+	{(char *)"Load state", NULL, &state_alter, &state_show},
+	{(char *)"Save state", NULL, &state_alter, &state_show},
+	{(char *)"Quit", &gui_Quit, NULL, NULL},
+	{0}
+};
+
+#define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
+static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
 
 static int bios_alter(u32 keys)
 {
@@ -795,4 +804,9 @@ static int gui_RunMenu(MENU *menu)
 int SelectGame()
 {
 	return gui_RunMenu(&gui_MainMenu);
+}
+
+int GameMenu()
+{
+	return gui_RunMenu(&gui_GameMenu);
 }
