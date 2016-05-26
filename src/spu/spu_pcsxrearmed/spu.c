@@ -24,10 +24,6 @@
 #endif
 #include "stdafx.h"
 
-//senquack - Use PCSX4ALL adaptation of SPUschedule():
-#include <stdint.h>
-#include "spu_pcsxrearmed_spuschedule.h"
-
 #define _IN_SPU
 
 #include "externals.h"
@@ -1220,11 +1216,8 @@ void schedule_next_irq(void)
  unsigned int upd_samples;
  int ch;
 
- //senquack - In this PSX4ALL adaptation, SPU update scheduling is handled directly
- //           through SPUschedule() in spu_pcsxrearmed_wrapper.h, not through a
- //           callback function:
- //if (spu.scheduleCallback == NULL)
- // return;
+ if (spu.scheduleCallback == NULL)
+  return;
 
  //senquack - TODO: investigate if this is optimal for PCSX4ALL:
  upd_samples = 44100 / 50;
@@ -1250,14 +1243,9 @@ void schedule_next_irq(void)
   }
  }
 
- //senquack - In this PSX4ALL adaptation, SPU update scheduling is handled directly
- //           through SPUschedule() in spu_pcsxrearmed_wrapper.h, not through a
- //           callback function:
  //senquack TODO: investigate if 50 is optimal divisior for PCSX4ALL:
- //if (upd_samples < 44100 / 50)
- // spu.scheduleCallback(upd_samples * 768);
  if (upd_samples < 44100 / 50)
-  SPUschedule(upd_samples * 768);
+  spu.scheduleCallback(upd_samples * 768);
 }
 
 // SPU ASYNC... even newer epsxe func

@@ -129,12 +129,13 @@ extern void SPU_async(void);
 extern void SPU_playCDDAchannel(unsigned char *, int);
 #endif
 
-//senuqack - added this function, see notes in plugins.cpp
+//senquack - added these two functions, see notes in plugins.cpp
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void CALLBACK AcknowledgeSPUIRQ();
+void CALLBACK ScheduleSPUUpdate(unsigned int cycles_after);
 
 #ifdef __cplusplus
 }

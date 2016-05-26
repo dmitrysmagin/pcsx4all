@@ -46,7 +46,7 @@ extern void CALLBACK SPUplayADPCMchannel(xa_decode_t *);
 extern unsigned int CALLBACK SPUgetADPCMBufferRoom(); //senquack - added function
 extern int  CALLBACK SPUplayCDDAchannel(short *, int);
 extern void CALLBACK SPUregisterCallback(void (CALLBACK *callback)(void));
-extern void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int cycles_after));
+extern void CALLBACK SPUregisterScheduleCb(void (CALLBACK *callback)(unsigned int));
 extern long CALLBACK SPUconfigure(void);
 extern long CALLBACK SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
 extern void CALLBACK SPUasync(uint32_t, uint32_t);
@@ -160,9 +160,16 @@ static inline int SPU_playCDDAchannel(short *pcm, int bytes)
 }
 
 //senquack - IRQ callback (implemented via AcknowledgeSPUIRQ() in PCSX4ALL plugins.cpp)
-static inline void CALLBACK SPU_registerCallback(void (CALLBACK *callback)(void))
+static inline void SPU_registerCallback(void (CALLBACK *callback)(void))
 {
 	SPUregisterCallback(callback);
+}
+
+//senquack - Schedule SPU update callback (implemented via ScheduleSPUUpdate()
+// in PCSX4ALL plugins.cpp)
+static inline void SPU_registerScheduleCb(void (CALLBACK *callback)(unsigned int))
+{
+	SPUregisterScheduleCb(callback);
 }
 
 static inline long SPU_freeze(uint32_t ulFreezeMode, SPUFreeze_t * pF)

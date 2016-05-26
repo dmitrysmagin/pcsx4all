@@ -48,7 +48,10 @@ int LoadPlugins(void) {
 	// lack music like Chrono Cross FMV music, THPS2 etc.
 	// Only spu_pcsxrearmed supports this (older SPU plugins all had
 	// problems with sound in these games.. TODO: add support?)
-	SPUregisterCallback(AcknowledgeSPUIRQ);
+	SPU_registerCallback(AcknowledgeSPUIRQ);
+
+	//senquack - pcsx_rearmed SPU plugin schedules its own updates:
+	SPU_registerScheduleCb(ScheduleSPUUpdate);
 #endif
 
 	cdrfilename=GetIsoFile();
@@ -67,13 +70,20 @@ void ReleasePlugins(void) {
 	SPU_shutdown();
 }
 
-//senquack - A generic function SPU plugins can use to acknowledge SPU interrupts:
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+//senquack - A generic function SPU plugins can use to acknowledge SPU interrupts:
 void CALLBACK AcknowledgeSPUIRQ(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
+}
+
+//senquack - A generic function SPU plugins can use to schedule an SPU update:
+void CALLBACK ScheduleSPUUpdate(unsigned int cycles_after) {
+	psxRegs.interrupt |= (1 << PSXINT_SPU_UPDATE);
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle = cycles_after;
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle = psxRegs.cycle;
 }
 
 #ifdef __cplusplus
