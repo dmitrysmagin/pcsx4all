@@ -1151,6 +1151,17 @@ void cdrReadInterrupt() {
 	int cdread_irq_cycles = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
 	int read_rescheduled = 0;
 
+	//senquack - Fix for Brave Fencer Musashi loading-screen freeze
+	// (adapted from PCSX Reloaded)
+	if ((!cdr.ReadRescheduled) && (psxHu32ref(0x1070) & psxHu32ref(0x1074) & SWAP32((u32)0x4))) {
+		// HACK: emulated CPU is often slower than real thing, and
+		// game may be unfinished with prev data read, so reschedule
+		CDREAD_INT(cdread_irq_cycles / 2);
+		cdr.ReadRescheduled = 1;
+		CDR_LOG_I("cdrom: CPU BUSY, rescheduled CDREAD_INT\n");
+		return;
+	}
+
 	cdr.OCUP = 1;
 	SetResultSize(1);
 	cdr.StatP |= STATUS_READ|STATUS_ROTATING;
