@@ -386,10 +386,24 @@ static MENUITEM gui_MainMenuItems[] = {
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_MainMenuItems };
 
+static int gui_state_load()
+{
+	state_load();
+
+	return 1;
+}
+
+static int gui_state_save()
+{
+	state_save();
+
+	return 1;
+}
+
 static MENUITEM gui_GameMenuItems[] = {
 	{(char *)"Change CD", NULL, NULL, NULL},
-	{(char *)"Load state", NULL, &state_alter, &state_show},
-	{(char *)"Save state", NULL, &state_alter, &state_show},
+	{(char *)"Load state", &gui_state_load, &state_alter, &state_show},
+	{(char *)"Save state", &gui_state_save, &state_alter, &state_show},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
 };
