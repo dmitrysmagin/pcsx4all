@@ -15,10 +15,7 @@
 // its routines to GPU Unai (Unai was probably already originally based on it).
 // DrHell uses 22.10 fixed point instead of Unai's 16.16, so gpu_fixedpoint.h
 // required modification as well as gpu_inner.h (where gpuPolySpanFn driver
-// functions are). I kept GPU_TESTRANGE3() macro, but also added a new
-// macro GPU_ADJUSTCOORD3() that comes from gpu_dfxvideo (peops), that
-// ensures the 16-bit coordinate values are interpreted as they were on
-// the original hardware (as signed 11-bit values).
+// functions are).
 //
 // Originally, I tried to patch up original Unai routines and got as far
 // as fixing the shifted rows, but still had other problem of triangles rendered
