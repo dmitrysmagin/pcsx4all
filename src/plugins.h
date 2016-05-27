@@ -156,5 +156,6 @@ extern const char *GetIsoFile(void);
 extern boolean UsingIso(void);
 extern void SetCdOpenCaseTime(s64 time);
 extern s64 GetCdOpenCaseTime(void);
+extern int ReloadCdromPlugin();
 
 #endif /* __PLUGINS_H__ */

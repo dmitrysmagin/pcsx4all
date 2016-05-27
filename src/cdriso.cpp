@@ -136,6 +136,15 @@ static struct trackinfo ti[MAXTRACKS];
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
 
+// for CD swap
+int ReloadCdromPlugin()
+{
+	if (cdrIsoActive())
+		CDR_shutdown();
+
+	return CDR_init();
+}
+
 void SetIsoFile(const char *filename) {
 	if (filename == NULL) {
 		IsoFile[0] = '\0';

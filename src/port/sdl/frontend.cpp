@@ -10,6 +10,7 @@
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
+#include "cdrom.h"
 #include "profiler.h"
 #include <SDL.h>
 
@@ -399,9 +400,37 @@ static int gui_state_save()
 
 	return 1;
 }
+static int gui_swap_cd(void)
+{
+	static char isoname[PATH_MAX];
+	const char *name = FileReq(NULL, NULL, isoname);
+
+	if (name == NULL)
+		return 0;
+
+	printf("CD swap selected file: %s\n", name);
+
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	SetIsoFile(name);
+	if (ReloadCdromPlugin() < 0) {
+		printf("Failed to re-initialize cdr\n");
+		return 0;
+	}
+
+	if (CDR_open() < 0) {
+		printf("Failed to open cdr\n");
+		return 0;
+	}
+
+	SetCdOpenCaseTime(time(NULL) + 2);
+	LidInterrupt();
+	return 1;
+}
 
 static MENUITEM gui_GameMenuItems[] = {
-	{(char *)"Change CD", NULL, NULL, NULL},
+	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL},
 	{(char *)"Load state", &gui_state_load, &state_alter, &state_show},
 	{(char *)"Save state", &gui_state_save, &state_alter, &state_show},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
