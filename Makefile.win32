@@ -29,7 +29,7 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -g -O2 -march=i686 \
+CFLAGS = -ggdb3 -O2 -march=i686 \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith \
 	-Wno-unused-value -Wno-write-strings -Wno-narrowing \
 	-Waggregate-return -Wno-cast-align \
