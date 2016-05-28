@@ -123,9 +123,9 @@ static char gamepath[PATH_MAX] = "./";
 static struct dir_item filereq_dir_items[1024] = { { 0, 0 }, };
 
 #define MENU_X		8
-#define MENU_Y		90
+#define MENU_Y		8
 #define MENU_LS		(MENU_Y + 10)
-#define MENU_HEIGHT	13
+#define MENU_HEIGHT	22
 
 static inline void ChDir(char *dir)
 {
@@ -211,7 +211,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 	DIR *dirstream;
 	struct dirent *direntry;
 	static s32 row;
-	char tmp_string[32];
+	char tmp_string[33];
 	u32 keys;
 
 	if (dir)
@@ -313,12 +313,12 @@ char *FileReq(char *dir, const char *ext, char *result)
 			if (filereq_dir_items[row + first_visible].type == 0)
 				port_printf(MENU_X, MENU_LS + (10 * row), "DIR");
 			int len = strlen(filereq_dir_items[row + first_visible].name);
-			if (len > 28) {
-				snprintf(tmp_string, 11, "%s", filereq_dir_items[row + first_visible].name);
-				strcat(tmp_string, "....");
-				strcat(tmp_string, &filereq_dir_items[row + first_visible].name[len - 14]);
+			if (len > 32) {
+				snprintf(tmp_string, 16, "%s", filereq_dir_items[row + first_visible].name);
+				strcat(tmp_string, "..");
+				strcat(tmp_string, &filereq_dir_items[row + first_visible].name[len - 15]);
 			} else
-			snprintf(tmp_string, 30, "%s", filereq_dir_items[row + first_visible].name);
+			snprintf(tmp_string, 33, "%s", filereq_dir_items[row + first_visible].name);
 			port_printf(MENU_X + (8 * 5), MENU_LS + (10 * row), tmp_string);
 			row++;
 		}
