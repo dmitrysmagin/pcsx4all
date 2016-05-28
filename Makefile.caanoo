@@ -19,7 +19,7 @@ GTE    = gte_new
 
 RM     = rm -f
 CC     = @arm-none-linux-gnueabi-gcc
-CPP    = @arm-none-linux-gnueabi-g++
+CXX    = @arm-none-linux-gnueabi-g++
 LD     = @arm-none-linux-gnueabi-g++
 MD     = @mkdir
 RM     = @rm -f
@@ -96,6 +96,8 @@ OBJS += obj/port/caanoo/port.o obj/port/caanoo/wiz_lib.o obj/port/caanoo/warm.o 
 
 OBJS += obj/profiler.o obj/debug.o
 
+CXXFLAGS := $(CFLAGS) -fno-rtti
+
 $(TARGET): $(OBJS) 
 	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -lm -lpthread -o $@
 
@@ -110,15 +112,15 @@ obj/%.o: src/%.c
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
 	$(MD) $@

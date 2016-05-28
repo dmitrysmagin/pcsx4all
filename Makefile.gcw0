@@ -20,7 +20,7 @@ GTE    = gte_old
 
 RM     = rm -f
 CC     = @mipsel-linux-gcc
-CPP    = @mipsel-linux-g++
+CXX    = @mipsel-linux-g++
 LD     = @mipsel-linux-g++
 MD     = @mkdir
 RM     = @rm -f
@@ -148,7 +148,7 @@ endif
 # senquack - spu_pcsxrearmed END
 #******************************************
 
-
+CXXFLAGS := $(CFLAGS) -fno-rtti
 
 $(TARGET): $(OBJS)
 	@echo Linking $(TARGET)...
@@ -160,15 +160,15 @@ obj/%.o: src/%.c
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
 	$(MD) $@

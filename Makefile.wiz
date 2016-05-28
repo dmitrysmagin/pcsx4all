@@ -20,8 +20,8 @@ GTE    = gte_new
 RM     = rm -f
 CC     = @arm-linux-gcc
 #CC     = @/opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-gcc
-CPP    = @arm-linux-g++
-#CPP     = @/opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-g++
+CXX    = @arm-linux-g++
+#CXX     = @/opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-g++
 LD     = @arm-linux-g++
 #LD     = @/opt/devkitGP2X/bin/arm-linux-g++.exe
 MD     = @mkdir
@@ -100,6 +100,8 @@ OBJS += obj/port/wiz/port.o obj/port/wiz/wiz_lib.o obj/port/wiz/uppermem.o obj/p
 
 OBJS += obj/profiler.o obj/debug.o
 
+CXXFLAGS := $(CFLAGS) -fno-rtti
+
 $(TARGET): $(OBJS) 
 	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $@
 
@@ -114,15 +116,15 @@ obj/%.o: src/%.c
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
 	$(MD) $@
