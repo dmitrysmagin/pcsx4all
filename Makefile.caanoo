@@ -18,11 +18,10 @@ GTE    = gte_new
 #GTE    = gte_none
 
 RM     = rm -f
-CC     = @arm-none-linux-gnueabi-gcc
-CPP    = @arm-none-linux-gnueabi-g++
-LD     = @arm-none-linux-gnueabi-g++
-MD     = @mkdir
-RM     = @rm -f
+MD     = mkdir
+CC     = arm-none-linux-gnueabi-gcc
+CXX    = arm-none-linux-gnueabi-g++
+LD     = arm-none-linux-gnueabi-g++
 DEVLIBS =
 
 BIOS_FILE = \"scph1001.bin\"
@@ -62,7 +61,7 @@ CFLAGS += -DGPU_UNAI_USE_INT_DIV_MULTINV
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8500
 
-LDFLAGS = -s
+LDFLAGS = -lm -lpthread
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/interpreter/$(INTERPRETER) obj/recompiler obj/recompiler/$(RECOMPILER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
@@ -96,32 +95,42 @@ OBJS += obj/port/caanoo/port.o obj/port/caanoo/wiz_lib.o obj/port/caanoo/warm.o 
 
 OBJS += obj/profiler.o obj/debug.o
 
-$(TARGET): $(OBJS) 
-	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -lm -lpthread -o $@
+CXXFLAGS := $(CFLAGS) -fno-rtti
+
+#If V=1 was passed to 'make', do not hide commands:
+ifdef V
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
 
 obj/recompiler/arm/recompiler.o: src/recompiler/arm/arm.h src/recompiler/arm/opcodes.h \
 	src/recompiler/arm/rec_alu.h src/recompiler/arm/rec_branch.h src/recompiler/arm/rec_gte.h \
 	src/recompiler/arm/rec_mem.h src/recompiler/arm/rec_misc.h src/recompiler/arm/recompiler.cpp \
 	src/recompiler/arm/risc_armv4le.h
 
+$(TARGET): $(OBJS)
+	@echo Linking $(TARGET)...
+	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
+
 obj/%.o: src/%.c
 	@echo Compiling $<...
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CC) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+	$(HIDECMD)$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
-	$(MD) $@
+	$(HIDECMD)$(MD) $@
 
 maketree: $(sort $(OBJDIRS))
 
@@ -130,4 +139,4 @@ clean:
 	$(RM) $(TARGET) pcsx4all_caanoo.gpe
 
 pcsx4all_caanoo.gpe:
-	$(LD) $(CFLAGS) $(LDFLAGS) -UMMUHACK -UUSE_BGR15 src/port/caanoo/wiz_lib.cpp src/port/caanoo/pollux_set.cpp src/port/caanoo/sys_cacheflush.S src/port/caanoo/frontend.cpp -lm -lpthread -o $@
+	$(LD) $(CFLAGS) $(LDFLAGS) -UMMUHACK -UUSE_BGR15 src/port/caanoo/wiz_lib.cpp src/port/caanoo/pollux_set.cpp src/port/caanoo/sys_cacheflush.S src/port/caanoo/frontend.cpp -o $@

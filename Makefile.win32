@@ -19,17 +19,21 @@ INTERPRETER = interpreter_pcsx
 GTE    = gte_new
 
 RM     = rm -f
-CC     = @gcc
-CPP    = @g++
-LD     = @g++
-MD     = @mkdir
-RM     = @rm -f
+MD     = mkdir
+CC     = gcc
+CXX    = g++
+LD     = g++
+
+SYSROOT     := $(shell $(CC) --print-sysroot)
+SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
+SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
+SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
 
 BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -g -O2 -march=i686 \
+CFLAGS = -ggdb3 -O2 -march=i686 \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith \
 	-Wno-unused-value -Wno-write-strings -Wno-narrowing \
 	-Waggregate-return -Wno-cast-align \
@@ -39,7 +43,7 @@ CFLAGS = -g -O2 -march=i686 \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
-	`sdl-config --cflags`
+	$(SDL_CFLAGS)
 
 #CFLAGS += -DDEBUG_IO_CYCLE_COUNTER
 #CFLAGS += -DDEBUG_FAST_MEMORY
@@ -55,7 +59,7 @@ CFLAGS = -g -O2 -march=i686 \
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image
 
 OBJDIRS = \
 	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
@@ -138,28 +142,37 @@ endif
 # senquack - spu_pcsxrearmed END
 #******************************************
 
+CXXFLAGS := $(CFLAGS) -fno-rtti
+
+#If V=1 was passed to 'make', do not hide commands:
+ifdef V
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
+
 $(TARGET): $(OBJS) 
 	@echo Linking $(TARGET)...
-	$(LD) $(OBJS) $(LDFLAGS) -o $@
+	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
 
 obj/%.o: src/%.c
 	@echo Compiling $<...
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CC) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -fno-rtti -c $< -o $@
+	$(HIDECMD)$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CPP) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
-	$(MD) $@
+	$(HIDECMD)$(MD) $@
 
 maketree: $(sort $(OBJDIRS))
 
