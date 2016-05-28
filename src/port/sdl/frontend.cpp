@@ -113,7 +113,7 @@ int compare_names(struct dir_item *a, struct dir_item *b)
 	return strcasecmp(a->name, b->name);
 }
 
-void sort_dir(struct dir_item *list, int num_items, int sepdir)
+void sort_dir(struct dir_item *list, int num_items)
 {
 	qsort((void *)list,num_items,sizeof(struct dir_item),(int (*)(const void*, const void*))compare_names);
 }
@@ -254,7 +254,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 			}
 			closedir(dirstream);
 
-			sort_dir(filereq_dir_items, num_items, 1);
+			sort_dir(filereq_dir_items, num_items);
 			cursor_pos = 0;
 			first_visible = 0;
 		}
