@@ -245,11 +245,15 @@ char *FileReq(char *dir, const char *ext, char *result)
 				if ((type == 0 && strcmp(direntry->d_name, ".")) ||
 				     check_ext(direntry->d_name) ||
 				    (ext && (strlen(direntry->d_name) > 4 &&0 == strncasecmp(direntry->d_name + (strlen(direntry->d_name) - strlen(ext)), ext, strlen(ext))))) {
-					filereq_dir_items[num_items].name = (char *)malloc(strlen(direntry->d_name) + 1);
-					strcpy(filereq_dir_items[num_items].name, direntry->d_name);
-					filereq_dir_items[num_items].type = type;
-					num_items++;
-					if (num_items > 1024) break;
+					// Hide ".." if at Unix root dir. Don't display Unix hidden files (.file).
+					if ((!strcmp(direntry->d_name, "..") && strcmp(cwd, "/")) || direntry->d_name[0] != '.')
+					{
+						filereq_dir_items[num_items].name = (char *)malloc(strlen(direntry->d_name) + 1);
+						strcpy(filereq_dir_items[num_items].name, direntry->d_name);
+						filereq_dir_items[num_items].type = type;
+						num_items++;
+						if (num_items > 1024) break;
+					}
 				}
 			}
 			closedir(dirstream);
