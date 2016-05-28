@@ -94,29 +94,28 @@ struct dir_item {
 	s32	type; // 0=dir, 1=file, 2=zip archive
 };
 
+int compare_names(struct dir_item *a, struct dir_item *b)
+{
+	bool aIsParent = strcmp(a->name, "..") == 0;
+	bool bIsParent = strcmp(b->name, "..") == 0;
+
+	if (aIsParent && bIsParent)
+		return 0;
+	else if (aIsParent)
+		return -1;
+	else if (bIsParent)
+		return 1;
+
+	if ((a->type != b->type) && (a->type == 0 || b->type == 0)) {
+		return a->type == 0 ? -1 : 1;
+	}
+
+	return strcasecmp(a->name, b->name);
+}
+
 void sort_dir(struct dir_item *list, int num_items, int sepdir)
 {
-	s32 i;
-	struct dir_item temp;
-
-	for (i = 0; i < (num_items - 1); i++) {
-		if (strcmp(list[i].name, list[i + 1].name) > 0) {
-			temp = list[i];
-			list[i] = list[i + 1];
-			list[i + 1] = temp;
-			i = 0;
-		}
-	}
-	if (sepdir) {
-		for (i = 0; i < (num_items - 1); i++) {
-			if ((list[i].type != 0) && (list[i + 1].type == 0)) {
-				temp = list[i];
-				list[i] = list[i + 1];
-				list[i + 1] = temp;
-				i = 0;
-			}
-		}
-	}
+	qsort((void *)list,num_items,sizeof(struct dir_item),(int (*)(const void*, const void*))compare_names);
 }
 
 static char gamepath[PATH_MAX] = "./";
