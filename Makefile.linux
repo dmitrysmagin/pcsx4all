@@ -19,11 +19,10 @@ INTERPRETER = interpreter_pcsx
 GTE    = gte_new
 
 RM     = rm -f
-CC     = @gcc
-CXX    = @g++
-LD     = @g++
-MD     = @mkdir
-RM     = @rm -f
+MD     = mkdir
+CC     = gcc
+CXX    = g++
+LD     = g++
 
 SYSROOT     := $(shell $(CC) --print-sysroot)
 SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
@@ -145,28 +144,35 @@ endif
 
 CXXFLAGS := $(CFLAGS) -fno-rtti
 
+#If V=1 was passed to 'make', do not hide commands:
+ifdef V
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
+
 $(TARGET): $(OBJS)
 	@echo Linking $(TARGET)...
-	$(LD) $(OBJS) $(LDFLAGS) -o $@
+	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
 
 obj/%.o: src/%.c
 	@echo Compiling $<...
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CC) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
-	$(MD) $@
+	$(HIDECMD)$(MD) $@
 
 maketree: $(sort $(OBJDIRS))
 

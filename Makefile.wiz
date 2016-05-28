@@ -18,14 +18,14 @@ GTE    = gte_new
 #GTE    = gte_none
 
 RM     = rm -f
-CC     = @arm-linux-gcc
-#CC     = @/opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-gcc
-CXX    = @arm-linux-g++
-#CXX     = @/opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-g++
-LD     = @arm-linux-g++
-#LD     = @/opt/devkitGP2X/bin/arm-linux-g++.exe
-MD     = @mkdir
-RM     = @rm -f
+MD     = mkdir
+CC     = arm-linux-gcc
+CXX    = arm-linux-g++
+LD     = arm-linux-g++
+#CC     = /opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-gcc
+#CXX     = /opt/oficial-wizdev/tools/gcc-4.0.2-glibc-2.3.6/arm-linux/bin/arm-linux-g++
+#LD     = /opt/devkitGP2X/bin/arm-linux-g++.exe
+
 DEVLIBS = -LC:/DEVKITGP2X/sysroot/usr/lib/
 #DEVLIBS =
 
@@ -66,7 +66,7 @@ CFLAGS += -DGPU_UNAI_USE_INT_DIV_MULTINV
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8500
 
-LDFLAGS = -s -lm -lpthread
+LDFLAGS = -lm -lpthread
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/interpreter/$(INTERPRETER) obj/recompiler obj/recompiler/$(RECOMPILER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
@@ -102,32 +102,39 @@ OBJS += obj/profiler.o obj/debug.o
 
 CXXFLAGS := $(CFLAGS) -fno-rtti
 
-$(TARGET): $(OBJS) 
-	$(LD) $(CFLAGS) $(LDFLAGS) $(OBJS) -o $@
+#If V=1 was passed to 'make', do not hide commands:
+ifdef V
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
 
 obj/recompiler/arm/recompiler.o: src/recompiler/arm/arm.h src/recompiler/arm/opcodes.h \
 	src/recompiler/arm/rec_alu.h src/recompiler/arm/rec_branch.h src/recompiler/arm/rec_gte.h \
 	src/recompiler/arm/rec_mem.h src/recompiler/arm/rec_misc.h src/recompiler/arm/recompiler.cpp \
 	src/recompiler/arm/risc_armv4le.h
 
+$(TARGET): $(OBJS) 
+	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
+
 obj/%.o: src/%.c
 	@echo Compiling $<...
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CC) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.cpp
 	@echo Compiling $<...
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CXXFLAGS) -c $< -o $@
 
 obj/%.o: src/%.s
 	@echo Compiling $<...
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 obj/%.o: src/%.S
 	@echo Compiling $<...
-	$(CXX) $(CFLAGS) -c $< -o $@
+	$(HIDECMD)$(CXX) $(CFLAGS) -c $< -o $@
 
 $(sort $(OBJDIRS)):
-	$(MD) $@
+	$(HIDECMD)$(MD) $@
 
 maketree: $(sort $(OBJDIRS))
 
