@@ -247,6 +247,7 @@ void pad_update(void)
 	// SELECT+START for exit
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN]) {
 		GameMenu();
+		video_clear();
 #ifdef gpu_unai
 		extern bool fb_dirty;
 		fb_dirty = true; // redraw screen
