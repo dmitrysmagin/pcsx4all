@@ -25,6 +25,11 @@ LD     = @g++
 MD     = @mkdir
 RM     = @rm -f
 
+SYSROOT     := $(shell $(CC) --print-sysroot)
+SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
+SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
+SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
+
 BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
@@ -39,7 +44,7 @@ CFLAGS = -ggdb3 -O2 -march=i686 \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
-	`sdl-config --cflags`
+	$(SDL_CFLAGS)
 
 #CFLAGS += -DDEBUG_IO_CYCLE_COUNTER
 #CFLAGS += -DDEBUG_FAST_MEMORY
@@ -55,7 +60,7 @@ CFLAGS = -ggdb3 -O2 -march=i686 \
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = `sdl-config --libs` -lSDL_mixer -lSDL_image -lpthread
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lpthread
 
 OBJDIRS = \
 	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
