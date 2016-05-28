@@ -24,3 +24,23 @@ What's already done:
  - Optimized for mips32r2 target (SEB/SEH/EXT/INS), so pay attention when
    backporting to Dingoo A320 which is mips32r1
  - Added autobias support
+ - Added GTE code generation for CFC2, CTC2, MFC2, MTC2, LWC2, SWC2 opcodes
+
+ TODO list
+
+* recompiler:
+  - Implement more GTE code generation
+
+* constants caching
+  For now it's very limited, used by ADDIU, ORI, LUI and memory operations
+  - Add constants caching for more opcodes
+
+* register allocator
+  For now host registers s0-s7 are allocated, s8 is a pointer to psxRegs
+  - Add caching of LO/HI regs
+  - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
+
+ KNOWN BUGS
+
+* Tekken 2 has broken graphics (it's correct with interpreter)
+* G.Darius hangs if compiled with USE_DIRECT_MEM_ACCESS

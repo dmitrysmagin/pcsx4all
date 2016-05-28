@@ -10,6 +10,7 @@
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
+#include "cdrom.h"
 #include "profiler.h"
 #include <SDL.h>
 
@@ -379,14 +380,65 @@ static char *state_show()
 static MENUITEM gui_MainMenuItems[] = {
 	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
 	{(char *)"Settings", &gui_Settings, NULL, NULL},
-	{(char *)"Load state", NULL, &state_alter, &state_show},
-	{(char *)"Save state", NULL, &state_alter, &state_show},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
 };
 
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_MainMenuItems };
+
+static int gui_state_load()
+{
+	state_load();
+
+	return 1;
+}
+
+static int gui_state_save()
+{
+	state_save();
+
+	return 1;
+}
+static int gui_swap_cd(void)
+{
+	static char isoname[PATH_MAX];
+	const char *name = FileReq(NULL, NULL, isoname);
+
+	if (name == NULL)
+		return 0;
+
+	printf("CD swap selected file: %s\n", name);
+
+	CdromId[0] = '\0';
+	CdromLabel[0] = '\0';
+
+	SetIsoFile(name);
+	if (ReloadCdromPlugin() < 0) {
+		printf("Failed to re-initialize cdr\n");
+		return 0;
+	}
+
+	if (CDR_open() < 0) {
+		printf("Failed to open cdr\n");
+		return 0;
+	}
+
+	SetCdOpenCaseTime(time(NULL) + 2);
+	LidInterrupt();
+	return 1;
+}
+
+static MENUITEM gui_GameMenuItems[] = {
+	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL},
+	{(char *)"Load state", &gui_state_load, &state_alter, &state_show},
+	{(char *)"Save state", &gui_state_save, &state_alter, &state_show},
+	{(char *)"Quit", &gui_Quit, NULL, NULL},
+	{0}
+};
+
+#define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
+static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
 
 static int bios_alter(u32 keys)
 {
@@ -795,4 +847,9 @@ static int gui_RunMenu(MENU *menu)
 int SelectGame()
 {
 	return gui_RunMenu(&gui_MainMenu);
+}
+
+int GameMenu()
+{
+	return gui_RunMenu(&gui_GameMenu);
 }

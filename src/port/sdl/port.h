@@ -38,6 +38,10 @@ extern void port_mute(void);
 
 extern unsigned short *SCREEN;
 
+void state_load();
+void state_save();
+
 int SelectGame();
+int GameMenu();
 
 #endif

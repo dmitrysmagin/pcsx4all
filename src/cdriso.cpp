@@ -136,6 +136,15 @@ static struct trackinfo ti[MAXTRACKS];
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
 
+// for CD swap
+int ReloadCdromPlugin()
+{
+	if (cdrIsoActive())
+		CDR_shutdown();
+
+	return CDR_init();
+}
+
 void SetIsoFile(const char *filename) {
 	if (filename == NULL) {
 		IsoFile[0] = '\0';
@@ -1741,6 +1750,17 @@ unsigned char* CDR_getBufferSub(void) {
 
 long CDR_getStatus(struct CdrStat *stat) {
 	u32 sect;
+
+	//senquack - PCSX Rearmed cdriso.c code has this if/else cdOpenCaseTime logic
+	// abstracted through a call here to a separate function CDR__getStatus() in
+	// its plugins.c, but since we don't support multiple CD plugins, just do
+	// the logic directly here. (This handles CD swapping status bit)
+	//CDR__getStatus(stat);  // <<<< This function is essentially this vvvvv
+	if (cdOpenCaseTime < 0 || cdOpenCaseTime > (s64)time(NULL))
+		stat->Status = 0x10;
+	else
+		stat->Status = 0;
+
 
 	if (playing) {
 		stat->Type = 0x02;

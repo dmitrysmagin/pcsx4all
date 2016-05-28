@@ -129,7 +129,7 @@ static int autosavestate = 0;
 int saveslot = 0;
 static char savename[256];
 
-static void state_load()
+void state_load()
 {
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
 	SaveState_filename = (char *)&savename;
@@ -137,7 +137,7 @@ static void state_load()
 		toLoadState = 1;
 }
 
-static void state_save()
+void state_save()
 {
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
 	SaveState_filename = (char *)&savename;
@@ -246,8 +246,11 @@ void pad_update(void)
 
 	// SELECT+START for exit
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN]) {
-		event.type = SDL_QUIT;
-		SDL_PushEvent(&event);
+		GameMenu();
+#ifdef gpu_unai
+		extern bool fb_dirty;
+		fb_dirty = true; // redraw screen
+#endif
 	}
 #endif
 }
