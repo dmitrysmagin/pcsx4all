@@ -152,7 +152,7 @@ endif
 # senquack - spu_pcsxrearmed END
 #******************************************
 
-CXXFLAGS := $(CFLAGS) -fno-rtti
+CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 
 #If V=1 was passed to 'make', do not hide commands:
 ifdef V
