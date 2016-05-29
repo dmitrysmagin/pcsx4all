@@ -94,38 +94,37 @@ struct dir_item {
 	s32	type; // 0=dir, 1=file, 2=zip archive
 };
 
-void sort_dir(struct dir_item *list, int num_items, int sepdir)
+int compare_names(struct dir_item *a, struct dir_item *b)
 {
-	s32 i;
-	struct dir_item temp;
+	bool aIsParent = strcmp(a->name, "..") == 0;
+	bool bIsParent = strcmp(b->name, "..") == 0;
 
-	for (i = 0; i < (num_items - 1); i++) {
-		if (strcmp(list[i].name, list[i + 1].name) > 0) {
-			temp = list[i];
-			list[i] = list[i + 1];
-			list[i + 1] = temp;
-			i = 0;
-		}
+	if (aIsParent && bIsParent)
+		return 0;
+	else if (aIsParent)
+		return -1;
+	else if (bIsParent)
+		return 1;
+
+	if ((a->type != b->type) && (a->type == 0 || b->type == 0)) {
+		return a->type == 0 ? -1 : 1;
 	}
-	if (sepdir) {
-		for (i = 0; i < (num_items - 1); i++) {
-			if ((list[i].type != 0) && (list[i + 1].type == 0)) {
-				temp = list[i];
-				list[i] = list[i + 1];
-				list[i + 1] = temp;
-				i = 0;
-			}
-		}
-	}
+
+	return strcasecmp(a->name, b->name);
+}
+
+void sort_dir(struct dir_item *list, int num_items)
+{
+	qsort((void *)list,num_items,sizeof(struct dir_item),(int (*)(const void*, const void*))compare_names);
 }
 
 static char gamepath[PATH_MAX] = "./";
 static struct dir_item filereq_dir_items[1024] = { { 0, 0 }, };
 
 #define MENU_X		8
-#define MENU_Y		90
+#define MENU_Y		8
 #define MENU_LS		(MENU_Y + 10)
-#define MENU_HEIGHT	13
+#define MENU_HEIGHT	22
 
 static inline void ChDir(char *dir)
 {
@@ -211,7 +210,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 	DIR *dirstream;
 	struct dirent *direntry;
 	static s32 row;
-	char tmp_string[32];
+	char tmp_string[33];
 	u32 keys;
 
 	if (dir)
@@ -246,16 +245,20 @@ char *FileReq(char *dir, const char *ext, char *result)
 				if ((type == 0 && strcmp(direntry->d_name, ".")) ||
 				     check_ext(direntry->d_name) ||
 				    (ext && (strlen(direntry->d_name) > 4 &&0 == strncasecmp(direntry->d_name + (strlen(direntry->d_name) - strlen(ext)), ext, strlen(ext))))) {
-					filereq_dir_items[num_items].name = (char *)malloc(strlen(direntry->d_name) + 1);
-					strcpy(filereq_dir_items[num_items].name, direntry->d_name);
-					filereq_dir_items[num_items].type = type;
-					num_items++;
-					if (num_items > 1024) break;
+					// Hide ".." if at Unix root dir. Don't display Unix hidden files (.file).
+					if ((!strcmp(direntry->d_name, "..") && strcmp(cwd, "/")) || direntry->d_name[0] != '.')
+					{
+						filereq_dir_items[num_items].name = (char *)malloc(strlen(direntry->d_name) + 1);
+						strcpy(filereq_dir_items[num_items].name, direntry->d_name);
+						filereq_dir_items[num_items].type = type;
+						num_items++;
+						if (num_items > 1024) break;
+					}
 				}
 			}
 			closedir(dirstream);
 
-			sort_dir(filereq_dir_items, num_items, 1);
+			sort_dir(filereq_dir_items, num_items);
 			cursor_pos = 0;
 			first_visible = 0;
 		}
@@ -313,12 +316,12 @@ char *FileReq(char *dir, const char *ext, char *result)
 			if (filereq_dir_items[row + first_visible].type == 0)
 				port_printf(MENU_X, MENU_LS + (10 * row), "DIR");
 			int len = strlen(filereq_dir_items[row + first_visible].name);
-			if (len > 28) {
-				snprintf(tmp_string, 11, "%s", filereq_dir_items[row + first_visible].name);
-				strcat(tmp_string, "....");
-				strcat(tmp_string, &filereq_dir_items[row + first_visible].name[len - 14]);
+			if (len > 32) {
+				snprintf(tmp_string, 16, "%s", filereq_dir_items[row + first_visible].name);
+				strcat(tmp_string, "..");
+				strcat(tmp_string, &filereq_dir_items[row + first_visible].name[len - 15]);
 			} else
-			snprintf(tmp_string, 30, "%s", filereq_dir_items[row + first_visible].name);
+			snprintf(tmp_string, 33, "%s", filereq_dir_items[row + first_visible].name);
 			port_printf(MENU_X + (8 * 5), MENU_LS + (10 * row), tmp_string);
 			row++;
 		}
