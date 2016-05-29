@@ -26,9 +26,7 @@
 #include "plugins.h"
 #include "cdrom.h"
 #include "cdriso.h"
-
-//senquack - TODO: add .PPF patch file / SBI sub file support from PCSX Rearmed/Reloaded?
-//#include "ppf.h"
+#include "ppf.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -1257,9 +1255,6 @@ static int opensubfile(const char *isoname) {
 	return 0;
 }
 
-//senquack - TODO: add PPF (ppf.c) patch file / SBI support from
-// PCSX Rearmed? (Disabled this for now)
-#if 0
 static int opensbifile(const char *isoname) {
 	char		sbiname[MAXPATHLEN];
 	int		s;
@@ -1278,7 +1273,6 @@ static int opensbifile(const char *isoname) {
 
 	return LoadSBI(sbiname, s);
 }
-#endif
 
 static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 {
@@ -1490,12 +1484,9 @@ long CDR_open(void) {
 	if (!subChanMixed && opensubfile(GetIsoFile()) == 0) {
 		printf("[+sub]");
 	}
-// Disable for now
-#if 0
 	if (opensbifile(GetIsoFile()) == 0) {
 		printf("[+sbi]");
 	}
-#endif
 	fseeko(cdHandle, 0, SEEK_END);
 
 	// maybe user selected metadata file instead of main .bin ..
@@ -1584,9 +1575,7 @@ long CDR_close(void) {
 	}
 	numtracks = 0;
 	ti[1].type = (cd_type)0;
-#if 0
 	UnloadSBI();
-#endif
 	memset(cdbuffer, 0, sizeof(cdbuffer));
 	CDR_getBuffer = CDR_getBuffer_norm;
 
@@ -1603,6 +1592,10 @@ long CDR_init(void) {
 
 long CDR_shutdown(void) {
 	CDR_close();
+
+	//senquack - Added:
+	FreePPFCache();
+
 	return 0;
 }
 

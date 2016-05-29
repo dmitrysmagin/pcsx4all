@@ -28,8 +28,7 @@
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
-//senquack - TODO: add PPF patch support from PCSX Rearmed?
-//#include "ppf.h"
+#include "ppf.h"
 #include "port.h"
 
 #ifdef _WIN32
@@ -111,7 +110,7 @@ void mmssdd( char *b, char *p )
 #define READTRACK() \
 	if (CDR_readTrack(time) == -1) return -1; \
 	buf = CDR_getBuffer(); \
-	if (buf == NULL) return -1;
+	if (buf == NULL) return -1; else CheckPPFCache(buf, time[0], time[1], time[2]);
 
 #define READDIR(_dir) \
 	READTRACK(); \
@@ -340,8 +339,7 @@ int CheckCdrom() {
 	char exename[256];
 	int i, len, c;
 
-	//senquack - TODO: add PPF patch support from PCSX Rearmed?
-	//FreePPFCache();
+	FreePPFCache();
 
 	time[0] = itob(0);
 	time[1] = itob(2);
@@ -423,8 +421,7 @@ int CheckCdrom() {
 	printf("CD-ROM EXE Name: %.255s\n", exename);
 #endif
 
-	//senquack - TODO: add PPF patch support from PCSX Rearmed?
-	//BuildPPFCache();
+	BuildPPFCache();
 
 	return 0;
 }

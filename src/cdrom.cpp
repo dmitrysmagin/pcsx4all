@@ -38,10 +38,8 @@
 // Credit goes to Notaz / PCSX Rearmed
 
 #include "cdrom.h"
+#include "ppf.h"
 #include "psxdma.h"
-
-//senquack - TODO: add ppf patch file support from Reloaded/Rearmed?
-//#include "ppf.h"
 
 #if defined(CDR_LOG) || defined(CDR_LOG_I) || defined(CDR_LOG_IO)
 static const char *CmdName[0x100]= {
@@ -451,11 +449,8 @@ static void ReadTrack(const u8 *time)
 	cdr.RErr = CDR_readTrack(tmp);
 	memcpy(cdr.Prev, tmp, 3);
 
-	//senquack - PPF patch file support; not yet added (TODO?)
-#if 0
 	if (CheckSBI(time))
 		return;
-#endif
 
 	subq = (struct SubQ *)CDR_getBufferSub();
 	if (subq != NULL && cdr.CurTrack == 1) {
@@ -1186,9 +1181,8 @@ void cdrReadInterrupt() {
 
 	memcpy(cdr.Transfer, buf, DATA_SIZE);
 
-	//senquack - PPF patch file support; supported in PCSX Reloaded/Rearmed, but
-	// not yet added to PCSX4ALL (TODO?)
-	//CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
+	// PPF patch file support (ppf.cpp)
+	CheckPPFCache(cdr.Transfer, cdr.Prev[0], cdr.Prev[1], cdr.Prev[2]);
 
 	CDR_LOG("cdrReadInterrupt() Log: cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
 

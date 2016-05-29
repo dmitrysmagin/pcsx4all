@@ -105,6 +105,7 @@ static char homedir[PATH_MAX] =	"./.pcsx4all";
 static char sstatesdir[PATH_MAX] =	"./.pcsx4all/sstates";
 static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
 static char biosdir[PATH_MAX] =	"./.pcsx4all/bios";
+static char patchesdir[PATH_MAX] = "./.pcsx4all/patches";
 
 #ifdef __WIN32__
 	#define MKDIR(A) mkdir(A)
@@ -125,12 +126,14 @@ static void setup_paths()
 		sprintf(sstatesdir, "%s/sstates", homedir);
 		sprintf(memcardsdir, "%s/memcards", homedir);
 		sprintf(biosdir, "%s/bios", homedir);
+		sprintf(patchesdir, "%s/patches", homedir);
 	}
 
 	MKDIR(homedir);
 	MKDIR(sstatesdir);
 	MKDIR(memcardsdir);
 	MKDIR(biosdir);
+	MKDIR(patchesdir);
 }
 
 static int autosavestate = 0;
@@ -638,6 +641,7 @@ int main (int argc, char **argv)
 	// PCSX
 	sprintf(Config.Mcd1, "%s/%s", memcardsdir, MCD1_FILE);
 	sprintf(Config.Mcd2, "%s/%s", memcardsdir, MCD2_FILE);
+	strcpy(Config.PatchesDir, patchesdir);
 	strcpy(Config.BiosDir, biosdir);
 	strcpy(Config.Bios, BIOS_FILE);
 
