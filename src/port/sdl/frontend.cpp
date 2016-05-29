@@ -207,7 +207,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 	DIR *dirstream;
 	struct dirent *direntry;
 	static s32 row;
-	char tmp_string[33];
+	char tmp_string[41];
 	u32 keys;
 
 	if (dir)
@@ -261,7 +261,14 @@ char *FileReq(char *dir, const char *ext, char *result)
 		}
 
 		// display current directory
-		port_printf(0, MENU_Y, cwd);
+		int len = strlen(cwd);
+
+		if (len > 40) {
+			strcpy(tmp_string, "..");
+			strcat(tmp_string, cwd + len - 38);
+			port_printf(0, MENU_Y, tmp_string);
+		} else
+			port_printf(0, MENU_Y, cwd);
 
 		if (keys & KEY_DOWN) { //down
 			if (cursor_pos < (num_items - 1)) cursor_pos++;
