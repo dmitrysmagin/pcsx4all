@@ -15,6 +15,8 @@
 #define UDIV(n,d) ((n)/(d))
 #define SDIV(n,d) ((n)/(d))
 
+#define	CONFIG_VERSION	0
+
 extern unsigned get_ticks(void);
 extern void wait_ticks(unsigned s);
 extern void pad_update(void);

@@ -78,6 +78,7 @@ typedef struct {
 	char Mcd2[MAXPATHLEN];
 	char Bios[MAXPATHLEN];
 	char BiosDir[MAXPATHLEN];
+	char LastDir[MAXPATHLEN];
 	boolean Xa; /* 0=XA enabled, 1=XA disabled */
 	boolean Mdec; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	boolean PsxAuto; /* 1=autodetect system (pal or ntsc) */
