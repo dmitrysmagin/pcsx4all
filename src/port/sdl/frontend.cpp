@@ -164,16 +164,13 @@ static char *wildcards[] = {
 
 static s32 check_ext(const char *name)
 {
-	int len = strlen(name);
+	const char *p = strrchr(name, '.');
 
-	if (len < 4)
-		return 0;
-
-	if (name[len-4] != '.')
+	if (!p)
 		return 0;
 
 	for (int i = 0; wildcards[i] != NULL; i++) {
-		if (strcasecmp(wildcards[i], &name[len-3]) == 0)
+		if (strcasecmp(wildcards[i], p + 1) == 0)
 			return 1;
 	}
 
