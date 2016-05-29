@@ -96,7 +96,7 @@ static inline long SPU_init(void)
 
 	//senquack TODO: allow nullspu backend driver of spu_pcsxrearmed to provide simulated
 	//               audio sync?
-	if (Config.SyncAudio == 1 && spu_config.iDisabled == true)
+	if (Config.SyncAudio && spu_config.iDisabled)
 		printf("-> WARNING: '-silent' option in effect; nullspu cannot sync emu to audio (yet).\n");
 
 	return 0;
