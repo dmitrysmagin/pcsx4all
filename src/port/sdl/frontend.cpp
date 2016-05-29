@@ -144,6 +144,8 @@ static inline char *GetCwd(void)
 				gamepath[i] = '/';
 		}
 #endif
+	strcpy(Config.LastDir, gamepath);
+
 	return gamepath;
 }
 
@@ -214,7 +216,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 		ChDir(dir);
 
 	if (!cwd) {
-		cwd = GetCwd();
+		cwd = Config.LastDir ? Config.LastDir : GetCwd();
 	}
 
 	for (;;) {

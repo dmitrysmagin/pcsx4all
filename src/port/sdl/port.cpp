@@ -71,6 +71,9 @@ unsigned iocycle_ok=0;
 
 static bool pcsx4all_initted = false;
 
+void config_load();
+void config_save();
+
 void pcsx4all_exit(void)
 {
 	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
@@ -90,9 +93,14 @@ void pcsx4all_exit(void)
 	}
 
 	SDL_Quit();
+
+	// Store config to file
+	config_save();
+
 	exit(0);
 }
 
+static char *home = NULL;
 static char homedir[PATH_MAX] =	"./.pcsx4all";
 static char sstatesdir[PATH_MAX] =	"./.pcsx4all/sstates";
 static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
@@ -107,10 +115,10 @@ static char biosdir[PATH_MAX] =	"./.pcsx4all/bios";
 static void setup_paths()
 {
 #ifndef __WIN32__
-	char *home = getenv("HOME");
+	home = getenv("HOME");
 #else
 	char buf[PATH_MAX];
-	char *home = getcwd(buf, PATH_MAX);
+	home = getcwd(buf, PATH_MAX);
 #endif
 	if(home) {
 		sprintf(homedir, "%s/.pcsx4all", home);
@@ -128,6 +136,168 @@ static void setup_paths()
 static int autosavestate = 0;
 int saveslot = 0;
 static char savename[256];
+
+void probe_lastdir()
+{
+	DIR *dir;
+	if (!Config.LastDir)
+		return;
+
+	dir = opendir(Config.LastDir);
+
+	if (!dir) {
+		// Fallback to home directory.
+		strncpy(Config.LastDir, home, MAXPATHLEN);
+		Config.LastDir[MAXPATHLEN-1] = '\0';
+	}
+	else {
+		closedir(dir);
+	}
+}
+
+void config_load()
+{
+	FILE *f;
+	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
+	char line[strlen("LastDir ") + MAXPATHLEN + 1];
+	int lineNum = 0;
+
+	if (!config)
+		return;
+
+	sprintf(config, "%s/pcsx4all.cfg", homedir);
+
+	f = fopen(config, "r");
+
+	if(f == NULL) {
+		printf("Failed to open config file: \"%s\" for reading.\n", config);
+		free(config);
+		return;
+	}
+
+	while(fgets(line, sizeof(line), f)) {
+		char *arg = strchr(line, ' ');
+		int value;
+
+		++lineNum;
+
+		if(!arg) {
+			continue;
+		}
+
+		*arg = '\0';
+		arg++;
+
+		if(lineNum == 1) {
+			if (!strcmp(line, "CONFIG_VERSION")) {
+				sscanf(arg, "%d", &value);
+				if (value == CONFIG_VERSION) {
+					continue;
+				}
+				else {
+					printf("Incompatible config version for \"%s\". Required: %d. Found: %d. Ignoring.\n", config, CONFIG_VERSION, value);
+					break;
+				}
+			}
+
+			printf("Incompatible config format for \"%s\". Ignoring.\n", config);
+			break;
+		}
+
+		if(!strcmp(line, "Xa")) {
+			sscanf(arg, "%d", &value);
+			Config.Xa = value;
+		}
+		else if(!strcmp(line, "Mdec")) {
+			sscanf(arg, "%d", &value);
+			Config.Mdec = value;
+		}
+		else if(!strcmp(line, "PsxAuto")) {
+			sscanf(arg, "%d", &value);
+			Config.PsxAuto = value;
+		}
+		else if(!strcmp(line, "Cdda")) {
+			sscanf(arg, "%d", &value);
+			Config.Cdda = value;
+		}
+		else if(!strcmp(line, "HLE")) {
+			sscanf(arg, "%d", &value);
+			Config.HLE = value;
+		}
+		else if(!strcmp(line, "RCntFix")) {
+			sscanf(arg, "%d", &value);
+			Config.RCntFix = value;
+		}
+		else if(!strcmp(line, "VSyncWA")) {
+			sscanf(arg, "%d", &value);
+			Config.VSyncWA = value;
+		}
+		else if(!strcmp(line, "Cpu")) {
+			sscanf(arg, "%d", &value);
+			Config.Cpu = value;
+		}
+		else if(!strcmp(line, "PsxType")) {
+			sscanf(arg, "%d", &value);
+			Config.PsxType = value;
+		}
+		else if(!strcmp(line, "SpuIrq")) {
+			sscanf(arg, "%d", &value);
+			Config.SpuIrq = value;
+		}
+		else if(!strcmp(line, "SyncAudio")) {
+			sscanf(arg, "%d", &value);
+			Config.SyncAudio = value;
+		}
+		else if(!strcmp(line, "ForcedXAUpdates")) {
+			sscanf(arg, "%d", &value);
+			Config.ForcedXAUpdates = value;
+		}
+		else if(!strcmp(line, "LastDir")) {
+			int len = strlen(arg);
+
+			if(len == 0 || len > sizeof(Config.LastDir) - 1) {
+				continue;
+			}
+
+			if(arg[len-1] == '\n') {
+				arg[len-1] = '\0';
+			}
+
+			strcpy(Config.LastDir, arg);
+		}
+	}
+
+	fclose(f);
+	free(config);
+}
+
+void config_save()
+{
+	FILE *f;
+	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
+
+	if (!config)
+		return;
+
+	sprintf(config, "%s/pcsx4all.cfg", homedir);
+
+	f = fopen(config, "w");
+
+	if (f == NULL) {
+		printf("Failed to open config file: \"%s\" for writing.\n", config);
+		free(config);
+		return;
+	}
+
+	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates);
+
+	if (Config.LastDir[0]) {
+		fprintf(f, "LastDir %s\n", Config.LastDir);
+	}
+
+	fclose(f);
+	free(config);
+}
 
 void state_load()
 {
@@ -493,6 +663,16 @@ int main (int argc, char **argv)
 	//           than they'd normally be issued when SPU's XA buffer is not
 	//           full. This fixes droupouts in music/speech on slow devices.
 	Config.ForcedXAUpdates=1;  /* default is 1=allow forced XA updates */
+
+	//zear - Added option to store the last visited directory.
+	strncpy(Config.LastDir, home, MAXPATHLEN); /* Defaults to home directory. */
+	Config.LastDir[MAXPATHLEN-1] = '\0';
+
+	// Load config from file.
+	config_load();
+
+	// Check if LastDir exists.
+	probe_lastdir();
 
 	// spu_dfxsound
 	#ifdef spu_dfxsound
