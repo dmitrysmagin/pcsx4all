@@ -1061,7 +1061,7 @@ static int handlepbp(const char *isofile) {
 		psar_sig[10] = 0;
 	}
 
-	if (strcmp(psar_sig, "PSCDR_IMG00") != 0) {
+	if (strcmp(psar_sig, "PSISOIMG00") != 0) {
 		printf("bad psar_sig: %s\n", psar_sig);
 		goto fail_io;
 	}
@@ -1102,10 +1102,10 @@ static int handlepbp(const char *isofile) {
 	t = cd_length - ti[numtracks].start_offset / 2352;
 	sec2msf(t, ti[numtracks].length);
 
-	// seek to CDR_ index
+	// seek to ISO index
 	ret = fseeko(cdHandle, psisoimg_offs + 0x4000, SEEK_SET);
 	if (ret != 0) {
-		printf("failed to seek to CDR_ index\n");
+		printf("failed to seek to ISO index\n");
 		goto fail_io;
 	}
 
@@ -1179,7 +1179,7 @@ static int handlecbin(const char *isofile) {
 		return -1;
 	}
 
-	if (strncmp(ciso_hdr.magic, "CCDR_", 4) != 0 || ciso_hdr.total_bytes <= 0 || ciso_hdr.block_size <= 0) {
+	if (strncmp(ciso_hdr.magic, "CISO", 4) != 0 || ciso_hdr.total_bytes <= 0 || ciso_hdr.block_size <= 0) {
 		printf("bad ciso header\n");
 		return -1;
 	}
