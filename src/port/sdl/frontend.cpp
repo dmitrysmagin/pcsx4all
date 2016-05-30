@@ -277,10 +277,17 @@ char *FileReq(char *dir, const char *ext, char *result)
 			port_printf(0, MENU_Y, cwd);
 
 		if (keys & KEY_DOWN) { //down
-			if (cursor_pos < (num_items - 1)) cursor_pos++;
+			if (++cursor_pos >= num_items) {
+				cursor_pos = 0;
+				first_visible = 0;
+			}
 			if ((cursor_pos - first_visible) >= MENU_HEIGHT) first_visible++;
 		} else if (keys & KEY_UP) { // up
-			if (cursor_pos > 0) cursor_pos--;
+			if (--cursor_pos < 0) {
+				cursor_pos = num_items - 1;
+				first_visible = cursor_pos - MENU_HEIGHT + 1;
+				if (first_visible < 0) first_visible = 0;
+			}
 			if (cursor_pos < first_visible) first_visible--;
 		} else if (keys & KEY_LEFT) { //left
 			if (cursor_pos >= 10) cursor_pos -= 10;
