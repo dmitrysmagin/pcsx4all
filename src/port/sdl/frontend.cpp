@@ -869,6 +869,9 @@ static int gui_RunMenu(MENU *menu)
 				if (result)
 					return result;
 			}
+		} else if (keys & KEY_B) {
+			menu->cur = menu->num - 1;
+			key_reset();
 		}
 
 		if ((keys & (KEY_LEFT | KEY_RIGHT)) && mi->on_press) {
