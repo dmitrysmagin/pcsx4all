@@ -160,8 +160,12 @@ do { \
 } while (0)
 
 static char *wildcards[] = {
-	"bin", "img", "mdf", "iso", "cue", "z",
-	"bz",  "znx", "pbp", "cbn", NULL
+	//senquack - we do not (yet) support these 3 PocketISO compressed formats
+	// TODO: adapt PCSX Rearmed's cdrcimg.c plugin to get these
+	//"z", "bz", "znx",
+
+	"bin", "img", "mdf", "iso", "cue",
+	"pbp", "cbn", NULL
 };
 
 static s32 check_ext(const char *name)
