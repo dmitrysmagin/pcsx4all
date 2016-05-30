@@ -333,7 +333,7 @@ static struct {
 	{ SDLK_LALT,		DKEY_CROSS },
 	{ SDLK_TAB,		DKEY_L1 },
 	{ SDLK_BACKSPACE,	DKEY_R1 },
-	{ SDLK_ESCAPE,		DKEY_SELECT },
+	//{ SDLK_ESCAPE,		DKEY_SELECT },
 #else
 	{ SDLK_a,		DKEY_SQUARE },
 	{ SDLK_x,		DKEY_CIRCLE },
@@ -403,23 +403,37 @@ void pad_update(void)
 
 	/* Special key combos for GCW-Zero */
 #ifdef GCW_ZERO
-	// SELECT+L1 for L2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
-		pad1 &= ~(1 << DKEY_L2);
-	} else {
-		pad1 |= (1 << DKEY_L2);
+	if (keys[SDLK_ESCAPE]) {
+		// SELECT+B for psx's SELECT
+		if (keys[SDLK_LALT]) {
+			pad1 &= ~(1 << DKEY_L2);
+			pad1 |= (1 << DKEY_CROSS);
+		} else {
+			pad1 |= (1 << DKEY_L2);
+		}
+
+		// SELECT+L1 for psx's L2
+		if (keys[SDLK_TAB]) {
+			pad1 &= ~(1 << DKEY_L2);
+			pad1 |= (1 << DKEY_L1);
+		} else {
+			pad1 |= (1 << DKEY_L2);
+		}
+
+		// SELECT+R1 for R2
+		if (keys[SDLK_BACKSPACE]) {
+			pad1 &= ~(1 << DKEY_R2);
+			pad1 |= (1 << DKEY_R1);
+		} else {
+			pad1 |= (1 << DKEY_R2);
+		}
 	}
 
-	// SELECT+R1 for R2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
-		pad1 &= ~(1 << DKEY_R2);
-	} else {
-		pad1 |= (1 << DKEY_R2);
-	}
-
-	// SELECT+START for exit
-	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN]) {
+	// SELECT+START for menu
+	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {
 		GameMenu();
+		pad1 |= (1 << DKEY_START);
+		pad1 |= (1 << DKEY_CROSS);
 		video_clear();
 #ifdef gpu_unai
 		extern bool fb_dirty;
