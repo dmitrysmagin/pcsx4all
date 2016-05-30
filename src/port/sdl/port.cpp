@@ -47,6 +47,7 @@ unsigned short *SCREEN;
 /* FPS showing */
 extern char msg[36];
 extern bool show_fps;
+extern bool frameLimit;
 #endif
 
 #ifdef gpu_dfxvideo
@@ -255,6 +256,22 @@ void config_load()
 			sscanf(arg, "%d", &value);
 			Config.ForcedXAUpdates = value;
 		}
+#ifdef gpu_unai
+		else if(!strcmp(line, "ShowFps")) {
+			sscanf(arg, "%d", &value);
+			show_fps = value;
+		}
+		else if(!strcmp(line, "FrameLimit")) {
+			sscanf(arg, "%d", &value);
+			frameLimit = value;
+		}
+#endif
+#ifdef spu_pcsxrearmed
+		else if(!strcmp(line, "SpuUseInterpolation")) {
+			sscanf(arg, "%d", &value);
+			spu_config.iUseInterpolation = value;
+		}
+#endif
 		else if(!strcmp(line, "LastDir")) {
 			int len = strlen(arg);
 
@@ -293,6 +310,13 @@ void config_save()
 	}
 
 	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates);
+
+#ifdef gpu_unai
+	fprintf(f, "ShowFps %d\nFrameLimit %d\n", show_fps, frameLimit);
+#endif
+#ifdef spu_pcsxrearmed
+	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
+#endif
 
 	if (Config.LastDir[0]) {
 		fprintf(f, "LastDir %s\n", Config.LastDir);
@@ -684,12 +708,6 @@ int main (int argc, char **argv)
 	strncpy(Config.LastDir, home, MAXPATHLEN); /* Defaults to home directory. */
 	Config.LastDir[MAXPATHLEN-1] = '\0';
 
-	// Load config from file.
-	config_load();
-
-	// Check if LastDir exists.
-	probe_lastdir();
-
 	// spu_dfxsound
 	#ifdef spu_dfxsound
 	{
@@ -776,6 +794,12 @@ int main (int argc, char **argv)
 	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
 	#endif
 
+	// Load config from file.
+	config_load();
+
+	// Check if LastDir exists.
+	probe_lastdir();
+
 	// command line options
 	bool param_parse_error=0;
 	for (int i=1;i<argc;i++)
@@ -825,7 +849,7 @@ int main (int argc, char **argv)
 	#endif
 	#ifdef gpu_unai
 		if (strcmp(argv[i],"-showfps")==0) { show_fps=true; } // show FPS
-		if (strcmp(argv[i],"-framelimit")==0) { extern bool frameLimit; frameLimit=true; } // frame limit
+		if (strcmp(argv[i],"-framelimit")==0) { frameLimit=true; } // frame limit
 		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
 		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
 		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
