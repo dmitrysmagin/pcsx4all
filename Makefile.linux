@@ -7,9 +7,9 @@ PORT   = sdl
 #GPU    = gpu_null
 GPU    = gpu_unai
 
-#SPU    = spu_pcsxrearmed
+SPU    = spu_pcsxrearmed
 #SPU   = spu_dfxsound
-SPU    = spu_null
+#SPU    = spu_null
 #SPU   = spu_franxis
 
 INTERPRETER = interpreter_pcsx
@@ -33,7 +33,7 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -ggdb3 -O2 -march=native \
+CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith \
 	-Wno-unused-value -Wno-write-strings -Wno-narrowing \
 	-Waggregate-return -Wno-cast-align \
