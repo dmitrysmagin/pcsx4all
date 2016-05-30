@@ -390,9 +390,41 @@ static char *state_show()
 	return buf;
 }
 
+static int gui_Credits()
+{
+	for (;;) {
+		u32 keys = key_read();
+
+		video_clear();
+
+		// check keys
+		if (keys) {
+			key_reset();
+			return 0;
+		}
+
+		// diplay menu
+		port_printf(14 * 8, 10, "CREDITS:");
+		port_printf( 0 * 8, 30, "senquack - fixing polygons in gpu_unai,");
+		port_printf( 0 * 8, 40, "           porting spu and other stuff");
+		port_printf( 0 * 8, 50, "           from pcsx_rearmed and pcsx-r,");
+		port_printf( 0 * 8, 60, "           many fixes and improvements");
+		port_printf( 0 * 8, 80, "Dmitry Smagin - porting and optimizing");
+		port_printf( 0 * 8, 90, "                mips recompiler");
+		port_printf( 0 * 8, 100, "                by Ulrich Hecht");
+		port_printf( 0 * 8, 120, "zear     - gui coding and testing");
+
+		video_flip();
+		timer_delay(75);
+	}
+
+	return 0;
+}
+
 static MENUITEM gui_MainMenuItems[] = {
 	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
 	{(char *)"Settings", &gui_Settings, NULL, NULL},
+	{(char *)"Credits", &gui_Credits, NULL, NULL},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
 };
@@ -802,8 +834,7 @@ static void ShowMenu(MENU *menu)
 	// general copyrights info
 	port_printf( 4 * 8,  0, "pcsx4all 2.3 by Franxis and Chui");
 	port_printf( 0 * 8, 10, "based on pcsx-r 1.9 and psx4all-dingoo");
-	port_printf( 4 * 8, 20, "mips recompiler by Ulrich Hecht");
-	port_printf( 7 * 8, 30, "optimized by Dmitry Smagin");
+	port_printf( 4 * 8, 20, "with some code from pcsx_rearmed");
 }
 
 static int gui_RunMenu(MENU *menu)
