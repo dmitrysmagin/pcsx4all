@@ -24,10 +24,8 @@ CC     = gcc
 CXX    = g++
 LD     = g++
 
-SYSROOT     := $(shell $(CC) --print-sysroot)
-SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
-SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
-SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
+SDL_CFLAGS  := `sdl-config --cflags`
+SDL_LIBS    := `sdl-config --libs`
 
 BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
