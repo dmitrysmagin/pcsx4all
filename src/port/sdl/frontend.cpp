@@ -313,6 +313,10 @@ char *FileReq(char *dir, const char *ext, char *result)
 				key_reset();
 				return result;
 			}
+		} else if (keys & KEY_B) {
+			cursor_pos = 0;
+			first_visible = 0;
+			key_reset();
 		}
 
 		// display directory contents
