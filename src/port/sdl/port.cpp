@@ -403,30 +403,28 @@ void pad_update(void)
 
 	/* Special key combos for GCW-Zero */
 #ifdef GCW_ZERO
-	if (keys[SDLK_ESCAPE]) {
-		// SELECT+B for psx's SELECT
-		if (keys[SDLK_LALT]) {
-			pad1 &= ~(1 << DKEY_L2);
-			pad1 |= (1 << DKEY_CROSS);
-		} else {
-			pad1 |= (1 << DKEY_L2);
-		}
+	// SELECT+B for psx's SELECT
+	if (keys[SDLK_ESCAPE] && keys[SDLK_LALT]) {
+		pad1 &= ~(1 << DKEY_SELECT);
+		pad1 |= (1 << DKEY_CROSS);
+	} else {
+		pad1 |= (1 << DKEY_SELECT);
+	}
 
-		// SELECT+L1 for psx's L2
-		if (keys[SDLK_TAB]) {
-			pad1 &= ~(1 << DKEY_L2);
-			pad1 |= (1 << DKEY_L1);
-		} else {
-			pad1 |= (1 << DKEY_L2);
-		}
+	// SELECT+L1 for psx's L2
+	if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
+		pad1 &= ~(1 << DKEY_L2);
+		pad1 |= (1 << DKEY_L1);
+	} else {
+		pad1 |= (1 << DKEY_L2);
+	}
 
-		// SELECT+R1 for R2
-		if (keys[SDLK_BACKSPACE]) {
-			pad1 &= ~(1 << DKEY_R2);
-			pad1 |= (1 << DKEY_R1);
-		} else {
-			pad1 |= (1 << DKEY_R2);
-		}
+	// SELECT+R1 for R2
+	if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
+		pad1 &= ~(1 << DKEY_R2);
+		pad1 |= (1 << DKEY_R1);
+	} else {
+		pad1 |= (1 << DKEY_R2);
 	}
 
 	// SELECT+START for menu
