@@ -1,6 +1,3 @@
-Recommended settings:
--xa -cdda -bios
-
 Until we add a -h switch to show help, I'll refer people to this
 TXT file listing the various options of the spu_pcsxrearmed SPU
 plugin I ported from PCSX ReARMed (credit goes to Notaz), which is
