@@ -134,8 +134,12 @@ static unsigned long timeGetTime_spu()
 ////////////////////////////////////////////////////////////////////////
 
 //senquack - Modified while fixing XA audio underruns on slow devices
+//NOTE!! It is caller's responsibility to check 
 INLINE void FeedXA(xa_decode_t *xap)
 {
+ if ((!xap) || (xap->nsamples == 0) || (xap->freq == 0))
+  return;
+
  int sinc,spos,i,iSize,iPlace,vl,vr;
 
  if(!spu.bSPUIsOpen) return;
@@ -149,7 +153,6 @@ INLINE void FeedXA(xa_decode_t *xap)
 #else
  iSize=((44100*xap->nsamples)/xap->freq);              // get size
 #endif
- if(!iSize) return;                                    // none? bye
 
  //senquack - I added replacement buffer-size-checking code below after
  // some struggle. It now seems to be correct after much experimentation.
