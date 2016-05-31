@@ -416,15 +416,25 @@ static int gui_Credits()
 
 		// diplay menu
 		port_printf(15 * 8 + 4, 10, "CREDITS:");
-		port_printf( 0 * 8, 30, "senquack - fixing polygons in gpu_unai,");
-		port_printf( 0 * 8, 40, "           porting spu and other stuff");
-		port_printf( 0 * 8, 50, "           from pcsx_rearmed and pcsx-r,");
-		port_printf( 0 * 8, 60, "           many fixes and improvements");
-		port_printf( 0 * 8, 80, "Dmitry Smagin - porting and optimizing");
-		port_printf( 0 * 8, 90, "                mips recompiler");
-		port_printf( 0 * 8, 100, "                by Ulrich Hecht,");
-		port_printf( 0 * 8, 110, "                gui coding");
-		port_printf( 0 * 8, 130, "zear     - gui fixing and testing");
+		port_printf( 2 * 8, 30, "pcsx team, pcsx-df team, pcsx-r team");
+
+		port_printf( 6 * 8, 50, "Franxis and Chui - PCSX4ALL");
+		port_printf( 4 * 8, 60, "Unai - fast PCSX4ALL GPU plugin");
+
+		port_printf( 5 * 8, 80, "Ulrich Hecht - psx4all-dingoo");
+
+		port_printf(10 * 8, 90, "notaz - PCSX-ReArmed");
+
+		port_printf( 0 * 8, 120, "Dmitry Smagin - porting and optimizing");
+		port_printf( 0 * 8, 130, "                of mips recompiler,");
+		port_printf( 0 * 8, 140, "                gui coding");
+
+		port_printf( 0 * 8,160, "senquack - fixing polygons in gpu_unai,");
+		port_printf( 0 * 8,170, "           porting spu and other stuff");
+		port_printf( 0 * 8,180, "           from pcsx_rearmed and pcsx-r,");
+		port_printf( 0 * 8,190, "           many fixes and improvements");
+
+		port_printf( 0 * 8, 210, "zear     - gui fixing and testing");
 
 		video_flip();
 		timer_delay(75);
