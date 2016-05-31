@@ -1292,9 +1292,6 @@ void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
 
 void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
 {
- if(!xap)       return;
- if(!xap->freq) return;                                // no xa freq ? bye
-
  FeedXA(xap);                                          // call main XA feeder
 }
 

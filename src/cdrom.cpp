@@ -1144,7 +1144,6 @@ void cdrReadInterrupt() {
 	}
 
 	int cdread_irq_cycles = (cdr.Mode & MODE_SPEED) ? (cdReadTime / 2) : cdReadTime;
-	int read_rescheduled = 0;
 
 	//senquack - Fix for Brave Fencer Musashi loading-screen freeze
 	// (adapted from PCSX Reloaded)
@@ -1195,6 +1194,7 @@ void cdrReadInterrupt() {
 
 #ifdef spu_pcsxrearmed
 		int was_first_sector = (cdr.FirstSector == 1);
+		bool played_ADPCM = false;   // See comments further below
 #endif
 
 		if((cdr.Transfer[4 + 2] & 0x4) &&
@@ -1203,27 +1203,46 @@ void cdrReadInterrupt() {
 			int ret = xa_decode_sector(&cdr.Xa, cdr.Transfer+4, cdr.FirstSector);
 			if (!ret) {
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
-				SPU_playADPCMchannel(&cdr.Xa);
+				if ((cdr.Xa.nsamples != 0) && (cdr.Xa.freq != 0)) {
+#ifdef spu_pcsxrearmed
+					played_ADPCM = true;
+#endif
+					SPU_playADPCMchannel(&cdr.Xa);
+				}
+
 				cdr.FirstSector = 0;
 			}
 			else cdr.FirstSector = -1;
 		}
 
 #ifdef spu_pcsxrearmed
-		// senquack - if XA ADPCM buffer is not full, schedule next CDREAD_INT
-		//  IRQ twice as soon as normal, to avoid audio dropouts. Only do this
-		//  every other IRQ, or else games can hang (Konami intro FMV in
-		//  Castlevania SOTN). Don't do it on first sector, as that might
-		//  cause similar troubles.
+		//senquack - if XA ADPCM buffer is not full, schedule next CDREAD_INT
+		// IRQ twice as soon as normal, to avoid audio dropouts. Only do this
+		// if there has been a XA sector with ADPCM played within the last
+		// 32 calls, or else games can hang (Konami intro FMV in Castlevania
+		// SOTN) in an infinite loop. Normally ADPCM sectors are interleaved
+		// and every 8th,16th, or 32nd one read will be played. However, the
+		// Konami logo in SOTN will read XA in a loop with no sectors ever
+		// having ADPCM that gets played, and these forced IRQs here otherwise
+		// would not allow its loop to escape because of its sensitive timing.
+		// Don't schedule IRQs sooner on reads of first sector either, as
+		// that might cause similar troubles.
+		//
 		// TODO: Is it also necessary to do this for CdlReadN/CdlReadS case in
 		//  new cdrInterrupt() code taken from Reloaded/Rearmed?
 		// TODO: Only spu_pcsxrearmed has new SPU_getADPCMBufferRoom().. add to others?
-		if ((!was_first_sector) && (cdr.FirstSector != -1) &&
-				(!cdr.ReadRescheduled) && Config.ForcedXAUpdates &&
-				(SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4)) {
+
+		static unsigned int calls_since_playing_ADPCM = 0;
+		if (!played_ADPCM)
+			calls_since_playing_ADPCM++;
+		else
+			calls_since_playing_ADPCM = 0;
+
+		if ( Config.ForcedXAUpdates &&
+				(!was_first_sector) && (cdr.FirstSector != -1) &&
+				(calls_since_playing_ADPCM < 32) &&
+				(SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) ) {
 			cdread_irq_cycles /= 2;
-			cdr.ReadRescheduled = 1;
-			read_rescheduled = 1;
 		}
 #endif
 	}
@@ -1239,7 +1258,7 @@ void cdrReadInterrupt() {
 	}
 
 	cdr.Readed = 0;
-	if (!read_rescheduled) cdr.ReadRescheduled = 0;
+	cdr.ReadRescheduled = 0;
 
 	CDREAD_INT(cdread_irq_cycles);
 
