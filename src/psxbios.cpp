@@ -711,14 +711,14 @@ void psxBios_tolower(void) { // 0x26
 
 void psxBios_bcopy(void) { // 0x27
 	char *p1 = (char *)Ra1, *p2 = (char *)Ra0;
-	while (a2-- > 0) *p1++ = *p2++;
+	while ((s32)a2-- > 0) *p1++ = *p2++;
 
 	pc0 = ra;
 }
 
 void psxBios_bzero(void) { // 0x28
 	char *p = (char *)Ra0;
-	while (a1-- > 0) *p++ = '\0';
+	while ((s32)a1-- > 0) *p++ = '\0';
 
 	pc0 = ra;
 }
@@ -728,7 +728,7 @@ void psxBios_bcmp() { // 0x29
 
 	if (a0 == 0 || a1 == 0) { v0 = 0; pc0 = ra; return; }
 
-	while (a2-- > 0) {
+	while ((s32)a2-- > 0) {
 		if (*p1++ != *p2++) {
 			v0 = *p1 - *p2; // BUG: compare the NEXT byte
 			pc0 = ra;
@@ -742,7 +742,7 @@ void psxBios_bcmp() { // 0x29
 void psxBios_memcpy() { // 0x2a
 	char *p1 = (char *)Ra0, *p2 = (char *)Ra1;
 	s32 n=0;
-	while (a2-- > 0) {
+	while ((s32)a2-- > 0) {
 		n++;
 		*p1++ = *p2++;
 	}
@@ -762,8 +762,9 @@ void psxBios_memcpy() { // 0x2a
 
 void psxBios_memset() { // 0x2b
 	char *p = (char *)Ra0;
-	while (a2-- > 0) *p++ = (char)a1;
+	while ((s32)a2-- > 0) *p++ = (char)a1;
 
+	a2 = 0;
 	v0 = a0; pc0 = ra;
 }
 
@@ -774,9 +775,9 @@ void psxBios_memmove() { // 0x2c
 		a2++; // BUG: copy one more byte here
 		p1 += a2;
 		p2 += a2;
-		while (a2-- > 0) *--p1 = *--p2;
+		while ((s32)a2-- > 0) *--p1 = *--p2;
 	} else {
-		while (a2-- > 0) *p1++ = *p2++;
+		while ((s32)a2-- > 0) *p1++ = *p2++;
 	}
 
 	v0 = a0; pc0 = ra;
@@ -789,7 +790,7 @@ void psxBios_memcmp() { // 0x2d
 void psxBios_memchr() { // 0x2e
 	char *p = (char *)Ra0;
 
-	while (a2-- > 0) {
+	while ((s32)a2-- > 0) {
 		if (*p++ != (s8)a1) continue;
 		v0 = a0 + (p - (char *)Ra0 - 1);
 		pc0 = ra;
@@ -1020,13 +1021,16 @@ void psxBios_free(void) { // 34
 }
 
 void psxBios_calloc(void) { // 37
+	void *pv0;
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x37]);
 #endif
 
 	a0 = a0 * a1;
 	psxBios_malloc();
-	memset(Rv0, 0, a0);
+	pv0 = Rv0;
+	if (pv0)
+		memset(pv0, 0, a0);
 }
 
 void psxBios_realloc(void) { // 38
@@ -1085,12 +1089,16 @@ void psxBios_printf(void) { // 3f
 	u32 save[4];
 	char *ptmp = tmp;
 	int n=1, i=0, j, k=0;
+	void *psp;
 
-	memcpy(save, (char*)PSXM(sp), 4*4);
-	psxMu32ref(sp) = SWAP32((u32)a0);
-	psxMu32ref(sp + 4) = SWAP32((u32)a1);
-	psxMu32ref(sp + 8) = SWAP32((u32)a2);
-	psxMu32ref(sp + 12) = SWAP32((u32)a3);
+	psp = PSXM(sp);
+	if (psp) {
+		memcpy(save, psp, 4 * 4);
+		psxMu32ref(sp) = SWAP32((u32)a0);
+		psxMu32ref(sp + 4) = SWAP32((u32)a1);
+		psxMu32ref(sp + 8) = SWAP32((u32)a2);
+		psxMu32ref(sp + 12) = SWAP32((u32)a3);
+	}
 
 	while (Ra0[i]) {
 		switch (Ra0[i]) {
@@ -1121,7 +1129,7 @@ _start:
 					case 'g': case 'G':
 						ptmp+= sprintf(ptmp, tmp2, (double)psxMu32(sp + n * 4)); n++; break;
 					case 'p':
-					case 'i':
+					case 'i': case 'u':
 					case 'd': case 'D':
 					case 'o': case 'O':
 					case 'x': case 'X':
@@ -1141,7 +1149,8 @@ _start:
 	}
 	*ptmp = 0;
 
-	memcpy((char*)PSXM(sp), save, 4*4);
+	if (psp)
+		memcpy(psp, save, 4 * 4);
 
 	//printf(tmp);
 	//printf("PRINTF I=%i, J=%i, N=%i, K=%i\n",i,j,n,k);
