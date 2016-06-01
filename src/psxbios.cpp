@@ -1058,7 +1058,8 @@ void psxBios_InitHeap(void) { // 39
 
 	heap_addr = (u32 *)Ra0;
 	heap_end = (u32 *)((u8 *)heap_addr + size);
-	*heap_addr = SWAP32(size | 1);
+	/* HACKFIX: Commenting out this line fixes GTA2 crash */
+	//*heap_addr = SWAP32(size | 1);
 
 	//printf("InitHeap %x,%x : %x %x\n",a0,a1, (uptr)heap_addr-(uptr)psxM, size);
 
