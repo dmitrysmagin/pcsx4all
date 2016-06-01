@@ -286,7 +286,12 @@ INLINE void softCall(u32 pc) {
 	}
 #endif
 #endif
+	/* HACKFIX for mips recompiler from psx4all-dingoo */
+#if defined(PSXREC) && defined(mips)
+	while (pc0 != 0x80001000) psxInt.ExecuteBlock(0x80001000);
+#else
 	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(0x80001000);
+#endif
 #ifdef PROFILER_PCSX4ALL
 #ifndef PCSX4ALL_PROFILER_ONE
 	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_CPU,PCSX4ALL_PROF_TEST);
@@ -320,7 +325,12 @@ INLINE void softCall2(u32 pc) {
 	}
 #endif
 #endif
+	/* HACKFIX for mips recompiler from psx4all-dingoo */
+#if defined(PSXREC) && defined(mips)
+	while (pc0 != 0x80001000) psxInt.ExecuteBlock(0x80001000);
+#else
 	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(0x80001000);
+#endif
 #ifdef PROFILER_PCSX4ALL
 #ifndef PCSX4ALL_PROFILER_ONE
 	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_CPU,PCSX4ALL_PROF_TEST);
