@@ -1,5 +1,6 @@
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
+//#define USE_SEQUENTIAL_MEM_ACCESS
 #define USE_CONST_ADDRESSES
 
 #define OPCODE(insn, rt, rn, imm) \
@@ -380,7 +381,9 @@ static int calc_loads()
 			disasm_psx(dpc);
 	}
 #endif
-
+#ifndef USE_SEQUENTIAL_MEM_ACCESS
+	count = 1;
+#endif
 	return count;
 }
 
@@ -420,7 +423,9 @@ static int calc_stores()
 			disasm_psx(dpc);
 	}
 #endif
-
+#ifndef USE_SEQUENTIAL_MEM_ACCESS
+	count = 1;
+#endif
 	return count;
 }
 
