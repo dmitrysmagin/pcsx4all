@@ -857,6 +857,10 @@ static void ShowMenu(MENU *menu)
 	port_printf( 4 * 8,  0, "pcsx4all 2.3 by Franxis and Chui");
 	port_printf( 0 * 8, 10, "based on pcsx-r 1.9 and psx4all-dingoo");
 	port_printf( 4 * 8, 20, "with some code from pcsx_rearmed");
+
+	char string[64];
+	sprintf(string, "Built on %s at %s", __DATE__, __TIME__);
+	port_printf( 4 * 8, 29 * 8, string);
 }
 
 static int gui_RunMenu(MENU *menu)
