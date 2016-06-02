@@ -163,11 +163,11 @@ int main (int argc, char **argv)
 	strcpy(Config.BiosDir, ".");
 	strcpy(Config.Bios, BIOS_FILE);
 
-	Config.Xa=1; /* 0=XA enabled, 1=XA disabled */
+	Config.XaDisabled=1; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
-	Config.Cdda=1; /* 0=Enable Cd audio, 1=Disable Cd audio */
+	Config.CddaDisabled=1; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	Config.HLE=1; /* 1=HLE, 0=bios */
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
@@ -245,11 +245,11 @@ int main (int argc, char **argv)
 	for (int i=1;i<argc;i++)
 	{
 		// PCSX
-		if (strcmp(argv[i],"-xa")==0) Config.Xa=0; // XA enabled
+		if (strcmp(argv[i],"-xa")==0) Config.XaDisabled=0; // XA enabled
 		if (strcmp(argv[i],"-bwmdec")==0) Config.Mdec=1; // Black & White MDEC
 		if (strcmp(argv[i],"-pal")==0) { Config.PsxAuto=0; Config.PsxType=1; } // Force PAL system
 		if (strcmp(argv[i],"-ntsc")==0) { Config.PsxAuto=0; Config.PsxType=0; } // Force NTSC system
-		if (strcmp(argv[i],"-cdda")==0) Config.Cdda=0; // CD audio enabled
+		if (strcmp(argv[i],"-cdda")==0) Config.CddaDisabled=0; // CD audio enabled
 		if (strcmp(argv[i],"-bios")==0) Config.HLE=0; // BIOS enabled
 		if (strcmp(argv[i],"-interpreter")==0) Config.Cpu=1; // Interpreter enabled
 		if (strcmp(argv[i],"-rcntfix")==0) Config.RCntFix=1; // Parasite Eve 2, Vandal Hearts 1/2 Fix

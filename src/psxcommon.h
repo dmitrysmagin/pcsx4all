@@ -80,10 +80,10 @@ typedef struct {
 	char BiosDir[MAXPATHLEN];
 	char LastDir[MAXPATHLEN];
 	char PatchesDir[MAXPATHLEN];  // PPF patch files
-	boolean Xa; /* 0=XA enabled, 1=XA disabled */
+	boolean XaDisabled; /* 0=XA enabled, 1=XA disabled */
 	boolean Mdec; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	boolean PsxAuto; /* 1=autodetect system (pal or ntsc) */
-	boolean Cdda; /* 0=Enable Cd audio, 1=Disable Cd audio */
+	boolean CddaDisabled; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	boolean HLE; /* 1=HLE, 0=bios */
 	boolean RCntFix; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
