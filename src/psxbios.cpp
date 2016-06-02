@@ -933,7 +933,12 @@ void psxBios_malloc(void) { // 33
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x33]);
 #endif
-	
+	if (!a0) {
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
+
 	// scan through heap and combine free chunks of space
 	chunk = heap_addr;
 	colflag = 0;
@@ -941,6 +946,15 @@ void psxBios_malloc(void) { // 33
 		// get size and status of actual chunk
 		csize = ((u32)*chunk) & 0xfffffffc;
 		cstat = ((u32)*chunk) & 1;
+
+		// most probably broken heap descriptor
+		// this fixes Burning Road
+		if (*chunk == 0) {
+			newchunk = chunk;
+			dsize = ((u32)chunk - (u32)heap_addr) - 4;
+			colflag = 1;
+			break;
+		}
 
 		// it's a free chunk
 		if(cstat == 1) {
@@ -982,13 +996,19 @@ void psxBios_malloc(void) { // 33
 	// search an unused chunk that is big enough until the end of the heap
 	while ((dsize > csize || cstat==0) && chunk < heap_end ) {
 		chunk = (u32*)((uptr)chunk + csize + 4);
+
+			// catch out of memory
+			if(chunk >= heap_end) {
+				printf("malloc %x,%x: Out of memory error!\n",
+					v0, a0);
+				v0 = 0; pc0 = ra;
+				return;
+			}
+
 		csize = ((u32)*chunk) & 0xfffffffc;
 		cstat = ((u32)*chunk) & 1;
 	}
 
-	// catch out of memory
-	if(chunk >= heap_end) { printf("malloc %x,%x: Out of memory error!\n", v0, a0); v0 = 0; pc0 = ra; return; }
-	
 	// allocate memory
 	if(dsize == csize) {
 		// chunk has same size
@@ -1016,7 +1036,8 @@ void psxBios_free(void) { // 34
 
 	//printf("free %x: %x bytes\n", a0, *(u32*)(Ra0-4));
 
-	*(u32*)(Ra0-4) |= 1;	// set chunk to free
+	if (a0)
+		*(u32*)(Ra0-4) |= 1;	// set chunk to free
 	pc0 = ra;
 }
 
