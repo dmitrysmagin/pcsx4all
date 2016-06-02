@@ -951,7 +951,7 @@ void psxBios_malloc(void) { // 33
 		// this fixes Burning Road
 		if (*chunk == 0) {
 			newchunk = chunk;
-			dsize = ((u32)chunk - (u32)heap_addr) - 4;
+			dsize = ((u32)heap_end - (u32)chunk) - 4;
 			colflag = 1;
 			break;
 		}
@@ -1013,8 +1013,10 @@ void psxBios_malloc(void) { // 33
 	if(dsize == csize) {
 		// chunk has same size
 		*chunk &= 0xfffffffc;
-	}
-	else {
+	} else if (dsize > csize) {
+		v0 = 0; pc0 = ra;
+		return;
+	} else {
 		// split free chunk
 		*chunk = SWAP32(dsize);
 		newchunk = (u32*)((uptr)chunk + dsize + 4);
