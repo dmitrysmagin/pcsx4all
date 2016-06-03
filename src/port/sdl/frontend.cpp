@@ -620,9 +620,9 @@ static char *clock_show()
 static int xa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (Config.Xa == 1) Config.Xa = 0;
+		if (Config.XaDisabled > 0) Config.XaDisabled = 0;
 	} else if (keys & KEY_LEFT) {
-		if (Config.Xa == 0) Config.Xa = 1;
+		if (Config.XaDisabled < 1) Config.XaDisabled = 1;
 	}
 
 	return 0;
@@ -631,16 +631,16 @@ static int xa_alter(u32 keys)
 static char *xa_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.Xa ? "off" : "on");
+	sprintf(buf, "%s", Config.XaDisabled ? "off" : "on");
 	return buf;
 }
 
 static int cdda_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (Config.Cdda == 1) Config.Cdda = 0;
+		if (Config.CddaDisabled > 0) Config.CddaDisabled = 0;
 	} else if (keys & KEY_LEFT) {
-		if (Config.Cdda == 0) Config.Cdda = 1;
+		if (Config.CddaDisabled < 1) Config.CddaDisabled = 1;
 	}
 
 	return 0;
@@ -649,7 +649,7 @@ static int cdda_alter(u32 keys)
 static char *cdda_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.Cdda ? "off" : "on");
+	sprintf(buf, "%s", Config.CddaDisabled ? "off" : "on");
 	return buf;
 }
 

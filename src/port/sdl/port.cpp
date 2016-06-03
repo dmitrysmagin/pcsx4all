@@ -208,9 +208,9 @@ void config_load()
 			break;
 		}
 
-		if(!strcmp(line, "Xa")) {
+		if(!strcmp(line, "XaDisabled")) {
 			sscanf(arg, "%d", &value);
-			Config.Xa = value;
+			Config.XaDisabled = value;
 		}
 		else if(!strcmp(line, "Mdec")) {
 			sscanf(arg, "%d", &value);
@@ -220,9 +220,9 @@ void config_load()
 			sscanf(arg, "%d", &value);
 			Config.PsxAuto = value;
 		}
-		else if(!strcmp(line, "Cdda")) {
+		else if(!strcmp(line, "CddaDisabled")) {
 			sscanf(arg, "%d", &value);
-			Config.Cdda = value;
+			Config.CddaDisabled = value;
 		}
 		else if(!strcmp(line, "HLE")) {
 			sscanf(arg, "%d", &value);
@@ -309,7 +309,7 @@ void config_save()
 		return;
 	}
 
-	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates);
+	fprintf(f, "CONFIG_VERSION %d\nXaDisabled %d\nMdec %d\nPsxAuto %d\nCddaDisabled %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\n", CONFIG_VERSION, Config.XaDisabled, Config.Mdec, Config.PsxAuto, Config.CddaDisabled, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates);
 
 #ifdef gpu_unai
 	fprintf(f, "ShowFps %d\nFrameLimit %d\n", show_fps, frameLimit);
@@ -681,11 +681,11 @@ int main (int argc, char **argv)
 	strcpy(Config.BiosDir, biosdir);
 	strcpy(Config.Bios, BIOS_FILE);
 
-	Config.Xa=0; /* 0=XA enabled, 1=XA disabled */
+	Config.XaDisabled=0; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
-	Config.Cdda=0; /* 0=Enable Cd audio, 1=Disable Cd audio */
+	Config.CddaDisabled=0; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	Config.HLE=1; /* 0=BIOS, 1=HLE */
 #if defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
@@ -805,11 +805,11 @@ int main (int argc, char **argv)
 	for (int i=1;i<argc;i++)
 	{
 		// PCSX
-		if (strcmp(argv[i],"-noxa")==0) Config.Xa=1; // XA audio disabled
+		if (strcmp(argv[i],"-noxa")==0) Config.XaDisabled=1; // XA audio disabled
 		if (strcmp(argv[i],"-bwmdec")==0) Config.Mdec=1; // Black & White MDEC
 		if (strcmp(argv[i],"-pal")==0) { Config.PsxAuto=0; Config.PsxType=1; } // Force PAL system
 		if (strcmp(argv[i],"-ntsc")==0) { Config.PsxAuto=0; Config.PsxType=0; } // Force NTSC system
-		if (strcmp(argv[i],"-nocdda")==0) Config.Cdda=1; // CD audio disabled
+		if (strcmp(argv[i],"-nocdda")==0) Config.CddaDisabled=1; // CD audio disabled
 		if (strcmp(argv[i],"-bios")==0) Config.HLE=0; // BIOS enabled
 		if (strcmp(argv[i],"-interpreter")==0) Config.Cpu=1; // Interpreter enabled
 		if (strcmp(argv[i],"-rcntfix")==0) Config.RCntFix=1; // Parasite Eve 2, Vandal Hearts 1/2 Fix

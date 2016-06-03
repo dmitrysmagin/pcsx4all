@@ -275,7 +275,7 @@ u16 calcCrc(const u8 *d, const int len) {
 
 #define StopCdda() { \
 	if (cdr.Play) { \
-		if (!Config.Cdda) CDR_stop(); \
+		if (!Config.CddaDisabled) CDR_stop(); \
 		cdr.StatP &= ~STATUS_PLAY; \
 		cdr.Play = FALSE; \
 		cdr.FastForward = 0; \
@@ -698,7 +698,7 @@ void cdrInterrupt()
 			ReadTrack(cdr.SetSectorPlay);
 			cdr.TrackChanged = FALSE;
 
-			if (!Config.Cdda)
+			if (!Config.CddaDisabled)
 				CDR_play(cdr.SetSectorPlay);
 
 			// Vib Ribbon: gameplay checks flag
@@ -1185,7 +1185,7 @@ void cdrReadInterrupt() {
 
 	CDR_LOG("cdrReadInterrupt() Log: cdr.Transfer %x:%x:%x\n", cdr.Transfer[0], cdr.Transfer[1], cdr.Transfer[2]);
 
-	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.Xa) && (cdr.FirstSector != -1)) { // CD-XA
+	if ((!cdr.Muted) && (cdr.Mode & MODE_STRSND) && (!Config.XaDisabled) && (cdr.FirstSector != -1)) { // CD-XA
 		// Firemen 2: Multi-XA files - briefings, cutscenes
 		if( cdr.FirstSector == 1 && (cdr.Mode & MODE_SF)==0 ) {
 			cdr.File = cdr.Transfer[4 + 0];
@@ -1686,7 +1686,7 @@ int cdrFreeze(void *f, int Mode) {
 	u32 tmp;
 	u8 tmpp[3];
 
-	if (Mode == 0 && !Config.Cdda)
+	if (Mode == 0 && !Config.CddaDisabled)
 		CDR_stop();
 	
 	cdr.freeze_ver = 0x63647202;
@@ -1714,7 +1714,7 @@ int cdrFreeze(void *f, int Mode) {
 				memcpy(cdr.SetSectorPlay, cdr.SetSector, 3);
 
 			Find_CurTrack(cdr.SetSectorPlay);
-			if (!Config.Cdda)
+			if (!Config.CddaDisabled)
 				CDR_play(cdr.SetSectorPlay);
 		}
 
