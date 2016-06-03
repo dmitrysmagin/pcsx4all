@@ -429,8 +429,6 @@ void psxBios_setjmp(void) { // 13
 	jmp_buf[11] = gp;
 
 	v0 = 0; pc0 = ra;
-	t0=0xBFC02240;
-	t1=0x0000004C;
 	if (autobias)
 		psxRegs.cycle+=11;
 }
@@ -502,8 +500,6 @@ void psxBios_strcmp(void) { // 0x17
 			a0+=n;
 			a1+=n;
 			v0 = 0;
-			t0 = 0xBFC03288;
-			t1 = 0x0000005C;
 			pc0 = ra;
 			if (autobias)
 				psxRegs.cycle+=8+(n*12);
@@ -515,8 +511,6 @@ void psxBios_strcmp(void) { // 0x17
 	v1 = n;
 	a0+=n;
 	a1+=n;
-	t0 = 0xBFC03288;
-	t1 = 0x0000005C;
 	if (autobias)
 		psxRegs.cycle+=8+(n*12);
 	pc0 = ra;
@@ -540,8 +534,6 @@ void psxBios_strncmp(void) { // 0x18
 			a0 += (a2-n) - 1;
 			a1 += (a2-n) - 1;
 			a2 = n;
-			t0 = 0xBFC03310;
-			t1 = 0x00000060;
 			return;
 		}
 	}
@@ -554,9 +546,6 @@ void psxBios_strncmp(void) { // 0x18
 	a0 += (a2-n) - 1;
 	a1 += (a2-n) - 1;
 	a2 = n;
-	t0 = 0xBFC03310;
-	t1 = 0x00000060;
-
 }
 
 void psxBios_strcpy(void) { // 0x19
@@ -747,15 +736,8 @@ void psxBios_memcpy() { // 0x2a
 		*p1++ = *p2++;
 	}
 
-	a2 += 1;
 	v0 = a0;
 	pc0 = ra;
-	v1 = v0;
-	a0 += n;
-	a1 += n;
-	t0 = 0xBFC02B50;
-	t1 = 0x000000A8;
-	t6 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 75 + (n*13);
 }
@@ -764,7 +746,6 @@ void psxBios_memset() { // 0x2b
 	char *p = (char *)Ra0;
 	while ((s32)a2-- > 0) *p++ = (char)a1;
 
-	a2 = 0;
 	v0 = a0; pc0 = ra;
 }
 
@@ -805,12 +786,6 @@ void psxBios_rand(void) { // 2f
 	v0 = (s >> 16) & 0x7fff;
 	psxMu32ref(0x9010) = SWAPu32(s);
 	pc0 = ra;
-	at = 0xA0010000;
-	v1 = 0xCF7A7EA6;
-	t0 = 0xBFC02200;
-	t1 = 0x000000BC;
-	psxRegs.GPR.r[32] = 0xCF7A4E6D;
-	psxRegs.GPR.r[33] = 0x0940EA20;
 	if (autobias)
 		psxRegs.cycle += 6;
 }
@@ -1091,13 +1066,6 @@ void psxBios_InitHeap(void) { // 39
 	//printf("InitHeap %x,%x : %x %x\n",a0,a1, (uptr)heap_addr-(uptr)psxM, size);
 
 	pc0 = ra;
-	at = 0xA0010000;
-	t0 = 0xBFC01E24;
-	t1 = 0x000000E4;
-	t6 = 0x000011FE;
-	t7 = a1;
-	t8 = 0x801F8004;
-	t9 = 0x801F8008;
 	if (autobias)
 		psxRegs.cycle+=2;
 }
@@ -1179,22 +1147,6 @@ _start:
 	//printf("PRINTF I=%i, J=%i, N=%i, K=%i\n",i,j,n,k);
 
 	pc0 = ra;
-	at = 0x00000025;
-	v0 = k*8;
-	v1 = 0x00000000;
-	a0 = 0x00000000;
-	a1 = 0x00000002;
-	a2 = 0x00000001;
-	a3 = 0x0000002A;
-	t0 = 0x00000044;
-	t1 = 0x00000032;
-	t2 = 0x0000002D;
-	t3 = 0x00000020;
-	t4 = 0x00000023;
-	t5 = 0x0000002B;
-	t6 = 0x00000000;
-	t8 = 0x00000001;
-	t9 = 0x00000000;
 	psxRegs.GPR.n.hi = 0x00000008;
 	if (autobias)
 		psxRegs.cycle+=((i*1257)-(n*3852));
@@ -1275,9 +1227,6 @@ void psxBios_Exec(void) { // 43
 
 	ra = 0x8000;
 	pc0 = header->_pc0;
-	t0 = sp;
-	t1 = 0x00000000;
-	t3 = pc0;
 	if (autobias)
 		psxRegs.cycle += 23;
 }
@@ -1288,13 +1237,6 @@ void psxBios_FlushCache(void) { // 44
 #endif
 
 	pc0 = ra;
-	at = 0xFFFE0000;
-	t0 = 0x00000000;
-	t1 = 0x0001E988;
-	t2 = 0x00001000;
-	t3 = 0x00000F80;
-	t4 = 0x00010000;
-	k0 = 0xBFC0193C;
 
 	if (autobias)
 		psxRegs.cycle += 4142;
@@ -1349,17 +1291,6 @@ void psxBios_SendGPU(void) { // 0x48
 void psxBios_GPU_cw(void) { // 0x49
 	GPU_writeData(a0);
 	pc0 = ra;
-	at = 0x60000000;
-	v0 = 0x00000000;
-	v1 = 0x10000000;
-	t6 = a0;
-	a0 = 0x10000000;
-	a2 = 0x1F801814;
-	t0 = 0xBFC03FAC;
-	t1 = 0x00000124;
-	t7 = 0x1F801810;
-	t8 = 0x14802000;
-	t9 = 0x10000000;
 	if (autobias)
 		psxRegs.cycle += 46;
 }
@@ -1456,24 +1387,6 @@ void psxBios__96_remove(void) { // 72
 #endif
 
 	pc0 = ra;
-	v0 = 0xA00091E0;
-	v1 = 0xA000E004;
-	a0 = 0x00000000;
-	a1 = 0xA00091E0;
-	a2 = 0xA00091E0;
-	t0 = 0x00001444;
-	t1 = 0x0000000C;
-	t2 = 0x000000C0;
-	t6 = 0xA000E004;
-	t7 = 0x00000000;
-#if 0
-	s0 = 0x8007E4C8;
-	s1 = 0xFFFFFFFF;
-	s2 = 0x00000000;
-#endif
-	t8 = 0x00006DA8;
-	t9 = 0x00006DA8;
-	k0 = 0xBFC0D968;
 	if (autobias)
 		psxRegs.cycle+=1166;
 	ResetIoCycle();
@@ -1504,23 +1417,7 @@ void psxBios_SetMem(void) { // 9f
 	}
 
 	pc0 = ra;
-	at = 0x00000025;
-	v0 = 0x00000001;
-	v1 = 0x00000000;
-	a0 = 0x00000000;
-	a1 = 0x00000002;
-	a2 = 0x00000001;
-	a3 = 0x0000002A;
-	t0 = 0x00000044;
-	t1 = 0x00000032;
-	t2 = 0x0000002D;
-	t3 = 0x00000020;
-	t6 = 0x00000000;
-	t7 = 0x00000000;
-	//s0 = 0xA000B870;
-	t8 = 0x00000001;
-	t9 = 0x00000000;
-	psxRegs.GPR.n.hi = 0x00000002;
+
 	if (autobias)
 		psxRegs.cycle+=22500;
 }
@@ -1537,17 +1434,6 @@ void psxBios__card_info(void) { // ab
 
 	v0 = 1;
 	pc0 = ra;
-	at = 0x00000000;
-	v1 = 0xA0009F20;
-	a1 = 0x00007568;
-	t0 = 0x00005B64;
-	t1 = 0x00000000;
-	t2 = 0x00000000;
-	t3 = 0x00000008;
-	t6 = 0x00007568;
-	t7 = 0x00000001;
-	t8 = 0x00000000;
-	t9 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 129;
 }
@@ -1564,19 +1450,6 @@ void psxBios__card_load(void) { // ac
 
 	v0 = 1;
 	pc0 = ra;
-	at = 0xA0010000;
-	v1 = 0x00000000;
-	a1 = 0x00000000;
-	a2 = 0xA000BE48;
-	a3 = 0xA0009F20;
-	t0 = 0x00005688;
-	t1 = 0x00000004;
-	t2 = 0x00000001;
-	t3 = 0x00000000;
-	t6 = 0x00007568;
-	t7 = 0x00000001;
-	t8 = 0x00000000;
-	t9 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 169;
 }
@@ -1688,14 +1561,6 @@ void psxBios_DeliverEvent(void) { // 07
 	DeliverEvent(ev, spec);
 
 	pc0 = ra;
-	at = 0x00000000;
-	v0 = 0xA000E1E8;
-	v1 = 0xA000E028;
-	t0 = a0 + 6;
-	t1 = 0x0000001C;
-	t6 = 0x000001C0;
-	t7 = 0x00000010;
-	t8 = 0x000001C0;
 	if (autobias)
 		psxRegs.cycle+=375+9;
 
@@ -1716,19 +1581,8 @@ void psxBios_OpenEvent(void) { // 08
 	Event[ev][spec].mode = a2;
 	Event[ev][spec].fhandler = a3;
 
-	t7 = a0;
 	v0 = ev | (spec << 8);
 	pc0 = ra;
-	a0 = 0x00000000;
-	t1 = 0x00001000;
-	t6 = 0x00000000;
-	t8 = 0x00000020;
-	t9 = 0x00002000;
-	at = 0xF1000000;
-	v0 |= 0xF1000000;
-	v1 = 0xA000E028;
-	psxRegs.GPR.r[32] = 0x00000000;
-	psxRegs.GPR.r[33] = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 185;
 }
@@ -1747,12 +1601,6 @@ void psxBios_CloseEvent(void) { // 09
 
 	v0 = 1;
 	pc0 = ra;
-	a0 = 0x00000000;
-	t0 = 0x00001E1C;
-	t1 = 0x00000024;
-	t6 = 0xA000E028;
-	t7 = 0x00000000;
-	t8 = 0xA000E028;
 	if (autobias)
 		psxRegs.cycle += 7;
 }
@@ -1771,13 +1619,6 @@ void psxBios_WaitEvent(void) { // 0a
 
 	v0 = 1;
 	pc0 = ra;
-	v1 = 0xA000E028;
-	a0 = 0x00002000;
-	a1 = 0x00004000;
-	t0 = 0x00002000;
-	t1 = 0x00004000;
-	t8 = 0x00002000;
-	k0 = 0x00001EA8;
 	if (autobias)
 		psxRegs.cycle += 5047;
 	ResetIoCycle();
@@ -1798,15 +1639,6 @@ void psxBios_TestEvent(void) { // 0b
 #endif
 
 	pc0 = ra;
-	at = 0x00004000;
-	v1 = 0xA000E028;
-	a0 = 0x00000000;
-	t0 = 0x00001EC8;
-	t1 = 0x0000002C;
-	t6 = 0xA000E028;
-	t7 = 0x00000000;
-	t8 = 0x00002000;
-
 	if (autobias)
 		psxRegs.cycle += 1;
 }
@@ -1825,15 +1657,6 @@ void psxBios_EnableEvent(void) { // 0c
 
 	v0 = 1;
 	pc0 = ra;
-	a0 = 0x00000000;
-	t0 = 0x00001F10;
-	t1 = 0x00000030;
-	t6 = 0xA000E028;
-	t7 = 0x00000000;
-	t8 = 0x00001000;
-	v1 = 0xA000E028;
-	t9 = 0x00002000;
-
 	if (autobias)
 		psxRegs.cycle += 4;
 
@@ -1853,11 +1676,6 @@ void psxBios_DisableEvent(void) { // 0d
 
 	v0 = 1;
 	pc0 = ra;
-	v1 = 0xA000E028;
-	a0 = 0x00000000;
-	t0 = 0x00001F4C;
-	t1 = 0x00000034;
-	t8 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 5;
 }
@@ -1947,19 +1765,6 @@ void psxBios_InitPAD(void) { // 0x12
 	pad_buf2len = a3;
 
 	v0 = 1; pc0 = ra;
-	at = 0x00000000;
-	v1 = a2;
-	a0 = a1+a2;
-	a1 = 0x00000000;
-	a2 = 0x00000000;
-	a3 = 0x00000000;
-	t0 = 0x00000044;
-	t1 = 0x00000032;
-	t2 = 0x0000002D;
-	t6 = 0x00000001;
-	t7 = 0x00004A4C;
-	t8 = 0x00000001;
-	t9 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 21616;
 }
@@ -1975,17 +1780,6 @@ void psxBios_StartPAD(void) { // 13
 	psxHwWrite16(0x1f801074, (unsigned short)(psxHwRead16(0x1f801074) | 0x1));
 	psxRegs.CP0.n.Status |= 0x401;
 	pc0 = ra;
-	at = 0x00010000;
-	v1 = 0x00000000;
-	a0 = 0x00000002;
-	a2 = 0x0000860C;
-	t0 = 0x00002002;
-	t1 = 0x0000004C;
-	t6 = 0x0000000C;
-	t7 = 0x00008600;
-	t8 = 0x0000000D;
-	t9 = 0xFFFFFFFF;
-	k0 = 0x00006B98;
 	if (autobias)
 		psxRegs.cycle += 1688;
 }
@@ -1997,17 +1791,6 @@ void psxBios_StopPAD(void) { // 14
 
 	pad_stopped = 1;
 	pc0 = ra;
-	v0 = 0x000074A8;
-	v1 = 0xA000E014;
-	a0 = 0x00000002;
-	a1 = 0x000074A8;
-	a2 = 0x000074A8;
-	t0 = 0x00004C10;
-	t1 = 0x00000050;
-	t6 = 0xA000E004;
-	t7 = 0x00000010;
-	t8 = 0x00000000;
-	k0 = 0x00006B98;
 	if (autobias)
 		psxRegs.cycle += 1041;
 }
@@ -2024,20 +1807,6 @@ void psxBios_PAD_init(void) { // 15
 	*pad_buf = -1;
 	psxRegs.CP0.n.Status |= 0x401;
 	pc0 = ra;
-	at = 0x00010000;
-	v0 = 0x00000002;
-	v1 = 0x00000000;
-	a0 = 0x00000002;
-	a1 = 0x00000000;
-	a2 = 0x0000860C;
-	t0 = 0x00002002;
-	t1 = 0x00000032;
-	t2 = 0x0000002D;
-	t6 = 0x0000000C;
-	t7 = 0x00008600;
-	t8 = 0x0000000D;
-	t9 = 0xFFFFFFFF;
-	k0 = 0x00006B98;
 	if (autobias)
 		psxRegs.cycle+=48088;
 }
@@ -2049,20 +1818,6 @@ void psxBios_PAD_dr(void) { // 16
 
 	v0 = -1;
 	pc0 = ra;
-	at = 0x00000041;
-	v0 = 0xFFFFFF3F;
-	v1 = 0x8011C264;
-	a0 = 0x00000023;
-	t0 = 0x0000003F;
-	t1 = 0x0000003F;
-	t2 = 0x00000000;
-	t3 = 0x000000FF;
-	t4 = 0x0000FF00;
-	t5 = 0x000000FF;
-	t6 = 0x000000FF;
-	t7 = 0x0000FFFF;
-	t8 = 0x00000041;
-	t9 = 0x0000FF00;
 	if (autobias)
 		psxRegs.cycle += 96;
 }
@@ -2096,10 +1851,6 @@ void psxBios_ResetEntryInt(void) { // 18
 
 	jmp_int = NULL;
 	pc0 = ra;
-	at = 0x00000000;
-	v0 = 0x00006CF4;
-	t0 = 0x00000F2C;
-	t1 = 0x00000060;
 	if (autobias)
 		psxRegs.cycle += 5;
 }
@@ -2111,9 +1862,6 @@ void psxBios_HookEntryInt(void) { // 19
 
 	jmp_int = (u32*)Ra0;
 	pc0 = ra;
-	at = 0x00000000;
-	t0 = 0x00000F20;
-	t1 = 0x00000064;
 	if (autobias)
 #ifdef DEBUG_BIOS
 		psxRegs.cycle-=22;
@@ -2289,33 +2037,6 @@ void psxBios_write(void) { // 0x35/0x03
 	char *ptr;
 	void *pa1 = Ra1;
 
-    if (a0 == 1) { // stdout
-#if 0
-		/*char *ptr = Ra1;*/
-		while (a2 > 0) {
-			/*printf("%c", *ptr++);*/ a2--;
-		}
-#endif
-		pc0 = ra;
-		at = 0x00000000;
-		v0 = 0x00000000;
-		v1 = 0x00000000;
-		t2 = a1;
-		t3 = a2;
-		a0 = 0x00008674;
-		a1 = 0x00000002;
-		t0 = 0xBFC06FDC;
-		t1 = 0x000000D4;
-		t4 = 0x00000001;
-		t5 = 0x00000000;
-		t6 = 0x00000000;
-		t8 = 0x00000001;
-		t9 = 0x00000000;
-		if (autobias)
-			psxRegs.cycle += 450;
-		ResetIoCycle();
-		return;
-    }
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %x,%x,%x\n", biosB0n[0x35], a0, a1, a2);
 #endif
@@ -2461,17 +2182,6 @@ void psxBios_nextfile(void) { // 43
 	}
 
 	pc0 = ra;
-	v1 = 0xFFFFFFFF;
-	a0 = 0x00000000;
-	a1 = 0x00000001;
-	a2 = 0xA0009F98;
-	a3 = 0x801FFCF8;
-	t1 = 0x000086A0;
-	t2 = 0x000000C0;
-	t6 = 0x00000000;
-	t7 = 0x00000000;
-	t8 = 0xA000BA88;
-	t9 = 0x00000002;
 	if (autobias)
 		psxRegs.cycle += 2762;
 }
@@ -2572,20 +2282,6 @@ void psxBios_InitCARD(void) { // 4a
 	CardState = 0;
 
 	pc0 = ra;
-	at = 0x00000000;
-	v0 = 0x00000000;
-	a0 = 0x00000001;
-	t0 = 0x00000000;
-	t1 = 0x0001E988;
-	t2 = 0x00001000;
-	t3 = 0x00000F80;
-	t4 = 0x00010000;
-	t6 = 0x00000001;
-	t7 = 0x00000001;
-	t8 = 0x00004D6C;
-	t9 = 0x00004F90;
-	k0 = 0xBFC0193C;
-	k1 = 0x00006418;
 	if (autobias)
 		psxRegs.cycle += 4367;
 }
@@ -2598,19 +2294,6 @@ void psxBios_StartCARD(void) { // 4b
 	if (CardState == 0) CardState = 1;
 
 	pc0 = ra;
-	at = 0x00000000;
-	v0 = 0x00000001;
-	v1 = 0x00000000;
-	a0 = 0x00000002;
-	a1 = 0x00000000;
-	a2 = 0x0000860C;
-	t0 = 0x00002002;
-	t1 = 0x0000012C;
-	t6 = 0x0000000C;
-	t7 = 0x00008600;
-	t8 = 0x00000001;
-	t9 = 0xFFFFFFFF;
-	k0 = 0x00006B98;
 	if (autobias)
 		psxRegs.cycle += 1730;
 	ResetIoCycle();
@@ -2736,8 +2419,6 @@ void psxBios_GetC0Table(void) { // 56
 
 	v0 = 0x674;
 	pc0 = ra;
-	t0 = 0x0000065C;
-	t1 = 0x00000158;
 	if (autobias)
 		psxRegs.cycle += 5;
 }
@@ -2749,9 +2430,6 @@ void psxBios_GetB0Table(void) { // 57
 
 	v0 = 0x874;
 	pc0 = ra;
-	v0 = 0x00000874;
-	t0 = 0x00000668;
-	t1 = 0x0000015C;
 	if (autobias)
 		psxRegs.cycle += 5;
 }
@@ -2763,9 +2441,6 @@ void psxBios__card_chan(void) { // 0x58
 
 	v0 = card_active_chan;
 	pc0 = ra;
-	t0 = 0x00005E30;
-	t1 = 0x00000160;
-	t6 = 0x00000000;
 	if (autobias)
 		psxRegs.cycle += 3;
 }
@@ -2775,11 +2450,6 @@ void psxBios__card_wait(void) { // 5d
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x5d]);
 #endif
 
-	v1 = 0x00007568;
-	t0 = 0x00006070;
-	t1 = 0x00000174;
-	t6 = 0x00007568;
-	t7 = 0x00000001;
 	pc0 = ra;
 	if (autobias)
 		psxRegs.cycle += 5;
@@ -2792,11 +2462,6 @@ void psxBios_ChangeClearPad(void) { // 5b
 #endif	
 
 	pc0 = ra;
-	at = 0x00010000;
-	v0 = 0x00000000;
-	v1 = 0x00000000;
-	t0 = 0x000043D0;
-	t1 = 0x0000016C;
 	if (autobias)
 #ifdef DEBUG_BIOS
 		psxRegs.cycle-=15;
@@ -2829,8 +2494,6 @@ void psxBios_SysEnqIntRP(void) { // 02
 
 	v0 = 0;
 	pc0 = ra;
-	t0 = 0x00001420;
-	t1 = 0x00000008;
 	if (autobias)
 		psxRegs.cycle += 4;
 }
@@ -2848,13 +2511,6 @@ void psxBios_SysDeqIntRP(void) { // 03
 
 	v0 = 0;
 	pc0 = ra;
-	v1 = 0xA000E014;
-	a2 = 0x000074A8;
-	t0 = 0x00001444;
-	t1 = 0x0000000C;
-	t6 = 0xA000E004;
-	t7 = 0x00000010;
-
 	if (autobias)
 		psxRegs.cycle+=6;
 }
@@ -2872,12 +2528,7 @@ void psxBios_ChangeClearRCnt(void) { // 0a
 
 //	psxRegs.CP0.n.Status|= 0x404;
 	pc0 = ra;
-	v1 = v0;
-	a2 = 0x0000860C;
-	t0 = 0x000015D8;
-	t1 = 0x00000028;
-	t6 = 0x0000000C;
-	t7 = 0x00008600;
+
 	if (autobias)
 #ifdef DEBUG_BIOS
 		psxRegs.cycle-=11;
@@ -3296,46 +2947,6 @@ void psxBiosInit(void) {
 
 	// memory size 2 MB
 	psxHu32ref(0x1060) = SWAPu32(0x00000b88);
-
-	psxHu8ref(0x1003) = 0x1F;
-	psxHu8ref(0x1005) = 0x20;
-	psxHu8ref(0x1006) = 0x80;
-	psxHu8ref(0x1007) = 0x1F;
-	psxHu8ref(0x1008) = 0x3F;
-	psxHu8ref(0x1009) = 0x24;
-	psxHu8ref(0x100A) = 0x13;
-	psxHu8ref(0x100C) = 0x22;
-	psxHu8ref(0x100D) = 0x30;
-	psxHu8ref(0x1010) = 0x3F;
-	psxHu8ref(0x1011) = 0x24;
-	psxHu8ref(0x1012) = 0x13;
-	psxHu8ref(0x1014) = 0xE1;
-	psxHu8ref(0x1015) = 0x31;
-	psxHu8ref(0x1016) = 0x09;
-	psxHu8ref(0x1017) = 0x20;
-	psxHu8ref(0x1018) = 0x43;
-	psxHu8ref(0x1019) = 0x09;
-	psxHu8ref(0x101A) = 0x02;
-	psxHu8ref(0x101C) = 0x77;
-	psxHu8ref(0x101D) = 0x07;
-	psxHu8ref(0x101E) = 0x07;
-	psxHu8ref(0x1020) = 0x2C;
-	psxHu8ref(0x1021) = 0x13;
-	psxHu8ref(0x2041) = 0x09;
-	psxHu8ref(0x1074) = 0x0C;
-	psxHu8ref(0x10B1) = 0xF0;
-	psxHu8ref(0x10B2) = 0x07;
-	psxHu8ref(0x10B3) = 0x80;
-	psxHu8ref(0x10B5) = 0x02;
-	psxHu8ref(0x10B6) = 0x01;
-	psxHu8ref(0x10BB) = 0x10;
-	psxHu8ref(0x10F0) = 0x99;
-	psxHu8ref(0x10F1) = 0x90;
-	psxHu8ref(0x10F6) = 0x88;
-	psxHu8ref(0x1800) = 0x01;
-	psxHu8ref(0x1801) = 0x02;
-	psxHu8ref(0x1802) = 0x80;
-	psxHu8ref(0x1803) = 0x07;
 }
 
 void psxBiosShutdown() {
