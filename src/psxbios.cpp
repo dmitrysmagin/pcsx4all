@@ -1790,6 +1790,8 @@ void psxBios_StopPAD(void) { // 14
 #endif
 
 	pad_stopped = 1;
+	pad_buf1 = NULL;
+	pad_buf2 = NULL;
 	pc0 = ra;
 	if (autobias)
 		psxRegs.cycle += 1041;
@@ -2910,6 +2912,7 @@ void psxBiosInit(void) {
 	CardState = -1;
 	CurThread = 0;
 	memset(FDesc, 0, sizeof(FDesc));
+	card_active_chan = 0;
 
 	psxMu32ref(0x0150) = SWAPu32(0x160);
 	psxMu32ref(0x0154) = SWAPu32(0x320);
