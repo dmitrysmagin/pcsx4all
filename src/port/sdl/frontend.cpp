@@ -11,6 +11,7 @@
 #include "r3000a.h"
 #include "plugins.h"
 #include "cdrom.h"
+#include "cdriso.h"
 #include "profiler.h"
 #include <SDL.h>
 
@@ -472,20 +473,128 @@ static int gui_state_save()
 
 	return 1;
 }
-static int gui_swap_cd(void)
-{
-	static char isoname[PATH_MAX];
-	const char *name = FileReq(NULL, NULL, isoname);
 
-	if (name == NULL)
+//To choose which of a multi-CD image should be used. Can be called
+// from front-end 'Swap CD' menu item, in which case parameter
+// 'swapping_cd' is true. Or, can be called via callback function
+// gui_select_multicd_to_boot_from() inside cdriso.cpp, in which
+// case swapping_cd parameter is false.
+static int gui_select_multicd(bool swapping_cd)
+{
+	if (cdrIsoMultidiskCount <= 1)
 		return 0;
 
-	printf("CD swap selected file: %s\n", name);
+	// Only max of 8 ISO images inside an Eboot multi-disk .pbp are supported
+	//  by cdriso.cpp PBP code, but enforce it here to be sure:
+	int num_rows = (cdrIsoMultidiskCount > 8) ? 8 : cdrIsoMultidiskCount;
+
+	int cursor_pos = cdrIsoMultidiskSelect;
+	if ((cursor_pos >= num_rows) || (cursor_pos < 0))
+		cursor_pos = 0;
+
+	for (;;) {
+		video_clear();
+		u32 keys = key_read();
+
+		if ((swapping_cd) && (keys & KEY_SELECT)) {
+			key_reset();
+			return 0;
+		}
+
+		if (!swapping_cd)
+			port_printf(MENU_X, MENU_Y, "Multi-CD image detected:");
+
+		char tmp_string[41];
+		for (int row=0; row < num_rows; ++row) {
+			if (row == cursor_pos) {
+				// draw cursor
+				port_printf(MENU_X + 16, MENU_LS + 10 + (10 * row), "-->");
+			}
+
+			sprintf(tmp_string, "CD %d", (row+1));
+
+			if (swapping_cd && (row == cdrIsoMultidiskSelect)) {
+				// print indication of which CD is already inserted
+				strcat(tmp_string, " (inserted)");
+			}
+
+			port_printf(MENU_X + (8 * 5), MENU_LS + 10 + (10 * row), tmp_string);
+		}
+
+		if (keys & KEY_DOWN) { //down
+			if (++cursor_pos >= num_rows)
+				cursor_pos = 0;
+		} else if (keys & KEY_UP) { // up
+			if (--cursor_pos < 0)
+				cursor_pos = num_rows - 1;
+		} else if (keys & KEY_LEFT) { //left
+			cursor_pos = 0;
+		} else if (keys & KEY_RIGHT) { //right
+			cursor_pos = num_rows - 1;
+		} else if (keys & KEY_A) { // button 1
+			key_reset();
+			cdrIsoMultidiskSelect = cursor_pos;
+			video_clear();
+			video_flip();
+			return 1;
+		}
+
+		video_flip();
+		timer_delay(75);
+
+		if (keys & (KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R |
+			    KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN))
+			timer_delay(50);
+	}
+
+}
+
+//Called via callback when handlepbp() in cdriso.cpp detects a multi-CD
+// .pbp image is being loaded, so user can choose CD to boot from.
+// This is necessary because we do not know if a given CD image is
+// a multi-CD image until after cdrom plugin has gone through many
+// steps and verifications.
+static CALLBACK void gui_select_multicd_to_boot_from(void)
+{
+	if (cdrIsoMultidiskSelect >= cdrIsoMultidiskCount)
+		cdrIsoMultidiskSelect = 0;
+
+	//Pass false to indicate a CD is not being swapped through front-end menu
+	gui_select_multicd(false);
+
+	video_clear_all_backbuffers();
+}
+
+static int gui_swap_cd(void)
+{
+	//Is a multi-cd image loaded? (EBOOT .pbp files support this)
+	bool using_multicd = cdrIsoMultidiskCount > 1;
+
+	if (using_multicd) {
+		// Pass true to gui_select_multicd() so it knows CD is being swapped
+		if (!gui_select_multicd(true)) {
+			// User cancelled, return to menu
+			return 0;
+		} else {
+			printf("CD swap selected image %d of %d in multi-CD\n", cdrIsoMultidiskSelect+1, cdrIsoMultidiskCount);
+		}
+	} else {
+		static char isoname[PATH_MAX];
+		const char *name = FileReq(NULL, NULL, isoname);
+		if (name == NULL)
+			return 0;
+
+		SetIsoFile(name);
+		printf("CD swap selected file: %s\n", name);
+	}
 
 	CdromId[0] = '\0';
 	CdromLabel[0] = '\0';
 
-	SetIsoFile(name);
+	//Unregister multi-CD callback so handlepbp() or other cdriso
+	// plugins don't ask for CD to boot from
+	cdrIsoMultidiskCallback = NULL;
+
 	if (ReloadCdromPlugin() < 0) {
 		printf("Failed to re-initialize cdr\n");
 		return 0;
@@ -840,6 +949,11 @@ static int gui_LoadIso()
 
 	if (name) {
 		SetIsoFile(name);
+
+		//If a multi-CD Eboot .pbp is detected, cdriso.cpp's handlepbp() will
+		// call this function later to allow choosing which CD to boot
+		cdrIsoMultidiskCallback = gui_select_multicd_to_boot_from;
+
 		return 1;
 	}
 
@@ -955,10 +1069,14 @@ static int gui_RunMenu(MENU *menu)
 /* 0 - exit, 1 - game loaded */
 int SelectGame()
 {
-	return gui_RunMenu(&gui_MainMenu);
+	int retval = gui_RunMenu(&gui_MainMenu);
+	video_clear_all_backbuffers();
+	return retval;
 }
 
 int GameMenu()
 {
-	return gui_RunMenu(&gui_GameMenu);
+	int retval = gui_RunMenu(&gui_GameMenu);
+	video_clear_all_backbuffers();
+	return retval;
 }
