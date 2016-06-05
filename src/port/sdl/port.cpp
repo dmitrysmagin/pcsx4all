@@ -71,6 +71,7 @@ unsigned iocycle_ok=0;
 #endif
 
 static bool pcsx4all_initted = false;
+static bool emu_running = false;
 
 void config_load();
 void config_save();
@@ -453,7 +454,9 @@ void pad_update(void)
 
 	// SELECT+START for menu
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {
+		emu_running = false;
 		GameMenu();
+		emu_running = true;
 		pad1 |= (1 << DKEY_START);
 		pad1 |= (1 << DKEY_CROSS);
 		video_clear();
@@ -623,11 +626,11 @@ void sound_set(unsigned char *pSound, long lBytes)
 void video_flip(void)
 {
 #ifdef gpu_unai
-	if (show_fps)
+	if (emu_running && show_fps)
 		port_printf(5,5,msg);
 #endif
 #ifdef gpu_dfxvideo
-	if (dfx_show_fps) {
+	if (emu_running && dfx_show_fps) {
 		char msg[256];
 		sprintf(msg, "FPS: %02.02f", fps_cur);
 		port_printf(5,5,msg);
@@ -993,6 +996,8 @@ int main (int argc, char **argv)
 	SCREEN = (Uint16 *)screen->pixels;
 
 	if (argc < 2 || cdrfilename[0] == '\0') {
+		// Enter frontend main-menu:
+		emu_running = false;
 		if (!SelectGame()) {
 			printf("ERROR: missing filename for -iso\n");
 			pcsx4all_exit();
@@ -1010,6 +1015,7 @@ int main (int argc, char **argv)
 	}
 
 	pcsx4all_initted = true;
+	emu_running = true;
 
 	psxReset();
 
