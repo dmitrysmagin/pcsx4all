@@ -24,6 +24,8 @@
 void cdrIsoInit(void);
 int cdrIsoActive(void);
 
+//senquack - See note in cdriso.cpp:
+extern void (CALLBACK *cdrIsoMultidiskCallback)(void);
 extern unsigned int cdrIsoMultidiskCount;
 extern unsigned int cdrIsoMultidiskSelect;
 
