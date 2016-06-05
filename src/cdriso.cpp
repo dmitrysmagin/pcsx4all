@@ -46,9 +46,6 @@
 
 #define OFF_T_MSB ((off_t)1 << (sizeof(off_t) * 8 - 1))
 
-unsigned int cdrIsoMultidiskCount;
-unsigned int cdrIsoMultidiskSelect;
-
 static FILE *cdHandle = NULL;
 static FILE *cddaHandle = NULL;
 static FILE *subHandle = NULL;
@@ -134,6 +131,21 @@ static struct trackinfo ti[MAXTRACKS];
 static char IsoFile[MAXPATHLEN] = "";
 static s64 cdOpenCaseTime = 0;
 
+//-----------------------------------------------------------------------------
+// Multi-CD image section (PSP Eboot .pbp files: see handlepbp() )
+//-----------------------------------------------------------------------------
+unsigned int cdrIsoMultidiskCount = 0;
+unsigned int cdrIsoMultidiskSelect = 0;
+//senquack - The frontend GUI can register a callback function that gets called
+// when a multi-CD image is detected on load (Eboot .pbp format supports this),
+// allowing user to select which CD to boot from. Important for games like
+// Resident Evil 2 which allow different story arcs depending on boot CD.
+// The callback function will return having set cdrIsoMultidiskSelect.
+void (CALLBACK *cdrIsoMultidiskCallback)(void) = NULL;
+//-----------------------------------------------------------------------------
+// END Multi-CD image section
+//-----------------------------------------------------------------------------
+
 // for CD swap
 int ReloadCdromPlugin()
 {
@@ -144,6 +156,10 @@ int ReloadCdromPlugin()
 }
 
 void SetIsoFile(const char *filename) {
+	//Reset multi-CD count & selection when loading any ISO
+	cdrIsoMultidiskCount = 0;
+	cdrIsoMultidiskSelect = 0;
+
 	if (filename == NULL) {
 		IsoFile[0] = '\0';
 		return;
@@ -1040,9 +1056,13 @@ static int handlepbp(const char *isofile) {
 		}
 		cdrIsoMultidiskCount = i;
 		if (cdrIsoMultidiskCount == 0) {
-			printf("multidisk eboot has 0 images?\n");
+			printf("ERROR: multidisk eboot has 0 images?\n");
 			goto fail_io;
 		}
+
+		//senquack - New feature allows GUI front end to register callback
+		// to allow user to pick CD to boot from before proceeding:
+		if (cdrIsoMultidiskCallback) cdrIsoMultidiskCallback();
 
 		if (cdrIsoMultidiskSelect >= cdrIsoMultidiskCount)
 			cdrIsoMultidiskSelect = 0;
@@ -1529,6 +1549,9 @@ long CDR_open(void) {
 	fseek(cdHandle, 0, SEEK_SET);
 
 	printf(".\n");
+
+	if (cdrIsoMultidiskCount > 1)
+		printf("Loading multi-CD image %d of %d.\n", cdrIsoMultidiskSelect+1, cdrIsoMultidiskCount);
 
 	PrintTracks();
 
