@@ -21,6 +21,11 @@
 
 #define timer_delay(a)	wait_ticks(a*1000)
 
+#ifdef gpu_unai
+extern bool show_fps;
+extern bool frameLimit;
+#endif
+
 enum  {
 	KEY_UP=0x1,	KEY_LEFT=0x4,		KEY_DOWN=0x10,	KEY_RIGHT=0x40,
 	KEY_START=1<<8,	KEY_SELECT=1<<9,	KEY_L=1<<10,	KEY_R=1<<11,
@@ -528,8 +533,6 @@ static char *bios_show()
 static int fps_alter(u32 keys)
 {
 #ifdef gpu_unai
-	extern bool show_fps;
-
 	if (keys & KEY_RIGHT) {
 		if (show_fps == false) show_fps = true;
 	} else if (keys & KEY_LEFT) {
@@ -544,7 +547,6 @@ static char *fps_show()
 {
 	static char buf[16] = "\0";
 #ifdef gpu_unai
-	extern bool show_fps;
 	sprintf(buf, "%s", show_fps == true ? "on" : "off");
 #endif
 	return buf;
@@ -553,8 +555,6 @@ static char *fps_show()
 static int framelimit_alter(u32 keys)
 {
 #ifdef gpu_unai
-	extern bool frameLimit;
-
 	if (keys & KEY_RIGHT) {
 		if (frameLimit == false) frameLimit = true;
 	} else if (keys & KEY_LEFT) {
@@ -569,7 +569,6 @@ static char *framelimit_show()
 {
 	static char buf[16] = "\0";
 #ifdef gpu_unai
-	extern bool frameLimit;
 	sprintf(buf, "%s", frameLimit == true ? "on" : "off");
 #endif
 	return buf;
@@ -774,6 +773,36 @@ static int settings_back()
 	return 1;
 }
 
+static int settings_defaults()
+{
+	/* Restores settings to default values. */
+	Config.Xa = 0;
+	Config.Mdec = 0;
+	Config.PsxAuto = 1;
+	Config.Cdda = 0;
+	Config.HLE = 1;
+	Config.RCntFix = 0;
+	Config.VSyncWA = 0;
+#ifdef PSXREC
+	Config.Cpu = 0;
+#else
+	Config.Cpu = 1;
+#endif
+	Config.PsxType = 0;
+	Config.SpuIrq = 0;
+	Config.SyncAudio = 1;
+	Config.ForcedXAUpdates = 1;
+#ifdef gpu_unai
+	show_fps = 0;
+	frameLimit = 0;
+#endif
+#ifdef spu_pcsxrearmed
+	spu_config.iUseInterpolation = 0;
+#endif
+
+	return 0;
+}
+
 static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
 // Disable, because altering those do more harm
@@ -795,12 +824,14 @@ static MENUITEM gui_SettingsItems[] = {
 #ifdef spu_pcsxrearmed
 	{(char *)"[SPU] Interpolation     ", NULL, &interpolation_alter, &interpolation_show},
 #endif
+	{(char *)"Restore default values  ", &settings_defaults, NULL, NULL},
+	{NULL, NULL, NULL, NULL},
 	{(char *)"Back to main menu", &settings_back, NULL, NULL},
 	{0}
 };
 
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 110, (MENUITEM *)&gui_SettingsItems };
+static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 60, (MENUITEM *)&gui_SettingsItems };
 
 static int gui_LoadIso()
 {
@@ -879,11 +910,16 @@ static int gui_RunMenu(MENU *menu)
 			key_reset();
 			return 0;
 		} else if (keys & KEY_UP) {
-			if (--menu->cur < 0)
-				menu->cur = menu->num - 1;
+			do {
+				if (--menu->cur < 0)
+					menu->cur = menu->num - 1;
+			} while (!(menu->m + menu->cur)->name); // Skip over an empty menu entry.
+
 		} else if (keys & KEY_DOWN) {
-			if (++menu->cur == menu->num)
-				menu->cur = 0;
+			do {
+				if (++menu->cur == menu->num)
+					menu->cur = 0;
+			} while (!(menu->m + menu->cur)->name); // Skip over an empty menu entry.
 		} else if (keys & KEY_A) {
 			if (mi->on_press_a) {
 				key_reset();
