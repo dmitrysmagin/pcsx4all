@@ -460,6 +460,12 @@ void pad_update(void)
 		pad1 |= (1 << DKEY_START);
 		pad1 |= (1 << DKEY_CROSS);
 		video_clear();
+		video_flip();
+		video_clear();
+#ifdef SDL_TRIPLEBUF
+		video_flip();
+		video_clear();
+#endif
 #ifdef gpu_unai
 		extern bool fb_dirty;
 		fb_dirty = true; // redraw screen
