@@ -22,6 +22,9 @@
 * PSX memory functions.
 */
 
+#include <sys/types.h>
+#include <dirent.h>
+
 #include "psxmem.h"
 #include "r3000a.h"
 #include "psxhw.h"
@@ -125,6 +128,9 @@ int psxMemInit() {
 }
 
 void psxMemReset() {
+	DIR *dirstream = NULL;
+	struct dirent *direntry;
+	boolean biosfound = FALSE;
 	FILE *f = NULL;
 	char bios[MAXPATHLEN];
 
@@ -132,17 +138,39 @@ void psxMemReset() {
 	memset(psxP, 0, 0x00010000);
 
 	if (Config.HLE==FALSE) {
-		sprintf(bios, "%s/%s", Config.BiosDir, Config.Bios);
-		f = fopen(bios, "rb");
+		dirstream = opendir(Config.BiosDir);
 
-		if (f == NULL) {
-			printf ("Could not open BIOS:\"%s\". Enabling HLE Bios!\n", bios);
+		if (dirstream == NULL) {
+			printf("Could not open BIOS directory: \"%s\". Enabling HLE Bios!\n", Config.BiosDir);
 			memset(psxR, 0, 0x80000);
-				Config.HLE = TRUE;
-		} else {
-			fread(psxR, 1, 0x80000, f);
-			fclose(f);
-				Config.HLE = FALSE;
+			Config.HLE = TRUE;
+			return;
+		}
+
+		while ((direntry = readdir(dirstream))) {
+			if (!strcasecmp(direntry->d_name, Config.Bios)) {
+				if (snprintf(bios, MAXPATHLEN, "%s/%s", Config.BiosDir, direntry->d_name) >= MAXPATHLEN)
+					continue;
+
+				f = fopen(bios, "rb");
+
+				if (f == NULL) {
+					continue;
+				} else {
+					fread(psxR, 1, 0x80000, f);
+					fclose(f);
+					Config.HLE = FALSE;
+					biosfound = TRUE;
+					break;
+				}
+			}
+		}
+		closedir(dirstream);
+
+		if (!biosfound) {
+			printf("Could not locate BIOS: \"%s\". Enabling HLE Bios!\n", Config.Bios);
+			memset(psxR, 0, 0x80000);
+			Config.HLE = TRUE;
 		}
 	} else Config.HLE = TRUE;
 }
