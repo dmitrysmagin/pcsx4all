@@ -562,9 +562,7 @@ static CALLBACK void gui_select_multicd_to_boot_from(void)
 	//Pass false to indicate a CD is not being swapped through front-end menu
 	gui_select_multicd(false);
 
-	//Before return to emu, clear/flip once more in case we're triple-buffered
-	video_clear();
-	video_flip();
+	video_clear_all_backbuffers();
 }
 
 static int gui_swap_cd(void)
@@ -1071,10 +1069,14 @@ static int gui_RunMenu(MENU *menu)
 /* 0 - exit, 1 - game loaded */
 int SelectGame()
 {
-	return gui_RunMenu(&gui_MainMenu);
+	int retval = gui_RunMenu(&gui_MainMenu);
+	video_clear_all_backbuffers();
+	return retval;
 }
 
 int GameMenu()
 {
-	return gui_RunMenu(&gui_GameMenu);
+	int retval = gui_RunMenu(&gui_GameMenu);
+	video_clear_all_backbuffers();
+	return retval;
 }

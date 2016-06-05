@@ -664,6 +664,21 @@ void video_clear(void)
 	memset(screen->pixels, 0, screen->pitch*screen->h);
 }
 
+// Used when leaving frontend GUI and going to emu:
+void video_clear_all_backbuffers(void)
+{
+	//Clear/flip twice in case we're double-buffered:
+	video_clear(); video_flip();
+	video_clear(); video_flip();
+
+#ifdef SDL_TRIPLEBUF
+	//Delay 1 frame and do again so we clear the third buffer held by last vsync:
+	SDL_Delay(17);
+	video_clear(); video_flip();
+	video_clear(); //No need to flip fourth time
+#endif
+}
+
 int main (int argc, char **argv)
 {
 	char filename[256];

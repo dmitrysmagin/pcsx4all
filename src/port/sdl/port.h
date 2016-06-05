@@ -33,6 +33,7 @@ extern void sound_set(unsigned char *pSound, long lBytes);
 extern void video_flip(void);
 extern void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 extern void video_clear(void);
+extern void video_clear_all_backbuffers(void);
 extern void pcsx4all_exit(void);
 extern void port_printf(int x, int y, const char *text);
 extern void port_sync(void);
