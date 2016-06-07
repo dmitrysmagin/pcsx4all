@@ -284,6 +284,7 @@ static void StoreToAddr(int count)
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 		/* Invalidate recRAM[addr+imm16] pointer */
+		ADDIU(MIPSREG_A0, r1, imm);
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
 		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
 		LW(MIPSREG_V0, PERM_REG_1, off(reserved));
