@@ -387,10 +387,13 @@ void sioInterrupt() {
 #ifdef PAD_LOG
 	PAD_LOG("Sio Interrupt (CP0.Status = %x)\n", psxRegs.CP0.n.Status);
 #endif
-//	printf("Sio Interrupt\n");
-	StatReg|= IRQ;
-	psxHu32ref(0x1070)|= SWAPu32(0x80);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
+	//printf("Sio Interrupt\n");
+	//  pcsx_rearmed: only do IRQ if it's bit has been cleared
+	if (!(StatReg & IRQ)) {
+		StatReg |= IRQ;
+		psxHu32ref(0x1070) |= SWAPu32(0x80);
+	}
+	// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 }
 
