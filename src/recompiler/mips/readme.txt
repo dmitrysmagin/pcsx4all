@@ -16,7 +16,7 @@ What's already done:
  - Cleaned up from dead code and leftovers from arm recompiler
  - Simplified zero register optimizations, since mips has hardware
    zero register unlike arm
- - Implemented code generation for DIV/DIVU
+ - Implemented code generation for DIV/DIVU/MTHI/MFHI/MTLO/MFLO
  - Implemented consequent LWL/LWR/SWL/SWR optimizations
  - Implemented consequent loads/stores optimizations
  - Improved constant caching, eliminated useless const reloads
@@ -29,6 +29,8 @@ What's already done:
  TODO list
 
 * recompiler:
+  - Rework block recompilation to fix recExecuteBlock for HLE
+  - Move to gte_new / gte_pcsx using
   - Implement more GTE code generation
 
 * constants caching
@@ -43,4 +45,3 @@ What's already done:
  KNOWN BUGS
 
 * Tekken 2 has broken graphics (it's correct with interpreter)
-* G.Darius hangs if compiled with USE_DIRECT_MEM_ACCESS
