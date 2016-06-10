@@ -74,7 +74,12 @@ void sioInit(void) {
 	if (autobias)
 		sio_cycle=136*8;
 	else
-		sio_cycle=200*BIAS; /* for SIO_INT() */
+		//senquack-Rearmed uses 535 in all cases, so we'll use that instead:
+		//sio_cycle=200*BIAS; /* for SIO_INT() */
+
+		// clk cycle byte
+		// 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
+		sio_cycle=535;
 }
 
 //senquack - Updated to use PSXINT_* enum and intCycle struct (much cleaner than before)
@@ -294,7 +299,8 @@ void sioWriteCtrl16(unsigned short value) {
 #endif
 	CtrlReg = value & ~RESET_ERR;
 	if (value & RESET_ERR) StatReg &= ~IRQ;
-	//senquack - Updated to match PCSXR:
+	//senquack - Updated to match PCSX Rearmed
+	// 'no DTR resets device, tested on the real thing'
 	//if ((CtrlReg & SIO_RESET) || (!CtrlReg)) {
 	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
 		padst = 0; mcdst = 0; parp = 0;
