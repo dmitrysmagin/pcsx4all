@@ -27,6 +27,7 @@
 #include "plugins.h"
 
 extern u32 psxNextCounter, psxNextsCounter;
+extern u32 spu_upd_interval;
 
 typedef struct Rcnt
 {
@@ -34,9 +35,6 @@ typedef struct Rcnt
     u32 rate, irq, counterState, irqState;
     u32 cycle, cycleStart;
 } Rcnt;
-extern Rcnt rcnts[];
-
-extern void psxRcntUVtarget(void);
 
 extern void psxRcntInit(void);
 extern void psxRcntUpdate(void);
@@ -51,8 +49,6 @@ extern u32 psxRcntRtarget(u32 index);
 
 extern s32 psxRcntFreeze(gzFile f, s32 Mode);
 
-extern void psxSetSyncs(unsigned h_sync, unsigned s_sync);
-extern unsigned psxGetHSync(void);
 extern unsigned psxGetSpuSync(void);
 
 #endif /* __PSXCOUNTERS_H__ */

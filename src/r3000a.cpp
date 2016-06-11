@@ -392,6 +392,22 @@ void psxBranchTest() {
 	dbg("");
 #endif
 
+	//senquack - Update SPU plugin & feed audio backend. This used to be done
+	// in psxcounters.cpp VSync rootcounter, but moved here after rootcounter
+	// code was updated to match pcsx_rearmed.
+	if ((psxRegs.cycle - psxRegs.SPU_intCycle.sCycle) >= psxRegs.SPU_intCycle.cycle) {
+#ifdef spu_pcsxrearmed
+		//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
+		// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
+		psxRegs.interrupt &= ~(1 << PSXINT_SPUIRQ);
+
+		SPU_async(psxRegs.cycle, 1);
+#else
+		SPU_async();
+#endif
+		SCHEDULE_SPU_UPDATE(spu_upd_interval);
+	}
+
 	if (psxRegs.interrupt) {
 		//senquack - TODO: add support for new Config.Sio option of PCSXR?
 		if ((psxRegs.interrupt & (1 << PSXINT_SIO)) /* && !Config.Sio */ ) { // sio
@@ -489,10 +505,13 @@ void psxBranchTest() {
 			}
 		}
 #ifdef spu_pcsxrearmed
-		//senquack - spu_pcsxrearmed plugin schedules its own updates
-		if (psxRegs.interrupt & (1 << PSXINT_SPU_UPDATE)) { // scheduled spu update
-			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
-				psxRegs.interrupt &= ~(1 << PSXINT_SPU_UPDATE);
+		//senquack - spu_pcsxrearmed plugin schedules this update when a game
+		// is using the HW SPU IRQ (like Metal Gear Solid). The '0' parameter
+		// to SPU_async() tells SPU plugin to just scan for upcoming HW IRQs,
+		// but not to feed audio backend.
+		if (psxRegs.interrupt & (1 << PSXINT_SPUIRQ)) { // scheduled spu HW IRQ update
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUIRQ].sCycle) >= psxRegs.intCycle[PSXINT_SPUIRQ].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_SPUIRQ);
 				SPU_async(psxRegs.cycle, 0);
 			}
 		}
