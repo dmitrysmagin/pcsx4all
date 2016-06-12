@@ -240,16 +240,15 @@ do { \
 /* start of the recompiled block */
 #define rec_recompile_start() \
 do { \
-	if (loadedpermregs == 0) { \
-		LI32(PERM_REG_1, (u32)&psxRegs); \
-		loadedpermregs = 1; \
-	} \
+	PUSH(MIPSREG_RA); \
+	LI32(PERM_REG_1, (u32)&psxRegs); \
 } while (0)
 
 /* end of the recompiled block */
 #define rec_recompile_end() \
 do { \
-	write32(0x00000008 | (MIPSREG_V0 << 21)); /* jr v0 */ \
+	POP(MIPSREG_RA); \
+	write32(0x00000008 | (MIPSREG_RA << 21)); /* jr ra */ \
 	write32(0); /* nop */ \
 } while (0)
 

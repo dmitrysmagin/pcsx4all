@@ -155,23 +155,12 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 	return 0;
 }
 #endif
-static u32 psxBranchTest_rec(u32 cycles, u32 pc)
+static void psxBranchTest_rec(u32 cycles, u32 pc)
 {
-	/* Misc helper */
 	psxRegs.pc = pc;
 	psxRegs.cycle += cycles;
 
 	psxBranchTest();
-
-	u32 compiledpc = (u32)PC_REC32(psxRegs.pc);
-	if (compiledpc) {
-		//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", compiledpc, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
-		return compiledpc;
-	}
-
-	u32 a = recRecompile();
-	//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", a, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
-	return a;
 }
 
 static void recSYSCALL()
