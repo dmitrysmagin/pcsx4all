@@ -42,16 +42,16 @@ int LoadPlugins(void) {
 	if (ret < 0) { printf ("Error initializing SPU plugin: %d\n", ret); return -1; }
 
 #ifdef spu_pcsxrearmed
-	//senquack - NOTE: this is an important function to call, as SPU
-	// IRQs will not be acknowledged otherwise, leading to repeating sound
-	// problems in games like NFS3, Grandia, Fifa98, and some games will
-	// lack music like Chrono Cross FMV music, THPS2 etc.
+	//senquack - PCSX Rearmed SPU supports handling SPU hardware IRQ through
+	// two callback functions. Needed by games like NFS3, Grandia, Fifa98,
+	// Chrono Cross, THPS2 etc.
 	// Only spu_pcsxrearmed supports this (older SPU plugins all had
 	// problems with sound in these games.. TODO: add support?)
-	SPU_registerCallback(AcknowledgeSPUIRQ);
+	SPU_registerCallback(Trigger_SPU_IRQ);
 
-	//senquack - pcsx_rearmed SPU plugin schedules its own updates:
-	SPU_registerScheduleCb(ScheduleSPUUpdate);
+	//senquack - pcsx_rearmed SPU plugin schedules its own updates to scan
+	// for upcoming SPU HW interrupts, calling above function when needed.
+	SPU_registerScheduleCb(Schedule_SPU_IRQ);
 #endif
 
 	cdrfilename=GetIsoFile();
@@ -74,16 +74,22 @@ void ReleasePlugins(void) {
 extern "C" {
 #endif
 
-//senquack - A generic function SPU plugins can use to acknowledge SPU interrupts:
-void CALLBACK AcknowledgeSPUIRQ(void) {
+//senquack - A generic function SPU plugins can use to set the hardware
+// SPU interrupt bit (currently only used by spu_pcsxrearmed)
+void CALLBACK Trigger_SPU_IRQ(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
 }
 
-//senquack - A generic function SPU plugins can use to schedule an SPU update:
-void CALLBACK ScheduleSPUUpdate(unsigned int cycles_after) {
-	psxRegs.interrupt |= (1 << PSXINT_SPU_UPDATE);
-	psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle = cycles_after;
-	psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle = psxRegs.cycle;
+//senquack - A generic function SPU plugins can use to schedule an update
+// that scans for upcoming SPU HW IRQs. If one is encountered, above
+// function will be called.
+// (This is used by games that use the actual hardware SPU IRQ like
+//  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc. and is currently
+//  only implemented in spu_pcsxrearmed)
+void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after) {
+	psxRegs.interrupt |= (1 << PSXINT_SPUIRQ);
+	psxRegs.intCycle[PSXINT_SPUIRQ].cycle = cycles_after;
+	psxRegs.intCycle[PSXINT_SPUIRQ].sCycle = psxRegs.cycle;
 }
 
 #ifdef __cplusplus

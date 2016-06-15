@@ -134,8 +134,8 @@ extern void SPU_playCDDAchannel(unsigned char *, int);
 extern "C" {
 #endif
 
-void CALLBACK AcknowledgeSPUIRQ();
-void CALLBACK ScheduleSPUUpdate(unsigned int cycles_after);
+void CALLBACK Trigger_SPU_IRQ(void);
+void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
 
 #ifdef __cplusplus
 }
