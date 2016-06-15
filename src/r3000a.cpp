@@ -395,7 +395,9 @@ void psxBranchTest() {
 	//senquack - Update SPU plugin & feed audio backend. This used to be done
 	// in psxcounters.cpp VSync rootcounter, but moved here after rootcounter
 	// code was updated to match pcsx_rearmed.
-	if ((psxRegs.cycle - psxRegs.SPU_intCycle.sCycle) >= psxRegs.SPU_intCycle.cycle) {
+	// NOTE: PSXINT_SPU_UPDATE is always active and checked, it does not
+	//  set or check a flag of its own in psxRegs.interrupts.
+	if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
 #ifdef spu_pcsxrearmed
 		//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
 		// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
