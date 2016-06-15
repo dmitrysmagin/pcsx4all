@@ -137,6 +137,15 @@ extern "C" {
 void CALLBACK Trigger_SPU_IRQ(void);
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
 
+// senquack- TODO: add ResetIoCycle() like other older PCSX4ALL code has
+//  littered everywhere?
+//Note: There is no need to set a PSXINT flag in psxRegs.interrupts
+// for PSXINT_SPU_UPDATE, as SPU updates are always enabled/checked.
+#define SCHEDULE_SPU_UPDATE(eCycle) { \
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle = eCycle; \
+	psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle = psxRegs.cycle; \
+}
+
 #ifdef __cplusplus
 }
 #endif

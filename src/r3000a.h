@@ -157,16 +157,13 @@ enum {
 	PSXINT_RCNT,          //senquack - not used (see psxcounters.cpp)
 	PSXINT_CDRLID,
 	PSXINT_CDRPLAY,
-	PSXINT_SPUIRQ,
+	PSXINT_SPUIRQ,        //senquack - check for upcoming SPU HW interrupts
+	PSXINT_SPU_UPDATE,    //senquack - update and feed SPU (note that this usage
+                          // differs from Rearmed: Rearmed uses this for checking
+                          // for SPU HW interrupts and lacks a flexibly-scheduled
+                          // interval for SPU update-and-feed)
 	PSXINT_COUNT
 };
-
-// senquack- TODO: add ResetIoCycle() like other older PCSX4ALL code has
-//  littered everywhere?
-#define SCHEDULE_SPU_UPDATE(eCycle) { \
-	psxRegs.SPU_intCycle.cycle = eCycle; \
-	psxRegs.SPU_intCycle.sCycle = psxRegs.cycle; \
-}
 
 typedef struct {
 	psxGPRRegs GPR;		/* General Purpose Registers */
@@ -181,9 +178,6 @@ typedef struct {
 	//senquack - Converted to newer PCSXR struct:
 	//u32 intCycle[32];
 	struct { u32 sCycle, cycle; } intCycle[32];
-
-	// SPU update handled separately since it is persistent:
-	struct { u32 sCycle, cycle; } SPU_intCycle;
 
 // CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
