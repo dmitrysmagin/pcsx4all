@@ -1354,6 +1354,7 @@ void psxBios_LoadExec(void) { // 51
 	psxBios_Exec();
 }
 
+//senquack - updated to match PCSX Rearmed:
 void psxBios__bu_init(void) { // 70
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x70]);
@@ -1365,12 +1366,6 @@ void psxBios__bu_init(void) { // 70
 	pc0 = ra;
 	if (autobias)
 		psxRegs.cycle+=8192;
-	while(psxGetHSync()){
-		u32 c=rcnts[3].cycle + rcnts[3].cycleStart;
-		if (psxRegs.cycle<c)
-			psxRegs.cycle=c+1;
-		psxRcntUpdate();
-	}
 }
 
 void psxBios__96_init(void) { // 71

@@ -21,6 +21,30 @@
  * Internal PSX counters.
  */
 
+///////////////////////////////////////////////////////////////////////////////
+//senquack - NOTE: Root counters code here has been updated to match Notaz's
+// PCSX Rearmed where possible. Important changes include:
+// * Proper handling of counter overflows.
+// * VBlank root counter (counter 3) is triggered only as often as needed,
+//   not every HSync.
+// * Because SPU was originally updated inside VBlank root counter code, the
+//   above change necessitated moving SPU update handling to psxBranchTest()
+//   in r3000a.cpp. In PCSX Rearmed, Notaz's SPU plugin requires an update
+//   only once per emulated frame, but we target slower devices and until
+//   we get good auto-frameskip, more-frequent SPU updates are necessary.
+//   Older SPU plugins required *much* more frequent updates, making it even
+//   less practical to do SPU updates here now that psxRcntUpdate() here is
+//   called so much less frequently.
+// * Some optimizations, more accurate calculation of timer updates.
+//
+// TODO : Implement HW_GPU_STATUS code from Rearmed
+// TODO : Implement direct rootcounter mem access of Rearmed dynarec?
+//        (see https://github.com/notaz/pcsx_rearmed/commit/b1be1eeee94d3547c20719acfa6b0082404897f1 )
+//        Seems to make Parasite Eve 2 RCntFix hard to implement, though.
+// TODO : Implement Rearmed's auto-frameskip so SPU doesn't need to
+//        hackishly be updated twice per emulated frame.
+// TODO : Implement Rearmed's frame limiter
+
 #include "psxcounters.h"
 #include "profiler.h"
 
@@ -59,26 +83,68 @@ static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
 static const u32 FrameRate[]      = { 60, 50 };
-static const u32 VBlankStart[]    = { 240, 256 };
-static const u32 HSyncTotal[]     = { 262, 312 };
+
+//senquack - Originally {262,312}, updated to match Rearmed:
+static const u32 HSyncTotal[]     = { 263, 313 };
+
+//senquack - TODO: PCSX Reloaded uses {243,256} here, and Rearmed
+// does away with array completely and uses 240 in all cases:
+//static const u32 VBlankStart[]    = { 240, 256 };
+#define VBlankStart 240
+
+//Cycles between SPU plugin updates
+u32 spu_upd_interval;
+
+#ifndef spu_pcsxrearmed
+// Older SPU plugins are updated every 23rd HSync, regardless of PAL/NTSC mode
 #define SPU_UPD_INTERVAL 23
+#endif
 
 /******************************************************************************/
 
-Rcnt rcnts[ CounterQuantity ];
+static Rcnt rcnts[ CounterQuantity ];
 
 static u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;
+
+//senquack - Added two vars from PCSX Rearmed:
+static u32 hsync_steps = 0;
+static u32 base_cycle = 0;
 
 u32 psxNextCounter = 0, psxNextsCounter = 0;
 
 /******************************************************************************/
 
-INLINE void setIrq( u32 irq )
+static inline void setIrq( u32 irq )
 {
 	psxHu32ref(0x1070) |= SWAPu32(irq);
 // CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
     	ResetIoCycle();
+}
+
+//senquack - Added verboseLog & VERBOSE_LEVEL from PCSX Rearmed:
+#define VERBOSE_LEVEL 0
+
+#ifdef DEBUG_BIOS    // Original code logged in many places here when DEBUG_BIOS was defined, so do the same
+#define VERBOSE_LEVEL 1
+#endif
+
+static void verboseLog( u32 level, const char *str, ... )
+{
+#if VERBOSE_LEVEL > 0
+    if( level <= VerboseLevel )
+    {
+        va_list va;
+        char buf[ 4096 ];
+
+        va_start( va, str );
+        vsprintf( buf, str, va );
+        va_end( va );
+
+        printf( "%s", buf );
+        fflush( stdout );
+    }
+#endif
 }
 
 /******************************************************************************/
@@ -87,9 +153,7 @@ INLINE void _psxRcntWcount( u32 index, u32 value )
 {
     if( value > 0xffff )
     {
-#ifdef DEBUG_BIOS
-        dbgf("[RCNT %i] wcount > 0xffff: %x\n", index, value );
-#endif
+        verboseLog( 1, "[RCNT %i] wcount > 0xffff: %x\n", index, value );
         value &= 0xffff;
     }
 
@@ -104,29 +168,73 @@ INLINE void _psxRcntWcount( u32 index, u32 value )
     }
     else
     {
-        rcnts[index].cycle = 0xffff * rcnts[index].rate;
+        rcnts[index].cycle = 0x10000 * rcnts[index].rate;
         rcnts[index].counterState = CountToOverflow;
     }
 }
 
-INLINE u32 _psxRcntRcount( u32 index )
+static inline u32 _psxRcntRcount( u32 index )
 {
     u32 count;
 
     count  = psxRegs.cycle;
     count -= rcnts[index].cycleStart;
     if (rcnts[index].rate > 1)
-    	count = UDIV(count,rcnts[index].rate);
+        count = UDIV(count,rcnts[index].rate);
 
-    if( count > 0xffff )
+    if( count > 0x10000 )
     {
-#ifdef DEBUG_BIOS
-        dbgf("[RCNT %i] rcount > 0xffff: %x\n", index, count );
-#endif
-        count &= 0xffff;
+        verboseLog( 1, "[RCNT %i] rcount > 0x10000: %x\n", index, count );
     }
+    count &= 0xffff;
 
     return count;
+}
+
+//senquack - Added from PCSX Rearmed:
+static void _psxRcntWmode( u32 index, u32 value )
+{
+    rcnts[index].mode = value;
+
+    switch( index )
+    {
+        case 0:
+            if( value & Rc0PixelClock )
+            {
+                rcnts[index].rate = 5;
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+        break;
+        case 1:
+            if( value & Rc1HSyncClock )
+            {
+                rcnts[index].rate = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+        break;
+        case 2:
+            if( value & Rc2OneEighthClock )
+            {
+                rcnts[index].rate = 8;
+            }
+            else
+            {
+                rcnts[index].rate = 1;
+            }
+
+            // TODO: wcount must work.
+            if( value & Rc2Disable )
+            {
+                rcnts[index].rate = 0xffffffff;
+            }
+        break;
+    }
 }
 
 /******************************************************************************/
@@ -158,6 +266,15 @@ static void psxRcntSet(void)
             psxNextCounter = countToUpdate;
         }
     }
+
+    //senquack - PCSX Rearmed uses emu interrupt PSXINT_RCNT to schedule
+    // calls to psxRcntUpdate(), but we retain the original method of directly
+    // checking psxNextCounter/psxNextsCounter in r3000a.cpp psxBranchTest().
+    // This is better anyway, since vBlank root counter is *always* scheduled,
+    // making it possible to efficiently check if any irregular PSXINT_* emu
+    // interrupts are pending inside psxBranchTest(), a very hot block of code.
+    //psxRegs.interrupt |= (1 << PSXINT_RCNT);
+
 #ifndef USE_EXTRA_IO_CYCLES
     {
 	const u32 value = psxRegs.cycle+psxNextCounter;
@@ -171,56 +288,58 @@ static void psxRcntSet(void)
 
 static void psxRcntReset( u32 index )
 {
-    u32 count;
+    u32 rcycles;
+
+    rcnts[index].mode |= RcUnknown10;
 
     if( rcnts[index].counterState == CountToTarget )
     {
+        rcycles = psxRegs.cycle - rcnts[index].cycleStart;
         if( rcnts[index].mode & RcCountToTarget )
         {
-            count  = psxRegs.cycle;
-            count -= rcnts[index].cycleStart;
-            if (rcnts[index].rate > 1)
-				count = UDIV(count,rcnts[index].rate);
-            count -= rcnts[index].target;
+            rcycles -= rcnts[index].target * rcnts[index].rate;
+            rcnts[index].cycleStart = psxRegs.cycle - rcycles;
         }
         else
         {
-            count = _psxRcntRcount( index );
+            rcnts[index].cycle = 0x10000 * rcnts[index].rate;
+            rcnts[index].counterState = CountToOverflow;
         }
-
-        _psxRcntWcount( index, count );
 
         if( rcnts[index].mode & RcIrqOnTarget )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-#ifdef DEBUG_BIOS
-                dbgf("[RCNT %i] irq: %x\n", index, count );
-#endif
+                verboseLog( 3, "[RCNT %i] irq\n", index );
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
         }
 
         rcnts[index].mode |= RcCountEqTarget;
-    }
-    else if( rcnts[index].counterState == CountToOverflow )
-    {
-        count  = psxRegs.cycle;
-        count -= rcnts[index].cycleStart;
-        if (rcnts[index].rate > 1)
-			count = UDIV(count,rcnts[index].rate);
-        count -= 0xffff;
 
-        _psxRcntWcount( index, count );
+        if( rcycles < 0x10000 * rcnts[index].rate )
+            return;
+    }
+
+    if( rcnts[index].counterState == CountToOverflow )
+    {
+        rcycles = psxRegs.cycle - rcnts[index].cycleStart;
+        rcycles -= 0x10000 * rcnts[index].rate;
+
+        rcnts[index].cycleStart = psxRegs.cycle - rcycles;
+
+        if( rcycles < rcnts[index].target * rcnts[index].rate )
+        {
+            rcnts[index].cycle = rcnts[index].target * rcnts[index].rate;
+            rcnts[index].counterState = CountToTarget;
+        }
 
         if( rcnts[index].mode & RcIrqOnOverflow )
         {
             if( (rcnts[index].mode & RcIrqRegenerate) || (!rcnts[index].irqState) )
             {
-#ifdef DEBUG_BIOS
-                dbgf("[RCNT %i] irq: %x\n", index, count );
-#endif
+                verboseLog( 3, "[RCNT %i] irq\n", index );
                 setIrq( rcnts[index].irq );
                 rcnts[index].irqState = 1;
             }
@@ -228,10 +347,6 @@ static void psxRcntReset( u32 index )
 
         rcnts[index].mode |= RcOverflow;
     }
-
-    rcnts[index].mode |= RcUnknown10;
-
-    psxRcntSet();
 }
 
 void psxRcntUpdate()
@@ -269,59 +384,37 @@ void psxRcntUpdate()
     // rcnt base.
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
-        psxRcntReset( 3 );
+        // TODO (senquack): Implement HW_GPU_STATUS code from Rearmed
+        u32 leftover_cycles = cycle - rcnts[3].cycleStart - rcnts[3].cycle;
+        u32 next_vsync;
 
-        hSyncCount++;
+        hSyncCount += hsync_steps;
 
-        //senquack - Adapted pcsxReARMed SPU to PSX4ALL:
-#ifdef spu_pcsxrearmed
-        //senquack - in pcsxReARMed, it only calls SPU_async() when vblank start is reached:
-		//NOTE AND TODO: in PCSX_ReARMed, it always compares hSyncCount to 240, regardless of
-		//				 type of PSX being emulated, i.e. PAL would be 256 I think versus 
-		//				 NTSC vblank at 240????
-        //if (hSyncCount == 240)								// Original PCSX_ReARMed behavior
-        ////if (hSyncCount == VBlankStart[Config.PsxType])	// What *might* be more correct behavior -senquack
-        //    SPU_async( cycle, 1 );
-		//senquack - Calling SPU_async() at such an infrequent interval as above
-		// causes audio dropouts on slow devices like GCW. I've made it update
-		// twice as often for now.
-		//TODO: Frequency of updates might need to be configurable if we ever
-		// use video output with VSYNC enabled, for instance GCW Zero's GLES
-		// driver demands it. That might cause frame rate to drop to 30,
-		// making audio drop out again even after the change below..
-        if (hSyncCount == 120 || hSyncCount == 240)
-            SPU_async( cycle, 1 );
-
-#else
-        // Update spu.
-        spuSyncCount++;
-        if( spuSyncCount >= SPU_UPD_INTERVAL )
-        {
-            spuSyncCount = 0;
-            SPU_async();
-        }
-#endif //spu_pcsxrearmed
-
-        /*
-        // For the best times. :D
         // VSync irq.
-        if( hSyncCount == VBlankStart[Config.PsxType] )
+        if( hSyncCount == VBlankStart )
         {
+#ifdef DEBUG_BIOS
+            dbg("UpdateLace");
+#endif
             setIrq( 0x01 );
+            GPU_updateLace();
+            pad_update();
+
+#ifdef spu_pcsxrearmed
+            //senquack - PCSX Rearmed updates its SPU plugin once per emulated
+            // frame. However, we target slower platforms like GCW Zero, and
+            // lack auto-frameskip, so this would lead to audio dropouts. For
+            // now, we update SPU plugin twice per frame in r3000a.cpp
+            // psxBranchTest()
+            //SPU_async( cycle, 1 );
+#endif
         }
-        */
+
         // Update lace. (with InuYasha fix)
         if( hSyncCount >= (Config.VSyncWA ? UDIV(HSyncTotal[Config.PsxType],BIAS) : HSyncTotal[Config.PsxType]) )
         {
-#ifdef DEBUG_BIOS
-	    dbg("UpdateLace");
-#endif
             hSyncCount = 0;
 
-            setIrq( 0x01 );
-
-            GPU_updateLace();
-		pad_update();
 #ifdef DEBUG_END_FRAME
 		{
 			static unsigned _endframe_=0;
@@ -361,7 +454,26 @@ void psxRcntUpdate()
 				pcsx4all_exit();
 			}
         }
+
+        // Schedule next call, in hsyncs
+        hsync_steps = HSyncTotal[Config.PsxType] - hSyncCount;
+        next_vsync = VBlankStart - hSyncCount; // ok to overflow
+        if( next_vsync && next_vsync < hsync_steps )
+            hsync_steps = next_vsync;
+
+        rcnts[3].cycleStart = cycle - leftover_cycles;
+        if (Config.PsxType)
+                // 20.12 precision, clk / 50 / 313 ~= 2164.14
+                base_cycle += hsync_steps * 8864320;
+        else
+                // clk / 60 / 263 ~= 2146.31
+                base_cycle += hsync_steps * 8791293;
+        rcnts[3].cycle = base_cycle >> 12;
+        base_cycle &= 0xfff;
     }
+
+    psxRcntSet();
+
     pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
 }
 
@@ -369,80 +481,26 @@ void psxRcntUpdate()
 
 void psxRcntWcount( u32 index, u32 value )
 {
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] wcount: %x\n", index, value );
-#endif
-
-    psxRcntUpdate();
+    verboseLog( 2, "[RCNT %i] wcount: %x\n", index, value );
 
     _psxRcntWcount( index, value );
     psxRcntSet();
 }
 
-static u32 rcnt_target;
-
 void psxRcntWmode( u32 index, u32 value )
 {
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] wmode: %x\n", index, value );
-#endif
+    verboseLog( 1, "[RCNT %i] wmode: %x\n", index, value );
 
-    psxRcntUpdate();
-
-    rcnts[index].mode = value;
-    rcnts[index].irqState = 0;
-
-    switch( index )
-    {
-        case 0:
-            if( value & Rc0PixelClock )
-            {
-                rcnts[index].rate = 5;
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-        break;
-        case 1:
-            if( value & Rc1HSyncClock )
-            {
-                rcnts[index].rate = rcnt_target;
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-        break;
-        case 2:
-            if( value & Rc2OneEighthClock )
-            {
-                rcnts[index].rate = 8;
-            }
-            else
-            {
-                rcnts[index].rate = 1;
-            }
-
-            // TODO: wcount must work.
-            if( value & Rc2Disable )
-            {
-                rcnts[index].rate = 0xffffffff;
-            }
-        break;
-    }
-
+    _psxRcntWmode( index, value );
     _psxRcntWcount( index, 0 );
+
+    rcnts[index].irqState = 0;
     psxRcntSet();
 }
 
 void psxRcntWtarget( u32 index, u32 value )
 {
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] wtarget: %x\n", index, value );
-#endif
-
-    psxRcntUpdate();
+    verboseLog( 1, "[RCNT %i] wtarget: %x\n", index, value );
 
     rcnts[index].target = value;
 
@@ -460,6 +518,7 @@ u32 psxRcntRcount( u32 index )
     pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     u32 count;
 
+	//senquack - TODO: Do we still need this?
 #ifndef USE_NO_IDLE_LOOP
     if (autobias) {
 	u32 cycle_next=rcnts[index].cycle+rcnts[index].cycleStart;
@@ -481,25 +540,18 @@ u32 psxRcntRcount( u32 index )
     	}
     }
 #endif
-    psxRcntUpdate();
 
     count = _psxRcntRcount( index );
 
     // Parasite Eve 2 fix.
-    if( Config.RCntFix )
-    {
-        if( index == 2 )
-        {
+    if( Config.RCntFix ) {
+        if( index == 2 ) {
             if( rcnts[index].counterState == CountToTarget )
-            {
                 count=UDIV(count,BIAS);
-            }
         }
     }
 
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] rcount: %x\n", index, count );
-#endif
+    verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
 
     pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return count;
@@ -513,14 +565,10 @@ u32 psxRcntRmode( u32 index )
     pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     u16 mode;
 
-    psxRcntUpdate();
-
     mode = rcnts[index].mode;
     rcnts[index].mode &= 0xe7ff;
 
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] rmode: %x\n", index, mode );
-#endif
+    verboseLog( 2, "[RCNT %i] rmode: %x\n", index, mode );
 
     pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return mode;
@@ -528,19 +576,12 @@ u32 psxRcntRmode( u32 index )
 
 u32 psxRcntRtarget( u32 index )
 {
-#ifdef DEBUG_BIOS
-    dbgf("[RCNT %i] rtarget: %x\n", index, rcnts[index].target );
-#endif
+    verboseLog( 2, "[RCNT %i] rtarget: %x\n", index, rcnts[index].target );
 
     return rcnts[index].target;
 }
 
 /******************************************************************************/
-
-void psxRcntUVtarget(void)
-{
-	rcnt_target=UDIV(PSXCLK,(FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
-}
 
 void psxRcntInit(void)
 {
@@ -561,13 +602,31 @@ void psxRcntInit(void)
     // rcnt base.
     rcnts[3].rate   = 1;
     rcnts[3].mode   = RcCountToTarget;
-	psxRcntUVtarget();
-    rcnts[3].target = rcnt_target;
+    rcnts[3].target = (PSXCLK / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]));
 
     for( i = 0; i < CounterQuantity; ++i )
     {
         _psxRcntWcount( i, 0 );
     }
+
+    hSyncCount = 0;
+    hsync_steps = 1;
+
+    // SPU interval handling:
+#ifdef spu_pcsxrearmed
+    // PCSX Rearmed only updates SPU once per frame, but we target platforms like
+    //  GCW Zero that are too slow to run many games at 60FPS. Until we have good
+    //  auto-frameskip, we update SPU plugin twice per frame to avoid dropouts.
+	//  If this interval is changed, be sure to check cutscenes in Metal Gear
+	//  Solid or the intro to Chrono Cross, as they use SPU HW IRQ and are highly
+	//  sensitive to timing.
+    spu_upd_interval = PSXCLK / (FrameRate[Config.PsxType] * 2);
+#else
+    // Older SPU plugins are updated much more often than above
+    spu_upd_interval = (SPU_UPD_INTERVAL * PSXCLK) / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]);
+#endif
+    // Schedule first SPU update. Future ones will be scheduled automatically
+    SCHEDULE_SPU_UPDATE(spu_upd_interval);
 
     psxRcntSet();
 }
@@ -576,22 +635,32 @@ void psxRcntInit(void)
 
 s32 psxRcntFreeze( gzFile f, s32 Mode )
 {
+    u32 spuSyncCount = 0;
+    u32 count;
+    s32 i;
+
     gzfreeze( &rcnts, sizeof(rcnts) );
     gzfreeze( &hSyncCount, sizeof(hSyncCount) );
     gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
     gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
     gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
 
+    if (Mode == 0)
+    {
+        // don't trust things from a savestate
+        for( i = 0; i < CounterQuantity; ++i )
+        {
+            _psxRcntWmode( i, rcnts[i].mode );
+            count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
+            _psxRcntWcount( i, count );
+        }
+        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+        psxRcntSet();
+
+        base_cycle = 0;
+    }
+
     return 0;
-}
-
-void psxSetSyncs(unsigned h_sync, unsigned s_sync){
-	hSyncCount=h_sync;
-	spuSyncCount=s_sync;
-}
-
-unsigned psxGetHSync(void){
-	return hSyncCount;
 }
 
 unsigned psxGetSpuSync(void){

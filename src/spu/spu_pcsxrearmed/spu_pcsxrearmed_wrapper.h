@@ -159,14 +159,13 @@ static inline int SPU_playCDDAchannel(short *pcm, int bytes)
     return SPUplayCDDAchannel(pcm, bytes);
 }
 
-//senquack - IRQ callback (implemented via AcknowledgeSPUIRQ() in PCSX4ALL plugins.cpp)
+//senquack - SPU IRQ callback
 static inline void SPU_registerCallback(void (CALLBACK *callback)(void))
 {
 	SPUregisterCallback(callback);
 }
 
-//senquack - Schedule SPU update callback (implemented via ScheduleSPUUpdate()
-// in PCSX4ALL plugins.cpp)
+//senquack - Schedule SPU update callback (to scan for upcoming SPU IRQ)
 static inline void SPU_registerScheduleCb(void (CALLBACK *callback)(unsigned int))
 {
 	SPUregisterScheduleCb(callback);

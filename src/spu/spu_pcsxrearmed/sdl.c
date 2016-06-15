@@ -40,6 +40,16 @@ static unsigned int buf_read_pos = 0;
 static unsigned int buf_write_pos = 0;
 static unsigned waiting_to_feed = 0;   // Set to 1 when emu is waiting for room in output buffer
 
+#ifdef DEBUG_FEED_RATIO
+static void update_feed_ratio(void);
+float cur_feed_ratio = 1.0f;
+static unsigned int new_ratio_val = 0;
+static unsigned int total_bytes_consumed = 0;
+static unsigned int total_bytes_fed = 0;
+static unsigned int dropped_bytes = 0;
+static unsigned int missed_bytes = 0;
+#endif
+
 //VARS THAT ARE SHARED BETWEEN MAIN THREAD AND AUDIO-CALLBACK THREAD (fence!):
 static unsigned buffered_bytes = 0;    // How many bytes are in the ring buffer
 
@@ -80,6 +90,12 @@ static void SOUND_FillAudio_Atomic(void *unused, Uint8 *stream, int len) {
 	uint8_t *in_buf = (uint8_t *)sound_buffer;
 
 	unsigned bytes_to_copy = (len > buffered_bytes) ? buffered_bytes : len;
+
+#ifdef DEBUG_FEED_RATIO
+	missed_bytes += len - bytes_to_copy;
+	total_bytes_consumed += len;
+	update_feed_ratio();
+#endif
 
 	if (bytes_to_copy > 0) {
 		if (buf_read_pos + bytes_to_copy <= SOUND_BUFFER_SIZE ) {
@@ -124,6 +140,12 @@ static void SOUND_FillAudio_Mutex(void *unused, Uint8 *stream, int len) {
 	if (sound_mutex) SDL_LockMutex(sound_mutex);
 
 	int bytes_to_copy = (len > buffered_bytes) ? buffered_bytes : len;
+
+#ifdef DEBUG_FEED_RATIO
+	missed_bytes += len - bytes_to_copy;
+	total_bytes_consumed += len;
+	update_feed_ratio();
+#endif
 
 	if (buffered_bytes > 0) {
 		if (buf_read_pos + bytes_to_copy <= SOUND_BUFFER_SIZE ) {
@@ -319,6 +341,10 @@ static void sdl_feed(void *pSound, int lBytes) {
 static void sdl_feed_atomic(void *pSound, int lBytes) {
 	//sound_running = 1;
 
+#ifdef DEBUG_FEED_RATIO
+	total_bytes_fed += lBytes;
+#endif
+
 	unsigned bytes_to_copy = lBytes;
 
 	if (sound_sem) {
@@ -330,8 +356,18 @@ static void sdl_feed_atomic(void *pSound, int lBytes) {
 		waiting_to_feed = 0;
 	} else {
 		// Just drop the samples that cannot fit:
-		if (ROOM_IN_BUFFER == 0) return;
+		if (ROOM_IN_BUFFER == 0) {
+#ifdef DEBUG_FEED_RATIO
+			dropped_bytes += bytes_to_copy;
+#endif
+			return;
+		}
+
 		if (bytes_to_copy > ROOM_IN_BUFFER) bytes_to_copy = ROOM_IN_BUFFER;
+
+#ifdef DEBUG_FEED_RATIO
+		dropped_bytes += lBytes - bytes_to_copy;
+#endif
 	}
 
 	uint8_t *in_buf = (uint8_t *)pSound;
@@ -360,6 +396,10 @@ static void sdl_feed_atomic(void *pSound, int lBytes) {
 static void sdl_feed_mutex(void *pSound, int lBytes) {
 //	sound_running = 1;
 
+#ifdef DEBUG_FEED_RATIO
+	total_bytes_fed += lBytes;
+#endif
+
 	if (sound_mutex) SDL_LockMutex(sound_mutex);
 
 	int bytes_to_copy = lBytes;
@@ -369,8 +409,19 @@ static void sdl_feed_mutex(void *pSound, int lBytes) {
 		while (ROOM_IN_BUFFER < lBytes) SDL_CondWait(sound_cv, sound_mutex);
 	} else {
 		// Just drop the samples that cannot fit:
-		if (ROOM_IN_BUFFER == 0) return;
+		if (ROOM_IN_BUFFER == 0) {
+#ifdef DEBUG_FEED_RATIO
+			dropped_bytes += bytes_to_copy;
+#endif
+			return;
+		}
+
+
 		if (bytes_to_copy > ROOM_IN_BUFFER) bytes_to_copy = ROOM_IN_BUFFER;
+
+#ifdef DEBUG_FEED_RATIO
+		dropped_bytes += lBytes - bytes_to_copy;
+#endif
 	}
 
 	uint8_t *in_buf = (uint8_t *)pSound;
@@ -397,6 +448,28 @@ static void sdl_feed_mutex(void *pSound, int lBytes) {
 // END EMU SPU -> SDL BUFFER FILL FUNCTIONS //
 //////////////////////////////////////////////
 
+#ifdef DEBUG_FEED_RATIO
+static void update_feed_ratio(void) {
+	const int calls_between_new_ratio = 5;
+	static int calls_until_new_ratio = calls_between_new_ratio;
+	calls_until_new_ratio--;
+	if (calls_until_new_ratio > 0)
+		return;
+
+	// Avoid possible div-by-zero:
+	if (total_bytes_consumed == 0)
+		total_bytes_consumed = 1;
+
+	calls_until_new_ratio = calls_between_new_ratio;
+	cur_feed_ratio = (float)total_bytes_fed / (float)total_bytes_consumed;
+	new_ratio_val = 1;
+	total_bytes_fed = total_bytes_consumed = 0;
+
+	printf("fr: %f   buf: %d   drop: %d   miss: %d\n", cur_feed_ratio, buffered_bytes, dropped_bytes, missed_bytes);
+
+	dropped_bytes = missed_bytes = 0;
+}
+#endif //DEBUG_FEED_RATIO
 
 void out_register_sdl(struct out_driver *drv)
 {

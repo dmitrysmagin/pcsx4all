@@ -406,10 +406,6 @@ int CheckCdrom() {
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
-
-		//senquack - This was carried over from older PCSX4ALL code during
-		// update of this function to use PCSX Rearmed code
-		psxRcntUVtarget();
 	}
 
 	if (CdromLabel[0] == ' ') {

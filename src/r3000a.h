@@ -154,12 +154,19 @@ enum {
 	PSXINT_GPUOTCDMA,
 	PSXINT_CDRDMA,
 	PSXINT_NEWDRC_CHECK,
-	PSXINT_RCNT,
+	PSXINT_RCNT,          //senquack - not used (see psxcounters.cpp)
 	PSXINT_CDRLID,
 	PSXINT_CDRPLAY,
-	PSXINT_SPU_UPDATE,
+	PSXINT_SPUIRQ,
 	PSXINT_COUNT
 };
+
+// senquack- TODO: add ResetIoCycle() like other older PCSX4ALL code has
+//  littered everywhere?
+#define SCHEDULE_SPU_UPDATE(eCycle) { \
+	psxRegs.SPU_intCycle.cycle = eCycle; \
+	psxRegs.SPU_intCycle.sCycle = psxRegs.cycle; \
+}
 
 typedef struct {
 	psxGPRRegs GPR;		/* General Purpose Registers */
@@ -174,6 +181,9 @@ typedef struct {
 	//senquack - Converted to newer PCSXR struct:
 	//u32 intCycle[32];
 	struct { u32 sCycle, cycle; } intCycle[32];
+
+	// SPU update handled separately since it is persistent:
+	struct { u32 sCycle, cycle; } SPU_intCycle;
 
 // CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
