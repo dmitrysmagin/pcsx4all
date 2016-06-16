@@ -252,6 +252,18 @@ static int recInit()
 
 static void recShutdown() { }
 
+/* It seems there's no way to tell GCC that something is being called inside
+ * asm() blocks and GCC doesn't bother to save temporaries to stack.
+ * That's why we have two options:
+ * 1. Call recompiled blocks via recFunc() trap which is strictly noinline and
+ * saves registers $s[0-7], $fp and $ra on each call, or
+ * 2. Code recExecute() and recExecuteBlock() entirely in assembler taking into
+ * account that no registers except $ra are saved in recompiled blocks and
+ * thus put all temporaries to stack. In this case $s[0-7], $fp and $ra are saved
+ * in recExecute() and recExecuteBlock() only once.
+ */
+#define ASM_EXECUTE_LOOP
+#ifndef ASM_EXECUTE_LOOP
 static __attribute__ ((noinline)) void recFunc(void *fn)
 {
 	/* This magic code calls fn address saving registers $s[0-7], $fp and $ra. */
@@ -261,17 +273,11 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
 		: "r" (fn)
 		: "%s0", "%s1", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%fp", "%ra");
 }
+#endif
 
 static void recExecute()
 {
-#if 0
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
-
-	if (*recFunc == 0) 
-		recRecompile();
-
-	(*recFunc)();
-#else
+#ifndef ASM_EXECUTE_LOOP
 	for (;;) {
 		u32 *p = (u32*)PC_REC(psxRegs.pc);
 		if (*p == 0)
@@ -279,21 +285,46 @@ static void recExecute()
 
 		recFunc((void *)*p);
 	}
+#else
+	u32 *pc = (u32 *)&psxRegs.pc;
+	u32 *p;
+
+	asm (
+		"1: \n"
+		"la	 $t1, %[_psxRecLUT] \n"
+		"lw	 $t0, %[_pc] \n"
+		"lw	 $t0, 0($t0) \n"
+		"srl	 $t2, $t0, 0x10 \n"
+		"sll	 $t2, $t2, 2 \n"
+		"addu	 $t1, $t1, $t2 \n"
+		"lw	 $t1, 0($t1) \n"
+		"andi	 $t0, $t0, 0xffff \n"
+		"addu	 $t0, $t0, $t1 \n"
+
+		"sw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"bnez	 $t0, 0f \n"
+		"jal	 %[_recRecompile] \n"
+		"lw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"0: \n"
+		"jalr	 $t0 \n"
+		"b	 1b \n"
+		:
+		: [_psxRecLUT] "i" (psxRecLUT),
+		  [_recRecompile] "i" (&recRecompile),
+		  [_p]		"m" (p),
+		  [_pc]		"m" (pc)
+		: "%t0", "%t1", "%t2",
+		  "%s0", "%s1", "%s2", "%s3", "%s4",
+		  "%s5", "%s6", "%s7", "%fp", "%ra"
+	);
 #endif
 }
 
 static void recExecuteBlock(unsigned target_pc)
 {
-#if 0
-	isInBios = 1;
-
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
-
-	if (*recFunc == 0) 
-		recRecompile();
-
-	(*recFunc)();
-#else
+#ifndef ASM_EXECUTE_LOOP
 	do {
 		u32 *p = (u32*)PC_REC(psxRegs.pc);
 		if (*p == 0)
@@ -301,6 +332,44 @@ static void recExecuteBlock(unsigned target_pc)
 
 		recFunc((void *)*p);
 	} while (psxRegs.pc != target_pc);
+#else
+	u32 *pc = (u32 *)&psxRegs.pc;
+	u32 *p;
+
+	asm (
+		"1: \n"
+		"la	 $t1, %[_psxRecLUT] \n"
+		"lw	 $t0, %[_pc] \n"
+		"lw	 $t0, 0($t0) \n"
+		"srl	 $t2, $t0, 0x10 \n"
+		"sll	 $t2, $t2, 2 \n"
+		"addu	 $t1, $t1, $t2 \n"
+		"lw	 $t1, 0($t1) \n"
+		"andi	 $t0, $t0, 0xffff \n"
+		"addu	 $t0, $t0, $t1 \n"
+
+		"sw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"bnez	 $t0, 0f \n"
+		"jal	 %[_recRecompile] \n"
+		"lw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"0: \n"
+		"jalr	 $t0 \n"
+		"lw	 $t1, %[_pc] \n"
+		"lw	 $t1, 0($t1) \n"
+		"lw	 $t2, %[_target_pc] \n"
+		"bne	 $t1, $t2, 1b \n"
+		:
+		: [_psxRecLUT] "i" (psxRecLUT),
+		  [_recRecompile] "i" (&recRecompile),
+		  [_p]		"m" (p),
+		  [_pc]		"m" (pc),
+		  [_target_pc]	"m" (target_pc)
+		: "%t0", "%t1", "%t2",
+		  "%s0", "%s1", "%s2", "%s3", "%s4",
+		  "%s5", "%s6", "%s7", "%fp", "%ra"
+	);
 #endif
 }
 
