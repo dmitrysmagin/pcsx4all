@@ -41,7 +41,7 @@ static void hleDummy(void) {
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	psxRegs.pc = psxRegs.GPR.n.ra;
 
-//	psxBranchTest();
+	psxBranchTest();
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
@@ -124,7 +124,7 @@ static void hleC0(void) {
 	dbg_bioscheckopcode(psxRegs.pc);
 	psxRegs.cycle-=3;
 #else
-//	psxBranchTest();
+	psxBranchTest();
 #endif
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
