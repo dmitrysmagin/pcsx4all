@@ -32,11 +32,6 @@
 #include "r3000a.h"
 #include "gte.h"
 
-/* not declared in any .h file for some reason */
-void psxMemWrite32_error(u32 mem, u32 value);
-/* forward declaration */
-static u32 psxBranchTest_rec(u32 cycles, u32 pc);
-
 //#define WITH_DISASM
 //#define DEBUGG printf
 
@@ -84,7 +79,7 @@ char	disasm_buffer[512];
 #include "regcache.h"
 
 static void recReset();
-static u32 recRecompile();
+static void recRecompile();
 static void recClear(u32 Addr, u32 Size);
 
 extern void (*recBSC[64])();
@@ -95,8 +90,6 @@ extern void (*recCP2[64])();
 extern void (*recCP2BSC[32])();
 
 u32	*recMemStart;
-u32	isInBios = 0;
-u32	loadedpermregs = 0;
 u32	end_block = 0;
 u32	cycles_pending = 0;
 
@@ -195,7 +188,7 @@ void clear_insn_cache(void *start, void *end, int flags)
 	cacheflush(start, (char *)end - (char *)start, ICACHE);
 }
 
-static u32 recRecompile()
+static void recRecompile()
 {
 	psxRegs.reserved = (void *)recRAM;
 
@@ -214,59 +207,22 @@ static u32 recRecompile()
 
 	DISASM_INIT();
 
-	if (isInBios) {
-		if (isInBios == 1) {
-			isInBios = 2;
-			PUSH(MIPSREG_RA);
-			PUSH(MIPSREG_S8);
-			PUSH(MIPSREG_S7);
-			PUSH(MIPSREG_S6);
-			PUSH(MIPSREG_S5);
-			PUSH(MIPSREG_S4);
-			PUSH(MIPSREG_S3);
-			PUSH(MIPSREG_S2);
-			PUSH(MIPSREG_S1);
-			PUSH(MIPSREG_S0);
-		} else if (isInBios == 2 && psxRegs.pc == 0x80030000) {
-			PC_REC32(psxRegs.pc) = 0;
-			isInBios = 0;
-			POP(MIPSREG_S0);
-			POP(MIPSREG_S1);
-			POP(MIPSREG_S2);
-			POP(MIPSREG_S3);
-			POP(MIPSREG_S4);
-			POP(MIPSREG_S5);
-			POP(MIPSREG_S6);
-			POP(MIPSREG_S7);
-			POP(MIPSREG_S8);
-			POP(MIPSREG_RA);
-			write32(0x00000008 | (MIPSREG_RA << 21)); /* jr ra */
-			write32(0);
-			clear_insn_cache(recMemStart, recMem, 0);
-			return (u32)recMemStart;
-		}
-	}
-
 	rec_recompile_start();
 	memset(iRegs, 0, sizeof(iRegs));
 
-	for (;;) {
+	do {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 		DISASM_PSX(pc);
 		pc += 4;
 		recBSC[psxRegs.code>>26]();
 		regUpdate();
 		branch = 0;
-		if (end_block) {
-			end_block = 0;
-			rec_recompile_end();
-			DISASM_HOST();
-			clear_insn_cache(recMemStart, recMem, 0);
-			return (u32)recMemStart;
-		}
-	}
+	} while (!end_block);
 
-	return (u32)recMemStart;
+	end_block = 0;
+	rec_recompile_end();
+	DISASM_HOST();
+	clear_insn_cache(recMemStart, recMem, 0);
 }
 
 static int recInit()
@@ -275,7 +231,7 @@ static int recInit()
 
 	recMem = (u32*)recMemBase;
 	memset(recMem, 0, RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000);
-	loadedpermregs = 0;
+
 	recReset();
 
 	if (recRAM == NULL || recROM == NULL || recMemBase == NULL || psxRecLUT == NULL) {
@@ -296,29 +252,125 @@ static int recInit()
 
 static void recShutdown() { }
 
+/* It seems there's no way to tell GCC that something is being called inside
+ * asm() blocks and GCC doesn't bother to save temporaries to stack.
+ * That's why we have two options:
+ * 1. Call recompiled blocks via recFunc() trap which is strictly noinline and
+ * saves registers $s[0-7], $fp and $ra on each call, or
+ * 2. Code recExecute() and recExecuteBlock() entirely in assembler taking into
+ * account that no registers except $ra are saved in recompiled blocks and
+ * thus put all temporaries to stack. In this case $s[0-7], $fp and $ra are saved
+ * in recExecute() and recExecuteBlock() only once.
+ */
+#define ASM_EXECUTE_LOOP
+#ifndef ASM_EXECUTE_LOOP
+static __attribute__ ((noinline)) void recFunc(void *fn)
+{
+	/* This magic code calls fn address saving registers $s[0-7], $fp and $ra. */
+	__asm__ __volatile__ (
+		"jalr   %0 \n"
+		:
+		: "r" (fn)
+		: "%s0", "%s1", "%s2", "%s3", "%s4", "%s5", "%s6", "%s7", "%fp", "%ra");
+}
+#endif
+
 static void recExecute()
 {
-	loadedpermregs = 0;
+#ifndef ASM_EXECUTE_LOOP
+	for (;;) {
+		u32 *p = (u32*)PC_REC(psxRegs.pc);
+		if (*p == 0)
+			recRecompile();
 
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
+		recFunc((void *)*p);
+	}
+#else
+	u32 *pc = (u32 *)&psxRegs.pc;
+	u32 *p;
 
-	if (*recFunc == 0) 
-		recRecompile();
+	asm (
+		"1: \n"
+		"la	 $t1, %[_psxRecLUT] \n"
+		"lw	 $t0, %[_pc] \n"
+		"lw	 $t0, 0($t0) \n"
+		"srl	 $t2, $t0, 0x10 \n"
+		"sll	 $t2, $t2, 2 \n"
+		"addu	 $t1, $t1, $t2 \n"
+		"lw	 $t1, 0($t1) \n"
+		"andi	 $t0, $t0, 0xffff \n"
+		"addu	 $t0, $t0, $t1 \n"
 
-	(*recFunc)();
+		"sw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"bnez	 $t0, 0f \n"
+		"jal	 %[_recRecompile] \n"
+		"lw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"0: \n"
+		"jalr	 $t0 \n"
+		"b	 1b \n"
+		:
+		: [_psxRecLUT] "i" (psxRecLUT),
+		  [_recRecompile] "i" (&recRecompile),
+		  [_p]		"m" (p),
+		  [_pc]		"m" (pc)
+		: "%t0", "%t1", "%t2",
+		  "%s0", "%s1", "%s2", "%s3", "%s4",
+		  "%s5", "%s6", "%s7", "%fp", "%ra"
+	);
+#endif
 }
 
 static void recExecuteBlock(unsigned target_pc)
 {
-	isInBios = 1;
-	loadedpermregs = 0;	
+#ifndef ASM_EXECUTE_LOOP
+	do {
+		u32 *p = (u32*)PC_REC(psxRegs.pc);
+		if (*p == 0)
+			recRecompile();
 
-	void (**recFunc)() = (void (**)()) (u32)PC_REC(psxRegs.pc);
+		recFunc((void *)*p);
+	} while (psxRegs.pc != target_pc);
+#else
+	u32 *pc = (u32 *)&psxRegs.pc;
+	u32 *p;
 
-	if (*recFunc == 0) 
-		recRecompile();
+	asm (
+		"1: \n"
+		"la	 $t1, %[_psxRecLUT] \n"
+		"lw	 $t0, %[_pc] \n"
+		"lw	 $t0, 0($t0) \n"
+		"srl	 $t2, $t0, 0x10 \n"
+		"sll	 $t2, $t2, 2 \n"
+		"addu	 $t1, $t1, $t2 \n"
+		"lw	 $t1, 0($t1) \n"
+		"andi	 $t0, $t0, 0xffff \n"
+		"addu	 $t0, $t0, $t1 \n"
 
-	(*recFunc)();
+		"sw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"bnez	 $t0, 0f \n"
+		"jal	 %[_recRecompile] \n"
+		"lw	 $t0, %[_p] \n"
+		"lw	 $t0, 0($t0) \n"
+		"0: \n"
+		"jalr	 $t0 \n"
+		"lw	 $t1, %[_pc] \n"
+		"lw	 $t1, 0($t1) \n"
+		"lw	 $t2, %[_target_pc] \n"
+		"bne	 $t1, $t2, 1b \n"
+		:
+		: [_psxRecLUT] "i" (psxRecLUT),
+		  [_recRecompile] "i" (&recRecompile),
+		  [_p]		"m" (p),
+		  [_pc]		"m" (pc),
+		  [_target_pc]	"m" (target_pc)
+		: "%t0", "%t1", "%t2",
+		  "%s0", "%s1", "%s2", "%s3", "%s4",
+		  "%s5", "%s6", "%s7", "%fp", "%ra"
+	);
+#endif
 }
 
 static void recClear(u32 Addr, u32 Size)

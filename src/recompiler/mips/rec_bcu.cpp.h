@@ -155,24 +155,20 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 	return 0;
 }
 #endif
-static u32 psxBranchTest_rec(u32 cycles, u32 pc)
-{
-	/* Misc helper */
-	psxRegs.pc = pc;
-	psxRegs.cycle += cycles;
 
-	psxBranchTest();
 
-	u32 compiledpc = (u32)PC_REC32(psxRegs.pc);
-	if (compiledpc) {
-		//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", compiledpc, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
-		return compiledpc;
-	}
-
-	u32 a = recRecompile();
-	//DEBUGF("returning to 0x%x (t2 0x%x t3 0x%x)\n", a, psxRegs.GPR.n.t2, psxRegs.GPR.n.t3);
-	return a;
-}
+#define ADDCYCLES() \
+do { \
+	u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS; \
+	LW(TEMP_1, PERM_REG_1, off(cycle)); \
+	if (__cycles <= 0x7fff) { \
+		ADDIU(TEMP_1, TEMP_1, __cycles); \
+	} else { \
+		LI32(TEMP_2, __cycles); \
+		ADDU(TEMP_1, TEMP_1, TEMP_2); \
+	} \
+	SW(TEMP_1, PERM_REG_1, off(cycle)); \
+} while (0);
 
 static void recSYSCALL()
 {
@@ -185,9 +181,8 @@ static void recSYSCALL()
 	LI16(MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
 
-	LW(MIPSREG_A1, PERM_REG_1, off(pc));
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
 
 	cycles_pending = 0;
 
@@ -219,9 +214,10 @@ static void iJumpNormal(u32 branchPC)
 
 	regClearJump();
 
-	LI32(MIPSREG_A1, branchPC);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	LI32(TEMP_1, branchPC);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
 
 	cycles_pending = 0;
 
@@ -244,9 +240,10 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 	LI32(TEMP_1, linkpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LI32(MIPSREG_A1, branchPC);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	LI32(TEMP_1, branchPC);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
 
 	cycles_pending = 0;
 
@@ -275,9 +272,12 @@ static void recBLTZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -308,9 +308,12 @@ static void recBGTZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -344,9 +347,11 @@ static void recBLTZAL()
 	LI32(TEMP_1, nbpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -380,9 +385,11 @@ static void recBGEZAL()
 	LI32(TEMP_1, nbpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -412,11 +419,12 @@ static void recJR()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 
-	MOV(MIPSREG_A1, br1);
+	SW(br1, PERM_REG_1, off(pc));
 	regUnlock(br1);
 	regClearJump();
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
 
 	cycles_pending = 0;
 
@@ -432,11 +440,12 @@ static void recJALR()
 	regMipsChanged(_Rd_);
 
 	SetBranch();
-	MOV(MIPSREG_A1, br1);
+	SW(br1, PERM_REG_1, off(pc));
 	regUnlock(br1);
 	regClearJump();
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
 
 	cycles_pending = 0;
 
@@ -466,9 +475,12 @@ static void recBEQ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -500,9 +512,12 @@ static void recBNE()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -534,9 +549,12 @@ static void recBLEZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -567,9 +585,12 @@ static void recBGEZ()
 	write32(0); /* nop */
 
 	regClearBranch();
-	LI32(MIPSREG_A1, bpc);
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+
+	LI32(TEMP_1, bpc);
+	SW(TEMP_1, PERM_REG_1, off(pc));
+	ADDCYCLES();
+	CALLFunc((u32)psxBranchTest);
+
 	rec_recompile_end();
 
 	cycles_pending = 0;
@@ -586,15 +607,8 @@ static void recHLE()
 
 	LI32(TEMP_1, pc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxHLEt[psxRegs.code & 0xffff]);
-
-	cycles_pending = 0;
-
-	LW(MIPSREG_A1, PERM_REG_1, off(pc));
-	LI32(MIPSREG_A0, ((cycles_pending+((pc-oldpc)/4)))*BIAS);
-	CALLFunc((u32)psxBranchTest_rec);
+	ADDCYCLES();
+	CALLFunc((u32)psxHLEt[psxRegs.code & 0x7]);
 
 	cycles_pending = 0;
 
