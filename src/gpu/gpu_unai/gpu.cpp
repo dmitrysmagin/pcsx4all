@@ -755,6 +755,8 @@ static void gpuVideoOutput(void)
 				}
 				break;
 			case 320:
+				//senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
+				src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
 					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
