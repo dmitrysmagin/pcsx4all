@@ -72,11 +72,12 @@
 	psxRegs.intCycle[PSXINT_CDRDMA].sCycle = psxRegs.cycle; \
 }
 
-extern void psxDma2(u32 madr, u32 bcr, u32 chcr);
-extern void psxDma3(u32 madr, u32 bcr, u32 chcr);
-extern void psxDma4(u32 madr, u32 bcr, u32 chcr);
-extern void psxDma6(u32 madr, u32 bcr, u32 chcr);
-extern void gpuInterrupt(void);
-extern void spuInterrupt(void);
+void psxDma2(u32 madr, u32 bcr, u32 chcr);
+void psxDma3(u32 madr, u32 bcr, u32 chcr);
+void psxDma4(u32 madr, u32 bcr, u32 chcr);
+void psxDma6(u32 madr, u32 bcr, u32 chcr);
+void gpuInterrupt(void);
+void spuInterrupt(void);
+void gpuotcInterrupt();
 
 #endif /* __PSXDMA_H__ */
