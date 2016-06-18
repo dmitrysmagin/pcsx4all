@@ -243,8 +243,13 @@ void gpuInterrupt() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_gpuInterrupt++;
 #endif
-	HW_DMA2_CHCR &= SWAP32(~0x01000000);
-	DMA_INTERRUPT(2);
+	if (HW_DMA2_CHCR & SWAP32(0x01000000))
+	{
+		HW_DMA2_CHCR &= SWAP32(~0x01000000);
+		DMA_INTERRUPT(2);
+	}
+	
+	//senquack - TODO: implement HW_GPU_STATUS from Rearmed here
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
