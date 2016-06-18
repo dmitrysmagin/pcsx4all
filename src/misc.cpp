@@ -28,6 +28,7 @@
 #include "misc.h"
 #include "cdrom.h"
 #include "mdec.h"
+#include "gpu.h"
 #include "ppf.h"
 #include "port.h"
 
@@ -583,6 +584,8 @@ int SaveState(const char *file) {
     if(!GPU_freeze(1, gpufP)) return -3;
     FWRITE(f, gpufP, sizeof(GPUFreeze_t));
 	free(gpufP);
+	if (HW_GPU_STATUS == 0)
+		HW_GPU_STATUS = GPU_readStatus();
 
 	// spu
 	spufP = (SPUFreeze_t *) malloc(16);

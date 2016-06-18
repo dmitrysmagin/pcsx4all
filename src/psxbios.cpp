@@ -24,6 +24,7 @@
 
 #include "psxbios.h"
 #include "psxhw.h"
+#include "gpu.h"
 #include "profiler.h"
 
 //We try to emulate bios :) HELP US :P
@@ -1275,6 +1276,7 @@ void psxBios_mem2vram(void) { // 0x47
 
 void psxBios_SendGPU(void) { // 0x48
 	GPU_writeStatus(a0);
+	gpuSyncPluginSR();
 	pc0 = ra;
 }
 

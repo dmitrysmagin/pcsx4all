@@ -25,6 +25,7 @@
 #include "psxhw.h"
 #include "mdec.h"
 #include "cdrom.h"
+#include "gpu.h"
 #include "profiler.h"
 
 void psxHwReset() {
@@ -40,6 +41,7 @@ void psxHwReset() {
 	sioInit(); //initialize sio
 	cdrReset();
 	psxRcntInit();
+	HW_GPU_STATUS = 0x14802000;
 }
 
 u8 psxHwRead8(u32 add) {
@@ -350,7 +352,11 @@ u32 psxHwRead32(u32 add) {
 			pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
 			return hard;
 		case 0x1f801814:
-			hard = GPU_readStatus();
+			//senquack - updated to PCSX Rearmed:
+			gpuSyncPluginSR();
+			hard = HW_GPU_STATUS;
+			if (hSyncCount < 240 && (HW_GPU_STATUS & PSXGPU_ILACE_BITS) != PSXGPU_ILACE_BITS)
+				hard |= PSXGPU_LCF & (psxRegs.cycle << 20);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit read %x\n", hard);
 #endif
@@ -1080,10 +1086,13 @@ void psxHwWrite32(u32 add, u32 value) {
 			pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 			return;
 		case 0x1f801814:
+			//senquack - updated to PCSX Rearmed:
 #ifdef PSXHW_LOG
 			PSXHW_LOG("GPU STATUS 32bit write %x\n", value);
 #endif
 			GPU_writeStatus(value);
+			gpuSyncPluginSR();
+
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
 #endif

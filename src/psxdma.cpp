@@ -23,6 +23,7 @@
 */
 
 #include "psxdma.h"
+#include "gpu.h"
 
 // Dma0/1 in Mdec.c
 // Dma3   in CdRom.c
@@ -151,6 +152,7 @@ static u32 gpuDmaChainSize(u32 addr) {
 	return size;
 }
 
+//senquack - updated to match PCSX Rearmed:
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxDma2++;
@@ -212,8 +214,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 			size = GPU_dmaChain((u32 *)psxM, madr & 0x1fffff);
 			if ((int)size <= 0)
 				size = gpuDmaChainSize(madr);
-			
-			//senquack - TODO: add HW_GPU_STATUS from PCSX Rearmed
+			HW_GPU_STATUS &= ~PSXGPU_nBUSY;
 
 			// we don't emulate progress, just busy flag and end irq,
 			// so pretend we're already at the last block
@@ -239,6 +240,7 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 	DMA_INTERRUPT(2);
 }
 
+//senquack - updated to match PCSX Rearmed:
 void gpuInterrupt() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_gpuInterrupt++;
@@ -248,8 +250,7 @@ void gpuInterrupt() {
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);
 		DMA_INTERRUPT(2);
 	}
-	
-	//senquack - TODO: implement HW_GPU_STATUS from Rearmed here
+	HW_GPU_STATUS |= PSXGPU_nBUSY; // GPU no longer busy
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {

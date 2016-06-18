@@ -37,15 +37,16 @@
 //   called so much less frequently.
 // * Some optimizations, more accurate calculation of timer updates.
 //
-// TODO : Implement HW_GPU_STATUS code from Rearmed
 // TODO : Implement direct rootcounter mem access of Rearmed dynarec?
 //        (see https://github.com/notaz/pcsx_rearmed/commit/b1be1eeee94d3547c20719acfa6b0082404897f1 )
 //        Seems to make Parasite Eve 2 RCntFix hard to implement, though.
 // TODO : Implement Rearmed's auto-frameskip so SPU doesn't need to
 //        hackishly be updated twice per emulated frame.
 // TODO : Implement Rearmed's frame limiter
+// TODO : Add GPU_vBlank() from Rearmed?
 
 #include "psxcounters.h"
+#include "gpu.h"
 #include "profiler.h"
 
 /******************************************************************************/
@@ -104,10 +105,11 @@ u32 spu_upd_interval;
 
 static Rcnt rcnts[ CounterQuantity ];
 
-static u32 hSyncCount = 0;
+u32 hSyncCount = 0;
 static u32 spuSyncCount = 0;
 
 //senquack - Added two vars from PCSX Rearmed:
+u32 frame_counter = 0;
 static u32 hsync_steps = 0;
 static u32 base_cycle = 0;
 
@@ -396,6 +398,7 @@ void psxRcntUpdate()
 #ifdef DEBUG_BIOS
             dbg("UpdateLace");
 #endif
+            HW_GPU_STATUS &= ~PSXGPU_LCF;
             setIrq( 0x01 );
             GPU_updateLace();
             pad_update();
@@ -414,6 +417,11 @@ void psxRcntUpdate()
         if( hSyncCount >= (Config.VSyncWA ? UDIV(HSyncTotal[Config.PsxType],BIAS) : HSyncTotal[Config.PsxType]) )
         {
             hSyncCount = 0;
+            frame_counter++;
+
+            gpuSyncPluginSR();
+            if( (HW_GPU_STATUS & PSXGPU_ILACE_BITS) == PSXGPU_ILACE_BITS )
+                HW_GPU_STATUS |= frame_counter << 31;
 
 #ifdef DEBUG_END_FRAME
 		{

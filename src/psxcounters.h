@@ -1,4 +1,5 @@
 /***************************************************************************
+ *   Copyright (C) 2010 by Blade_Arma                                      *
  *   Copyright (C) 2007 Ryan Schultz, PCSX-df Team, PCSX team              *
  *   schultz.ryan@gmail.com, http://rschultz.ath.cx/code.php               *
  *                                                                         *
@@ -27,6 +28,7 @@
 #include "plugins.h"
 
 extern u32 psxNextCounter, psxNextsCounter;
+extern u32 hSyncCount, frame_counter;
 extern u32 spu_upd_interval;
 
 typedef struct Rcnt
