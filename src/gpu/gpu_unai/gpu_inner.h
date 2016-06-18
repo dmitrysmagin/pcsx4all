@@ -51,7 +51,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Pixel operations generator
 template<const int CF>
-INLINE void gpuPixelFn(u16 *pixel,const u16 data)
+static void gpuPixelFn(u16 *pixel,const u16 data)
 {
 	if ((!M)&&(!B))
 	{
@@ -82,7 +82,7 @@ INLINE void gpuPixelFn(u16 *pixel,const u16 data)
 	}
 }
 
-INLINE void PixelNULL(u16 *pixel,const u16 data)
+static void PixelNULL(u16 *pixel,const u16 data)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"PixelNULL()\n");
@@ -111,7 +111,7 @@ const PD  gpuPixelDrivers[32] =   //  We only generate pixel op for MASKING/BLEN
 //  GPU Tiles innerloops generator
 
 template<const int CF>
-INLINE void  gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
+static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 {
 	if ((!M)&&(!B))
 	{
@@ -156,7 +156,7 @@ INLINE void  gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 	}
 }
 
-INLINE void TileNULL(u16 *pDst, u32 count, u16 data)
+static void TileNULL(u16 *pDst, u32 count, u16 data)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"TileNULL()\n");
@@ -179,7 +179,7 @@ const PT gpuTileSpanDrivers[64] =
 //  GPU Sprites innerloops generator
 
 template<const int CF>
-INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 {
 	u16 uSrc;
 	u16 uDst;
@@ -249,7 +249,7 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 	while (--count);
 }
 
-INLINE void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -301,7 +301,7 @@ const PS gpuSpriteSpanDrivers[256] =
 //             across calls to blending functions (Silent Hill rectangles fix)
 // (see README_senquack.txt)
 template<const int CF>
-void gpuPolySpanFn(u16 *pDst, u32 count)
+static void gpuPolySpanFn(u16 *pDst, u32 count)
 {
 	if (!TM)
 	{	
@@ -510,7 +510,7 @@ void gpuPolySpanFn(u16 *pDst, u32 count)
 	}
 }
 
-INLINE void PolyNULL(u16 *pDst, u32 count)
+static void PolyNULL(u16 *pDst, u32 count)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"PolyNULL()\n");
