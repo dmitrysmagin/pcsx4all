@@ -42,7 +42,7 @@ CFLAGS = -mips32r2 -ggdb3 -O2 -DGCW_ZERO \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
-	-DINLINE="static __inline" -Dasm="__asm__ __volatile__" \
+	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
 
 ifdef RECOMPILER
