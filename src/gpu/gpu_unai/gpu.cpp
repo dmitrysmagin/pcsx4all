@@ -108,8 +108,15 @@ u32   lInc;
 u32 u4_msk, v4_msk;
 
 GPUPacket PacketBuffer;
-// FRAME_BUFFER_SIZE is defined in bytes; 512K is guard memory for out of range reads
-u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(32)));
+//senquack - Original 512KB of guard space seems not to be enough, as Xenogears
+// accesses outside this range and crashes in town intro fight sequence.
+// Increased to 2MB total (double PSX VRAM) and Xenogears no longer
+// crashes, but some textures are still messed up. Also note that alignment
+// is increased to 2048 (Rearmed behavior) which should give some more guard room.
+// TODO: Determine cause of out-of-bounds write/reads.
+//u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(32)));
+u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2)/2] __attribute__((aligned(2048)));
+
 u32   GPU_GP1;
 
 u32 tw=0; /* texture window */
