@@ -208,8 +208,8 @@ static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		if (TM==3) { uSrc = pTxt[u0]; u0=(u0+1)&mask; }
 		if (!uSrc) goto endsprite;
 
-		//senquack - save source MSB:
-		if (!MB) { srcMSB = uSrc & 0x8000; }
+		//senquack - save source MSB, as blending or lighting macros will not
+		if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
 		
 		//  BLEND
 		if(B)
@@ -234,15 +234,18 @@ static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		else
 		{
 			//  LIGHTING CALCULATIONS
-			if(L)  { gpuLightingTXT(uSrc, lCol);   } else
-			{ if(!MB) uSrc&= 0x7fff;               }
+			//senquack - While fixing Silent Hill white-rectangles bug, I
+			// noticed uSrc was being masked unnecessarily here:
+			//if(L)  { gpuLightingTXT(uSrc, lCol);   } else
+			//{ if(!MB) uSrc&= 0x7fff;               }
+			if(L)  { gpuLightingTXT(uSrc, lCol);   }
 		}
 
-		//senquack - 'Silent Hill' fix: MSB of pixel from source texture
-		// was not preserved by calls to gpuBlendingXX() macros.. Now it
-		// is saved in srcMSB before calling them:
-		if (MB) { *pDst = uSrc | 0x8000; }
-		else    { *pDst = uSrc | srcMSB; }
+		//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
+		// preserved across calls to lighting or blending macros
+		if (MB)          { *pDst = uSrc | 0x8000; }
+		else if (B || L) { *pDst = uSrc | srcMSB; }
+		else             { *pDst = uSrc;          }
 
 		endsprite: pDst++;
 	}
@@ -459,8 +462,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				if(!uSrc)  goto endpoly;
 			}
 
-			//senquack - Silent Hill fix
-			if (!MB) { srcMSB = uSrc & 0x8000; }
+			//senquack - save source MSB, as blending or lighting macros will not
+			if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
 
 			//  blend
 			if(B)
@@ -491,13 +494,11 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				if(L)  { gpuLightingTXT(uSrc, lCol); }
 			}
 
-			//senquack - 'Silent Hill' fix: MSB of pixel from source texture
-			// was not preserved by calls to gpuBlendingXX() macros.. Now it
-			// is saved in srcMSB before calling them:
-			//if (MB) { *pDst = uSrc | 0x8000; }
-			//else    { *pDst = uSrc; }
-			if (MB) { *pDst = uSrc | 0x8000; }
-			else    { *pDst = uSrc | srcMSB; }
+			//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
+			// preserved across calls to lighting or blending macros
+			if (MB)          { *pDst = uSrc | 0x8000; }
+			else if (B || L) { *pDst = uSrc | srcMSB; }
+			else             { *pDst = uSrc;          }
 
 			endpoly: pDst++;
 
