@@ -41,7 +41,7 @@ CFLAGS = -mcpu=arm926ej-s -mtune=arm926ej-s $(DEVLIBS) \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
     -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
     -DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
-    -D__arm__ -DWIZ -DMMUHACK -DINLINE="static __inline" -Dasm="__asm__ __volatile__" -Wshadow -DPSXREC
+    -D__arm__ -DWIZ -DMMUHACK -DINLINE="static __inline__" -Dasm="__asm__ __volatile__" -Wshadow -DPSXREC
 	# -fsigned-char 
 	# -Wstrict-prototypes -Wbad-function-cast
     # -Wshadow

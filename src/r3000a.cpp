@@ -52,7 +52,7 @@ const u32 * const psxRegs_cycle_valptr = &psxRegs.cycle;
 int psxInit() {
 	printf("Running PCSX Version %s (%s).\n", PACKAGE_VERSION, __DATE__);
 
-// CHUI: Añado el inicio del profiler
+// CHUI: AÃ±ado el inicio del profiler
 	pcsx4all_prof_init();
 	pcsx4all_prof_add("CPU"); // PCSX4ALL_PROF_CPU
 	pcsx4all_prof_add("HW_READ"); // PCSX4ALL_PROF_HW_READ
@@ -88,7 +88,7 @@ void psxReset() {
 	memset(&psxRegs, 0, sizeof(psxRegs));
 
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
-// CHUI: Añadimos el puntero a la memoria PSX
+// CHUI: AÃ±adimos el puntero a la memoria PSX
 	psxRegs.psxM = psxM;	// PSX Memory
 	psxRegs.psxP = psxP;	// PSX Memory
 	psxRegs.psxR = psxR;	// PSX Memory
@@ -146,7 +146,7 @@ void psxException(u32 code, u32 bd) {
 	// Set the Status
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status &~0x3f) |
 						  ((psxRegs.CP0.n.Status & 0xf) << 2);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
+// CHUI: AÃ±ado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 
 	if (!Config.HLE && (((PSXMu32(psxRegs.CP0.n.EPC) >> 24) & 0xfe) == 0x4a)) {
@@ -486,6 +486,12 @@ void psxBranchTest() {
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_MDECINDMA].sCycle) >= psxRegs.intCycle[PSXINT_MDECINDMA].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_MDECINDMA);
 				mdec0Interrupt();
+			}
+		}
+		if (psxRegs.interrupt & (1 << PSXINT_GPUOTCDMA)) { // gpu otc
+			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle) >= psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle) {
+				psxRegs.interrupt &= ~(1 << PSXINT_GPUOTCDMA);
+				gpuotcInterrupt();
 			}
 		}
 		if (psxRegs.interrupt & (1 << PSXINT_CDRDMA)) { // cdrom

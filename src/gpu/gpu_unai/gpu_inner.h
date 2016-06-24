@@ -51,7 +51,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Pixel operations generator
 template<const int CF>
-INLINE void gpuPixelFn(u16 *pixel,const u16 data)
+static void gpuPixelFn(u16 *pixel,const u16 data)
 {
 	if ((!M)&&(!B))
 	{
@@ -82,7 +82,7 @@ INLINE void gpuPixelFn(u16 *pixel,const u16 data)
 	}
 }
 
-INLINE void PixelNULL(u16 *pixel,const u16 data)
+static void PixelNULL(u16 *pixel,const u16 data)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"PixelNULL()\n");
@@ -111,7 +111,7 @@ const PD  gpuPixelDrivers[32] =   //  We only generate pixel op for MASKING/BLEN
 //  GPU Tiles innerloops generator
 
 template<const int CF>
-INLINE void  gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
+static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 {
 	if ((!M)&&(!B))
 	{
@@ -156,7 +156,7 @@ INLINE void  gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 	}
 }
 
-INLINE void TileNULL(u16 *pDst, u32 count, u16 data)
+static void TileNULL(u16 *pDst, u32 count, u16 data)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"TileNULL()\n");
@@ -179,7 +179,7 @@ const PT gpuTileSpanDrivers[64] =
 //  GPU Sprites innerloops generator
 
 template<const int CF>
-INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 {
 	u16 uSrc;
 	u16 uDst;
@@ -208,8 +208,8 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		if (TM==3) { uSrc = pTxt[u0]; u0=(u0+1)&mask; }
 		if (!uSrc) goto endsprite;
 
-		//senquack - save source MSB:
-		if (!MB) { srcMSB = uSrc & 0x8000; }
+		//senquack - save source MSB, as blending or lighting macros will not
+		if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
 		
 		//  BLEND
 		if(B)
@@ -234,22 +234,25 @@ INLINE void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		else
 		{
 			//  LIGHTING CALCULATIONS
-			if(L)  { gpuLightingTXT(uSrc, lCol);   } else
-			{ if(!MB) uSrc&= 0x7fff;               }
+			//senquack - While fixing Silent Hill white-rectangles bug, I
+			// noticed uSrc was being masked unnecessarily here:
+			//if(L)  { gpuLightingTXT(uSrc, lCol);   } else
+			//{ if(!MB) uSrc&= 0x7fff;               }
+			if(L)  { gpuLightingTXT(uSrc, lCol);   }
 		}
 
-		//senquack - 'Silent Hill' fix: MSB of pixel from source texture
-		// was not preserved by calls to gpuBlendingXX() macros.. Now it
-		// is saved in srcMSB before calling them:
-		if (MB) { *pDst = uSrc | 0x8000; }
-		else    { *pDst = uSrc | srcMSB; }
+		//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
+		// preserved across calls to lighting or blending macros
+		if (MB)          { *pDst = uSrc | 0x8000; }
+		else if (B || L) { *pDst = uSrc | srcMSB; }
+		else             { *pDst = uSrc;          }
 
 		endsprite: pDst++;
 	}
 	while (--count);
 }
 
-INLINE void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -301,7 +304,7 @@ const PS gpuSpriteSpanDrivers[256] =
 //             across calls to blending functions (Silent Hill rectangles fix)
 // (see README_senquack.txt)
 template<const int CF>
-void gpuPolySpanFn(u16 *pDst, u32 count)
+static void gpuPolySpanFn(u16 *pDst, u32 count)
 {
 	if (!TM)
 	{	
@@ -459,8 +462,8 @@ void gpuPolySpanFn(u16 *pDst, u32 count)
 				if(!uSrc)  goto endpoly;
 			}
 
-			//senquack - Silent Hill fix
-			if (!MB) { srcMSB = uSrc & 0x8000; }
+			//senquack - save source MSB, as blending or lighting macros will not
+			if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
 
 			//  blend
 			if(B)
@@ -491,13 +494,11 @@ void gpuPolySpanFn(u16 *pDst, u32 count)
 				if(L)  { gpuLightingTXT(uSrc, lCol); }
 			}
 
-			//senquack - 'Silent Hill' fix: MSB of pixel from source texture
-			// was not preserved by calls to gpuBlendingXX() macros.. Now it
-			// is saved in srcMSB before calling them:
-			//if (MB) { *pDst = uSrc | 0x8000; }
-			//else    { *pDst = uSrc; }
-			if (MB) { *pDst = uSrc | 0x8000; }
-			else    { *pDst = uSrc | srcMSB; }
+			//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
+			// preserved across calls to lighting or blending macros
+			if (MB)          { *pDst = uSrc | 0x8000; }
+			else if (B || L) { *pDst = uSrc | srcMSB; }
+			else             { *pDst = uSrc;          }
 
 			endpoly: pDst++;
 
@@ -510,7 +511,7 @@ void gpuPolySpanFn(u16 *pDst, u32 count)
 	}
 }
 
-INLINE void PolyNULL(u16 *pDst, u32 count)
+static void PolyNULL(u16 *pDst, u32 count)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"PolyNULL()\n");
