@@ -655,17 +655,19 @@ void  GPU_writeStatus(u32 data)
 		{
 			static const u32 HorizontalResolution[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
 			static const u32 VerticalResolution[4] = { 240, 480, 256, 480 };
-			u32 old_gp1=GPU_GP1;
 			GPU_GP1 = (GPU_GP1 & ~0x007F0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
 			#ifdef ENABLE_GPU_LOG_SUPPORT
 				fprintf(stdout,"GPU_writeStatus(RES=%dx%d,BITS=%d,PAL=%d)\n",HorizontalResolution[(GPU_GP1 >> 16) & 7],
 						VerticalResolution[(GPU_GP1 >> 19) & 3],(GPU_GP1&0x00200000?24:15),(IS_PAL?1:0));
 			#endif
 			// Video mode change
-			if (GPU_GP1!=old_gp1)
+			u32 new_width = HorizontalResolution[(GPU_GP1 >> 16) & 7];
+			u32 new_height = VerticalResolution[(GPU_GP1 >> 19) & 3];
+
+			if (DisplayArea[2] != new_width || DisplayArea[3] != new_height)
 			{
 				// Update width
-				DisplayArea[2] = HorizontalResolution[(GPU_GP1 >> 16) & 7];
+				DisplayArea[2] = new_width;
 				switch (DisplayArea[2])
 				{
 					case 256: blit_mask=0x00; break;
@@ -676,7 +678,7 @@ void  GPU_writeStatus(u32 data)
 					case 640: blit_mask=0xaa; break; // GPU_BlitWS
 				}
 				// Update height
-				DisplayArea[3] = VerticalResolution[(GPU_GP1 >> 19) & 3];
+				DisplayArea[3] = new_height;
 				if (DisplayArea[3] == 480)
 				{
 					if (linesInterlace_user) linesInterlace = 3; // 1/4 of lines
