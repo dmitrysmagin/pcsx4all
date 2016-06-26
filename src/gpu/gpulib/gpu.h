@@ -86,8 +86,10 @@ struct psx_gpu {
   } frameskip;
   uint16_t *(*get_enhancement_bufer)
     (int *x, int *y, int *w, int *h, int *vram_h);
+#ifdef GPULIB_USE_MMAP
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);
+#endif
 };
 
 extern struct psx_gpu gpu;

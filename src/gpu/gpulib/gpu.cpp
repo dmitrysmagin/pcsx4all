@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "gpu.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -144,6 +145,7 @@ static noinline void get_gpu_info(uint32_t data)
 // double, for overdraw guard
 #define VRAM_SIZE (1024 * 512 * 2 * 2)
 
+#ifdef GPULIB_USE_MMAP
 static int map_vram(void)
 {
   gpu.vram = gpu.mmap(VRAM_SIZE);
@@ -156,6 +158,19 @@ static int map_vram(void)
     return -1;
   }
 }
+#else
+static int allocate_vram(void)
+{
+  gpu.vram = calloc(VRAM_SIZE);
+  if (gpu.vram != NULL) {
+    gpu.vram += 4096 / 2;
+    return 0;
+  } else {
+    fprintf(stderr, "could not allocate vram, expect crashes\n");
+    return -1;
+  }
+}
+#endif
 
 long GPUinit(void)
 {
@@ -169,22 +184,35 @@ long GPUinit(void)
   gpu.cmd_len = 0;
   do_reset();
 
+#ifdef GPULIB_USE_MMAP
   if (gpu.mmap != NULL) {
     if (map_vram() != 0)
       ret = -1;
   }
+#else
+  if (gpu.vram == NULL) {
+    if (allocate_vram() != 0)
+      ret = -1;
+  } else {
+    fprintf(stderr, "ERROR: GPUinit() called twice? (gpu.vram != NULL)\n");
+  }
+#endif
+
   return ret;
 }
 
 long GPUshutdown(void)
 {
-  long ret;
-
   renderer_finish();
-  ret = vout_finish();
+  long ret = vout_finish();
+
   if (gpu.vram != NULL) {
     gpu.vram -= 4096 / 2;
+#ifdef GPULIB_USE_MMAP
     gpu.munmap(gpu.vram, VRAM_SIZE);
+#else
+    free(gpu.vram);
+#endif
   }
   gpu.vram = NULL;
 
