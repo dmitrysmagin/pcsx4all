@@ -29,7 +29,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawLF(const PD gpuPixelDriver)
 {
-	s32 temp;
 	s32 xmin, xmax;
 	s32 ymin, ymax;
 	s32 x0, x1, dx;
@@ -54,12 +53,12 @@ void gpuDrawLF(const PD gpuPixelDriver)
 	if (dx < 0) dx = -dx;
 	if (dx > dy) {
 		if (x0 > x1) {
-			GPU_SWAP(x0, x1, temp);
-			GPU_SWAP(y0, y1, temp);
+			SwapValues(x0, x1);
+			SwapValues(y0, y1);
 		}
 		y1 = GPU_DIV((y1 - y0) << GPU_DIGITS, dx);
 		y0 <<= GPU_DIGITS;
-		temp = xmin - x0;
+		s32 temp = xmin - x0;
 		if (temp > 0) {
 			x0 = xmin;
 			y0 += (y1 * temp);
@@ -69,7 +68,7 @@ void gpuDrawLF(const PD gpuPixelDriver)
 		if (x1 < 0) x1 = 0;
 
 		for (; x1; x1--) {
-			temp = y0 >> GPU_DIGITS;
+			s32 temp = y0 >> GPU_DIGITS;
 			if ((0==(temp&li))&&((temp&pi)!=pif))  {
 				if ((u32) (temp - ymin) < (u32) (ymax - ymin)) {
 					gpuPixelDriver(&((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, temp)],pixeldata);
@@ -80,12 +79,12 @@ void gpuDrawLF(const PD gpuPixelDriver)
 		}
 	} else if (dy) {
 		if (y0 > y1) {
-			GPU_SWAP(x0, x1, temp);
-			GPU_SWAP(y0, y1, temp);
+			SwapValues(x0, x1);
+			SwapValues(y0, y1);
 		}
 		x1 = GPU_DIV((x1 - x0) << GPU_DIGITS, dy);
 		x0 <<= GPU_DIGITS;
-		temp = ymin - y0;
+		s32 temp = ymin - y0;
 		if (temp > 0) {
 			y0 = ymin;
 			x0 += (x1 * temp);
@@ -96,7 +95,7 @@ void gpuDrawLF(const PD gpuPixelDriver)
 		
 		for (; y1; y1--) {
 			if ((0==(y0&li))&&((y0&pi)!=pif))  {
-				temp = x0 >> GPU_DIGITS;
+				s32 temp = x0 >> GPU_DIGITS;
 				if ((u32) (temp - xmin) < (u32) (xmax - xmin)) {
 					gpuPixelDriver(&((u16*)GPU_FrameBuffer)[FRAME_OFFSET(temp, y0)],pixeldata);
 				}
@@ -123,7 +122,6 @@ GF
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawLG(const PD gpuPixelDriver)
 {
-	s32 temp;
 	s32 xmin, xmax;
 	s32 ymin, ymax;
 	s32 x0, x1, dx;
@@ -155,11 +153,11 @@ void gpuDrawLG(const PD gpuPixelDriver)
 	dx = -dx;
 	if (dx > dy) {
 		if (x0 > x1) {
-			GPU_SWAP(x0, x1, temp);
-			GPU_SWAP(y0, y1, temp);
-			GPU_SWAP(r0, r1, temp);
-			GPU_SWAP(g0, g1, temp);
-			GPU_SWAP(b0, b1, temp);
+			SwapValues(x0, x1);
+			SwapValues(y0, y1);
+			SwapValues(r0, r1);
+			SwapValues(g0, g1);
+			SwapValues(b0, b1);
 		}
 		y1 = GPU_DIV((y1 - y0) << GPU_DIGITS, dx);
 		r1 = GPU_DIV((r1 - r0) << GPU_DIGITS, dx);
@@ -169,7 +167,7 @@ void gpuDrawLG(const PD gpuPixelDriver)
 		r0 <<= GPU_DIGITS;
 		g0 <<= GPU_DIGITS;
 		b0 <<= GPU_DIGITS;
-		temp = xmin - x0;
+		s32 temp = xmin - x0;
 		if (temp > 0) {
 			x0 = xmin;
 			y0 += (y1 * temp);
@@ -182,7 +180,7 @@ void gpuDrawLG(const PD gpuPixelDriver)
 		if (x1 < 0) x1 = 0;
 		
 		for (; x1; x1--) {
-			temp = y0 >> GPU_DIGITS;
+			s32 temp = y0 >> GPU_DIGITS;
 			if ((0==(temp&li))&&((temp&pi)!=pif))  {
 				if ((u32) (temp - ymin) < (u32) (ymax - ymin)) {
 					gpuPixelDriver (
@@ -199,11 +197,11 @@ void gpuDrawLG(const PD gpuPixelDriver)
 		}
 	} else if (dy) {
 		if (y0 > y1) {
-			GPU_SWAP(x0, x1, temp);
-			GPU_SWAP(y0, y1, temp);
-			GPU_SWAP(r0, r1, temp);
-			GPU_SWAP(g0, g1, temp);
-			GPU_SWAP(b0, b1, temp);
+			SwapValues(x0, x1);
+			SwapValues(y0, y1);
+			SwapValues(r0, r1);
+			SwapValues(g0, g1);
+			SwapValues(b0, b1);
 		}
 		x1 = GPU_DIV((x1 - x0) << GPU_DIGITS, dy);
 		r1 = GPU_DIV((r1 - r0) << GPU_DIGITS, dy);
@@ -213,7 +211,7 @@ void gpuDrawLG(const PD gpuPixelDriver)
 		r0 <<= GPU_DIGITS;
 		g0 <<= GPU_DIGITS;
 		b0 <<= GPU_DIGITS;
-		temp = ymin - y0;
+		s32 temp = ymin - y0;
 		if (temp > 0) {
 			y0 = ymin;
 			x0 += (x1 * temp);
@@ -227,7 +225,7 @@ void gpuDrawLG(const PD gpuPixelDriver)
 		
 		for (; y1; y1--) {
 			if ((0==(y0&li))&&((y0&pi)!=pif))  {
-				temp = x0 >> GPU_DIGITS;
+				s32 temp = x0 >> GPU_DIGITS;
 				if ((u32) (temp - xmin) < (u32) (xmax - xmin)) {
 					gpuPixelDriver (
 						&((u16*)GPU_FrameBuffer)[FRAME_OFFSET(temp, y0)],
