@@ -18,10 +18,11 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#include "psxcommon.h"
 #include "port.h"
-#include "gpu.h"
 #include "profiler.h"
 #include "debug.h"
+#include "gpu.h"
 
 #ifdef TIME_IN_MSEC
 #define TPS 1000
@@ -36,12 +37,10 @@ int linesInterlace_user = 0; /* Lines interlace */
 bool isSkip = false; /* skip frame (according to GPU) */
 bool skipFrame = false; /* skip this frame (according to frame skip) */
 bool wasSkip = false; /* skip frame old value (according to GPU) */
-bool show_fps = false; /* Show FPS statistics */
 
 bool skipGPU = false; /* skip GPU primitives */
 bool progressInterlace_flag = false; /* Progressive interlace flag */
 bool progressInterlace = false; /* Progressive interlace option*/
-bool frameLimit = false; /* frames to wait */
 
 bool fb_dirty = false; /* frame buffer is dirty (according to GPU) */
 bool light = true; /* lighting */
@@ -813,7 +812,7 @@ static void GPU_frameskip (bool show)
 	u32 now=get_ticks(); // current frame
 
 	// Show FPS
-	if (show_fps)
+	if (Config.ShowFps)
 	{
 		static u32 frames_fps=0; // frames counter
 		static u32 prev_fps=now; // previous fps calculation
@@ -862,7 +861,7 @@ static void GPU_frameskip (bool show)
 	}
 
 	// Limit FPS
-	if (frameLimit)
+	if (Config.FrameLimit)
 	{
 		static u32 next=now; // next frame
 #ifdef GCW_ZERO

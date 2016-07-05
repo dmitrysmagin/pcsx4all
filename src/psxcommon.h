@@ -101,6 +101,9 @@ typedef struct {
 	//           full. This fixes droupouts in music/speech on slow devices.
 	boolean ForcedXAUpdates; 
 
+	boolean ShowFps;     // Show FPS
+	boolean FrameLimit;  // Limit to NTSC/PAL framerate
+
 	// Options for performance monitor
 	boolean PerfmonConsoleOutput;
 	boolean PerfmonDetailedStats;
