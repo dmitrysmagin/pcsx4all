@@ -79,6 +79,8 @@ INLINE void gpuSetCLUT(u16 clut)
 #define Blending_Mode (((PRIM&0x2)&&(blend))?BLEND_MODE:0)
 #define Lighting (((~PRIM)&0x1)&&(light))
 
+//senquack - now handled by Rearmed's gpulib and gpu_unai/gpulib_if.cpp:
+#ifndef USE_GPULIB
 void gpuSendPacketFunction(const int PRIM)
 {
 	//printf("0x%x\n",PRIM);
@@ -511,3 +513,4 @@ void gpuSendPacketFunction(const int PRIM)
 			break;
 	}
 }
+#endif //USE_GPULIB

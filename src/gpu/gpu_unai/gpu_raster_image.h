@@ -19,6 +19,7 @@
  ***************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef USE_GPULIB
 INLINE void gpuLoadImage(void)
 {
 	u16 x0, y0, w0, h0;
@@ -42,8 +43,10 @@ INLINE void gpuLoadImage(void)
 
 	GPU_GP1 |= 0x08000000;
 }
+#endif // !USE_GPULIB
 
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef USE_GPULIB
 INLINE void gpuStoreImage(void)
 {
 	u16 x0, y0, w0, h0;
@@ -66,6 +69,7 @@ INLINE void gpuStoreImage(void)
 	
 	GPU_GP1 |= 0x08000000;
 }
+#endif // !USE_GPULIB
 
 INLINE void gpuMoveImage(void)
 {

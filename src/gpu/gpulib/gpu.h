@@ -84,8 +84,6 @@ struct psx_gpu {
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
-  uint16_t *(*get_enhancement_bufer)
-    (int *x, int *y, int *w, int *h, int *vram_h);
 #ifdef GPULIB_USE_MMAP
   void *(*mmap)(unsigned int size);
   void  (*munmap)(void *ptr, unsigned int size);
@@ -98,7 +96,35 @@ extern const unsigned char cmd_lengths[256];
 
 int do_cmd_list(uint32_t *list, int count, int *last_cmd);
 
-struct rearmed_cbs;
+struct gpulib_config_t {
+#ifdef GPULIB_USE_MMAP
+	void *(*mmap)(unsigned int size);
+	void  (*munmap)(void *ptr, unsigned int size);
+#endif
+	// some stats, for display by some plugins
+	int flips_per_sec, cpu_usage;
+	float vsps_cur; // currect vsync/s
+	// gpu options
+	int   frameskip;
+	int   fskip_advice;
+	unsigned int flip_cnt;
+
+	struct {
+		int   iUseDither;
+		int   dwActFixes;
+		float fFrameRateHz;
+		int   dwFrameRateTicks;
+	} gpu_peops_config;
+	struct {
+		bool abe_hack;
+		bool no_light, no_blend;
+		int  lineskip;
+	} gpu_unai_config;
+};
+
+extern gpulib_config_t gpulib_config;
+
+void gpulib_set_config(const gpulib_config_t *config);
 
 int  renderer_init(void);
 void renderer_finish(void);
@@ -106,30 +132,11 @@ void renderer_sync_ecmds(uint32_t * ecmds);
 void renderer_update_caches(int x, int y, int w, int h);
 void renderer_flush_queues(void);
 void renderer_set_interlace(int enable, int is_odd);
-void renderer_set_config(const struct rearmed_cbs *config);
+void renderer_set_config(const gpulib_config_t *config);
 void renderer_notify_res_change(void);
 
 int  vout_init(void);
 int  vout_finish(void);
 void vout_update(void);
 void vout_blank(void);
-void vout_set_config(const struct rearmed_cbs *config);
-
-/* listing these here for correct linkage if rasterizer uses c++ */
-struct GPUFreeze;
-
-long GPUinit(void);
-long GPUshutdown(void);
-void GPUwriteDataMem(uint32_t *mem, int count);
-long GPUdmaChain(uint32_t *rambase, uint32_t addr);
-void GPUwriteData(uint32_t data);
-void GPUreadDataMem(uint32_t *mem, int count);
-uint32_t GPUreadData(void);
-uint32_t GPUreadStatus(void);
-void GPUwriteStatus(uint32_t data);
-long GPUfreeze(uint32_t type, struct GPUFreeze *freeze);
-void GPUupdateLace(void);
-long GPUopen(void **dpy);
-long GPUclose(void);
-void GPUvBlank(int is_vblank, int lcf);
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs_);
+void vout_set_config(const gpulib_config_t *config);

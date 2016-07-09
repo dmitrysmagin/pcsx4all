@@ -22,8 +22,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../gpulib/gpu.h"
-#include "arm_features.h"
+#include "gpu/gpulib/gpu.h"
+#include "port.h"
 
 #define u8 uint8_t
 #define s8 int8_t
@@ -33,23 +33,28 @@
 #define s32 int32_t
 #define s64 int64_t
 
-#define INLINE static
+static inline s32 GPU_DIV(s32 rs, s32 rt)
+{
+	return rt ? (SDIV(rs,rt)) : (0);
+}
+
+//senquack - version of above that doesn't check for div-by-zero
+//           (caller *must* check!)
+#define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
 
 #define	FRAME_BUFFER_SIZE  (1024*512*2)
 #define	FRAME_WIDTH        1024
 #define	FRAME_HEIGHT       512
 #define	FRAME_OFFSET(x,y)  (((y)<<10)+(x))
 
-#define isSkip 0 /* skip frame (info coming from GPU) */
-#define alt_fps 0
-static int linesInterlace;  /* internal lines interlace */
-static int force_interlace;
+char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
 
+static int force_interlace;
+static int linesInterlace;  /* internal lines interlace */
+static bool progressInterlace_flag = false; /* Progressive interlace flag */
+static bool progressInterlace = false; /* Progressive interlace option*/
 static bool light = true; /* lighting */
 static bool blend = true; /* blending */
-static bool FrameToRead = false; /* load image in progress */
-static bool FrameToWrite = false; /* store image in progress */
-
 static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
 
 static u8 BLEND_MODE;
@@ -62,14 +67,6 @@ static u16 PixelData;
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Global data
 ///////////////////////////////////////////////////////////////////////////////
-
-//  Dma Transfers info
-static s32		px,py;
-static s32		x_end,y_end;
-static u16*  pvram;
-
-static s32 PacketCount;
-static s32 PacketIndex;
 
 //  Rasterizer status
 static u32 TextureWindow [4];
@@ -86,7 +83,25 @@ static s32   r4, dr4;
 static s32   g4, dg4;
 static s32   b4, db4;
 static u32   lInc;
-static u32   tInc, tMsk;
+
+//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
+//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
+//           another word and increment both u4,v4 with one instruction.
+//           During the course of fixing gpu_unai's polygon rendering issues,
+//           I ultimately found it was impossible to keep them combined like
+//           that, as pixel dropouts would always occur, particularly in NFS3
+//           sky background, perhaps from the reduced accuracy. Now they are
+//           incremented individually with du4 and dv4, and masked separetely,
+//           using new vars u4_msk, v4_msk, which store fixed-point masks.
+//           These are updated whenever TextureWindow[2] or [3] are changed.
+//u32   tInc, tMsk;
+static u32   u4_msk, v4_msk;
+
+static u32   blit_mask=0; /* blit mask - Determines which pixels of rendered
+                             objects are skipped. Only used when rendering
+                             on a low-resolution device in high-res modes.
+                             Cannot be used if downscaling is in use. */
+
 
 union GPUPacket
 {
@@ -117,7 +132,10 @@ static u32   GPU_GP1;
 #define CHKMAX_X 1024
 #define CHKMAX_Y 512
 
-#define	GPU_SWAP(a,b,t)	{(t)=(a);(a)=(b);(b)=(t);}
+template<class T> static inline void SwapValues(T &x, T &y)
+{
+	T tmp = x; x = y; y = tmp;
+}
 
 // GPU internal image drawing functions
 #include "../gpu_unai/gpu_raster_image.h"
@@ -140,6 +158,7 @@ int renderer_init(void)
 {
 	GPU_FrameBuffer = (u16 *)gpu.vram;
 
+#ifdef GPU_UNAI_USE_INT_DIV_MULTINV
 	// s_invTable
 	for(int i=1;i<=(1<<TABLE_BITS);++i)
 	{
@@ -151,6 +170,7 @@ int renderer_init(void)
 		#endif
 		s_invTable[i-1]=s32(v);
 	}
+#endif
 
 	return 0;
 }
@@ -172,6 +192,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
   unsigned int *list_end = list + list_len;
 
   linesInterlace = force_interlace;
+  //senquack - TODO: Make interlacing / lineskip options separete & robust,
+  // eliminate #ifdef below.
 #ifdef HAVE_PRE_ARMV7 /* XXX */
   linesInterlace |= gpu.status.interlace;
 #endif
@@ -471,6 +493,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
         TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
         TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
+        //senquack - new vars must be updated whenever texture window is changed:
+        u4_msk = i2x(TextureWindow[2]) | ((1 << FIXED_BITS) - 1);
+        v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
         gpuSetTexture(GPU_GP1);
         gpu.ex_regs[2] = temp;
         break;
@@ -532,20 +557,12 @@ void renderer_set_interlace(int enable, int is_odd)
 {
 }
 
-#ifndef TEST
-
-#include "../../frontend/plugin_lib.h"
-
-void renderer_set_config(const struct rearmed_cbs *cbs)
+void renderer_set_config(const gpulib_config_t *config)
 {
-  force_interlace = cbs->gpu_unai.lineskip;
-  enableAbbeyHack = cbs->gpu_unai.abe_hack;
-  light = !cbs->gpu_unai.no_light;
-  blend = !cbs->gpu_unai.no_blend;
+  force_interlace = config->gpu_unai_config.lineskip;
+  enableAbbeyHack = config->gpu_unai_config.abe_hack;
+  light = !config->gpu_unai_config.no_light;
+  blend = !config->gpu_unai_config.no_blend;
 
   GPU_FrameBuffer = (u16 *)gpu.vram;
 }
-
-#endif
-
-// vim:shiftwidth=2:expandtab

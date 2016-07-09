@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "plugins.h"    // For GPUFreeze_t
 #include "gpu.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
@@ -33,6 +34,7 @@
 #define log_anomaly(...)
 
 struct psx_gpu gpu;
+gpulib_config_t gpulib_config;
 
 static noinline int do_cmd_buffer(uint32_t *data, int count);
 static void finish_vram_transfer(int is_read);
@@ -148,7 +150,8 @@ static noinline void get_gpu_info(uint32_t data)
 #ifdef GPULIB_USE_MMAP
 static int map_vram(void)
 {
-  gpu.vram = gpu.mmap(VRAM_SIZE);
+  // 2048-byte guard in front
+  gpu.vram = gpu.mmap(VRAM_SIZE + 4096/2);
   if (gpu.vram != NULL) {
     gpu.vram += 4096 / 2;
     return 0;
@@ -161,7 +164,8 @@ static int map_vram(void)
 #else
 static int allocate_vram(void)
 {
-  gpu.vram = calloc(VRAM_SIZE);
+  // 2048-byte guard in front
+  gpu.vram = (uint16_t*)calloc(VRAM_SIZE + 4096/2, 1);
   if (gpu.vram != NULL) {
     gpu.vram += 4096 / 2;
     return 0;
@@ -172,36 +176,34 @@ static int allocate_vram(void)
 }
 #endif
 
-long GPUinit(void)
+long GPU_init(void)
 {
+#ifndef GPULIB_USE_MMAP
+  if (gpu.vram == NULL) {
+    if (allocate_vram() != 0) {
+      printf("ERROR: could not allocate VRAM, exiting..\n");
+	  exit(1);
+	}
+  }
+#endif
+
+  extern uint32_t hSyncCount;         // in psxcounters.cpp
+  extern uint32_t frame_counter;      // in psxcounters.cpp
+  gpu.state.hcnt = &hSyncCount;
+  gpu.state.frame_count = &frame_counter;
+
   int ret;
   ret  = vout_init();
   ret |= renderer_init();
 
-  gpu.state.frame_count = &gpu.zero;
-  gpu.state.hcnt = &gpu.zero;
   gpu.frameskip.active = 0;
   gpu.cmd_len = 0;
   do_reset();
 
-#ifdef GPULIB_USE_MMAP
-  if (gpu.mmap != NULL) {
-    if (map_vram() != 0)
-      ret = -1;
-  }
-#else
-  if (gpu.vram == NULL) {
-    if (allocate_vram() != 0)
-      ret = -1;
-  } else {
-    fprintf(stderr, "ERROR: GPUinit() called twice? (gpu.vram != NULL)\n");
-  }
-#endif
-
   return ret;
 }
 
-long GPUshutdown(void)
+long GPU_shutdown(void)
 {
   renderer_finish();
   long ret = vout_finish();
@@ -219,7 +221,7 @@ long GPUshutdown(void)
   return ret;
 }
 
-void GPUwriteStatus(uint32_t data)
+void GPU_writeStatus(uint32_t data)
 {
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
   static const short vres[4] = { 240, 480, 256, 480 };
@@ -415,7 +417,7 @@ static noinline int do_cmd_list_skip(uint32_t *data, int count, int *last_cmd)
 
     switch (cmd) {
       case 0x02:
-        if ((list[2] & 0x3ff) > gpu.screen.w || ((list[2] >> 16) & 0x1ff) > gpu.screen.h)
+        if ((int)(list[2] & 0x3ff) > gpu.screen.w || (int)((list[2] >> 16) & 0x1ff) > gpu.screen.h)
           // clearing something large, don't skip
           do_cmd_list(list, 3, &dummy);
         else
@@ -524,7 +526,7 @@ static void flush_cmd_buffer(void)
   gpu.cmd_len = left;
 }
 
-void GPUwriteDataMem(uint32_t *mem, int count)
+void GPU_writeDataMem(uint32_t *mem, int count)
 {
   int left;
 
@@ -538,7 +540,7 @@ void GPUwriteDataMem(uint32_t *mem, int count)
     log_anomaly("GPUwriteDataMem: discarded %d/%d words\n", left, count);
 }
 
-void GPUwriteData(uint32_t data)
+void GPU_writeData(uint32_t data)
 {
   log_io("gpu_write %08x\n", data);
   gpu.cmd_buffer[gpu.cmd_len++] = data;
@@ -546,7 +548,7 @@ void GPUwriteData(uint32_t data)
     flush_cmd_buffer();
 }
 
-long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
+long GPU_dmaChain(uint32_t *rambase, uint32_t start_addr)
 {
   uint32_t addr, *list, ld_addr = 0;
   int len, left, count;
@@ -611,7 +613,7 @@ long GPUdmaChain(uint32_t *rambase, uint32_t start_addr)
   return cpu_cycles;
 }
 
-void GPUreadDataMem(uint32_t *mem, int count)
+void GPU_readDataMem(uint32_t *mem, int count)
 {
   log_io("gpu_dma_read  %p %d\n", mem, count);
 
@@ -622,7 +624,7 @@ void GPUreadDataMem(uint32_t *mem, int count)
     do_vram_io(mem, count, 1);
 }
 
-uint32_t GPUreadData(void)
+uint32_t GPU_readData(void)
 {
   uint32_t ret;
 
@@ -637,7 +639,7 @@ uint32_t GPUreadData(void)
   return ret;
 }
 
-uint32_t GPUreadStatus(void)
+uint32_t GPU_readStatus(void)
 {
   uint32_t ret;
 
@@ -649,15 +651,7 @@ uint32_t GPUreadStatus(void)
   return ret;
 }
 
-struct GPUFreeze
-{
-  uint32_t ulFreezeVersion;      // should be always 1 for now (set by main emu)
-  uint32_t ulStatus;             // current gpu status
-  uint32_t ulControl[256];       // latest control register values
-  unsigned char psxVRam[1024*1024*2]; // current VRam image (full 2 MB for ZN)
-};
-
-long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
+long GPU_freeze(uint32_t type, GPUFreeze_t *freeze)
 {
   int i;
 
@@ -678,7 +672,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
       gpu.cmd_len = 0;
       for (i = 8; i > 0; i--) {
         gpu.regs[i] ^= 1; // avoid reg change detection
-        GPUwriteStatus((i << 24) | (gpu.regs[i] ^ 1));
+        GPU_writeStatus((i << 24) | (gpu.regs[i] ^ 1));
       }
       renderer_sync_ecmds(gpu.ex_regs);
       renderer_update_caches(0, 0, 1024, 512);
@@ -688,7 +682,7 @@ long GPUfreeze(uint32_t type, struct GPUFreeze *freeze)
   return 1;
 }
 
-void GPUupdateLace(void)
+void GPU_updateLace(void)
 {
   if (gpu.cmd_len > 0)
     flush_cmd_buffer();
@@ -720,7 +714,7 @@ void GPUupdateLace(void)
   gpu.state.blanked = 0;
 }
 
-void GPUvBlank(int is_vblank, int lcf)
+void GPU_vBlank(int is_vblank, int lcf)
 {
   int interlace = gpu.state.allow_interlace
     && gpu.status.interlace && gpu.status.dheight;
@@ -741,28 +735,23 @@ void GPUvBlank(int is_vblank, int lcf)
   }
 }
 
-#include "../../frontend/plugin_lib.h"
-
-void GPUrearmedCallbacks(const struct rearmed_cbs *cbs)
+void gpulib_set_config(const gpulib_config_t *config)
 {
-  gpu.frameskip.set = cbs->frameskip;
-  gpu.frameskip.advice = &cbs->fskip_advice;
+
+  gpu.frameskip.set = config->frameskip;
+  gpu.frameskip.advice = &config->fskip_advice;
   gpu.frameskip.active = 0;
   gpu.frameskip.frame_ready = 1;
-  gpu.state.hcnt = cbs->gpu_hcnt;
-  gpu.state.frame_count = cbs->gpu_frame_count;
-  gpu.state.allow_interlace = cbs->gpu_neon.allow_interlace;
-  gpu.state.enhancement_enable = cbs->gpu_neon.enhancement_enable;
 
-  gpu.mmap = cbs->mmap;
-  gpu.munmap = cbs->munmap;
+#ifdef GPULIB_USE_MMAP
+  gpu.mmap = config->mmap;
+  gpu.munmap = config->munmap;
 
   // delayed vram mmap
   if (gpu.vram == NULL)
     map_vram();
+#endif
 
-  if (cbs->pl_vout_set_raw_vram)
-    cbs->pl_vout_set_raw_vram(gpu.vram);
-  renderer_set_config(cbs);
-  vout_set_config(cbs);
+  renderer_set_config(config);
+  vout_set_config(config);
 }

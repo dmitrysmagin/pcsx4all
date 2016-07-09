@@ -19,6 +19,10 @@
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
 
+#ifdef USE_GPULIB
+#include "gpu/gpulib/gpu.h"
+#endif
+
 enum {
 	DKEY_SELECT = 0,
 	DKEY_L3,
@@ -797,8 +801,12 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 	#ifdef gpu_unai
+	#ifdef USE_GPULIB
+	//TODO: gpulib gpu_unai settings go here
+	#else
 	extern int skipCount; skipCount=0; /* frame skip (0,1,2,3...) */
 	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
+	#endif
 	#endif
 
 	// Load config from file.
@@ -861,9 +869,13 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-showfps")==0) { Config.ShowFps=true; } // show FPS
 		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
 	#ifdef gpu_unai
+	#ifdef USE_GPULIB
+		//TODO: gpulib gpu_unai settings go here
+	#else
 		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
 		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
 		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
+	#endif
 	#endif
 
 		// SPU
@@ -977,6 +989,9 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 
+#ifdef USE_GPULIB
+	gpulib_set_config(&gpulib_config);
+#endif
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 
