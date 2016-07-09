@@ -116,7 +116,10 @@ struct gpulib_config_t {
 		int   dwFrameRateTicks;
 	} gpu_peops_config;
 	struct {
-		bool abe_hack;
+		//senquack - disabled, not sure this is needed and would require modifying
+		// sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
+		// present in latest PCSX4ALL sources we were using.
+		//bool abe_hack;
 		bool no_light, no_blend;
 		int  lineskip;
 	} gpu_unai_config;

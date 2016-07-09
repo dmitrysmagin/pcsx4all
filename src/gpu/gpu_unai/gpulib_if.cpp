@@ -55,7 +55,11 @@ static bool progressInterlace_flag = false; /* Progressive interlace flag */
 static bool progressInterlace = false; /* Progressive interlace option*/
 static bool light = true; /* lighting */
 static bool blend = true; /* blending */
-static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
+
+//senquack Only PCSX Rearmed's version of gpu_unai had this, not sure it's
+// really necessary. It would require adding 'AH' flag to gpuSpriteSpanFn()
+// in gpu_inner.h and increasing size of sprite span function array.
+//static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
 
 static u8 BLEND_MODE;
 static u8 TEXT_MODE;
@@ -405,9 +409,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
         else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
         break;
 
       case 0x68:
@@ -437,9 +441,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
         else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
         break;
 
       case 0x78:
@@ -471,9 +475,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
         if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
         else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (enableAbbeyHack<<7)  | PixelMSB]);
+          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
         break;
 
       case 0x80:          //  vid -> vid
@@ -580,9 +584,13 @@ void renderer_set_interlace(int enable, int is_odd)
 void renderer_set_config(const gpulib_config_t *config)
 {
   force_interlace = config->gpu_unai_config.lineskip;
-  enableAbbeyHack = config->gpu_unai_config.abe_hack;
   light = !config->gpu_unai_config.no_light;
   blend = !config->gpu_unai_config.no_blend;
+
+  //senquack - disabled, not sure this is needed and would require modifying
+  // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
+  // present in latest PCSX4ALL sources we were using.
+  //enableAbbeyHack = config->gpu_unai_config.abe_hack;
 
   GPU_FrameBuffer = (u16 *)gpu.vram;
 }
