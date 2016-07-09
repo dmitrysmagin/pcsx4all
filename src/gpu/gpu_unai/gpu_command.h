@@ -321,16 +321,20 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
-				//senquack - Only color 808080h allows skipping lighting calculation:
 				// This fixes Silent Hill running animation on loading screens:
-				// (Color values 0x00-0x7F darken the source texture's color,
+				// (On PSX, color values 0x00-0x7F darken the source texture's color,
 				//  0x81-FF lighten textures (ultimately clamped to 0x1F),
-				//  0x80 leaves source texture color unchanged.
+				//  0x80 leaves source texture color unchanged, HOWEVER,
+				//   gpu_unai uses a simple lighting LUT whereby only the upper
+				//   5 bits of an 8-bit color are used, so 0x80-0x87 all behave as
+				//   0x80.
+				// 
 				// NOTE: I've changed all textured sprite draw commands here and
 				//  elsewhere to use proper behavior, but left poly commands
 				//  alone, I don't want to slow rendering down too much. (TODO)
 				//if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-				if ((PacketBuffer.U4[0] & 0xFFFFFF) == 0x808080)
+				// Strip lower 3 bits of each color and determine if lighting should be used:
+				if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
@@ -374,9 +378,10 @@ void gpuSendPacketFunction(const int PRIM)
 				PacketBuffer.U4[3] = 0x00080008;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
-				//senquack - Only color 808080h allows skipping lighting calculation:
+				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
 				//if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-				if ((PacketBuffer.U4[0] & 0xFFFFFF) == 0x808080)
+				// Strip lower 3 bits of each color and determine if lighting should be used:
+				if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
@@ -418,9 +423,10 @@ void gpuSendPacketFunction(const int PRIM)
 				PacketBuffer.U4[3] = 0x00100010;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
-				//senquack - Only color 808080h allows skipping lighting calculation:
+				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
 				//if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-				if ((PacketBuffer.U4[0] & 0xFFFFFF) == 0x808080)
+				// Strip lower 3 bits of each color and determine if lighting should be used:
+				if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
 				else
 					gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
