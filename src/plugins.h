@@ -130,6 +130,10 @@ extern void SPU_playCDDAchannel(unsigned char *, int);
 #endif
 
 //senquack - added these two functions, see notes in plugins.cpp
+void UpdateSPU(void);
+void HandleSPU_IRQ(void);
+
+//senquack - added these two functions, see notes in plugins.cpp
 #ifdef __cplusplus
 extern "C" {
 #endif

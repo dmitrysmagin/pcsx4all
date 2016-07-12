@@ -398,16 +398,8 @@ void psxBranchTest() {
 	// NOTE: PSXINT_SPU_UPDATE is always active and checked, it does not
 	//  set or check a flag of its own in psxRegs.interrupts.
 	if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPU_UPDATE].sCycle) >= psxRegs.intCycle[PSXINT_SPU_UPDATE].cycle) {
-#ifdef spu_pcsxrearmed
-		//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
-		// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
-		psxRegs.interrupt &= ~(1 << PSXINT_SPUIRQ);
-
-		SPU_async(psxRegs.cycle, 1);
-#else
-		SPU_async();
-#endif
-		SCHEDULE_SPU_UPDATE(spu_upd_interval);
+		// No need to clear SPU update interrupt, it will just be rescheduled immediately
+		UpdateSPU();
 	}
 
 	if (psxRegs.interrupt) {
@@ -520,7 +512,7 @@ void psxBranchTest() {
 		if (psxRegs.interrupt & (1 << PSXINT_SPUIRQ)) { // scheduled spu HW IRQ update
 			if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_SPUIRQ].sCycle) >= psxRegs.intCycle[PSXINT_SPUIRQ].cycle) {
 				psxRegs.interrupt &= ~(1 << PSXINT_SPUIRQ);
-				SPU_async(psxRegs.cycle, 0);
+				HandleSPU_IRQ();
 			}
 		}
 #endif
