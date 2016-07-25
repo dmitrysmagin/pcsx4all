@@ -40,6 +40,7 @@
 #include "cdrom.h"
 #include "ppf.h"
 #include "psxdma.h"
+#include "psxevents.h"
 
 #if defined(CDR_LOG) || defined(CDR_LOG_I) || defined(CDR_LOG_IO)
 static const char *CmdName[0x100]= {
@@ -231,44 +232,29 @@ u16 calcCrc(const u8 *d, const int len) {
 
 // cdrInterrupt
 #define CDR_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDR); \
-	psxRegs.intCycle[PSXINT_CDR].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDR].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDR, eCycle); \
 }
 
 // cdrReadInterrupt
 #define CDREAD_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
-	psxRegs.intCycle[PSXINT_CDREAD].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDREAD].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDREAD, eCycle); \
 }
 
 //senquack - Next two interrupt macros are new from PCSX Reloaded/Rearmed.
-//           I have added calls to ResetIoCycle() to match above macros,
-//           but wasn't sure that was truly necessary (TODO)
-
 // cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDRLID); \
-	psxRegs.intCycle[PSXINT_CDRLID].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRLID].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDRLID, eCycle); \
 }
 
 // cdrPlayInterrupt
 #define CDRMISC_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDRPLAY); \
-	psxRegs.intCycle[PSXINT_CDRPLAY].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRPLAY].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDRPLAY, eCycle); \
 }
 
 #define StopReading() { \
 	if (cdr.Reading) { \
 		cdr.Reading = 0; \
-		psxRegs.interrupt &= ~(1 << PSXINT_CDREAD); \
+		psxEventQueue.dequeue(PSXINT_CDREAD); \
 	} \
 	cdr.StatP &= ~(STATUS_READ|STATUS_SEEK);\
 }

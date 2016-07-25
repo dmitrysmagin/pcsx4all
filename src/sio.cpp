@@ -23,6 +23,7 @@
 */
 
 #include "sio.h"
+#include "psxevents.h"
 #include <sys/stat.h>
 
 // Status Flags
@@ -88,15 +89,11 @@ void sioInit(void) {
 //             535 (SIO_CYCLES) but I've left PCSX4ALL using this older SIO_INT(void)
 //           TODO: Add support for newer PCSXR Config.Sio option
 // clk cycle byte
-INLINE void SIO_INT(void) {
+static inline void SIO_INT(void) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_SIO_Int++;
 #endif
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
-	psxRegs.interrupt |= (1 << PSXINT_SIO); \
-	psxRegs.intCycle[PSXINT_SIO].cycle = sio_cycle; \
-	psxRegs.intCycle[PSXINT_SIO].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_SIO, sio_cycle);
 }
 
 void sioWrite8(unsigned char value) {
@@ -305,9 +302,7 @@ void sioWriteCtrl16(unsigned short value) {
 	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
 		padst = 0; mcdst = 0; parp = 0;
 		StatReg = TX_RDY | TX_EMPTY;
-		psxRegs.interrupt &= ~(1 << PSXINT_SIO);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-		ResetIoCycle();
+		psxEventQueue.dequeue(PSXINT_SIO);
 	}
 }
 

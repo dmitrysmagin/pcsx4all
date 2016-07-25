@@ -23,6 +23,7 @@
 */
 
 #include "plugins.h"
+#include "psxevents.h"
 
 int LoadPlugins(void) {
 	int ret;
@@ -78,7 +79,7 @@ void UpdateSPU(void)
 #ifdef spu_pcsxrearmed
 	//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
 	// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
-	psxRegs.interrupt &= ~(1 << PSXINT_SPUIRQ);
+	psxEventQueue.dequeue(PSXINT_SPUIRQ);
 
 	SPU_async(psxRegs.cycle, 1);
 #else
@@ -115,9 +116,7 @@ void CALLBACK Trigger_SPU_IRQ(void) {
 //  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc. and is currently
 //  only implemented in spu_pcsxrearmed)
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after) {
-	psxRegs.interrupt |= (1 << PSXINT_SPUIRQ);
-	psxRegs.intCycle[PSXINT_SPUIRQ].cycle = cycles_after;
-	psxRegs.intCycle[PSXINT_SPUIRQ].sCycle = psxRegs.cycle;
+	psxEventQueue.enqueue(PSXINT_SPUIRQ, cycles_after);
 }
 
 #ifdef __cplusplus

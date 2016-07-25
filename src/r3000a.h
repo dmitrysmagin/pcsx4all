@@ -142,27 +142,10 @@ typedef union {
 	PAIR p[32];
 } psxCP2Ctrl;
 
-enum {
-	PSXINT_SIO = 0,
-	PSXINT_CDR,
-	PSXINT_CDREAD,
-	PSXINT_GPUDMA,
-	PSXINT_MDECOUTDMA,
-	PSXINT_SPUDMA,
-	PSXINT_GPUBUSY,
-	PSXINT_MDECINDMA,
-	PSXINT_GPUOTCDMA,
-	PSXINT_CDRDMA,
-	PSXINT_NEWDRC_CHECK,
-	PSXINT_RCNT,          //senquack - not used (see psxcounters.cpp)
-	PSXINT_CDRLID,
-	PSXINT_CDRPLAY,
-	PSXINT_SPUIRQ,        //senquack - check for upcoming SPU HW interrupts
-	PSXINT_SPU_UPDATE,    //senquack - update and feed SPU (note that this usage
-                          // differs from Rearmed: Rearmed uses this for checking
-                          // for SPU HW interrupts and lacks a flexibly-scheduled
-                          // interval for SPU update-and-feed)
-	PSXINT_COUNT
+// Interrupt/event 'timestamp'
+struct intCycle_t {
+	u32 sCycle; // psxRegs.cycle value when event/interrupt was sheduled
+	u32 cycle;  // Number of cycles past sCycle above when event should occur
 };
 
 typedef struct {
@@ -175,9 +158,7 @@ typedef struct {
 	u32 cycle;
 	u32 interrupt;
 
-	//senquack - Converted to newer PCSXR struct:
-	//u32 intCycle[32];
-	struct { u32 sCycle, cycle; } intCycle[32];
+	intCycle_t intCycle[32];
 
 // CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
@@ -284,12 +265,27 @@ extern void psxReset(void);
 extern void psxShutdown(void);
 extern void psxException(u32 code, u32 bd);
 extern void psxBranchTest(void);
+
+
+//-----------------------------------------------------------------------------
+// senquack - disabled the old inefficient, extremely ugly versions of
+//  psxBranchTest() and associated functions psxCalculateIoCycle(),
+//  psxBranchTestCalculate() after event-scheduling overhaul (see psxevents.h).
+//  These were used by old ARM recompiler and interpreter_new, which are
+//  also uncommented messes.
+//  TODO: remove these entirely?
+//-----------------------------------------------------------------------------
+#if 0
 #ifdef USE_BRANCH_TEST_CALCULATE
 // CHUI: Funcion que llama a psxBranchTest y luego psxCalculateIoCycle
 extern void psxBranchTestCalculate();
 #else
 #define psxBranchTestCalculate psxBranchTest
 #endif
+#endif //0
+#define psxBranchTestCalculate psxBranchTest
+
+
 extern void psxExecuteBios(void);
 extern int  psxTestLoadDelay(int reg, u32 tmp);
 extern void psxDelayTest(int reg, u32 bpc);

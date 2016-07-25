@@ -32,6 +32,7 @@
 #include "gte.h"
 #include "profiler.h"
 #include "debug.h"
+#include "psxevents.h"
 
 PcsxConfig Config;
 R3000Acpu *psxCpu=NULL;
@@ -96,6 +97,10 @@ void psxReset() {
 
 	psxRegs.CP0.r[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	psxRegs.CP0.r[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
+
+	// Queue up any events that always get scheduled (e.g., SPU update)
+	psxEventQueue.clear_internal_queue();
+	psxEventQueue.schedule_persistent_events();
 
 	psxHwReset();
 	psxBiosInit();
@@ -186,6 +191,15 @@ void psxException(u32 code, u32 bd) {
 #endif
 }
 
+//-----------------------------------------------------------------------------
+// senquack - disabled the old inefficient, extremely ugly versions of
+//  psxBranchTest() and associated functions psxCalculateIoCycle(),
+//  psxBranchTestCalculate() after event-scheduling overhaul (see psxevents.h).
+//  These were used by old ARM recompiler and interpreter_new, which are
+//  also uncommented messes.
+//  TODO: remove these entirely?
+//-----------------------------------------------------------------------------
+#if 0
 #ifdef USE_BRANCH_TEST_CALCULATE
 // CHUI: Funcion que calcula la proxima entrada en psxBranchTest
 INLINE void psxCalculateIoCycle() {
@@ -372,24 +386,29 @@ void psxBranchTest() {
 #endif
 #endif
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
-	
-	if ((psxRegs.cycle - psxNextsCounter) >= psxNextCounter)
-		psxRcntUpdate();
-#ifndef USE_BRANCH_TEST_CALCULATE
-	unsigned value=psxNextCounter+psxNextsCounter;
-#endif
 
 //senquack - NOTE: This DEBUG block has been updated to use new PSXINT_*
 // interrupts enum and intCycle struct from PCSX Reloaded/Rearmed.
 // This older DEBUG code is not a part of newer PCSXR code, so could be
 // removed in the future (TODO):
 #ifdef DEBUG_BIOS
-	dbgf("Counters %u %u, IntCycle:",psxNextCounter,psxNextsCounter);
+	dbg("IntCycle:");
 	for(unsigned i=0;i<PSXINT_COUNT;i++){
 		dbgf("\n\t%.2u:", i);
 		dbgf(" sCycle:%u cycle:%u", psxRegs.intCycle[i].sCycle, psxRegs.intCycle[i].cycle);
 	}
 	dbg("");
+#endif
+
+	//senquack - Root counter update check
+	// NOTE: always scheduled (at minimum, it handles vSync)
+	if ((psxRegs.cycle - psxRegs.intCycle[PSXINT_RCNT].sCycle) >= psxRegs.intCycle[PSXINT_RCNT].cycle) {
+		// No need to clear root-counter update interrupt; it is always scheduled.
+		psxRcntUpdate();
+	}
+
+#ifndef USE_BRANCH_TEST_CALCULATE
+	unsigned value = psxRegs.intCycle[PSXINT_RCNT].sCycle + psxRegs.intCycle[PSXINT_RCNT].cycle;
 #endif
 
 	//senquack - Update SPU plugin & feed audio backend. This used to be done
@@ -586,6 +605,62 @@ void psxBranchTestCalculate() {
 #endif
 }
 #endif
+#endif //0
+
+void psxBranchTest()
+{
+#ifdef DEBUG_EVENTS
+	if (psxRegs.cycle < psxRegs.io_cycle_counter)
+		bt_unnecessary++;
+	else
+		bt_necessary++;
+#endif
+
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxBranchTest++;
+#endif
+	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
+
+	//senquack - Do not rearrange the math here! Events' sCycle val can end up
+	// negative (very large unsigned int) when a PSXINT_RESET_CYCLE_VAL event
+	// resets psxRegs.cycle to 0 and subtracts the previous psxRegs.cycle value
+	// from each event's sCycle value. If you were instead to test like this:
+	// 'while ((psxRegs.cycle >= (psxRegs.intCycle[X].sCycle + psxRegs.intCycle[X].cycle)',
+	// it could fail for events that were past-due at the moment of adjustment.
+	while ((psxRegs.cycle - psxRegs.intCycle[PSXINT_NEXT_EVENT].sCycle) >=
+			psxRegs.intCycle[PSXINT_NEXT_EVENT].cycle) {
+		// After dispatching the most-imminent event, this will update
+		//  the intCycle[PSXINT_NEXT_EVENT] element.
+		psxEventQueue.dispatch_and_remove_front();
+	}
+
+	psxRegs.io_cycle_counter = psxRegs.intCycle[PSXINT_NEXT_EVENT].sCycle +
+	                           psxRegs.intCycle[PSXINT_NEXT_EVENT].cycle;
+
+	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
+
+#ifdef DEBUG_CPU_OPCODES
+	dbgf("\tpsxRegs.io_cycle_counter=%u\n", psxRegs.io_cycle_counter);
+#endif
+
+	// Are one or more HW IRQ bits set in both their status and mask registers?
+	if (psxHu32(0x1070) & psxHu32(0x1074)) {
+		// Are both HW IRQ mask bit and IRQ master-enable bit set in CP0 status reg?
+		if ((psxRegs.CP0.n.Status & 0x401) == 0x401) {
+#ifdef DEBUG_CPU
+			dbgf("IRQ exception: port 0x1070:%x 0x1074:%x\n", psxHu32(0x1070), psxHu32(0x1074));
+#endif
+			psxException(0x400, 0);
+		}
+
+		// If CP0 SR value didn't allow a HW IRQ exception here, it is likely
+		//  because a game is currently inside an exception handler.
+		//  It is therefore important that the RFE 'return-from-exception'
+		//  instruction resets psxRegs.io_cycle_counter to 0. This ensures that
+		//  psxBranchTest() is called again as soon as possible so that any
+		//  pending HW IRQs are handled.
+	}
+}
 
 void psxExecuteBios() {
 #ifdef DEBUG_CPU

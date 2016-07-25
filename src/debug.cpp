@@ -21,6 +21,7 @@
 #include "psxcommon.h"
 #include "psxmem.h"
 #include "r3000a.h"
+#include "psxevents.h"
 #include "debug.h"
 
 #ifdef DEBUG_PCSX4ALL
