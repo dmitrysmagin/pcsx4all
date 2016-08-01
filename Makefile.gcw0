@@ -33,7 +33,7 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -mips32r2 -ggdb3 -O2 -DGCW_ZERO \
+CFLAGS = -mips32r2 -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
 	 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align \
 	 -Wno-unused-value -Wno-write-strings -Wno-narrowing \
 	 -Waggregate-return -Wno-cast-align \
