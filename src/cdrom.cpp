@@ -279,6 +279,10 @@ static void setIrq(void)
 {
 	if (cdr.Stat & cdr.Reg2)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+
+	// When IRQ status bit gets set, ensure psxBranchTest() gets called as soon
+	//  as possible, so HW IRQ exception gets handled
+	ResetIoCycle();
 }
 
 // timing used in this function was taken from tests on real hardware
