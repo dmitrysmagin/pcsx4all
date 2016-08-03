@@ -107,6 +107,8 @@ extern "C" {
 // SPU interrupt bit (currently only used by spu_pcsxrearmed)
 void CALLBACK Trigger_SPU_IRQ(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
+	// Ensure psxBranchTest() is called soon when IRQ is pending:
+	ResetIoCycle();
 }
 
 //senquack - A generic function SPU plugins can use to schedule an update
