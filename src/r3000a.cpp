@@ -151,8 +151,6 @@ void psxException(u32 code, u32 bd) {
 	// Set the Status
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status &~0x3f) |
 						  ((psxRegs.CP0.n.Status & 0xf) << 2);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
 
 	if (!Config.HLE && (((PSXMu32(psxRegs.CP0.n.EPC) >> 24) & 0xfe) == 0x4a)) {
 		// "hokuto no ken" / "Crash Bandicot 2" ... fix
