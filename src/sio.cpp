@@ -381,6 +381,7 @@ unsigned short sioReadBaud16() {
 #endif
 	return BaudReg;
 }
+
 void sioInterrupt() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioInterrupt++;
@@ -393,9 +394,9 @@ void sioInterrupt() {
 	if (!(StatReg & IRQ)) {
 		StatReg |= IRQ;
 		psxHu32ref(0x1070) |= SWAPu32(0x80);
+		// Ensure psxBranchTest() is called soon when IRQ is pending:
+		ResetIoCycle();
 	}
-	// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
 }
 
 void LoadMcd(int mcd, char *str) {
