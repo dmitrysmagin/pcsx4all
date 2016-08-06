@@ -218,11 +218,29 @@ do { \
 #define SLTU(rd, rs, rt) \
 	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
 
+#define JAL(func) \
+	write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2))
+
+#define JR(rs) \
+	write32(0x00000008 | ((rs) << 21))
+
 #define BEQ(rs, rt, offset) \
 	write32(0x10000000 | (rs << 21) | (rt << 16) | (offset >> 2))
 
 #define BEQZ(rs, offset)	BEQ(rs, 0, offset)
 #define B(offset)		BEQ(0, 0, offset)
+
+#define BGEZ(rs, offset) \
+	write32(0x04010000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BGTZ(rs, offset) \
+	write32(0x1c000000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BLEZ(rs, offset) \
+	write32(0x18000000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BLTZ(rs, offset) \
+	write32(0x04000000 | ((rs) << 21) | ((offset) >> 2))
 
 #define BNE(rs, rt, offset) \
 	write32(0x14000000 | (rs << 21) | (rt << 16) | (offset >> 2))
@@ -269,11 +287,11 @@ do { \
 	write32(0); /* nop */ \
 } while (0)
 
-/* call func */
+/* call func (JAL wrapper with NOP in BD slot) */
 #define CALLFunc(func) \
 do { \
-	write32(0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-	write32(0); /* nop */ \
+	JAL(func); \
+	NOP(); /* <BD> */ \
 } while (0)
 
 #define mips_relative_offset(source, offset, next) \
