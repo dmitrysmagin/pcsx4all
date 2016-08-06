@@ -29,6 +29,14 @@
 #ifndef MIPS_CG_H
 #define MIPS_CG_H
 
+// Mips32r2 introduced useful instructions:
+//TODO: Update all code that uses EXT/INS/SEB/SEH to use these guards.
+#if (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
+     defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
+#define HAVE_MIPS32R2_EXT_INS
+#define HAVE_MIPS32R2_SEB_SEH
+#endif
+
 typedef enum {
 	MIPSREG_V0 = 2,
 	MIPSREG_V1,
@@ -220,6 +228,8 @@ do { \
 #define NOP() \
 	write32(0)
 
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 #define EXT(rt, rs, pos, size) \
 	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
 	        ((pos & 0x1f) << 6) | (((size-1) & 0x1f) << 11))
@@ -227,12 +237,17 @@ do { \
 #define INS(rt, rs, pos, size) \
 	write32(0x7c000004 | (rs << 21) | (rt << 16) | \
 	        ((pos & 0x1f) << 6) | (((pos+size-1) & 0x1f) << 11))
+#endif //HAVE_MIPS32R2_EXT_INS
 
+
+#ifdef HAVE_MIPS32R2_SEB_SEH
 #define SEB(rd, rt) \
 	write32(0x7C000420 | (rt << 16) | (rd << 11))
 
 #define SEH(rd, rt) \
 	write32(0x7C000620 | (rt << 16) | (rd << 11))
+#endif //HAVE_MIPS32R2_SEB_SEH
+
 
 #define CLZ(rd, rs) \
 	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
