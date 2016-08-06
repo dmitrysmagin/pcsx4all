@@ -65,6 +65,8 @@ typedef enum {
 	MIPSREG_S5,
 	MIPSREG_S6,
 	MIPSREG_S7,
+
+	MIPSREG_SP = 0x1d,
 } MIPSReg;
 
 #define TEMP_1 				MIPSREG_T0
