@@ -156,7 +156,7 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 }
 #endif
 
-
+// Increment psxRegs.cycle with the estimated # of emulated cycles.
 #define ADDCYCLES() \
 do { \
 	u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS; \
@@ -170,6 +170,33 @@ do { \
 	SW(TEMP_1, PERM_REG_1, off(cycle)); \
 } while (0);
 
+// Version of above that incorporates call to psxBranchTest() when
+// psxRegs.cycle >= psxRegs.io_cycle_counter.
+// This check reduces total calls to psxBranchTest() by over 99%
+#define ADDCYCLES_AND_CHECK_BRANCH_TEST() \
+do { \
+	u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS;                     \
+	LW(TEMP_1, PERM_REG_1, off(cycle));                                        \
+	LW(TEMP_3, PERM_REG_1, off(io_cycle_counter));                             \
+	if (__cycles <= 0x7fff) {                                                  \
+	    ADDIU(TEMP_1, TEMP_1, __cycles);                                       \
+	} else {                                                                   \
+	    LI32(TEMP_2, __cycles);                                                \
+	    ADDU(TEMP_1, TEMP_1, TEMP_2);                                          \
+	}                                                                          \
+	/* TEMP_2 = psxRegs.cycle < psxRegs.io_cycle_counter */                    \
+	SLTU(TEMP_2, TEMP_1, TEMP_3);                                              \
+	/* if (psxRegs.cycle < psxRegs.io_cycle_counter) goto end_label */         \
+	u32 *backpatch1_addcycles = (u32 *)recMem;                                 \
+	BNE(TEMP_2, 0, 0);                                                         \
+	SW(TEMP_1, PERM_REG_1, off(cycle)); /* <BD> */                             \
+	JAL(psxBranchTest);                                                        \
+	NOP(); /* <BD> */                                                          \
+	                                                                           \
+	/* end_label: */                                                           \
+	fixup_branch(backpatch1_addcycles);                                        \
+} while (0);
+
 static void recSYSCALL()
 {
 	regClearJump();
@@ -181,8 +208,7 @@ static void recSYSCALL()
 	LI16(MIPSREG_A0, 0x20);
 	CALLFunc((u32)psxException);
 
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	cycles_pending = 0;
 
@@ -216,8 +242,7 @@ static void iJumpNormal(u32 branchPC)
 
 	LI32(TEMP_1, branchPC);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	cycles_pending = 0;
 
@@ -242,8 +267,7 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 
 	LI32(TEMP_1, branchPC);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	cycles_pending = 0;
 
@@ -275,8 +299,7 @@ static void recBLTZ()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -311,8 +334,7 @@ static void recBGTZ()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -349,8 +371,7 @@ static void recBLTZAL()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -387,8 +408,7 @@ static void recBGEZAL()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -423,8 +443,7 @@ static void recJR()
 	regUnlock(br1);
 	regClearJump();
 
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	cycles_pending = 0;
 
@@ -444,8 +463,7 @@ static void recJALR()
 	regUnlock(br1);
 	regClearJump();
 
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	cycles_pending = 0;
 
@@ -478,8 +496,7 @@ static void recBEQ()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -515,8 +532,7 @@ static void recBNE()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -552,8 +568,7 @@ static void recBLEZ()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
@@ -588,8 +603,7 @@ static void recBGEZ()
 
 	LI32(TEMP_1, bpc);
 	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	ADDCYCLES_AND_CHECK_BRANCH_TEST();
 
 	rec_recompile_end();
 
