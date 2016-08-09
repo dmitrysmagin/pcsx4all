@@ -272,20 +272,54 @@ do { \
 #define CLZ(rd, rs) \
 	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
 
-/* start of the recompiled block */
+/* start of the recompiled block
+ *
+ * senquack - Two separate versions. The first version here assumes blocks
+ *  are called from the MIPS assembly trampoline versions of recExecute() and
+ *  recExecuteBlock() in recompiler.cpp, which preserve the contents of
+ *  PERM_REG_1 (which is $fp/$s8, containing &psxRegs) between calls to
+ *  recompiled blocks. They also maintain the return address of blocks at
+ *  (16)$sp between calls to blocks.
+ *
+ * The second version here assumes it is called from the C versions,
+ *  which cannot ensure $fp or $ra are preserved.
+ */
+#ifdef ASM_EXECUTE_LOOP
+#define rec_recompile_start() \
+do { \
+} while (0)
+#else
 #define rec_recompile_start() \
 do { \
 	PUSH(MIPSREG_RA); \
 	LI32(PERM_REG_1, (u32)&psxRegs); \
 } while (0)
+#endif
 
-/* end of the recompiled block */
+/* end of the recompiled block
+ *
+ * senquack - Two separate versions. The first version here assumes blocks
+ *  are called from the MIPS assembly trampoline versions of recExecute() and
+ *  recExecuteBlock() in recompiler.cpp, which maintains the return address
+ *  at 16($sp) between calls to blocks.
+ */
+#ifdef ASM_EXECUTE_LOOP
 #define rec_recompile_end() \
 do { \
-	POP(MIPSREG_RA); \
-	write32(0x00000008 | (MIPSREG_RA << 21)); /* jr ra */ \
-	write32(0); /* nop */ \
+	/* load $ra from stack at 16($sp) and jump to it */ \
+	LW(MIPSREG_RA, MIPSREG_SP, 16); \
+	JR(MIPSREG_RA); \
+	NOP(); /* <BD> */ \
 } while (0)
+#else
+#define rec_recompile_end() \
+do { \
+	/* pop $ra and jump to it, adjusting stack in BD slot: */ \
+	LW(MIPSREG_RA, MIPSREG_SP, 0); \
+	JR(MIPSREG_RA); \
+	ADDIU(MIPSREG_SP, MIPSREG_SP, 4); /* <BD> */ \
+} while (0)
+#endif
 
 /* call func (JAL wrapper with NOP in BD slot) */
 #define CALLFunc(func) \

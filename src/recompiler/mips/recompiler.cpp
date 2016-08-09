@@ -32,6 +32,9 @@
 #include "r3000a.h"
 #include "gte.h"
 
+/* Use inlined-asm version of block dispatcher: */
+#define ASM_EXECUTE_LOOP
+
 //#define WITH_DISASM
 //#define DEBUGG printf
 
@@ -262,7 +265,6 @@ static void recShutdown() { }
  * thus put all temporaries to stack. In this case $s[0-7], $fp and $ra are saved
  * in recExecute() and recExecuteBlock() only once.
  */
-#define ASM_EXECUTE_LOOP
 #ifndef ASM_EXECUTE_LOOP
 static __attribute__ ((noinline)) void recFunc(void *fn)
 {
@@ -286,39 +288,83 @@ static void recExecute()
 		recFunc((void *)*p);
 	}
 #else
-	u32 *pc = (u32 *)&psxRegs.pc;
-	u32 *p;
+__asm__ __volatile__ (
+// NOTE: <BD> indicates an instruction in a branch-delay slot
+".set noreorder                               \n"
 
-	asm (
-		"1: \n"
-		"la	 $t1, %[_psxRecLUT] \n"
-		"lw	 $t0, %[_pc] \n"
-		"lw	 $t0, 0($t0) \n"
-		"srl	 $t2, $t0, 0x10 \n"
-		"sll	 $t2, $t2, 2 \n"
-		"addu	 $t1, $t1, $t2 \n"
-		"lw	 $t1, 0($t1) \n"
-		"andi	 $t0, $t0, 0xffff \n"
-		"addu	 $t0, $t0, $t1 \n"
+// $fp/$s8 remains set to &psxRegs across all calls to dynarec blocks
+"lui    $fp,      %%hi(%[psxRegs])            \n"
+"addiu  $fp, $fp, %%lo(%[psxRegs])            \n"
 
-		"sw	 $t0, %[_p] \n"
-		"lw	 $t0, 0($t0) \n"
-		"bnez	 $t0, 0f \n"
-		"jal	 %[_recRecompile] \n"
-		"lw	 $t0, %[_p] \n"
-		"lw	 $t0, 0($t0) \n"
-		"0: \n"
-		"jalr	 $t0 \n"
-		"b	 1b \n"
-		:
-		: [_psxRecLUT] "i" (psxRecLUT),
-		  [_recRecompile] "i" (&recRecompile),
-		  [_p]		"m" (p),
-		  [_pc]		"m" (pc)
-		: "%t0", "%t1", "%t2",
-		  "%s0", "%s1", "%s2", "%s3", "%s4",
-		  "%s5", "%s6", "%s7", "%fp", "%ra"
-	);
+// Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
+// empty at 0($sp) for use by functions called from within recompiled code.
+".equ  frame_size,                  24        \n"
+".equ  f_off_temp_var1,             20        \n"
+".equ  f_off_block_ret_addr,        16        \n" // NOTE: blocks assume this is at 16($sp)!
+"addiu $sp, $sp, -frame_size                  \n"
+
+// Store const block return address at fixed location in stack frame
+"lui   $t0,      %%hi(return_from_block%=)    \n"
+"addiu $t0, $t0, %%lo(return_from_block%=)    \n"
+"sw    $t0, f_off_block_ret_addr($sp)         \n"
+
+// Load $v0 once with psxRegs.pc, it will be set to new
+//  value at end of each loop
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // $v0 = psxRegs.pc
+
+// Align loop on cache-line boundary
+".balign 32, 0, 31                            \n"
+
+// Infinite loop:
+"loop%=:                                      \n"
+
+// NOTE: End of loop will have set $v0 to psxRegs.pc
+// $t2 = psxRecLUT[pxsRegs.pc >> 16] + (psxRegs.pc & 0xffff)
+// $t0 = *($t2)
+"lui   $t1, %%hi(%[psxRecLUT])                \n"
+"srl   $t2, $v0, 16                           \n"
+"sll   $t2, $t2, 2                            \n"
+"addu  $t1, $t1, $t2                          \n"
+"lw    $t1, %%lo(%[psxRecLUT])($t1)           \n"
+"andi  $v0, $v0, 0xffff                       \n"
+"addu  $t2, $v0, $t1                          \n"
+"lw    $t0, 0($t2)                            \n"
+
+// Recompile block, if necessary
+"beqz  $t0, recompile_block%=                 \n"
+"nop                                          \n" // <BD>
+
+// Execute already-compiled block
+"execute_block%=:                             \n"
+"jr    $t0                                    \n"
+"nop                                          \n" // <BD>
+
+// Return point for all executed blocks
+"return_from_block%=:                         \n"
+"b     loop%=                                 \n" // Loop, loading PC in BD slot
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD>  $v0 = psxRegs.pc
+
+// Recompile block and execute it. It will return to label 'return_from_block'
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr
+"lw    $t0, 0($t2)                            \n"
+"jr    $t0                                    \n" // Execute block
+"nop                                          \n" // <BD>
+
+// Destroy stack frame (we'd never actually reach here)
+"addiu $sp, $sp, frame_size                   \n"
+".set reorder                                 \n"
+
+: // Output
+: // Input
+     [psxRegs]                    "i" (&psxRegs),
+     [psxRegs_pc_off]             "i" (off(pc)),
+     [psxRecLUT]                  "i" (&psxRecLUT),
+     [recRecompile]               "i" (&recRecompile)
+: // Clobber - Don't care, the ASM loop above is infinite
+);
 #endif
 }
 
@@ -333,43 +379,107 @@ static void recExecuteBlock(unsigned target_pc)
 		recFunc((void *)*p);
 	} while (psxRegs.pc != target_pc);
 #else
-	u32 *pc = (u32 *)&psxRegs.pc;
-	u32 *p;
+__asm__ __volatile__ (
+// NOTE: <BD> indicates an instruction in a branch-delay slot
+".set noreorder                               \n"
 
-	asm (
-		"1: \n"
-		"la	 $t1, %[_psxRecLUT] \n"
-		"lw	 $t0, %[_pc] \n"
-		"lw	 $t0, 0($t0) \n"
-		"srl	 $t2, $t0, 0x10 \n"
-		"sll	 $t2, $t2, 2 \n"
-		"addu	 $t1, $t1, $t2 \n"
-		"lw	 $t1, 0($t1) \n"
-		"andi	 $t0, $t0, 0xffff \n"
-		"addu	 $t0, $t0, $t1 \n"
+// $fp/$s8 remains set to &psxRegs across all calls to dynarec blocks
+"lui   $fp,      %%hi(%[psxRegs])             \n"
+"addiu $fp, $fp, %%lo(%[psxRegs])             \n"
 
-		"sw	 $t0, %[_p] \n"
-		"lw	 $t0, 0($t0) \n"
-		"bnez	 $t0, 0f \n"
-		"jal	 %[_recRecompile] \n"
-		"lw	 $t0, %[_p] \n"
-		"lw	 $t0, 0($t0) \n"
-		"0: \n"
-		"jalr	 $t0 \n"
-		"lw	 $t1, %[_pc] \n"
-		"lw	 $t1, 0($t1) \n"
-		"lw	 $t2, %[_target_pc] \n"
-		"bne	 $t1, $t2, 1b \n"
-		:
-		: [_psxRecLUT] "i" (psxRecLUT),
-		  [_recRecompile] "i" (&recRecompile),
-		  [_p]		"m" (p),
-		  [_pc]		"m" (pc),
-		  [_target_pc]	"m" (target_pc)
-		: "%t0", "%t1", "%t2",
-		  "%s0", "%s1", "%s2", "%s3", "%s4",
-		  "%s5", "%s6", "%s7", "%fp", "%ra"
-	);
+// Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
+// empty at 0($sp) for use by functions called from within recompiled code.
+".equ  frame_size,                  32        \n"
+".equ  f_off_orig_gp_regval,        28        \n"
+".equ  f_off_target_pc,             24        \n"
+".equ  f_off_temp_var1,             20        \n"
+".equ  f_off_block_ret_addr,        16        \n" // NOTE: blocks assume this is at 16($sp)!
+"addiu $sp, $sp, -frame_size                  \n"
+
+// Save original $gp val. GCC requires inline ASM to do this manually.
+"sw    $gp, f_off_orig_gp_regval($sp)         \n"
+
+// Store const copy of 'target_pc' parameter in stack frame
+"sw    %[target_pc], f_off_target_pc($sp)     \n"
+
+// Store const block return address at fixed location in stack frame
+"lui   $t0,      %%hi(return_from_block%=)    \n"
+"addiu $t0, $t0, %%lo(return_from_block%=)    \n"
+"sw    $t0, f_off_block_ret_addr($sp)         \n"
+
+// Load $v0 once with psxRegs.pc, it will be set to new
+//  value at end of each loop
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n"
+
+// Load $t1 once with upper base addr of psxRecLUT[],
+//  it will be loaded again at end of each loop
+"lui   $t1, %%hi(%[psxRecLUT])                \n"
+
+// Align loop on cache-line boundary
+".balign 32, 0, 31                            \n"
+
+// Loop until psxRegs.pc == target_pc
+"loop%=:                                      \n"
+// NOTE: End of loop will have set $t1 to %%hi(%[psxRecLUT])
+//       and $v0 to psxRegs.pc
+// $t2 = psxRecLUT[pxsRegs.pc >> 16] + (psxRegs.pc & 0xffff)
+// $t0 = *($t2)
+"srl   $t2, $v0, 16                           \n"
+"sll   $t2, $t2, 2                            \n"
+"addu  $t1, $t1, $t2                          \n"
+"lw    $t1, %%lo(%[psxRecLUT])($t1)           \n"
+"andi  $v0, $v0, 0xffff                       \n"
+"addu  $t2, $v0, $t1                          \n"
+"lw    $t0, 0($t2)                            \n"
+
+// Recompile block, if necessary
+"beqz  $t0, recompile_block%=                 \n"
+"nop                                          \n" // <BD>
+
+// Execute already-compiled block
+"execute_block%=:                             \n"
+"jr    $t0                                    \n"
+"nop                                          \n" // <BD>
+
+// Return point for all executed blocks
+"return_from_block%=:                         \n"
+// Check if target_pc has been reached, looping if not
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // $v0 = psxRegs.pc
+"lw    $t0, f_off_target_pc($sp)              \n" // $t0 = target_pc
+"bne   $v0, $t0, loop%=                       \n" // loop if psxRegs.pc != target_pc
+"lui   $t1, %%hi(%[psxRecLUT])                \n" // <BD> Top of loop needs this
+
+// Since target_pc has been reached, goto 'end_label'
+"b     end_label%=                            \n"
+"lw    $gp, f_off_orig_gp_regval($sp)         \n" // <BD> Restore $gp reg in BD slot
+
+// Recompile block and execute it. It will return to label 'return_from_block'
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block code ptr on stack
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block code ptr from stack
+"lw    $t0, 0($t2)                            \n"
+"jr    $t0                                    \n" // Execute block
+"nop                                          \n" // <BD>
+
+// Destroy stack frame, exiting inlined ASM block
+"end_label%=:                                 \n"
+"addiu $sp, $sp, frame_size                   \n"
+".set reorder                                 \n"
+
+: // Output
+: // Input
+  [target_pc]                  "r" (target_pc),
+  [psxRegs]                    "i" (&psxRegs),
+  [psxRegs_pc_off]             "i" (off(pc)),
+  [psxRecLUT]                  "i" (&psxRecLUT),
+  [recRecompile]               "i" (&recRecompile)
+: // Clobber
+  "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9",
+  "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+  "v0", "v1", "at", "fp", "ra",
+  "memory"
+);
 #endif
 }
 
