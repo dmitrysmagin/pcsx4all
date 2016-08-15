@@ -200,14 +200,32 @@ static void LoadFromAddr(int count)
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm);
-
 		switch (opcode & 0xfc000000) {
-		case 0x80000000: CALLFunc((u32)psxMemRead8); SEB(r2, MIPSREG_V0); break; // LB
-		case 0x90000000: CALLFunc((u32)psxMemRead8); MOV(r2, MIPSREG_V0); break; // LBU
-		case 0x84000000: CALLFunc((u32)psxMemRead16); SEH(r2, MIPSREG_V0); break; // LH
-		case 0x94000000: CALLFunc((u32)psxMemRead16); MOV(r2, MIPSREG_V0); break; // LHU
-		case 0x8c000000: CALLFunc((u32)psxMemRead32); MOV(r2, MIPSREG_V0); break; // LW
+		case 0x80000000: // LB
+			JAL(psxMemRead8);
+			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+			SEB(r2, MIPSREG_V0);
+			break;
+		case 0x90000000: // LBU
+			JAL(psxMemRead8);
+			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+			MOV(r2, MIPSREG_V0);
+			break;
+		case 0x84000000: // LH
+			JAL(psxMemRead16);
+			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+			SEH(r2, MIPSREG_V0);
+			break;
+		case 0x94000000: // LHU
+			JAL(psxMemRead16);
+			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+			MOV(r2, MIPSREG_V0);
+			break;
+		case 0x8c000000: // LW
+			JAL(psxMemRead32);
+			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+			MOV(r2, MIPSREG_V0);
+			break;
 		}
 
 		SetUndef(rt);
@@ -316,11 +334,19 @@ static void StoreToAddr(int count)
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm);
-		MOV(MIPSREG_A1, r2);
 		switch (opcode & 0xfc000000) {
-		case 0xa0000000: CALLFunc((u32)psxMemWrite8); break;
-		case 0xa4000000: CALLFunc((u32)psxMemWrite16); break;
-		case 0xac000000: CALLFunc((u32)psxMemWrite32); break;
+		case 0xa0000000:
+			JAL(psxMemWrite8);
+			MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
+			break;
+		case 0xa4000000:
+			JAL(psxMemWrite16);
+			MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
+			break;
+		case 0xac000000:
+			JAL(psxMemWrite32);
+			MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
+			break;
 		default: break;
 		}
 
@@ -601,8 +627,8 @@ static void gen_LWL_LWR(int count)
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
-		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
-		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+		JAL(psxMemRead32);          // result in MIPSREG_V0
+		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
 
 		ADDIU(TEMP_1, r1, imm);
 		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
@@ -726,8 +752,8 @@ static void gen_SWL_SWR(int count)
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
-		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
-		CALLFunc((u32)psxMemRead32); // result in MIPSREG_V0
+		JAL(psxMemRead32);          // result in MIPSREG_V0
+		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using BD slot)
 
 		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
 		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
@@ -758,9 +784,8 @@ static void gen_SWL_SWR(int count)
 		else			// SWR
 			SLLV(TEMP_3, r2, TEMP_2);
 
-		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3);
-
-		CALLFunc((u32)psxMemWrite32);
+		JAL(psxMemWrite32);
+		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3); // <BD> Branch delay slot
 
 		PC += 4;
 
