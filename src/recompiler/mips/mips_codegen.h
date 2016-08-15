@@ -273,53 +273,40 @@ do { \
 	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
 
 /* start of the recompiled block
- *
- * senquack - Two separate versions. The first version here assumes blocks
- *  are called from the MIPS assembly trampoline versions of recExecute() and
- *  recExecuteBlock() in recompiler.cpp, which preserve the contents of
- *  PERM_REG_1 (which is $fp/$s8, containing &psxRegs) between calls to
- *  recompiled blocks. They also maintain the return address of blocks at
- *  (16)$sp between calls to blocks.
- *
- * The second version here assumes it is called from the C versions,
- *  which cannot ensure $fp or $ra are preserved.
  */
-#ifdef ASM_EXECUTE_LOOP
 #define rec_recompile_start() \
 do { \
 } while (0)
-#else
-#define rec_recompile_start() \
-do { \
-	PUSH(MIPSREG_RA); \
-	LI32(PERM_REG_1, (u32)&psxRegs); \
-} while (0)
-#endif
 
 /* end of the recompiled block
  *
- * senquack - Two separate versions. The first version here assumes blocks
- *  are called from the MIPS assembly trampoline versions of recExecute() and
- *  recExecuteBlock() in recompiler.cpp, which maintains the return address
- *  at 16($sp) between calls to blocks.
+ * The idea behind having a part1 and part2 is to minimize load stalls by
+ *  interleaving unrelated code between their calls.
+ * Currently, only the load of $ra benefits from this, saving a 4-cycle stall.
  */
-#ifdef ASM_EXECUTE_LOOP
-#define rec_recompile_end() \
-do { \
-	/* load $ra from stack at 16($sp) and jump to it */ \
-	LW(MIPSREG_RA, MIPSREG_SP, 16); \
-	JR(MIPSREG_RA); \
-	NOP(); /* <BD> */ \
+#define rec_recompile_end_part1()                                              \
+do {                                                                           \
+    /* Load $ra from stack at 16($sp) */                                       \
+    LW(MIPSREG_RA, MIPSREG_SP, 16);                                            \
 } while (0)
-#else
-#define rec_recompile_end() \
-do { \
-	/* pop $ra and jump to it, adjusting stack in BD slot: */ \
-	LW(MIPSREG_RA, MIPSREG_SP, 0); \
-	JR(MIPSREG_RA); \
-	ADDIU(MIPSREG_SP, MIPSREG_SP, 4); /* <BD> */ \
+
+#define rec_recompile_end_part2()                                              \
+do {                                                                           \
+    /* Jump to $ra, using BD slot to fill $v1 return value with number of   */ \
+    /*  cycles block has taken. $ra will have been loaded in prior call     */ \
+    /*  to rec_recompile_end_part1().                                       */ \
+    /* Somewhere between calls to ..part1() and ..part2(), calling code     */ \
+    /*  places new value for psxRegs.pc in $v0.                             */ \
+    u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS;                     \
+    if (__cycles <= 0xffff) {                                                  \
+        JR(MIPSREG_RA);                                                        \
+        LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
+    } else {                                                                   \
+        LUI(MIPSREG_V1, (__cycles >> 16));                                     \
+        JR(MIPSREG_RA);                                                        \
+        ADDIU(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */         \
+    }                                                                          \
 } while (0)
-#endif
 
 /* call func (JAL wrapper with NOP in BD slot) */
 #define CALLFunc(func) \
