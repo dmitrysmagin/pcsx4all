@@ -5,23 +5,26 @@ void gte##f(u32 code, u32 pc); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
 	LI32(MIPSREG_A0, psxRegs.code); \
-	LI32(MIPSREG_A1, pc); \
-	CALLFunc((u32)gte##f); \
-} \
+	LUI(MIPSREG_A1, (pc >> 16)); \
+	JAL(gte##f); \
+	ORI(MIPSREG_A1, MIPSREG_A1, (pc & 0xffff)); /* <BD> Branch delay slot */ \
+}
 
 #define CP2_FUNC2(f, cycle) \
 void gte##f(u32 code); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
-	LI32(MIPSREG_A0, psxRegs.code); \
-	CALLFunc((u32)gte##f); \
+	LUI(MIPSREG_A0, (psxRegs.code >> 16)); \
+	JAL(gte##f); \
+	ORI(MIPSREG_A0, MIPSREG_A0, (psxRegs.code & 0xffff)); /* <BD> Branch delay slot */ \
 }
 
 #define CP2_FUNC3(f, cycle) \
 void gte##f(); void rec##f() \
 { \
 	if (autobias) cycles_pending += cycle; \
-	CALLFunc((u32)gte##f); \
+	JAL(gte##f); \
+	NOP(); /* <BD> Branch delay slot */ \
 }
 
 //CP2_FUNC2(MFC2, 2);
@@ -172,8 +175,8 @@ static void recLWC2()
 	if (autobias) cycles_pending += 3;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 
-	ADDIU(MIPSREG_A0, rs, _Imm_);
-	CALLFunc((u32)psxMemRead32);
+	JAL(psxMemRead32);
+	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
 
 	emitMTC2(MIPSREG_V0, _Rt_);
 
@@ -187,8 +190,8 @@ static void recSWC2()
 
 	emitMFC2(MIPSREG_A1, _Rt_);
 
-	ADDIU(MIPSREG_A0, rs, _Imm_);
-	CALLFunc((u32)psxMemWrite32);
+	JAL(psxMemWrite32);
+	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
 
 	regUnlock(rs);
 }
@@ -204,8 +207,8 @@ void rec##f() \
 	LI32(TEMP_1, pc); \
 	SW(TEMP_1, PERM_REG_1, off(pc)); \
 	LI32(TEMP_1, psxRegs.code); \
-	SW(TEMP_1, PERM_REG_1, off(code)); \
-	CALLFunc((u32)gte##f); \
+	JAL(gte##f); \
+	SW(TEMP_1, PERM_REG_1, off(code)); /* <BD> Branch delay slot of JAL() */ \
 } \
 
 CP2_FUNC(MFC2, 2);
