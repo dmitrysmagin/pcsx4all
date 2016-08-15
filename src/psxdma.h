@@ -23,53 +23,35 @@
 
 #include "psxcommon.h"
 #include "r3000a.h"
+#include "psxevents.h"
 #include "psxhw.h"
 #include "psxmem.h"
 
 //senquack - NOTE: These macros have been updated to use new PSXINT_*
 // interrupts enum and intCycle struct (much cleaner than before)
-// from PCSX Reloaded/Rearmed
-
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
+// from PCSX Reloaded/Rearmed as well as new event queue (psxevents.h)
 #define GPUDMA_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_GPUDMA); \
-	psxRegs.intCycle[PSXINT_GPUDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_GPUDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_GPUDMA, eCycle); \
 }
 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 #define SPUDMA_INT(eCycle) { \
-    ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_SPUDMA); \
-	psxRegs.intCycle[PSXINT_SPUDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_SPUDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_SPUDMA, eCycle); \
 }
 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 #define MDECOUTDMA_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_MDECOUTDMA); \
-	psxRegs.intCycle[PSXINT_MDECOUTDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_MDECOUTDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_MDECOUTDMA, eCycle); \
 }
 
 #define MDECINDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_MDECINDMA); \
-	psxRegs.intCycle[PSXINT_MDECINDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_MDECINDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_MDECINDMA, eCycle); \
 }
 
 #define GPUOTCDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_GPUOTCDMA); \
-	psxRegs.intCycle[PSXINT_GPUOTCDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_GPUOTCDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_GPUOTCDMA, eCycle); \
 }
 
 #define CDRDMA_INT(eCycle) { \
-	psxRegs.interrupt |= (1 << PSXINT_CDRDMA); \
-	psxRegs.intCycle[PSXINT_CDRDMA].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRDMA].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDRDMA, eCycle); \
 }
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr);

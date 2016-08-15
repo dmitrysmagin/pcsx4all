@@ -46,6 +46,7 @@
 // TODO : Add GPU_vBlank() from Rearmed?
 
 #include "psxcounters.h"
+#include "psxevents.h"
 #include "gpu.h"
 #include "profiler.h"
 
@@ -113,7 +114,10 @@ u32 frame_counter = 0;
 static u32 hsync_steps = 0;
 static u32 base_cycle = 0;
 
-u32 psxNextCounter = 0, psxNextsCounter = 0;
+//senquack - Originally separate variables, now handled together with
+// all other scheduled emu events as new event type PSXINT_RCNT
+static u32 &psxNextCounter = psxRegs.intCycle[PSXINT_RCNT].cycle;
+static u32 &psxNextsCounter = psxRegs.intCycle[PSXINT_RCNT].sCycle;
 
 /******************************************************************************/
 
@@ -249,10 +253,6 @@ static void psxRcntSet(void)
     psxNextsCounter = psxRegs.cycle;
     psxNextCounter  = 0x7fffffff;
 
-#ifdef USE_EXTRA_IO_CYCLES
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-    ResetIoCycle();
-#endif
     for( i = 0; i < CounterQuantity; ++i )
     {
         countToUpdate = rcnts[i].cycle - (psxNextsCounter - rcnts[i].cycleStart);
@@ -269,21 +269,8 @@ static void psxRcntSet(void)
         }
     }
 
-    //senquack - PCSX Rearmed uses emu interrupt PSXINT_RCNT to schedule
-    // calls to psxRcntUpdate(), but we retain the original method of directly
-    // checking psxNextCounter/psxNextsCounter in r3000a.cpp psxBranchTest().
-    // This is better anyway, since vBlank root counter is *always* scheduled,
-    // making it possible to efficiently check if any irregular PSXINT_* emu
-    // interrupts are pending inside psxBranchTest(), a very hot block of code.
-    //psxRegs.interrupt |= (1 << PSXINT_RCNT);
-
-#ifndef USE_EXTRA_IO_CYCLES
-    {
-	const u32 value = psxRegs.cycle+psxNextCounter;
-	if (psxRegs.io_cycle_counter>value)
-		psxRegs.io_cycle_counter=value;
-    }
-#endif
+    // Any previously queued PSXINT_RCNT event will be replaced
+    psxEventQueue.enqueue(PSXINT_RCNT, psxNextCounter);
 }
 
 /******************************************************************************/
@@ -361,10 +348,6 @@ void psxRcntUpdate()
 
     cycle = psxRegs.cycle;
 
-#ifdef USE_EXTRA_IO_CYCLES
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-    ResetIoCycle();
-#endif
     // rcnt 0.
     if( cycle - rcnts[0].cycleStart >= rcnts[0].cycle )
     {
@@ -673,6 +656,15 @@ s32 psxRcntFreeze( gzFile f, s32 Mode )
 
 unsigned psxGetSpuSync(void){
 	return spuSyncCount;
+}
+
+//senquack - Called before psxRegs.cycle is adjusted back to zero
+// by psxResetCycleValue() in psxevents.cpp
+void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val)
+{
+	for (int i=0; i < CounterQuantity; ++i) {
+		rcnts[i].cycleStart -= prev_cycle_val;
+	}
 }
 
 /******************************************************************************/

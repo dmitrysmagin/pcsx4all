@@ -23,6 +23,7 @@
 */
 
 #include "plugins.h"
+#include "psxevents.h"
 
 int LoadPlugins(void) {
 	int ret;
@@ -70,6 +71,34 @@ void ReleasePlugins(void) {
 	SPU_shutdown();
 }
 
+//senquack - UpdateSPU() provides a void(void) function that wraps
+// call to SPU_async(), allowing generic handling of event handlers
+// in r3000a.cpp psxBranchTest()
+void UpdateSPU(void)
+{
+#ifdef spu_pcsxrearmed
+	//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
+	// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
+	psxEventQueue.dequeue(PSXINT_SPUIRQ);
+
+	SPU_async(psxRegs.cycle, 1);
+#else
+	SPU_async();
+#endif
+	SCHEDULE_SPU_UPDATE(spu_upd_interval);
+}
+
+//senquack - HandleSPU_IRQ() provides a void(void) function that wraps
+// call to SPU_async(), allowing generic handling of event handlers
+// in r3000a.cpp psxBranchTest(). NOTE: Only spu_pcsxrearmed actually
+// implements handling of SPU HW IRQs.
+void HandleSPU_IRQ(void)
+{
+#ifdef spu_pcsxrearmed
+	SPU_async(psxRegs.cycle, 0);
+#endif
+}
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -78,6 +107,8 @@ extern "C" {
 // SPU interrupt bit (currently only used by spu_pcsxrearmed)
 void CALLBACK Trigger_SPU_IRQ(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
+	// Ensure psxBranchTest() is called soon when IRQ is pending:
+	ResetIoCycle();
 }
 
 //senquack - A generic function SPU plugins can use to schedule an update
@@ -87,9 +118,7 @@ void CALLBACK Trigger_SPU_IRQ(void) {
 //  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc. and is currently
 //  only implemented in spu_pcsxrearmed)
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after) {
-	psxRegs.interrupt |= (1 << PSXINT_SPUIRQ);
-	psxRegs.intCycle[PSXINT_SPUIRQ].cycle = cycles_after;
-	psxRegs.intCycle[PSXINT_SPUIRQ].sCycle = psxRegs.cycle;
+	psxEventQueue.enqueue(PSXINT_SPUIRQ, cycles_after);
 }
 
 #ifdef __cplusplus

@@ -29,9 +29,6 @@
 #include "profiler.h"
 
 void psxHwReset() {
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-    ResetIoCycle();
-
 	//senquack - added Config.SpuIrq option from PCSX Rearmed/Reloaded:
 	if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAP32(0x200);
 
@@ -655,13 +652,19 @@ void psxHwWrite16(u32 add, u16 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("IREG 16bit write %x\n", value);
 #endif
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-			ResetIoCycle();
+			//senquack - Strip all but bits 0:10, rest are 0 or garbage in docs
+			value &= 0x7ff;
 
 			//senquack - added Config.SpuIrq option from PCSX Rearmed/Reloaded:
 			if (Config.SpuIrq) psxHu16ref(0x1070) |= SWAPu16(0x200);
 
 			psxHu16ref(0x1070) &= SWAPu16(value);
+
+			//senquack - When IRQ is pending and unmasked, ensure psxBranchTest()
+			// gets called as soon as possible, so HW IRQ exception gets handled
+			if (psxHu16(0x1070) & psxHu16(0x1074))
+				ResetIoCycle();
+
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
 #endif
@@ -672,9 +675,16 @@ void psxHwWrite16(u32 add, u16 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("IMASK 16bit write %x\n", value);
 #endif
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-			ResetIoCycle();
+			//senquack - Strip all but bits 0:10, rest are 0 or garbage in docs
+			value &= 0x7ff;
+
 			psxHu16ref(0x1074) = SWAPu16(value);
+
+			//senquack - When IRQ is pending and unmasked, ensure psxBranchTest()
+			// gets called as soon as possible, so HW IRQ exception gets handled
+			if (psxHu16(0x1070) & psxHu16(0x1074))
+				ResetIoCycle();
+
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
 #endif
@@ -850,13 +860,19 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("IREG 32bit write %x\n", value);
 #endif
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-			ResetIoCycle();
+			//senquack - Strip all but bits 0:10, rest are 0 or garbage in docs
+			value &= 0x7ff;
 
 			//senquack - added Config.SpuIrq option from PCSX Rearmed/Reloaded:
 			if (Config.SpuIrq) psxHu32ref(0x1070) |= SWAPu32(0x200);
 
 			psxHu32ref(0x1070) &= SWAPu32(value);
+
+			//senquack - When IRQ is pending and unmasked, ensure psxBranchTest()
+			// gets called as soon as possible, so HW IRQ exception gets handled
+			if (psxHu32(0x1070) & psxHu32(0x1074))
+				ResetIoCycle();
+
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
 #endif
@@ -866,9 +882,16 @@ void psxHwWrite32(u32 add, u32 value) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("IMASK 32bit write %x\n", value);
 #endif
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-			ResetIoCycle();
+			//senquack - Strip all but bits 0:10, rest are 0 or garbage in docs
+			value &= 0x7ff;
+
 			psxHu32ref(0x1074) = SWAPu32(value);
+
+			//senquack - When IRQ is pending and unmasked, ensure psxBranchTest()
+			// gets called as soon as possible, so HW IRQ exception gets handled
+			if (psxHu32(0x1070) & psxHu32(0x1074))
+				ResetIoCycle();
+
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
 			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
 #endif

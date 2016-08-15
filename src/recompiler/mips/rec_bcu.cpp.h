@@ -156,20 +156,6 @@ int psxTestLoadDelay(int reg, u32 tmp) {
 }
 #endif
 
-
-#define ADDCYCLES() \
-do { \
-	u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS; \
-	LW(TEMP_1, PERM_REG_1, off(cycle)); \
-	if (__cycles <= 0x7fff) { \
-		ADDIU(TEMP_1, TEMP_1, __cycles); \
-	} else { \
-		LI32(TEMP_2, __cycles); \
-		ADDU(TEMP_1, TEMP_1, TEMP_2); \
-	} \
-	SW(TEMP_1, PERM_REG_1, off(cycle)); \
-} while (0);
-
 static void recSYSCALL()
 {
 	regClearJump();
@@ -178,11 +164,12 @@ static void recSYSCALL()
 	SW(TEMP_1, PERM_REG_1, off(pc));
 
 	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0));
-	LI16(MIPSREG_A0, 0x20);
-	CALLFunc((u32)psxException);
+	JAL(psxException);
+	LI16(MIPSREG_A0, 0x20); // <BD> Load first param using BD slot of JAL()
 
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	rec_recompile_end_part1();
+	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // Block retval $v0 = new PC set by psxException()
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -212,12 +199,10 @@ static void iJumpNormal(u32 branchPC)
 
 	branch = 0;
 
+	rec_recompile_end_part1();
 	regClearJump();
-
-	LI32(TEMP_1, branchPC);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -235,15 +220,12 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 
 	branch = 0;
 
+	rec_recompile_end_part1();
 	regClearJump();
-
+	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
 	LI32(TEMP_1, linkpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
-
-	LI32(TEMP_1, branchPC);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -268,17 +250,14 @@ static void recBLTZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04010000 | (br1 << 21)); /* bgez */
-	write32(0); /* nop */
+	BGEZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -304,17 +283,14 @@ static void recBGTZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x18000000 | (br1 << 21)); /* blez */
-	write32(0); /* nop */
+	BLEZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -340,19 +316,16 @@ static void recBLTZAL()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04010000 | (br1 << 21)); /* bgez */
-	write32(0); /* nop */
+	BGEZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-	LI32(TEMP_1, nbpc);
-	SW(TEMP_1, PERM_REG_1, offGPR(31));
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	LI32(TEMP_2, nbpc);
+	SW(TEMP_2, PERM_REG_1, offGPR(31));
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -378,19 +351,16 @@ static void recBGEZAL()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04000000 | (br1 << 21)); /* bltz */
-	write32(0); /* nop */
+	BLTZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-	LI32(TEMP_1, nbpc);
-	SW(TEMP_1, PERM_REG_1, offGPR(31));
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	LI32(TEMP_2, nbpc);
+	SW(TEMP_2, PERM_REG_1, offGPR(31));
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -412,19 +382,17 @@ static void recJAL()
 	iJumpAL(_Target_ * 4 + (pc & 0xf0000000), (pc + 4));
 }
 
-
 static void recJR()
 {
 // jr Rs
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 
-	SW(br1, PERM_REG_1, off(pc));
-	regUnlock(br1);
+	rec_recompile_end_part1();
 	regClearJump();
-
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	MOV(MIPSREG_V0, br1); // Block retval $v0 = new PC val
+	regUnlock(br1);
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -438,14 +406,13 @@ static void recJALR()
 	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 	LI32(rd, pc + 4);
 	regMipsChanged(_Rd_);
-
 	SetBranch();
-	SW(br1, PERM_REG_1, off(pc));
-	regUnlock(br1);
-	regClearJump();
 
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
+	rec_recompile_end_part1();
+	regClearJump();
+	MOV(MIPSREG_V0, br1); // Block retval $v0 = new PC val
+	regUnlock(br1);
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -471,17 +438,14 @@ static void recBEQ()
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x14000000 | (br1 << 21) | (br2 << 16)); /* bne */
-	write32(0); /* nop */
+	BNE(br1, br2, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -508,17 +472,14 @@ static void recBNE()
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32* backpatch = (u32*)recMem;
-	write32(0x10000000 | (br1 << 21) | (br2 << 16)); /* beq */
-	write32(0); /* nop */
+	BEQ(br1, br2, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -545,17 +506,14 @@ static void recBLEZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x1c000000 | (br1 << 21)); /* bgtz */
-	write32(0); /* nop */
+	BGTZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -581,17 +539,14 @@ static void recBGEZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04000000 | (br1 << 21)); /* bltz */
-	write32(0); /* nop */
+	BLTZ(br1, 0);
+	// Use BD slot of branch above to load upper part of branch-taken PC val
+	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
+	rec_recompile_end_part1();
 	regClearBranch();
-
-	LI32(TEMP_1, bpc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxBranchTest);
-
-	rec_recompile_end();
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 
@@ -601,14 +556,21 @@ static void recBGEZ()
 
 static void recBREAK() { }
 
+/* senquack - This is the one function I was unsure about during improvements
+ *  to block dispatch in August 2016. I haven't found a single game yet that
+ *  seems to use this opcode. I believe it is correct with new changes, though.
+ */
 static void recHLE()
 {
 	regClearJump();
 
 	LI32(TEMP_1, pc);
-	SW(TEMP_1, PERM_REG_1, off(pc));
-	ADDCYCLES();
-	CALLFunc((u32)psxHLEt[psxRegs.code & 0x7]);
+	JAL(((u32)psxHLEt[psxRegs.code & 0x7]));
+	SW(TEMP_1, PERM_REG_1, off(pc));        // <BD> BD slot of JAL() above
+
+	rec_recompile_end_part1();
+	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // <BD> Block retval $v0 = psxRegs.pc
+	rec_recompile_end_part2();
 
 	cycles_pending = 0;
 

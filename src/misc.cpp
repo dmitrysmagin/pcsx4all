@@ -30,6 +30,7 @@
 #include "mdec.h"
 #include "gpu.h"
 #include "ppf.h"
+#include "psxevents.h"
 #include "port.h"
 
 #ifdef _WIN32
@@ -648,6 +649,12 @@ int LoadState(const char *file) {
 	psxRegs.cycle_add=0;
 	gzseek(f, gztell(f)-4, SEEK_SET);
 #endif
+
+	//senquack - Clear & intialize new event scheduler queue based on
+	// saved contents of psxRegs.interrupt and psxRegs.intCycle[]
+	// NOTE: important to do this before calling any functions like
+	// psxRcntFreeze() that will queue events of their own.
+	psxEventQueue.init_from_freeze();
 
 	if (Config.HLE)
 		psxBiosFreeze(0);

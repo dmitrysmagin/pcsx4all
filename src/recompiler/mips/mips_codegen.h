@@ -29,6 +29,14 @@
 #ifndef MIPS_CG_H
 #define MIPS_CG_H
 
+// Mips32r2 introduced useful instructions:
+//TODO: Update all code that uses EXT/INS/SEB/SEH to use these guards.
+#if (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
+     defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
+#define HAVE_MIPS32R2_EXT_INS
+#define HAVE_MIPS32R2_SEB_SEH
+#endif
+
 typedef enum {
 	MIPSREG_V0 = 2,
 	MIPSREG_V1,
@@ -57,6 +65,8 @@ typedef enum {
 	MIPSREG_S5,
 	MIPSREG_S6,
 	MIPSREG_S7,
+
+	MIPSREG_SP = 0x1d,
 } MIPSReg;
 
 #define TEMP_1 				MIPSREG_T0
@@ -208,11 +218,29 @@ do { \
 #define SLTU(rd, rs, rt) \
 	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
 
+#define JAL(func) \
+	write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2))
+
+#define JR(rs) \
+	write32(0x00000008 | ((rs) << 21))
+
 #define BEQ(rs, rt, offset) \
 	write32(0x10000000 | (rs << 21) | (rt << 16) | (offset >> 2))
 
 #define BEQZ(rs, offset)	BEQ(rs, 0, offset)
 #define B(offset)		BEQ(0, 0, offset)
+
+#define BGEZ(rs, offset) \
+	write32(0x04010000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BGTZ(rs, offset) \
+	write32(0x1c000000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BLEZ(rs, offset) \
+	write32(0x18000000 | ((rs) << 21) | ((offset) >> 2))
+
+#define BLTZ(rs, offset) \
+	write32(0x04000000 | ((rs) << 21) | ((offset) >> 2))
 
 #define BNE(rs, rt, offset) \
 	write32(0x14000000 | (rs << 21) | (rt << 16) | (offset >> 2))
@@ -220,6 +248,8 @@ do { \
 #define NOP() \
 	write32(0)
 
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 #define EXT(rt, rs, pos, size) \
 	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
 	        ((pos & 0x1f) << 6) | (((size-1) & 0x1f) << 11))
@@ -227,36 +257,62 @@ do { \
 #define INS(rt, rs, pos, size) \
 	write32(0x7c000004 | (rs << 21) | (rt << 16) | \
 	        ((pos & 0x1f) << 6) | (((pos+size-1) & 0x1f) << 11))
+#endif //HAVE_MIPS32R2_EXT_INS
 
+
+#ifdef HAVE_MIPS32R2_SEB_SEH
 #define SEB(rd, rt) \
 	write32(0x7C000420 | (rt << 16) | (rd << 11))
 
 #define SEH(rd, rt) \
 	write32(0x7C000620 | (rt << 16) | (rd << 11))
+#endif //HAVE_MIPS32R2_SEB_SEH
+
 
 #define CLZ(rd, rs) \
 	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
 
-/* start of the recompiled block */
+/* start of the recompiled block
+ */
 #define rec_recompile_start() \
 do { \
-	PUSH(MIPSREG_RA); \
-	LI32(PERM_REG_1, (u32)&psxRegs); \
 } while (0)
 
-/* end of the recompiled block */
-#define rec_recompile_end() \
-do { \
-	POP(MIPSREG_RA); \
-	write32(0x00000008 | (MIPSREG_RA << 21)); /* jr ra */ \
-	write32(0); /* nop */ \
+/* end of the recompiled block
+ *
+ * The idea behind having a part1 and part2 is to minimize load stalls by
+ *  interleaving unrelated code between their calls.
+ * Currently, only the load of $ra benefits from this, saving a 4-cycle stall.
+ */
+#define rec_recompile_end_part1()                                              \
+do {                                                                           \
+    /* Load $ra from stack at 16($sp) */                                       \
+    LW(MIPSREG_RA, MIPSREG_SP, 16);                                            \
 } while (0)
 
-/* call func */
+#define rec_recompile_end_part2()                                              \
+do {                                                                           \
+    /* Jump to $ra, using BD slot to fill $v1 return value with number of   */ \
+    /*  cycles block has taken. $ra will have been loaded in prior call     */ \
+    /*  to rec_recompile_end_part1().                                       */ \
+    /* Somewhere between calls to ..part1() and ..part2(), calling code     */ \
+    /*  places new value for psxRegs.pc in $v0.                             */ \
+    u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS;                     \
+    if (__cycles <= 0xffff) {                                                  \
+        JR(MIPSREG_RA);                                                        \
+        LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
+    } else {                                                                   \
+        LUI(MIPSREG_V1, (__cycles >> 16));                                     \
+        JR(MIPSREG_RA);                                                        \
+        ADDIU(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */         \
+    }                                                                          \
+} while (0)
+
+/* call func (JAL wrapper with NOP in BD slot) */
 #define CALLFunc(func) \
 do { \
-	write32(0x0c000000 | ((func & 0x0fffffff) >> 2)); /* jal func */ \
-	write32(0); /* nop */ \
+	JAL(func); \
+	NOP(); /* <BD> */ \
 } while (0)
 
 #define mips_relative_offset(source, offset, next) \

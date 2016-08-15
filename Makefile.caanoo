@@ -67,10 +67,16 @@ OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/
 
 all: maketree $(TARGET) pcsx4all_caanoo.gpe
 
-OBJS = obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o obj/psxcounters.o \
-	obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/interpreter/$(INTERPRETER)/psxinterpreter.o obj/recompiler/$(RECOMPILER)/recompiler.o obj/recompiler/$(RECOMPILER)/run.o obj/gte/$(GTE)/gte.o  obj/mdec.o \
-	obj/decode_xa.o obj/cdriso.o obj/cdrom.o obj/ppf.o obj/sio.o obj/pad.o
+OBJS = \
+	obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o \
+	obj/psxcounters.o obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/psxevents.o \
+	obj/interpreter/$(INTERPRETER)/psxinterpreter.o \
+	obj/recompiler/$(RECOMPILER)/recompiler.o obj/recompiler/$(RECOMPILER)/run.o \
+	obj/mdec.o \ obj/decode_xa.o \
+	obj/cdriso.o obj/cdrom.o obj/ppf.o \
+	obj/sio.o obj/pad.o
 
+OBJS += obj/gte/$(GTE)/gte.o
 OBJS += obj/gpu/$(GPU)/gpu.o
 
 ifneq ($(strip $(findstring arm,$(CFLAGS))),)

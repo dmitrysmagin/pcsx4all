@@ -27,7 +27,6 @@
 #include "psxmem.h"
 #include "plugins.h"
 
-extern u32 psxNextCounter, psxNextsCounter;
 extern u32 hSyncCount, frame_counter;
 extern u32 spu_upd_interval;
 
@@ -52,5 +51,8 @@ extern u32 psxRcntRtarget(u32 index);
 extern s32 psxRcntFreeze(gzFile f, s32 Mode);
 
 extern unsigned psxGetSpuSync(void);
+
+// senquack - Called before psxRegs.cycle is adjusted back to zero
+void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val);
 
 #endif /* __PSXCOUNTERS_H__ */

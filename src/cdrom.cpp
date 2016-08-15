@@ -23,10 +23,7 @@
 */
 
 //senquack - NOTE May 23 2016:
-// This file has been updated to use newer code of PCSX Reloaded/Rearmed,
-// keeping a few tiny things here or there from PCSX4ALL code like calls
-// to ResetIoCycle() that could probably be removed (TODO) as I think they
-// were merely used for debugging during PCSX4ALL development/hackery.
+// This file has been updated to use newer code of PCSX Reloaded/Rearmed.
 // New bug fixes/updates come with the code, and also things like CD
 // lid interrupt for better CD swapping support.
 //
@@ -36,10 +33,14 @@
 // See https://github.com/notaz/pcsx_rearmed/blob/master/libpcsxcore/cdrom.c
 // for the source of updates to this code.
 // Credit goes to Notaz / PCSX Rearmed
+//
+//senquack - NOTE Aug 2 2016:
+// Additional updates to use new event queue (see psxevents.h)
 
 #include "cdrom.h"
 #include "ppf.h"
 #include "psxdma.h"
+#include "psxevents.h"
 
 #if defined(CDR_LOG) || defined(CDR_LOG_I) || defined(CDR_LOG_IO)
 static const char *CmdName[0x100]= {
@@ -231,44 +232,29 @@ u16 calcCrc(const u8 *d, const int len) {
 
 // cdrInterrupt
 #define CDR_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDR); \
-	psxRegs.intCycle[PSXINT_CDR].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDR].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDR, eCycle); \
 }
 
 // cdrReadInterrupt
 #define CDREAD_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDREAD); \
-	psxRegs.intCycle[PSXINT_CDREAD].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDREAD].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDREAD, eCycle); \
 }
 
 //senquack - Next two interrupt macros are new from PCSX Reloaded/Rearmed.
-//           I have added calls to ResetIoCycle() to match above macros,
-//           but wasn't sure that was truly necessary (TODO)
-
 // cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDRLID); \
-	psxRegs.intCycle[PSXINT_CDRLID].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRLID].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDRLID, eCycle); \
 }
 
 // cdrPlayInterrupt
 #define CDRMISC_INT(eCycle) { \
-	ResetIoCycle(); \
-	psxRegs.interrupt |= (1 << PSXINT_CDRPLAY); \
-	psxRegs.intCycle[PSXINT_CDRPLAY].cycle = eCycle; \
-	psxRegs.intCycle[PSXINT_CDRPLAY].sCycle = psxRegs.cycle; \
+	psxEventQueue.enqueue(PSXINT_CDRPLAY, eCycle); \
 }
 
 #define StopReading() { \
 	if (cdr.Reading) { \
 		cdr.Reading = 0; \
-		psxRegs.interrupt &= ~(1 << PSXINT_CDREAD); \
+		psxEventQueue.dequeue(PSXINT_CDREAD); \
 	} \
 	cdr.StatP &= ~(STATUS_READ|STATUS_SEEK);\
 }
@@ -293,6 +279,10 @@ static void setIrq(void)
 {
 	if (cdr.Stat & cdr.Reg2)
 		psxHu32ref(0x1070) |= SWAP32((u32)0x4);
+
+	// When IRQ status bit gets set, ensure psxBranchTest() gets called as soon
+	//  as possible, so HW IRQ exception gets handled
+	ResetIoCycle();
 }
 
 // timing used in this function was taken from tests on real hardware
@@ -596,11 +586,6 @@ void cdrPlayInterrupt()
 
 	// update for CdlGetlocP/autopause
 	generate_subq(cdr.SetSectorPlay);
-
-	//senquack - Copy/pasted CHUI's ResetIoCycle() call into this new function
-	// TODO: Are these really beneficial/necessary?
-	// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
 }
 
 void cdrInterrupt()
@@ -1076,11 +1061,6 @@ finish:
 		SysPrintf("\n");
 	}
 #endif
-
-	//senquack - Copy/pasted CHUI's ResetIoCycle() call into this new function
-	// TODO: Are these really beneficial/necessary?
-	// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
 }
 
 #ifdef HAVE_ARMV7
@@ -1275,11 +1255,6 @@ void cdrReadInterrupt() {
 
 	// update for CdlGetlocP
 	ReadTrack(cdr.SetSectorPlay);
-
-	//senquack - Copy/pasted CHUI's ResetIoCycle() call into this new function
-	// TODO: Are these really beneficial/necessary?
-	// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-	ResetIoCycle();
 }
 
 /*
@@ -1426,13 +1401,6 @@ void cdrWrite1(unsigned char rt) {
 		if( cdr.Play && (cdr.Mode & MODE_CDDA) == 0 )
 			StopCdda();
         	break;
-	}
-
-	//senquack - Copy/pasted CHUI's if (...) ResetIoCycle() call into this new function
-	// TODO: Are these really beneficial/necessary?
-	if (cdr.Stat != NoIntr) {
-		// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-		ResetIoCycle();
 	}
 }
 
