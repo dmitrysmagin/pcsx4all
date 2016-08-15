@@ -250,7 +250,7 @@ static void recBLTZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04010000 | (br1 << 21)); /* bgez */
+	BGEZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -283,7 +283,7 @@ static void recBGTZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x18000000 | (br1 << 21)); /* blez */
+	BLEZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -316,7 +316,7 @@ static void recBLTZAL()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04010000 | (br1 << 21)); /* bgez */
+	BGEZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -351,7 +351,7 @@ static void recBGEZAL()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04000000 | (br1 << 21)); /* bltz */
+	BLTZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -438,7 +438,7 @@ static void recBEQ()
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x14000000 | (br1 << 21) | (br2 << 16)); /* bne */
+	BNE(br1, br2, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -472,7 +472,7 @@ static void recBNE()
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32* backpatch = (u32*)recMem;
-	write32(0x10000000 | (br1 << 21) | (br2 << 16)); /* beq */
+	BEQ(br1, br2, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
@@ -506,10 +506,10 @@ static void recBLEZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x1c000000 | (br1 << 21)); /* bgtz */
+	BGTZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
-
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
+
 	rec_recompile_end_part1();
 	regClearBranch();
 	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
@@ -539,7 +539,7 @@ static void recBGEZ()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	SetBranch();
 	u32 *backpatch = (u32*)recMem;
-	write32(0x04000000 | (br1 << 21)); /* bltz */
+	BLTZ(br1, 0);
 	// Use BD slot of branch above to load upper part of branch-taken PC val
 	LUI(TEMP_1, (bpc >> 16)); // <BD>
 
