@@ -20,9 +20,9 @@
  *
  * Added July 2016 by senquack (Daniel Silsby)
  *
- * Class MinQueue is based largely on OpenMSX's SchedulerQueue class, found
+ * Class SortedArray is based largely on OpenMSX's SchedulerQueue class, found
  *  here: https://github.com/openMSX/openMSX/blob/master/src/SchedulerQueue.hh
- *  (Which was primarily written by Wouter Vermaelen a.k.a. m9710797
+ *  (Which was primarily written by Wouter Vermaelen a.k.a. m9710797)
  */
 
 #ifndef PSXEVENTS_H
@@ -133,7 +133,7 @@ public:
 				insert_back(it, t);
 			} else {
 #ifdef DEBUG_EVENTS
-				dbg("ERROR: SchedulerQueue::insert() could not find space in its array (1)\n");
+				printf("ERROR: SortedArray::insert() could not find space in its array (1)\n");
 #endif
 			}
 		} else {
@@ -148,7 +148,7 @@ public:
 				insert_front(it, t);
 			} else {
 #ifdef DEBUG_EVENTS
-				dbg("ERROR: SchedulerQueue::insert() could not find space in its array (2)\n");
+				printf("ERROR: SortedArray::insert() could not find space in its array (2)\n");
 #endif
 			}
 		}
