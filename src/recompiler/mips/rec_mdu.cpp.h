@@ -57,6 +57,8 @@ static void recDIV()
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
 static void recDIVU()
@@ -72,6 +74,8 @@ static void recDIVU()
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
 static void recMFHI() {
