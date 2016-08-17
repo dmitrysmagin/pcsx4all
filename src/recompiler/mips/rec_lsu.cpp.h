@@ -30,6 +30,7 @@ static int LoadFromConstAddr(int count)
 		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
 			return 0;
 
+		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -40,8 +41,9 @@ static int LoadFromConstAddr(int count)
 			#endif
 
 			if ((u32)psxM == 0x10000000) {
+				// psxM base is mmap'd at virtual address 0x10000000
 				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15);
+				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
 			} else {
 				LW(TEMP_2, PERM_REG_1, off(psxM));
 				EXT(TEMP_1, r2, 0, 0x15);
@@ -83,6 +85,7 @@ static int StoreToConstAddr(int count)
 		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
 			return 0;
 
+		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -93,8 +96,9 @@ static int StoreToConstAddr(int count)
 			#endif
 
 			if ((u32)psxM == 0x10000000) {
+				// psxM base is mmap'd at virtual address 0x10000000
 				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15);
+				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
 			} else {
 				LW(TEMP_2, PERM_REG_1, off(psxM));
 				EXT(TEMP_1, r2, 0, 0x15);
@@ -140,6 +144,7 @@ static void LoadFromAddr(int count)
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
+	// Is address in lower 8MB region? (2MB mirrored x4)
 	LUI(TEMP_2, 0x80);
 	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
@@ -159,8 +164,9 @@ static void LoadFromAddr(int count)
 	// of the branch-not-taken section below (writing to a temp reg)
 
 	if ((u32)psxM == 0x10000000) {
+		// psxM base is mmap'd at virtual address 0x10000000
 		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 & (r1 & 0x1fffff)
+		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
 	} else {
 		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
 		LW(TEMP_2, PERM_REG_1, off(psxM));
@@ -294,7 +300,7 @@ static void StoreToAddr(int count)
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
 		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 & (r1 & 0x1fffff)
+		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
 	} else {
 		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
 		LW(TEMP_2, PERM_REG_1, off(psxM));
@@ -588,6 +594,7 @@ static void gen_LWL_LWR(int count)
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
+	// Is address in lower 8MB region? (2MB mirrored x4)
 	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
@@ -600,7 +607,7 @@ static void gen_LWL_LWR(int count)
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
 		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 & (r1 & 0x1fffff)
+		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
 	} else {
 		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
 		LW(TEMP_2, PERM_REG_1, off(psxM));
@@ -721,6 +728,7 @@ static void gen_SWL_SWR(int count)
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to MIPSREG_A0)
 
+	// Is address in lower 8MB region? (2MB mirrored x4)
 	ADDIU(MIPSREG_A0, r1, imm_min); // <BD slot>
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
@@ -733,7 +741,7 @@ static void gen_SWL_SWR(int count)
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
 		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 & (r1 & 0x1fffff)
+		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
 	} else {
 		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
 		LW(TEMP_2, PERM_REG_1, off(psxM));
@@ -873,6 +881,7 @@ static void recLWL()
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
+		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -885,7 +894,7 @@ static void recLWL()
 			if ((u32)psxM == 0x10000000) {
 				// psxM base is mmap'd at virtual address 0x10000000
 				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15);
+				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
 			} else {
 				LW(TEMP_2, PERM_REG_1, off(psxM));
 				EXT(TEMP_1, r2, 0, 0x15);
@@ -933,6 +942,7 @@ static void recSWL()
 #ifdef USE_CONST_ADDRESSES
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
+		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
 			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 			u32 PC = pc - 4;
@@ -945,7 +955,7 @@ static void recSWL()
 			if ((u32)psxM == 0x10000000) {
 				// psxM base is mmap'd at virtual address 0x10000000
 				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15);
+				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
 			} else {
 				LW(TEMP_2, PERM_REG_1, off(psxM));
 				EXT(TEMP_1, r2, 0, 0x15);
