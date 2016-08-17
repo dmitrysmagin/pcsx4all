@@ -47,16 +47,37 @@ static void recMULTU() {
 static void recDIV()
 {
 // Hi, Lo = rs / rt signed
+	u32 *backpatch1, *backpatch2;
 	if (autobias) cycles_pending += 34;
-	if (!_Rt_) return;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
+	backpatch1 = (u32*)recMem;
+	BEQZ(rt, 0);
+	NOP();
 
 	DIV(rs, rt);
 	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+
+	backpatch2 = (u32*)recMem;
+	B(0);
+	NOP();
+
+	// division by zero
+	fixup_branch(backpatch1);
+
+	SLT(TEMP_1, rs, 0); // $t0 = (rs < 0 ? 1 : 0)
+	ADDIU(TEMP_2, 0, -1); // $t1 = -1
+	MOVZ(TEMP_1, TEMP_2, TEMP_1); // if $t0 == 0 then $t0 = $t1
+	SW(TEMP_1, PERM_REG_1, offGPR(32));
+	SW(rs, PERM_REG_1, offGPR(33));
+
+	// exit
+	fixup_branch(backpatch2);
+
 	regUnlock(rs);
 	regUnlock(rt);
 }
@@ -64,16 +85,35 @@ static void recDIV()
 static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
+	u32 *backpatch1, *backpatch2;
 	if (autobias) cycles_pending += 34;
-	if (!_Rt_) return;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
+	backpatch1 = (u32*)recMem;
+	BEQZ(rt, 0);
+	NOP();
 
 	DIVU(rs, rt);
 	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+
+	backpatch2 = (u32*)recMem;
+	B(0);
+	NOP();
+
+	// division by zero
+	fixup_branch(backpatch1);
+
+	ADDIU(TEMP_1, 0, -1); // $t1 = -1
+	SW(TEMP_1, PERM_REG_1, offGPR(32));
+	SW(rs, PERM_REG_1, offGPR(33));
+
+	// exit
+	fixup_branch(backpatch2);
+
 	regUnlock(rs);
 	regUnlock(rt);
 }

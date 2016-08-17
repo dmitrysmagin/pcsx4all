@@ -149,6 +149,9 @@ do { \
 #define MOV(rd, rs) \
 	write32(0x00000021 | ((rs) << 21) | ((rd) << 11)) /* move rd, rs */
 
+#define MOVZ(rd, rs, rt) \
+	write32(0x0000000a | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
+
 #define ANDI(rt, rs, imm16) \
 	write32(0x30000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
 
