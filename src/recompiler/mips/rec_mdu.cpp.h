@@ -1,16 +1,11 @@
 static void recMULT() {
 // Lo/Hi = Rs * Rt (signed)
 	if (autobias) cycles_pending += 11;
-	if (!_Rt_ || !_Rs_) {
-		u32 rsrt;
-		if (!_Rt_) {
-			rsrt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
-		} else {
-			rsrt = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-		}
-		SW(rsrt, PERM_REG_1, offGPR(32));
-		SW(rsrt, PERM_REG_1, offGPR(33));
-		regUnlock(rsrt);
+
+	if (!(_Rs_) || !(_Rt_)) {
+		// If either operand is $r0, just store 0 in both LO/HI regs
+		SW(0, PERM_REG_1, offGPR(32)); // LO
+		SW(0, PERM_REG_1, offGPR(33)); // HI
 	} else {
 		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
@@ -29,16 +24,11 @@ static void recMULT() {
 static void recMULTU() {
 // Lo/Hi = Rs * Rt (unsigned)
 	if (autobias) cycles_pending += 11;
-	if (!_Rt_ || !_Rs_) {
-		u32 rsrt;
-		if (!_Rt_) {
-			rsrt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
-		} else {
-			rsrt = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-		}
-		SW(rsrt, PERM_REG_1, offGPR(32)); // LO
-		SW(rsrt, PERM_REG_1, offGPR(33)); // HI
-		regUnlock(rsrt);
+
+	if (!(_Rs_) || !(_Rt_)) {
+		// If either operand is $r0, just store 0 in both LO/HI regs
+		SW(0, PERM_REG_1, offGPR(32)); // LO
+		SW(0, PERM_REG_1, offGPR(33)); // HI
 	} else {
 		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
@@ -67,6 +57,8 @@ static void recDIV()
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
 static void recDIVU()
@@ -82,6 +74,8 @@ static void recDIVU()
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
 	MFHI(TEMP_1);
 	SW(TEMP_1, PERM_REG_1, offGPR(33));
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
 static void recMFHI() {
