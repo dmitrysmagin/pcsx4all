@@ -146,18 +146,20 @@ static void LoadFromAddr(int count)
 
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
 	/* Check if addr and addr+imm are in the same 2MB region */
-	LUI(TEMP_1, 0xe0);
+	LUI(TEMP_1, 0xe0); // <BD slot>
 	AND(TEMP_2, MIPSREG_A0, TEMP_1);
 	AND(TEMP_3, r1, TEMP_1);
 
 	backpatch4 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0); // bne temp_2, temp_3, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+	EXT(TEMP_1, r1, 0, 0x15); // <BD slot> and 0x1fffff
 
 	if ((u32)psxM == 0x10000000)
 		LUI(TEMP_2, 0x1000);
@@ -264,7 +266,8 @@ static void StoreToAddr(int count)
 	LW(TEMP_1, PERM_REG_1, off(writeok));
 	backpatch3 = (u32 *)recMem;
 	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to MIPSREG_A0)
 
 	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
@@ -272,18 +275,20 @@ static void StoreToAddr(int count)
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
 	/* Check if addr and addr+imm are in the same 2MB region */
-	LUI(TEMP_1, 0xe0);
+	LUI(TEMP_1, 0xe0); // <BD slot>
 	AND(TEMP_2, MIPSREG_A0, TEMP_1);
 	AND(TEMP_3, r1, TEMP_1);
 
 	backpatch4 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0); // bne temp_2, temp_3, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+	EXT(TEMP_1, r1, 0, 0x15); // <BD slot> and 0x1fffff
 
 	if ((u32)psxM == 0x10000000)
 		LUI(TEMP_2, 0x1000);
@@ -581,9 +586,10 @@ static void gen_LWL_LWR(int count)
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+	EXT(TEMP_1, r1, 0, 0x15); // <BD slot> and 0x1fffff
 
 	if ((u32)psxM == 0x10000000)
 		LUI(TEMP_2, 0x1000);
@@ -699,17 +705,19 @@ static void gen_SWL_SWR(int count)
 	LW(TEMP_1, PERM_REG_1, off(writeok));
 	backpatch3 = (u32 *)recMem;
 	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to MIPSREG_A0)
 
-	ADDIU(MIPSREG_A0, r1, imm_min);
+	ADDIU(MIPSREG_A0, r1, imm_min); // <BD slot>
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
 	backpatch1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
-	NOP();
+	//NOTE: Delay slot of branch is harmlessly occupied by one op
+	// of the branch-not-taken section below (writing to TEMP_1)
 
-	EXT(TEMP_1, r1, 0, 0x15); // and 0x1fffff
+	EXT(TEMP_1, r1, 0, 0x15); // <BD slot> and 0x1fffff
 
 	if ((u32)psxM == 0x10000000)
 		LUI(TEMP_2, 0x1000);
