@@ -4,8 +4,8 @@ for psx4all emulator.
 
 https://github.com/uli/psx4all-dingoo/
 
-Modified, cleaned up, reworked and optimized by Dmitry Smagin to be used
-with pcsx4all by Chui and Franxis.
+Modified, cleaned up, reworked and optimized by Dmitry Smagin and
+Daniel Silsby to be used with pcsx4all by Chui and Franxis.
 
 https://github.com/dmitrysmagin/pcsx4all/
 
@@ -25,13 +25,16 @@ What's already done:
    backporting to Dingoo A320 which is mips32r1
  - Added autobias support
  - Added GTE code generation for CFC2, CTC2, MFC2, MTC2, LWC2, SWC2 opcodes
+ - Block recompilation is reworked to match pcsx4all behavior,
+   recExecuteBlock is fixed for HLE
 
  TODO list
 
 * recompiler:
-  - Rework block recompilation to fix recExecuteBlock for HLE
-  - Move to gte_new / gte_pcsx using
-  - Implement more GTE code generation
+  - Move to gte_pcsx (gte_new has a flaw in Sheep, Dog 'n Wolf PAL)
+  - Implement more GTE code generation (if reasonable)
+  - Move to interpreter_pcsx (again interpreter_new is buggy)
+  - Fix Tekken 2 (there's some flaw in recompiler)
 
 * constants caching
   For now it's very limited, used by ADDIU, ORI, LUI and memory operations
