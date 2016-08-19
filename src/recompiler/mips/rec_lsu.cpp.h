@@ -2,10 +2,10 @@
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
 
-// 2MB PSX RAM (psxM[]) is now mirrored to virtual address region just before
-//  &psxM[0]. This allows skipping mirror-region boundary check which
-//  special-cased loads/stores that crossed the boundary. (Einhander fix)
-//  See notes in psxmem.cpp psxMemInit().
+// Upper/lower 64K of PSX RAM (psxM[]) is now mirrored to virtual address
+//  regions surrounding psxM[]. This allows skipping mirror-region boundary
+//  check which special-cased loads/stores that crossed the boundary, the
+//  Einhander game fix. See notes in psxmem.cpp psxMemInit().
 #define SKIP_SAME_2MB_REGION_CHECK
 
 #define OPCODE(insn, rt, rn, imm) \

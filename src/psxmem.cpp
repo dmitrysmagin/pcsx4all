@@ -110,8 +110,8 @@ int psxMemInit() {
 		} else {
 			psxM = (s8*)mmap_retval;
 
-			// Mirror PSX RAM to the 2MB fixed virtual region just before it. This
-			//  allows recompiler to not have to special-case certain loads/stores
+			// Mirror upper 64KB PSX RAM to the fixed virtual region before psxM[].
+			//  This allows recompiler to skip special-casing certain loads/stores
 			//  of/to immediate($reg) address, where $reg is a value near a RAM
 			//  mirror-region boundary and the immediate is a negative value large
 			//  enough to cross to the region before it, i.e. (-16)(0x8020_0000).
@@ -121,16 +121,16 @@ int psxMemInit() {
 			//  0, and accessing -16(&psxM[0]) would be out-of-bounds.
 			//  The mirror here maps it to &psxM[1ffff0], like a real PSX.
 
-			mmap_retval = mmap((void*)((u8*)psxM-0x200000), 0x200000,
-					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
-			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM-0x200000)) {
+			mmap_retval = mmap((void*)((u8*)psxM-0x10000), 0x10000,
+					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0x200000-0x10000);
+			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM-0x10000)) {
 				printf("Warning: creating lower mmap() mirror of POSIX shared memory fd failed\n");
 				shm_success = false;
 			}
 
-			// And, for correctness's sake, mirror PSX RAM to the region above it,
-			//  though in practice it's not known if any games truly need this.
-			mmap_retval = mmap((void*)((u8*)psxM+0x200000), 0x200000,
+			// And, for correctness's sake, mirror lower 64K of PSX RAM to region after
+			//  psxM[], though in practice it's unknown if any games truly need this.
+			mmap_retval = mmap((void*)((u8*)psxM+0x200000), 0x10000,
 					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
 			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM+0x200000)) {
 				printf("Warning: creating upper mmap() mirror of POSIX shared memory fd failed\n");
@@ -245,9 +245,9 @@ void psxMemReset() {
 void psxMemShutdown() {
 	free(psxNULLread);
 #if defined(PSXREC) && defined(mips)
-	munmap(psxM-0x200000, 0x200000); // Unmap lower mirrored region
-	munmap(psxM+0x200000, 0x200000); // Unmap upper mirrored region
-	munmap(psxM, 0x200000);
+	munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap lower mirrored region
+	munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap upper mirrored region
+	munmap((void*)psxM, 0x200000);
 	// These are allocated separately to allow mirroring of psxM:
 	free(psxH);
 	free(psxP);
