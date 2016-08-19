@@ -79,6 +79,10 @@ int psxMemInit() {
 #if defined(PSXREC) && defined(mips)
 	/* This is needed for direct writes in mips recompiler */
 
+	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
+	psxP = (s8 *)malloc(0x10000);
+	psxH = (s8 *)malloc(0x10000);
+
 	//NOTE: if your platform lacks POSIX shared memory, you could achieve the
 	// same effects here by mmap()ing against a tmpfs, memfd or SysV shm file.
 
@@ -90,15 +94,15 @@ int psxMemInit() {
 		shm_success = false;
 	}
 
-	// We want 2MB of PSX RAM, + 64K each for 0x1f00_0000 and 0x1f80_0000 regions
-	if (shm_success && (ftruncate(shfd, 0x220000) == -1)) {
+	// We want 2MB of PSX RAM
+	if (shm_success && (ftruncate(shfd, 0x200000) == -1)) {
 		printf("Error in call to ftruncate() on POSIX shared memory fd\n");
 		shm_success = false;
 	}
 
 	// Map PSX RAM to start at fixed virtual address 0x1000_0000
 	if (shm_success) {
-		void* mmap_retval = mmap((void*)0x10000000, 0x220000,
+		void* mmap_retval = mmap((void*)0x10000000, 0x200000,
 				PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
 		if (mmap_retval == MAP_FAILED || mmap_retval != (void*)0x10000000) {
 			printf("Error: mmap() to 0x10000000 of POSIX shared memory fd failed\n");
@@ -120,7 +124,16 @@ int psxMemInit() {
 			mmap_retval = mmap((void*)((u8*)psxM-0x200000), 0x200000,
 					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
 			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM-0x200000)) {
-				printf("Warning: creating mmap() mirror of POSIX shared memory fd failed\n");
+				printf("Warning: creating lower mmap() mirror of POSIX shared memory fd failed\n");
+				shm_success = false;
+			}
+
+			// And, for correctness's sake, mirror PSX RAM to the region above it,
+			//  though in practice it's not known if any games truly need this.
+			mmap_retval = mmap((void*)((u8*)psxM+0x200000), 0x200000,
+					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
+			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM+0x200000)) {
+				printf("Warning: creating upper mmap() mirror of POSIX shared memory fd failed\n");
 				shm_success = false;
 			}
 		}
@@ -133,12 +146,11 @@ int psxMemInit() {
 		printf("Mapped and mirrored PSX RAM using POSIX shared memory successfully.\n");
 #else
 	psxM = (s8 *)malloc(0x00220000);
+	psxP = &psxM[0x200000];
+	psxH = &psxM[0x210000];
 #endif
 	psxRegs.psxM=psxM;
-
-	psxP = &psxM[0x200000];
 	psxRegs.psxP=psxP;
-	psxH = &psxM[0x210000];
 	psxRegs.psxH=psxH;
 
 	psxR = (s8 *)malloc(0x00080000);
@@ -233,8 +245,12 @@ void psxMemReset() {
 void psxMemShutdown() {
 	free(psxNULLread);
 #if defined(PSXREC) && defined(mips)
-	munmap(psxM-0x200000, 0x200000); // Unmap mirrored region
-	munmap(psxM, 0x220000);
+	munmap(psxM-0x200000, 0x200000); // Unmap lower mirrored region
+	munmap(psxM+0x200000, 0x200000); // Unmap upper mirrored region
+	munmap(psxM, 0x200000);
+	// These are allocated separately to allow mirroring of psxM:
+	free(psxH);
+	free(psxP);
 #else
 	free(psxM);
 #endif
