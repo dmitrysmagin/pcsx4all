@@ -63,7 +63,7 @@ endif
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/interpreter obj/interpreter/$(INTERPRETER) \
