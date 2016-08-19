@@ -34,8 +34,12 @@
 #include "port.h"
 #include "profiler.h"
 
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
+#if defined(PSXREC) && defined(mips)
+// For Posix shared mem:
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/shm.h>
 #endif
 
 s8 *psxM = NULL;
@@ -74,8 +78,59 @@ int psxMemInit() {
 
 #if defined(PSXREC) && defined(mips)
 	/* This is needed for direct writes in mips recompiler */
-	psxM = (s8 *)mmap((void*)0x10000000, 0x220000,
-			  PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_ANONYMOUS, -1, 0);
+
+	//NOTE: if your platform lacks POSIX shared memory, you could achieve the
+	// same effects here by mmap()ing against a tmpfs, memfd or SysV shm file.
+
+	bool shm_success = true;
+	// Get a POSIX shared memory object fd
+	int shfd = shm_open("/pcsx4all_psxmem", O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+	if (shfd == -1) {
+		printf("Error acquiring POSIX shared memory file descriptor\n");
+		shm_success = false;
+	}
+
+	// We want 2MB of PSX RAM, + 64K each for 0x1f00_0000 and 0x1f80_0000 regions
+	if (shm_success && (ftruncate(shfd, 0x220000) == -1)) {
+		printf("Error in call to ftruncate() on POSIX shared memory fd\n");
+		shm_success = false;
+	}
+
+	// Map PSX RAM to start at fixed virtual address 0x1000_0000
+	if (shm_success) {
+		void* mmap_retval = mmap((void*)0x10000000, 0x220000,
+				PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
+		if (mmap_retval == MAP_FAILED || mmap_retval != (void*)0x10000000) {
+			printf("Error: mmap() to 0x10000000 of POSIX shared memory fd failed\n");
+			shm_success = false;
+		} else {
+			psxM = (s8*)mmap_retval;
+
+			// Mirror PSX RAM to the 2MB fixed virtual region just before it. This
+			//  allows recompiler to not have to special-case certain loads/stores
+			//  of/to immediate($reg) address, where $reg is a value near a RAM
+			//  mirror-region boundary and the immediate is a negative value large
+			//  enough to cross to the region before it, i.e. (-16)(0x8020_0000).
+			//  This occurs in games like Einhander. Normally, 0x8020_0000 on a PSX
+			//  would be referencing the beginning of a 2MB mirror in the KSEG0 cached
+			//  mirror region. After emu code masks the address, it maps to address
+			//  0, and accessing -16(&psxM[0]) would be out-of-bounds.
+			//  The mirror here maps it to &psxM[1ffff0], like a real PSX.
+
+			mmap_retval = mmap((void*)((u8*)psxM-0x200000), 0x200000,
+					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
+			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM-0x200000)) {
+				printf("Warning: creating mmap() mirror of POSIX shared memory fd failed\n");
+				shm_success = false;
+			}
+		}
+	}
+
+	// Remove object.. backing RAM is released when munmap()'ed or pid terminates
+	shm_unlink("/pcsx4all_psxmem");
+
+	if (shm_success)
+		printf("Mapped and mirrored PSX RAM using POSIX shared memory successfully.\n");
 #else
 	psxM = (s8 *)malloc(0x00220000);
 #endif
@@ -178,6 +233,7 @@ void psxMemReset() {
 void psxMemShutdown() {
 	free(psxNULLread);
 #if defined(PSXREC) && defined(mips)
+	munmap(psxM-0x200000, 0x200000); // Unmap mirrored region
 	munmap(psxM, 0x220000);
 #else
 	free(psxM);

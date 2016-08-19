@@ -2,6 +2,12 @@
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
 
+// 2MB PSX RAM (psxM[]) is now mirrored to virtual address region just before
+//  &psxM[0]. This allows skipping mirror-region boundary check which
+//  special-cased loads/stores that crossed the boundary. (Einhander fix)
+//  See notes in psxmem.cpp psxMemInit().
+#define SKIP_SAME_2MB_REGION_CHECK
+
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
@@ -26,9 +32,11 @@ static int LoadFromConstAddr(int count)
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
 
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 		/* Check if addr and addr+imm are in the same 2MB region */
 		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
 			return 0;
+#endif
 
 		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
@@ -70,7 +78,7 @@ static int LoadFromConstAddr(int count)
 			return 1;
 		}
 	}
-#endif
+#endif // USE_CONST_ADDRESSES
 
 	return 0;
 }
@@ -81,9 +89,11 @@ static int StoreToConstAddr(int count)
 	if (IsConst(_Rs_)) {
 		u32 addr = iRegs[_Rs_].r + imm_min;
 
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 		/* Check if addr and addr+imm are in the same 2MB region */
 		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
 			return 0;
+#endif
 
 		// Is address in lower 8MB region? (2MB mirrored x4)
 		if ((addr & 0x1fffffff) < 0x800000) {
@@ -122,7 +132,7 @@ static int StoreToConstAddr(int count)
 			return 1;
 		}
 	}
-#endif
+#endif // USE_CONST_ADDRESSES
 
 	return 0;
 }
@@ -130,11 +140,8 @@ static int StoreToConstAddr(int count)
 static void LoadFromAddr(int count)
 {
 	// Rt = [Rs + imm16]
-	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch_label_hle_1, *backpatch_label_hle_2;
-	u32 *backpatch_label_exit_1 = 0;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -149,19 +156,20 @@ static void LoadFromAddr(int count)
 	ADDIU(MIPSREG_A0, r1, imm_min);
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
-
-	backpatch_label_hle_1 = (u32 *)recMem;
+	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to TEMP_2)
 
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
 	EXT(TEMP_2, MIPSREG_A0, 21, 3); // <BD slot> TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
 	EXT(TEMP_3, r1, 21, 3);         //           TEMP_3 = (r1 >> 21) & 0x7
-	backpatch_label_hle_2 = (u32 *)recMem;
+	u32 *backpatch_label_hle_2 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp reg)
+#endif
 
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
@@ -173,6 +181,8 @@ static void LoadFromAddr(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
+	int icount = count;
+	u32 *backpatch_label_exit_1 = 0;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
@@ -201,8 +211,11 @@ static void LoadFromAddr(int count)
 
 	// label_hle:
 	fixup_branch(backpatch_label_hle_1);
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 	fixup_branch(backpatch_label_hle_2);
 #endif
+
+#endif //USE_DIRECT_MEM_ACCESS
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -257,11 +270,8 @@ static void LoadFromAddr(int count)
 
 static void StoreToAddr(int count)
 {
-	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch_label_hle_1, *backpatch_label_hle_2;
-	u32 *backpatch_label_exit_1 = 0;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -284,18 +294,20 @@ static void StoreToAddr(int count)
 	EXT(TEMP_2, MIPSREG_A0, 0, 0x1d); // TEMP_2 = (r1 + imm_min) & 0x1fffffff
 	SLTU(TEMP_2, TEMP_2, TEMP_3);     // TEMP_2 = address is in lower 8MB ?
 	AND(TEMP_1, TEMP_1, TEMP_2);      // TEMP_1 = writeok && address-is-in-lower-8mb
-	backpatch_label_hle_1 = (u32 *)recMem;
+	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_1, 0);                  // goto label_hle if either condition is false
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp var)
 
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
 	EXT(TEMP_2, MIPSREG_A0, 21, 3); // <BD slot> TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
 	EXT(TEMP_3, r1, 21, 3);         //           TEMP_3 = (r1 >> 21) & 0x7
-	backpatch_label_hle_2 = (u32 *)recMem;
+	u32 *backpatch_label_hle_2 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp reg)
+#endif
 
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
@@ -307,6 +319,8 @@ static void StoreToAddr(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
+	int icount = count;
+	u32 *backpatch_label_exit_1 = 0;
 	LW(TEMP_3, PERM_REG_1, off(reserved));
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -322,6 +336,7 @@ static void StoreToAddr(int count)
 		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
+		backpatch_label_exit_1 = 0;
 		if (icount == 1) {
 			// This is the end of the loop
 			backpatch_label_exit_1 = (u32 *)recMem;
@@ -342,8 +357,11 @@ static void StoreToAddr(int count)
 
 	// label_hle:
 	fixup_branch(backpatch_label_hle_1);
+#ifndef SKIP_SAME_2MB_REGION_CHECK
 	fixup_branch(backpatch_label_hle_2);
 #endif
+
+#endif // USE_DIRECT_MEM_ACCESS
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -580,11 +598,8 @@ static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
-	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch_label_hle_1;
-	u32 *backpatch_label_exit_1 = 0;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -599,7 +614,7 @@ static void gen_LWL_LWR(int count)
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
-	backpatch_label_hle_1 = (u32 *)recMem;
+	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp reg)
@@ -614,6 +629,8 @@ static void gen_LWL_LWR(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
+	int icount = count;
+	u32 *backpatch_label_exit_1 = 0;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
@@ -642,7 +659,7 @@ static void gen_LWL_LWR(int count)
 
 	// label_hle:
 	fixup_branch(backpatch_label_hle_1);
-#endif
+#endif // USE_DIRECT_MEM_ACCESS
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -707,11 +724,8 @@ static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 static void gen_SWL_SWR(int count)
 {
-	int icount = count;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
-	u32 *backpatch_label_hle_1, *backpatch_label_hle_2;
-	u32 *backpatch_label_exit_1 = 0;
 
 	#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
@@ -723,7 +737,7 @@ static void gen_SWL_SWR(int count)
 
 	/* First check if memory is writable atm */
 	LW(TEMP_1, PERM_REG_1, off(writeok));
-	backpatch_label_hle_1 = (u32 *)recMem;
+	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to MIPSREG_A0)
@@ -733,7 +747,7 @@ static void gen_SWL_SWR(int count)
 	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
 	LUI(TEMP_2, 0x80);
 	SLTU(TEMP_3, TEMP_1, TEMP_2);
-	backpatch_label_hle_2 = (u32 *)recMem;
+	u32 *backpatch_label_hle_2 = (u32 *)recMem;
 	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp reg)
@@ -748,6 +762,8 @@ static void gen_SWL_SWR(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
+	int icount = count;
+	u32 *backpatch_label_exit_1 = 0;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
@@ -775,7 +791,7 @@ static void gen_SWL_SWR(int count)
 	// label_hle:
 	fixup_branch(backpatch_label_hle_1);
 	fixup_branch(backpatch_label_hle_2);
-#endif
+#endif // USE_DIRECT_MEM_ACCESS
 
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -921,7 +937,7 @@ static void recLWL()
 			return;
 		}
 	}
-#endif
+#endif // USE_CONST_ADDRESSES
 
 	gen_LWL_LWR(count);
 }
@@ -979,7 +995,7 @@ static void recSWL()
 			return;
 		}
 	}
-#endif
+#endif // USE_CONST_ADDRESSES
 
 	gen_SWL_SWR(count);
 }
