@@ -594,3 +594,4 @@ void renderer_set_config(const gpulib_config_t *config)
 
   GPU_FrameBuffer = (u16 *)gpu.vram;
 }
+// vim:shiftwidth=2:expandtab
