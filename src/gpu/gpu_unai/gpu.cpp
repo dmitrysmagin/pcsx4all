@@ -77,7 +77,7 @@ u32 DisplayArea   [6];
 //  Rasterizer status
 u32 TextureWindow [4];
 u32 DrawingArea   [4];
-u32 DrawingOffset [2];
+s32 DrawingOffset [2];
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Rasterizer status

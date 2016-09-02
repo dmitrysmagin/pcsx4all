@@ -500,9 +500,6 @@ void gpuSendPacketFunction(const int PRIM)
 		case 0xE5:
 			{
 				const u32 temp = PacketBuffer.U4[0];
-				//senquack - 64-bit fix from Notaz:
-				//DrawingOffset[0] = ((long)temp<<(32-11))>>(32-11);
-				//DrawingOffset[1] = ((long)temp<<(32-22))>>(32-11);
 				DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
 				DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
 				DO_LOG(("DrawingOffset(0x%x)\n",PRIM));

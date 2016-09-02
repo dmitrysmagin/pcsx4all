@@ -75,7 +75,7 @@ static u16 PixelData;
 //  Rasterizer status
 static u32 TextureWindow [4];
 static u32 DrawingArea   [4];
-static u32 DrawingOffset [2];
+static s32 DrawingOffset [2];
 
 static u16* TBA;
 static u16* CBA;
