@@ -700,7 +700,7 @@ void  GPU_writeStatus(u32 data)
 			case 2: GP0 = tw; break;
 			case 3: GP0 = (DrawingArea[1] << 10) | DrawingArea[0]; break;
 			case 4: GP0 = ((DrawingArea[3]-1) << 10) | (DrawingArea[2]-1); break;
-			case 5: case 6:	GP0 = (DrawingOffset[1] << 11) | DrawingOffset[0]; break;
+			case 5: case 6:	GP0 = (((u32)DrawingOffset[1] & 0x7ff) << 11) | ((u32)DrawingOffset[0] & 0x7ff); break;
 			case 7: GP0 = 2; break;
 			case 8: case 15: GP0 = 0xBFC03720; break;
 		}
