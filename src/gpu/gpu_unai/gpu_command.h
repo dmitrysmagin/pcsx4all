@@ -19,42 +19,29 @@
 ***************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////
-INLINE void gpuSetTexture(u16 tpage)
+void gpuSetTexture(u16 tpage)
 {
-	//senquack - 64-bit fix (from Notaz)
-	//long tp;
-	//long tx, ty;
-	u32 tp;
-	u32 tx, ty;
-
-	//senquack - From Notaz's '64-bit issues' commit, he changed the following,
-	//           in pcsx_rearmed's gpu_unai, but there was no associated comment.
-	//           This fix makes Unai's code match gpu_drhell's GPU code
-	// https://github.com/notaz/pcsx_rearmed/commit/4144e9abc1fb8420e08e0a5ef48a9ceba7f26661
-	//GPU_GP1 = (GPU_GP1 & ~0x7FF) | (tpage & 0x7FF);
+	u32 tmode, tx, ty;
 	GPU_GP1 = (GPU_GP1 & ~0x1FF) | (tpage & 0x1FF);
-
 	TextureWindow[0]&= ~TextureWindow[2];
 	TextureWindow[1]&= ~TextureWindow[3];
 
-	tp = (tpage >> 7) & 3;
+	tmode = (tpage >> 7) & 3;  // 16bpp, 8bpp, or 4bpp texture colors?
+	                           // 0: 4bpp     1: 8bpp     2/3: 16bpp
+
+	// Nocash PSX docs state setting of 3 is same as setting of 2 (16bpp):
+	// Note: DrHell assumes 3 is same as 0.. TODO: verify which is correct?
+	if (tmode == 3) tmode = 2;
+
 	tx = (tpage & 0x0F) << 6;
 	ty = (tpage & 0x10) << 4;
 
-	//senquack - Added this line from same commit by Notaz as above comment mentions:
-	//           As you can see from 'tx += ' line just below the added line, it
-	//           would be shifting by undefined amount should tp equal a value
-	//           more than 2, so I suppose this is a good check to do.
-	if (tp == 3) tp = 2;
-
-	tx += (TextureWindow[0] >> (2 - tp));
+	tx += (TextureWindow[0] >> (2 - tmode));
 	ty += TextureWindow[1];
 	
-	BLEND_MODE  = (((tpage>>5)&0x3)     ) << 3;
-	TEXT_MODE   = (((tpage>>7)&0x3) + 1 ) << 5; // +1 el cero no lo usamos
-
+	BLEND_MODE  = ((tpage>>5) & 3) << 3;
+	TEXT_MODE   = (tmode + 1) << 5; // TEXT_MODE should be values 1..3, so add one
 	TBA = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(tx, ty)];
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
