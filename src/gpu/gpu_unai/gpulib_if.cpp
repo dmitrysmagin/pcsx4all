@@ -225,113 +225,113 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x20:
       case 0x21:
       case 0x22:
-      case 0x23:
-        gpuDrawF3(gpuPolySpanDrivers [Blending_Mode | Masking | Blending | PixelMSB]);
-        break;
+      case 0x23: {          // Monochrome 3-pt poly
+        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
+        gpuDrawF3(driver);
+      } break;
 
       case 0x24:
       case 0x25:
       case 0x26:
-      case 0x27:
+      case 0x27: {          // Textured 3-pt poly
         gpuSetCLUT   (PacketBuffer.U4[2] >> 16);
         gpuSetTexture(PacketBuffer.U4[4] >> 16);
-        if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-          gpuDrawFT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB]);
-        else
-          gpuDrawFT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB]);
-        break;
+        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB;
+        if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
+          driver_idx |= Lighting;
+        PP driver = gpuPolySpanDrivers[driver_idx];
+        gpuDrawFT3(driver);
+      } break;
 
       case 0x28:
       case 0x29:
       case 0x2A:
-      case 0x2B: {
-        const PP gpuPolySpanDriver = gpuPolySpanDrivers [Blending_Mode | Masking | Blending | PixelMSB];
-        gpuDrawF3(gpuPolySpanDriver);
+      case 0x2B: {          // Monochrome 4-pt poly
+        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
+        gpuDrawF3(driver);
         PacketBuffer.U4[1] = PacketBuffer.U4[4];
-        gpuDrawF3(gpuPolySpanDriver);
-        break;
-      }
+        gpuDrawF3(driver);
+      } break;
 
       case 0x2C:
       case 0x2D:
       case 0x2E:
-      case 0x2F: {
+      case 0x2F: {          // Textured 4-pt poly
         gpuSetCLUT   (PacketBuffer.U4[2] >> 16);
         gpuSetTexture(PacketBuffer.U4[4] >> 16);
-        PP gpuPolySpanDriver;
-        if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
-          gpuPolySpanDriver = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB];
-        else
-          gpuPolySpanDriver = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | PixelMSB];
-        gpuDrawFT3(gpuPolySpanDriver);
+        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB;
+        if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
+          driver_idx |= Lighting;
+        PP driver = gpuPolySpanDrivers[driver_idx];
+        gpuDrawFT3(driver);
         PacketBuffer.U4[1] = PacketBuffer.U4[7];
         PacketBuffer.U4[2] = PacketBuffer.U4[8];
-        gpuDrawFT3(gpuPolySpanDriver);
-        break;
-      }
+        gpuDrawFT3(driver);
+      } break;
 
       case 0x30:
       case 0x31:
       case 0x32:
-      case 0x33:
-        gpuDrawG3(gpuPolySpanDrivers [Blending_Mode | Masking | Blending | 129 | PixelMSB]);
-        break;
+      case 0x33: {          // Gouraud-shaded 3-pt poly
+        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
+        gpuDrawG3(driver);
+      } break;
 
       case 0x34:
       case 0x35:
       case 0x36:
-      case 0x37:
+      case 0x37: {          // Gouraud-shaded, textured 3-pt poly
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (PacketBuffer.U4[5] >> 16);
-        gpuDrawGT3(gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB]);
-        break;
+        PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
+        gpuDrawGT3(driver);
+      } break;
 
       case 0x38:
       case 0x39:
       case 0x3A:
-      case 0x3B: {
-        const PP gpuPolySpanDriver  = gpuPolySpanDrivers [Blending_Mode | Masking | Blending | 129 | PixelMSB];
-        gpuDrawG3(gpuPolySpanDriver);
+      case 0x3B: {          // Gouraud-shaded 4-pt poly
+        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
+        gpuDrawG3(driver);
         PacketBuffer.U4[0] = PacketBuffer.U4[6];
         PacketBuffer.U4[1] = PacketBuffer.U4[7];
-        gpuDrawG3(gpuPolySpanDriver);
-        break;
-      }
+        gpuDrawG3(driver);
+      } break;
 
       case 0x3C:
       case 0x3D:
       case 0x3E:
-      case 0x3F: {
+      case 0x3F: {          // Gouraud-shaded, textured 4-pt poly
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (PacketBuffer.U4[5] >> 16);
-        const PP gpuPolySpanDriver  = gpuPolySpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
-        gpuDrawGT3(gpuPolySpanDriver);
+        PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
+        gpuDrawGT3(driver);
         PacketBuffer.U4[0] = PacketBuffer.U4[9];
         PacketBuffer.U4[1] = PacketBuffer.U4[10];
         PacketBuffer.U4[2] = PacketBuffer.U4[11];
-        gpuDrawGT3(gpuPolySpanDriver);
-        break;
-      }
+        gpuDrawGT3(driver);
+      } break;
 
       case 0x40:
       case 0x41:
       case 0x42:
-      case 0x43:
-        gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
-        break;
+      case 0x43: {          // Monochrome line
+        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
+        gpuDrawLF(driver);
+      } break;
 
-      case 0x48 ... 0x4F:
-      {
+      case 0x48 ... 0x4F: { // Monochrome line strip
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
 
-        gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
+        gpuDrawLF(driver);
 
         while(1)
         {
           PacketBuffer.U4[1] = PacketBuffer.U4[2];
           PacketBuffer.U4[2] = *list_position++;
-          gpuDrawLF(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+          gpuDrawLF(driver);
 
           num_vertexes++;
           if(list_position >= list_end) {
@@ -343,22 +343,22 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         }
 
         len += (num_vertexes - 2);
-        break;
-      }
+      } break;
 
       case 0x50:
       case 0x51:
       case 0x52:
-      case 0x53:
-        gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
-        break;
+      case 0x53: {          // Gouraud-shaded line
+        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
+        gpuDrawLG(driver);
+      } break;
 
-      case 0x58 ... 0x5F:
-      {
+      case 0x58 ... 0x5F: { // Gouraud-shaded line strip
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
 
-        gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
+        gpuDrawLG(driver);
 
         while(1)
         {
@@ -366,7 +366,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           PacketBuffer.U4[1] = PacketBuffer.U4[3];
           PacketBuffer.U4[2] = *list_position++;
           PacketBuffer.U4[3] = *list_position++;
-          gpuDrawLG(gpuPixelDrivers [ (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1]);
+          gpuDrawLG(driver);
 
           num_vertexes++;
           if(list_position >= list_end) {
@@ -378,22 +378,24 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         }
 
         len += (num_vertexes - 2) * 2;
-        break;
-      }
+      } break;
 
       case 0x60:
       case 0x61:
       case 0x62:
-      case 0x63:
-        gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
-        break;
+      case 0x63: {          // Monochrome rectangle (variable size)
+        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpuDrawT(driver);
+      } break;
 
       case 0x64:
       case 0x65:
       case 0x66:
-      case 0x67:
+      case 0x67: {          // Textured rectangle (variable size)
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (GPU_GP1);
+        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
+
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
         // This fixes Silent Hill running animation on loading screens:
         // (On PSX, color values 0x00-0x7F darken the source texture's color,
@@ -408,51 +410,56 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         //  alone, I don't want to slow rendering down too much. (TODO)
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
-        else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
-        break;
+        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+          driver_idx |= Lighting;
+        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        gpuDrawS(driver);
+      } break;
 
       case 0x68:
       case 0x69:
       case 0x6A:
-      case 0x6B:
+      case 0x6B: {          // Monochrome rectangle (1x1 dot)
         PacketBuffer.U4[2] = 0x00010001;
-        gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
-        break;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpuDrawT(driver);
+      } break;
 
       case 0x70:
       case 0x71:
       case 0x72:
-      case 0x73:
+      case 0x73: {          // Monochrome rectangle (8x8)
         PacketBuffer.U4[2] = 0x00080008;
-        gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
-        break;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpuDrawT(driver);
+      } break;
 
       case 0x74:
       case 0x75:
       case 0x76:
-      case 0x77:
+      case 0x77: {          // Textured rectangle (8x8)
         PacketBuffer.U4[3] = 0x00080008;
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (GPU_GP1);
+        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
+
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
-        else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
-        break;
+        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+          driver_idx |= Lighting;
+        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        gpuDrawS(driver);
+      } break;
 
       case 0x78:
       case 0x79:
       case 0x7A:
-      case 0x7B:
+      case 0x7B: {          // Monochrome rectangle (16x16)
         PacketBuffer.U4[2] = 0x00100010;
-        gpuDrawT(gpuTileSpanDrivers [Blending_Mode | Masking | Blending | (PixelMSB>>3)]);
-        break;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpuDrawT(driver);
+      } break;
 
       case 0x7C:
       case 0x7D:
@@ -467,22 +474,24 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         // fallthrough
 #endif
       case 0x7E:
-      case 0x7F:
+      case 0x7F: {          // Textured rectangle (16x16)
         PacketBuffer.U4[3] = 0x00100010;
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (GPU_GP1);
+        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) == 0x808080)
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1)]);
-        else
-          gpuDrawS(gpuSpriteSpanDrivers [Blending_Mode | TEXT_MODE | Masking | Blending | Lighting | (PixelMSB>>1)]);
-        break;
+        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+          driver_idx |= Lighting;
+        PS driver = gpuSpriteSpanDrivers[driver_idx];
+        gpuDrawS(driver);
+      } break;
 
       case 0x80:          //  vid -> vid
         gpuMoveImage();   //  prim handles updateLace && skip
         break;
+
 #ifdef TEST
       case 0xA0:          //  sys -> vid
       {
@@ -491,8 +500,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         u32 load_size = load_width * load_height;
 
         len += load_size / 2;
-        break;
-      }
+      } break;
+
       case 0xC0:
         break;
 #else
@@ -505,8 +514,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         GPU_GP1 = (GPU_GP1 & ~0x000007FF) | (temp & 0x000007FF);
         gpuSetTexture(temp);
         gpu.ex_regs[1] = temp;
-        break;
-      }
+      } break;
+
       case 0xE2: {
         static const u8  TextureMask[32] = {
           255, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7,
@@ -522,36 +531,35 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
         gpuSetTexture(GPU_GP1);
         gpu.ex_regs[2] = temp;
-        break;
-      }
+      } break;
+
       case 0xE3: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingArea[0] = temp         & 0x3FF;
         DrawingArea[1] = (temp >> 10) & 0x3FF;
         gpu.ex_regs[3] = temp;
-        break;
-      }
+      } break;
+
       case 0xE4: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingArea[2] = (temp         & 0x3FF) + 1;
         DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
         gpu.ex_regs[4] = temp;
-        break;
-      }
+      } break;
+
       case 0xE5: {
         const u32 temp = PacketBuffer.U4[0];
         DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
         DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
         gpu.ex_regs[5] = temp;
-        break;
-      }
+      } break;
+
       case 0xE6: {
         const u32 temp = PacketBuffer.U4[0];
         Masking = (temp & 0x2) <<  1;
         PixelMSB =(temp & 0x1) <<  8;
         gpu.ex_regs[6] = temp;
-        break;
-      }
+      } break;
     }
   }
 
