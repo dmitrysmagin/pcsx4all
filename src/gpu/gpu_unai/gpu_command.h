@@ -72,6 +72,10 @@ void gpuSendPacketFunction(const int PRIM)
 {
 	//printf("0x%x\n",PRIM);
 
+	//senquack - TODO: optimize this (packet pointer union as prim draw parameter
+	// introduced as optimization for gpulib command-list processing)
+	PtrUnion packet = { .ptr = (void*)&PacketBuffer };
+
 	switch (PRIM)
 	{
 		case 0x02: {

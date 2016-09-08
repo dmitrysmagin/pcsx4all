@@ -106,6 +106,16 @@ static u32   blit_mask=0; /* blit mask - Determines which pixels of rendered
                              on a low-resolution device in high-res modes.
                              Cannot be used if downscaling is in use. */
 
+union PtrUnion
+{
+	u32  *U4;
+	s32  *S4;
+	u16  *U2;
+	s16  *S2;
+	u8   *U1;
+	s8   *S1;
+	void *ptr;
+};
 
 union GPUPacket
 {
@@ -216,6 +226,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
     PacketBuffer.U4[0] = list[0];
     for (i = 1; i <= len; i++)
       PacketBuffer.U4[i] = list[i];
+
+    PtrUnion packet = { .ptr = (void*)&PacketBuffer };
 
     switch (cmd)
     {
