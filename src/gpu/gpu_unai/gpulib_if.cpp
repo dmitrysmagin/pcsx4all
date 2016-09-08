@@ -131,7 +131,8 @@ static u32   GPU_GP1;
 //  GPU Raster Macros
 #define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
 
-#define GPU_EXPANDSIGN(x)  (((s32)(x)<<21)>>21)
+//Sign-extend 11-bit coordinate command param
+#define GPU_EXPANDSIGN(x)  (((s32)(x)<<(32-11))>>(32-11))
 
 #define CHKMAX_X 1024
 #define CHKMAX_Y 512
