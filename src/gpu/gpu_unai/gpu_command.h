@@ -93,9 +93,9 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | Masking | Blending | PixelMSB];
-				gpuDrawF3(driver);
+				gpuDrawPolyF(packet, driver, false);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawF3(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyF(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -112,9 +112,9 @@ void gpuSendPacketFunction(const int PRIM)
 				if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
 					driver_idx |= Lighting;
 				PP driver = gpuPolySpanDrivers[driver_idx];
-				gpuDrawFT3(driver);
+				gpuDrawPolyFT(packet, driver, false);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawFT3(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyFT(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -126,13 +126,9 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | Masking | Blending | PixelMSB];
-				//--PacketBuffer.S2[6];
-				gpuDrawF3(driver);
-				PacketBuffer.U4[1] = PacketBuffer.U4[4];
-				//--PacketBuffer.S2[2];
-				gpuDrawF3(driver);
+				gpuDrawPolyF(packet, driver, true); // is_quad = true
 				fb_dirty = true;
-				DO_LOG(("gpuDrawF4(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyF(0x%x) (4-pt QUAD)\n",PRIM));
 			}
 		} break;
 
@@ -149,14 +145,9 @@ void gpuSendPacketFunction(const int PRIM)
 				if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
 					driver_idx |= Lighting;
 				PP driver = gpuPolySpanDrivers[driver_idx];
-				//--PacketBuffer.S2[6];
-				gpuDrawFT3(driver);
-				PacketBuffer.U4[1] = PacketBuffer.U4[7];
-				PacketBuffer.U4[2] = PacketBuffer.U4[8];
-				//--PacketBuffer.S2[2];
-				gpuDrawFT3(driver);
+				gpuDrawPolyFT(packet, driver, true); // is_quad = true
 				fb_dirty = true;
-				DO_LOG(("gpuDrawFT4(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyFT(0x%x) (4-pt QUAD)\n",PRIM));
 			}
 		} break;
 
@@ -168,9 +159,9 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | Masking | Blending | 129 | PixelMSB];
-				gpuDrawG3(driver);
+				gpuDrawPolyG(packet, driver, false);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawG3(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyG(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -184,9 +175,9 @@ void gpuSendPacketFunction(const int PRIM)
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[5] >> 16);
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
-				gpuDrawGT3(driver);
+				gpuDrawPolyGT(packet, driver, false);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawGT3(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyGT(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -198,14 +189,9 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | Masking | Blending | 129 | PixelMSB];
-				//--PacketBuffer.S2[6];
-				gpuDrawG3(driver);
-				PacketBuffer.U4[0] = PacketBuffer.U4[6];
-				PacketBuffer.U4[1] = PacketBuffer.U4[7];
-				//--PacketBuffer.S2[2];
-				gpuDrawG3(driver);
+				gpuDrawPolyG(packet, driver, true); // is_quad = true
 				fb_dirty = true;
-				DO_LOG(("gpuDrawG4(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyG(0x%x) (4-pt QUAD)\n",PRIM));
 			}
 		} break;
 
@@ -219,15 +205,9 @@ void gpuSendPacketFunction(const int PRIM)
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (PacketBuffer.U4[5] >> 16);
 				PP driver = gpuPolySpanDrivers[(blit_mask?512:0) | Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
-				//--PacketBuffer.S2[6];
-				gpuDrawGT3(driver);
-				PacketBuffer.U4[0] = PacketBuffer.U4[9];
-				PacketBuffer.U4[1] = PacketBuffer.U4[10];
-				PacketBuffer.U4[2] = PacketBuffer.U4[11];
-				//--PacketBuffer.S2[2];
-				gpuDrawGT3(driver);
+				gpuDrawPolyGT(packet, driver, true); // is_quad = true
 				fb_dirty = true;
-				DO_LOG(("gpuDrawGT4(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawPolyGT(0x%x) (4-pt QUAD)\n",PRIM));
 			}
 		} break;
 

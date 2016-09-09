@@ -240,7 +240,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
         PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
-        gpuDrawF3(driver);
+        gpuDrawPolyF(packet, driver, false);
       } break;
 
       case 0x24:
@@ -253,7 +253,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
-        gpuDrawFT3(driver);
+        gpuDrawPolyFT(packet, driver, false);
       } break;
 
       case 0x28:
@@ -261,9 +261,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
         PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
-        gpuDrawF3(driver);
-        PacketBuffer.U4[1] = PacketBuffer.U4[4];
-        gpuDrawF3(driver);
+        gpuDrawPolyF(packet, driver, true); // is_quad = true
       } break;
 
       case 0x2C:
@@ -276,10 +274,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
-        gpuDrawFT3(driver);
-        PacketBuffer.U4[1] = PacketBuffer.U4[7];
-        PacketBuffer.U4[2] = PacketBuffer.U4[8];
-        gpuDrawFT3(driver);
+        gpuDrawPolyFT(packet, driver, true); // is_quad = true
       } break;
 
       case 0x30:
@@ -287,7 +282,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x32:
       case 0x33: {          // Gouraud-shaded 3-pt poly
         PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
-        gpuDrawG3(driver);
+        gpuDrawPolyG(packet, driver, false);
       } break;
 
       case 0x34:
@@ -297,7 +292,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (PacketBuffer.U4[5] >> 16);
         PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
-        gpuDrawGT3(driver);
+        gpuDrawPolyGT(packet, driver, false);
       } break;
 
       case 0x38:
@@ -305,10 +300,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
         PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
-        gpuDrawG3(driver);
-        PacketBuffer.U4[0] = PacketBuffer.U4[6];
-        PacketBuffer.U4[1] = PacketBuffer.U4[7];
-        gpuDrawG3(driver);
+        gpuDrawPolyG(packet, driver, true); // is_quad = true
       } break;
 
       case 0x3C:
@@ -318,11 +310,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
         gpuSetTexture (PacketBuffer.U4[5] >> 16);
         PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
-        gpuDrawGT3(driver);
-        PacketBuffer.U4[0] = PacketBuffer.U4[9];
-        PacketBuffer.U4[1] = PacketBuffer.U4[10];
-        PacketBuffer.U4[2] = PacketBuffer.U4[11];
-        gpuDrawGT3(driver);
+        gpuDrawPolyGT(packet, driver, true); // is_quad = true
       } break;
 
       case 0x40:
