@@ -24,51 +24,35 @@
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawS(const PS gpuSpriteSpanDriver)
 {
-	s32 x0, x1;
-	s32 y0, y1;
-	s32 u0;
-	s32 v0;
-
+	s32 x0, x1, y0, y1;
+	s32 u0, v0;
 	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
 	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
 	x1 += (PacketBuffer.U2[6] & 0x3ff); // Max width is 1023
 	y1 += (PacketBuffer.U2[7] & 0x1ff); // Max height is 511
 
-	{
-		s32 xmin, xmax;
-		s32 ymin, ymax;
-		xmin = DrawingArea[0];	xmax = DrawingArea[2];
-		ymin = DrawingArea[1];	ymax = DrawingArea[3];
+	s32 xmin, xmax, ymin, ymax;
+	xmin = DrawingArea[0];	xmax = DrawingArea[2];
+	ymin = DrawingArea[1];	ymax = DrawingArea[3];
 
-		{
-			int rx0 = Max2(xmin,Min2(x0,x1));
-			int ry0 = Max2(ymin,Min2(y0,y1));
-			int rx1 = Min2(xmax,Max2(x0,x1));
-			int ry1 = Min2(ymax,Max2(y0,y1));
-			if( rx0>=rx1 || ry0>=ry1) return;
-		}
+	u0 = PacketBuffer.U1[8];
+	v0 = PacketBuffer.U1[9];
 
-		u0 = PacketBuffer.U1[8];
-		v0 = PacketBuffer.U1[9];
+	r4 = s32(PacketBuffer.U1[0]);
+	g4 = s32(PacketBuffer.U1[1]);
+	b4 = s32(PacketBuffer.U1[2]);
 
-		r4 = s32(PacketBuffer.U1[0]);
-		g4 = s32(PacketBuffer.U1[1]);
-		b4 = s32(PacketBuffer.U1[2]);
+	s32 temp;
+	temp = ymin - y0;
+	if (temp > 0) { y0 = ymin; v0 += temp; }
+	if (y1 > ymax) y1 = ymax;
+	if (y1 <= y0) return;
 
-		{
-			s32 temp;
-			temp = ymin - y0;
-			if (temp > 0) { y0 = ymin; v0 += temp; }
-			if (y1 > ymax) y1 = ymax;
-			if (y1 <= y0) return;
-			
-			temp = xmin - x0;
-			if (temp > 0) { x0 = xmin; u0 += temp; }
-			if (x1 > xmax) x1 = xmax;
-			x1 -= x0;
-			if (x1 <= 0) return;
-		}
-	}
+	temp = xmin - x0;
+	if (temp > 0) { x0 = xmin; u0 += temp; }
+	if (x1 > xmax) x1 = xmax;
+	x1 -= x0;
+	if (x1 <= 0) return;
 
 	u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
 	const int li=linesInterlace;
@@ -100,7 +84,7 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 
 	u8* pTxt_base = (u8*)TBA + u0_off;
 
-	for (;y0<y1;++y0) {
+	for (; y0<y1; ++y0) {
 		u8* pTxt = pTxt_base + (v0 * 2048);
 		if ((0==(y0&li))&&((y0&pi)!=pif))
 			gpuSpriteSpanDriver(Pixel, x1, pTxt, masku);
@@ -154,50 +138,33 @@ void gpuDrawS16(void)
 ///////////////////////////////////////////////////////////////////////////////
 void gpuDrawT(const PT gpuTileSpanDriver)
 {
-	s32 x0, y0;
-	s32 x1, y1;
-
+	s32 x0, x1, y0, y1;
 	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
 	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
 	x1 += (PacketBuffer.U2[4] & 0x3ff); // Max width is 1023
 	y1 += (PacketBuffer.U2[5] & 0x1ff); // Max height is 511
 
+	s32 xmin, xmax, ymin, ymax;
+	xmin = DrawingArea[0];	xmax = DrawingArea[2];
+	ymin = DrawingArea[1];	ymax = DrawingArea[3];
 
-	{
-		s32 xmin, xmax;
-		s32 ymin, ymax;
-		xmin = DrawingArea[0];	xmax = DrawingArea[2];
-		ymin = DrawingArea[1];	ymax = DrawingArea[3];
+	if (y0 < ymin) y0 = ymin;
+	if (y1 > ymax) y1 = ymax;
+	if (y1 <= y0) return;
 
-		{
-			int rx0 = Max2(xmin,Min2(x0,x1));
-			int ry0 = Max2(ymin,Min2(y0,y1));
-			int rx1 = Min2(xmax,Max2(x0,x1));
-			int ry1 = Min2(ymax,Max2(y0,y1));
-			if(rx0>=rx1 || ry0>=ry1) return;
-		}
+	if (x0 < xmin) x0 = xmin;
+	if (x1 > xmax) x1 = xmax;
+	x1 -= x0;
+	if (x1 <= 0) return;
 
-		if (y0 < ymin) y0 = ymin;
-		if (y1 > ymax) y1 = ymax;
-		if (y1 <= y0) return;
+	u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
+	const u16 Data = GPU_RGB16(PacketBuffer.U4[0]);
+	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
 
-		if (x0 < xmin) x0 = xmin;
-		if (x1 > xmax) x1 = xmax;
-		x1 -= x0;
-		if (x1 <= 0) return;
-	}
-	
-	{
-		u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
-		const u16 Data = GPU_RGB16(PacketBuffer.U4[0]);
-		const int li=linesInterlace;
-		const int pi=(progressInterlace?(linesInterlace+1):0);
-		const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
-
-		for (; y0<y1; ++y0)
-		{
-			if ((0==(y0&li))&&((y0&pi)!=pif)) gpuTileSpanDriver(Pixel,x1,Data);
-			Pixel += FRAME_WIDTH;
-		}
+	for (; y0<y1; ++y0) {
+		if ((0==(y0&li))&&((y0&pi)!=pif)) gpuTileSpanDriver(Pixel,x1,Data);
+		Pixel += FRAME_WIDTH;
 	}
 }
