@@ -31,8 +31,8 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 
 	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
 	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
-	x1+= PacketBuffer.S2[6];
-	y1+= PacketBuffer.S2[7];
+	x1 += (PacketBuffer.U2[6] & 0x3ff); // Max width is 1023
+	y1 += (PacketBuffer.U2[7] & 0x1ff); // Max height is 511
 
 	{
 		s32 xmin, xmax;
@@ -70,19 +70,42 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 		}
 	}
 
-	{
-		u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
-		const int li=linesInterlace;
-		const int pi=(progressInterlace?(linesInterlace+1):0);
-		const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
-		const u32 masku=TextureWindow[2];
-		const u32 maskv=TextureWindow[3];
+	u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
+	const int li=linesInterlace;
+	const int pi=(progressInterlace?(linesInterlace+1):0);
+	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
+	const u32 masku=TextureWindow[2];
+	const u32 maskv=TextureWindow[3];
 
-		for (;y0<y1;++y0) {
-			if ((0==(y0&li))&&((y0&pi)!=pif)) gpuSpriteSpanDriver(Pixel,x1,FRAME_OFFSET(u0,v0),masku);
-			Pixel += FRAME_WIDTH;
-			v0 = (v0+1)&maskv;
-		}
+	// senquack-Fixed Xenogears text box border glitches cause by careless
+	//  setting of texture pointer when in 4bpp texture mode.
+	//  NOTE: sprite inner drivers now take u8* texture pointer as parameter
+	u0 &= masku;
+	v0 &= maskv;
+	unsigned int tmode = TEXT_MODE >> 5;
+	unsigned int u0_off;
+
+	switch (tmode) {
+		default:
+		case 3: // 16bpp texture mode
+			u0_off = u0 << 1;
+			break;
+		case 2: // 8bpp texture mode
+			u0_off = u0;
+			break;
+		case 1: // 4bpp texture mode
+			u0_off = u0 >> 1;
+			break;
+	}
+
+	u8* pTxt_base = (u8*)TBA + u0_off;
+
+	for (;y0<y1;++y0) {
+		u8* pTxt = pTxt_base + (v0 * 2048);
+		if ((0==(y0&li))&&((y0&pi)!=pif))
+			gpuSpriteSpanDriver(Pixel, x1, pTxt, masku);
+		Pixel += FRAME_WIDTH;
+		v0 = (v0+1) & maskv;
 	}
 }
 
@@ -136,8 +159,9 @@ void gpuDrawT(const PT gpuTileSpanDriver)
 
 	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
 	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
-	x1+= PacketBuffer.S2[4];
-	y1+= PacketBuffer.S2[5];
+	x1 += (PacketBuffer.U2[4] & 0x3ff); // Max width is 1023
+	y1 += (PacketBuffer.U2[5] & 0x1ff); // Max height is 511
+
 
 	{
 		s32 xmin, xmax;

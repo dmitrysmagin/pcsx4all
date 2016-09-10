@@ -179,14 +179,13 @@ const PT gpuTileSpanDrivers[64] =
 //  GPU Sprites innerloops generator
 
 template<const int CF>
-static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 {
-	u16 uSrc;
-	u16 uDst;
-	const u16* pTxt = TBA+(u0&~0x1ff); u0=u0&0x1ff;
+	u16 uSrc, uDst;
+	u32 u0 = 0;
 	const u16 *_CBA; if(TM!=3) _CBA=CBA;
 	u32 lCol; if(L)  { lCol = ((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21));  }
-	u8 rgb; if (TM==1) rgb = ((u8*)pTxt)[u0>>1];
+	u8 rgb; if (TM==1) rgb = pTxt[u0>>1];
 	u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
 
 	//senquack - 'Silent Hill' white rectangles around characters fix:
@@ -203,9 +202,9 @@ static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 		if(M)   { uDst = *pDst;   if (uDst&0x8000) { u0=(u0+1)&mask; goto endsprite; }  }
 
 		//  TEXTURE MAPPING
-		if (TM==1) { if (!(u0&1)) rgb = ((u8*)pTxt)[u0>>1]; uSrc = _CBA[(rgb>>((u0&1)<<2))&0xf]; u0=(u0+1)&mask; }
-		if (TM==2) { uSrc = _CBA[((u8*)pTxt)[u0]]; u0=(u0+1)&mask; }
-		if (TM==3) { uSrc = pTxt[u0]; u0=(u0+1)&mask; }
+		if (TM==1) { if (!(u0&1)) rgb = pTxt[u0>>1]; uSrc = _CBA[(rgb>>((u0&1)<<2))&0xf]; u0=(u0+1)&mask; }
+		if (TM==2) { uSrc = _CBA[pTxt[u0]]; u0=(u0+1)&mask; }
+		if (TM==3) { uSrc = ((u16*)pTxt)[u0]; u0=(u0+1)&mask; }
 		if (!uSrc) goto endsprite;
 
 		//senquack - save source MSB, as blending or lighting macros will not
@@ -252,7 +251,7 @@ static void  gpuSpriteSpanFn(u16 *pDst, u32 count, u32 u0, const u32 mask)
 	while (--count);
 }
 
-static void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
+static void SpriteNULL(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -263,7 +262,7 @@ static void SpriteNULL(u16 *pDst, u32 count, u32 u0, const u32 mask)
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Sprite innerloops driver
-typedef void (*PS)(u16 *pDst, u32 count, u32 u0, const u32 mask);
+typedef void (*PS)(u16 *pDst, u32 count, u8* pTxt, const u32 mask);
 const PS gpuSpriteSpanDrivers[256] = 
 {
 	SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,
