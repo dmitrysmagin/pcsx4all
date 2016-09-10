@@ -22,25 +22,25 @@
 //  GPU internal sprite drawing functions
 
 ///////////////////////////////////////////////////////////////////////////////
-void gpuDrawS(const PS gpuSpriteSpanDriver)
+void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 {
 	s32 x0, x1, y0, y1;
 	s32 u0, v0;
-	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
-	x1 += (PacketBuffer.U2[6] & 0x3ff); // Max width is 1023
-	y1 += (PacketBuffer.U2[7] & 0x1ff); // Max height is 511
+	x1 = x0 = GPU_EXPANDSIGN(packet.S2[2]) + DrawingOffset[0];
+	y1 = y0 = GPU_EXPANDSIGN(packet.S2[3]) + DrawingOffset[1];
+	x1 += (packet.U2[6] & 0x3ff); // Max width is 1023
+	y1 += (packet.U2[7] & 0x1ff); // Max height is 511
 
 	s32 xmin, xmax, ymin, ymax;
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
 	ymin = DrawingArea[1];	ymax = DrawingArea[3];
 
-	u0 = PacketBuffer.U1[8];
-	v0 = PacketBuffer.U1[9];
+	u0 = packet.U1[8];
+	v0 = packet.U1[9];
 
-	r4 = s32(PacketBuffer.U1[0]);
-	g4 = s32(PacketBuffer.U1[1]);
-	b4 = s32(PacketBuffer.U1[2]);
+	r4 = s32(packet.U1[0]);
+	g4 = s32(packet.U1[1]);
+	b4 = s32(packet.U1[2]);
 
 	s32 temp;
 	temp = ymin - y0;
@@ -97,7 +97,7 @@ void gpuDrawS(const PS gpuSpriteSpanDriver)
 #include "gpu_arm.h"
 
 /* Notaz 4bit sprites optimization */
-void gpuDrawS16(void)
+void gpuDrawS16(PtrUnion packet)
 {
 	s32 x0, y0;
 	s32 u0, v0;
@@ -105,18 +105,18 @@ void gpuDrawS16(void)
 	s32 ymin, ymax;
 	u32 h = 16;
 
-	x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
+	x0 = GPU_EXPANDSIGN(packet.S2[2]) + DrawingOffset[0];
+	y0 = GPU_EXPANDSIGN(packet.S2[3]) + DrawingOffset[1];
 
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
 	ymin = DrawingArea[1];	ymax = DrawingArea[3];
-	u0 = PacketBuffer.U1[8];
-	v0 = PacketBuffer.U1[9];
+	u0 = packet.U1[8];
+	v0 = packet.U1[9];
 
 	if (x0 > xmax - 16 || x0 < xmin ||
 	    ((u0 | v0) & 15) || !(TextureWindow[2] & TextureWindow[3] & 8)) {
 		// send corner cases to general handler
-		PacketBuffer.U4[3] = 0x00100010;
+		packet.U4[3] = 0x00100010;
 		gpuDrawS(gpuSpriteSpanFn<0x20>);
 		return;
 	}
@@ -136,13 +136,13 @@ void gpuDrawS16(void)
 #endif // __arm__
 
 ///////////////////////////////////////////////////////////////////////////////
-void gpuDrawT(const PT gpuTileSpanDriver)
+void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
 {
 	s32 x0, x1, y0, y1;
-	x1 = x0 = GPU_EXPANDSIGN(PacketBuffer.S2[2]) + DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN(PacketBuffer.S2[3]) + DrawingOffset[1];
-	x1 += (PacketBuffer.U2[4] & 0x3ff); // Max width is 1023
-	y1 += (PacketBuffer.U2[5] & 0x1ff); // Max height is 511
+	x1 = x0 = GPU_EXPANDSIGN(packet.S2[2]) + DrawingOffset[0];
+	y1 = y0 = GPU_EXPANDSIGN(packet.S2[3]) + DrawingOffset[1];
+	x1 += (packet.U2[4] & 0x3ff); // Max width is 1023
+	y1 += (packet.U2[5] & 0x1ff); // Max height is 511
 
 	s32 xmin, xmax, ymin, ymax;
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
@@ -158,7 +158,7 @@ void gpuDrawT(const PT gpuTileSpanDriver)
 	if (x1 <= 0) return;
 
 	u16 *Pixel = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0, y0)];
-	const u16 Data = GPU_RGB16(PacketBuffer.U4[0]);
+	const u16 Data = GPU_RGB16(packet.U4[0]);
 	const int li=linesInterlace;
 	const int pi=(progressInterlace?(linesInterlace+1):0);
 	const int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);

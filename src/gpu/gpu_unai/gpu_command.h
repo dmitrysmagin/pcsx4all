@@ -299,7 +299,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-				gpuDrawT(driver);
+				gpuDrawT(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
@@ -332,7 +332,7 @@ void gpuSendPacketFunction(const int PRIM)
 				if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
-				gpuDrawS(driver);
+				gpuDrawS(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}
@@ -347,7 +347,7 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00010001;
 				PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-				gpuDrawT(driver);
+				gpuDrawT(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
@@ -362,7 +362,7 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00080008;
 				PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-				gpuDrawT(driver);
+				gpuDrawT(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
@@ -386,7 +386,7 @@ void gpuSendPacketFunction(const int PRIM)
 				if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
-				gpuDrawS(driver);
+				gpuDrawS(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}
@@ -401,7 +401,7 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				PacketBuffer.U4[2] = 0x00100010;
 				PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-				gpuDrawT(driver);
+				gpuDrawT(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
 			}
@@ -415,7 +415,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (GPU_GP1);
-				gpuDrawS16();
+				gpuDrawS16(packet);
 				fb_dirty = true;
 				break;
 			}
@@ -436,7 +436,7 @@ void gpuSendPacketFunction(const int PRIM)
 				if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
 					driver_idx |= Lighting;
 				PS driver = gpuSpriteSpanDrivers[driver_idx];
-				gpuDrawS(driver);
+				gpuDrawS(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawS(0x%x)\n",PRIM));
 			}

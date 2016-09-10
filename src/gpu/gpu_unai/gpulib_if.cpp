@@ -386,7 +386,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x62:
       case 0x63: {          // Monochrome rectangle (variable size)
         PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-        gpuDrawT(driver);
+        gpuDrawT(packet, driver);
       } break;
 
       case 0x64:
@@ -414,7 +414,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
-        gpuDrawS(driver);
+        gpuDrawS(packet, driver);
       } break;
 
       case 0x68:
@@ -423,7 +423,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x6B: {          // Monochrome rectangle (1x1 dot)
         PacketBuffer.U4[2] = 0x00010001;
         PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-        gpuDrawT(driver);
+        gpuDrawT(packet, driver);
       } break;
 
       case 0x70:
@@ -432,7 +432,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x73: {          // Monochrome rectangle (8x8)
         PacketBuffer.U4[2] = 0x00080008;
         PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-        gpuDrawT(driver);
+        gpuDrawT(packet, driver);
       } break;
 
       case 0x74:
@@ -450,7 +450,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
-        gpuDrawS(driver);
+        gpuDrawS(packet, driver);
       } break;
 
       case 0x78:
@@ -459,7 +459,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x7B: {          // Monochrome rectangle (16x16)
         PacketBuffer.U4[2] = 0x00100010;
         PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
-        gpuDrawT(driver);
+        gpuDrawT(packet, driver);
       } break;
 
       case 0x7C:
@@ -469,7 +469,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         {
           gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
           gpuSetTexture (GPU_GP1);
-          gpuDrawS16();
+          gpuDrawS16(packet);
           break;
         }
         // fallthrough
@@ -486,7 +486,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
-        gpuDrawS(driver);
+        gpuDrawS(packet, driver);
       } break;
 
       case 0x80:          //  vid -> vid
