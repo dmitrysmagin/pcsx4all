@@ -394,7 +394,6 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x66:
       case 0x67: {          // Textured rectangle (variable size)
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture (GPU_GP1);
         u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
 
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
@@ -441,7 +440,6 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x77: {          // Textured rectangle (8x8)
         PacketBuffer.U4[3] = 0x00080008;
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture (GPU_GP1);
         u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
 
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
@@ -468,7 +466,6 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         if ((GPU_GP1 & 0x180) == 0 && (Masking | PixelMSB) == 0)
         {
           gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-          gpuSetTexture (GPU_GP1);
           gpuDrawS16(packet);
           break;
         }
@@ -478,7 +475,6 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x7F: {          // Textured rectangle (16x16)
         PacketBuffer.U4[3] = 0x00100010;
         gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture (GPU_GP1);
         u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
         //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))

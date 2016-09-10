@@ -313,7 +313,6 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (GPU_GP1);
 				u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
 
 				// This fixes Silent Hill running animation on loading screens:
@@ -377,7 +376,6 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				PacketBuffer.U4[3] = 0x00080008;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (GPU_GP1);
 				u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
 
 				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
@@ -414,7 +412,6 @@ void gpuSendPacketFunction(const int PRIM)
 			if ((!skipGPU) && (!(GPU_GP1&0x180)) && (!(Masking|PixelMSB)))
 			{
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (GPU_GP1);
 				gpuDrawS16(packet);
 				fb_dirty = true;
 				break;
@@ -427,7 +424,6 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				PacketBuffer.U4[3] = 0x00100010;
 				gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-				gpuSetTexture (GPU_GP1);
 				u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
 
 				//senquack - Only color 808080h-878787h allows skipping lighting calculation:
