@@ -219,7 +219,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLF(driver);
+				gpuDrawLF(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
 			}
@@ -237,7 +237,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLF(driver);
+				gpuDrawLF(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
 			}
@@ -258,7 +258,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLG(driver);
+				gpuDrawLG(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
 			}
@@ -276,7 +276,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLG(driver);
+				gpuDrawLG(packet, driver);
 				fb_dirty = true;
 				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
 			}

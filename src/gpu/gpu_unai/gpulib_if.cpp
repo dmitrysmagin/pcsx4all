@@ -327,7 +327,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x42:
       case 0x43: {          // Monochrome line
         PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLF(driver);
+        gpuDrawLF(packet, driver);
       } break;
 
       case 0x48 ... 0x4F: { // Monochrome line strip
@@ -335,13 +335,13 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         u32 *list_position = &(list[2]);
 
         PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLF(driver);
+        gpuDrawLF(packet, driver);
 
         while(1)
         {
           PacketBuffer.U4[1] = PacketBuffer.U4[2];
           PacketBuffer.U4[2] = *list_position++;
-          gpuDrawLF(driver);
+          gpuDrawLF(packet, driver);
 
           num_vertexes++;
           if(list_position >= list_end) {
@@ -360,7 +360,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x52:
       case 0x53: {          // Gouraud-shaded line
         PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLG(driver);
+        gpuDrawLG(packet, driver);
       } break;
 
       case 0x58 ... 0x5F: { // Gouraud-shaded line strip
@@ -368,7 +368,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         u32 *list_position = &(list[2]);
 
         PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLG(driver);
+        gpuDrawLG(packet, driver);
 
         while(1)
         {
@@ -376,7 +376,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           PacketBuffer.U4[1] = PacketBuffer.U4[3];
           PacketBuffer.U4[2] = *list_position++;
           PacketBuffer.U4[3] = *list_position++;
-          gpuDrawLG(driver);
+          gpuDrawLG(packet, driver);
 
           num_vertexes++;
           if(list_position >= list_end) {

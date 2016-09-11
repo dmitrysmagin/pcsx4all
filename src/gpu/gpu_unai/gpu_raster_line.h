@@ -27,21 +27,21 @@
 #define GPU_DIGITSC (GPU_DIGITS+3)
 
 ///////////////////////////////////////////////////////////////////////////////
-void gpuDrawLF(const PD gpuPixelDriver)
+void gpuDrawLF(PtrUnion packet, const PD gpuPixelDriver)
 {
 	s32 xmin, xmax;
 	s32 ymin, ymax;
 	s32 x0, x1, dx;
 	s32 y0, y1, dy;
 
-	x0 = PacketBuffer.S2[2] + DrawingOffset[0]; 	GPU_TESTRANGE(x0);
-	y0 = PacketBuffer.S2[3] + DrawingOffset[1]; 	GPU_TESTRANGE(y0);
-	x1 = PacketBuffer.S2[4] + DrawingOffset[0]; 	GPU_TESTRANGE(x1);
-	y1 = PacketBuffer.S2[5] + DrawingOffset[1]; 	GPU_TESTRANGE(y1);
+	x0 = packet.S2[2] + DrawingOffset[0]; 	GPU_TESTRANGE(x0);
+	y0 = packet.S2[3] + DrawingOffset[1]; 	GPU_TESTRANGE(y0);
+	x1 = packet.S2[4] + DrawingOffset[0]; 	GPU_TESTRANGE(x1);
+	y1 = packet.S2[5] + DrawingOffset[1]; 	GPU_TESTRANGE(y1);
 
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
 	ymin = DrawingArea[1];	ymax = DrawingArea[3];
-	const u16 pixeldata = GPU_RGB16(PacketBuffer.U4[0]);
+	const u16 pixeldata = GPU_RGB16(packet.U4[0]);
 
 	const int li=linesInterlace;
 	const int pi=(progressInterlace?(linesInterlace+1):0);
@@ -120,7 +120,7 @@ GF
 ----------------------------------------------------------------------*/
 
 ///////////////////////////////////////////////////////////////////////////////
-void gpuDrawLG(const PD gpuPixelDriver)
+void gpuDrawLG(PtrUnion packet, const PD gpuPixelDriver)
 {
 	s32 xmin, xmax;
 	s32 ymin, ymax;
@@ -130,13 +130,13 @@ void gpuDrawLG(const PD gpuPixelDriver)
 	s32 g0, g1;
 	s32 b0, b1;
 
-	x0 = PacketBuffer.S2[2] + DrawingOffset[0];	GPU_TESTRANGE(x0);
-	y0 = PacketBuffer.S2[3] + DrawingOffset[1];	GPU_TESTRANGE(y0);
-	x1 = PacketBuffer.S2[6] + DrawingOffset[0];	GPU_TESTRANGE(x1);
-	y1 = PacketBuffer.S2[7] + DrawingOffset[1];	GPU_TESTRANGE(y1);
+	x0 = packet.S2[2] + DrawingOffset[0];	GPU_TESTRANGE(x0);
+	y0 = packet.S2[3] + DrawingOffset[1];	GPU_TESTRANGE(y0);
+	x1 = packet.S2[6] + DrawingOffset[0];	GPU_TESTRANGE(x1);
+	y1 = packet.S2[7] + DrawingOffset[1];	GPU_TESTRANGE(y1);
 
-	r0 = PacketBuffer.U1[0];  g0 = PacketBuffer.U1[1];  b0 = PacketBuffer.U1[2];
-	r1 = PacketBuffer.U1[8];  g1 = PacketBuffer.U1[9];	b1 = PacketBuffer.U1[10];
+	r0 = packet.U1[0];  g0 = packet.U1[1];  b0 = packet.U1[2];
+	r1 = packet.U1[8];  g1 = packet.U1[9];  b1 = packet.U1[10];
 
 	xmin = DrawingArea[0];	xmax = DrawingArea[2];
 	ymin = DrawingArea[1];	ymax = DrawingArea[3];
