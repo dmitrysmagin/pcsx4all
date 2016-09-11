@@ -73,9 +73,18 @@ static u16 PixelData;
 ///////////////////////////////////////////////////////////////////////////////
 
 //  Rasterizer status
-static u32 TextureWindow [4];
-static u32 DrawingArea   [4];
-static s32 DrawingOffset [2];
+static u8 TextureWindow[4];   // [0] : Texture window offset X
+                              // [1] : Texture window offset Y
+                              // [2] : Texture window mask X
+                              // [3] : Texture window mask Y
+
+static u16 DrawingArea[4];    // [0] : Drawing area top left X
+                              // [1] : Drawing area top left Y
+                              // [2] : Drawing area bottom right X
+                              // [3] : Drawing area bottom right Y
+
+static s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
+                              // [1] : Drawing offset Y (signed)
 
 static u16* TBA;
 static u16* CBA;

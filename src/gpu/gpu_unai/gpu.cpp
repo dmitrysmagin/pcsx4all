@@ -75,9 +75,19 @@ u32 DisplayArea   [6];
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Rasterizer status
-u32 TextureWindow [4];
-u32 DrawingArea   [4];
-s32 DrawingOffset [2];
+u8 TextureWindow[4];   // [0] : Texture window offset X
+                       // [1] : Texture window offset Y
+                       // [2] : Texture window mask X
+                       // [3] : Texture window mask Y
+
+u16 DrawingArea[4];    // [0] : Drawing area top left X
+                       // [1] : Drawing area top left Y
+                       // [2] : Drawing area bottom right X
+                       // [3] : Drawing area bottom right Y
+
+s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
+                       // [1] : Drawing offset Y (signed)
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Rasterizer status
