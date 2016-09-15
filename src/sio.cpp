@@ -400,6 +400,7 @@ void sioInterrupt() {
 }
 
 void LoadMcd(int mcd, char *str) {
+	size_t bytes_read;
 	FILE *f;
 	char *data = NULL;
 
@@ -434,11 +435,15 @@ void LoadMcd(int mcd, char *str) {
 				else if(_buf.st_size == MCD_SIZE + 3904)
 					fseek(f, 3904, SEEK_SET);
 			}			
-			fread(data, 1, MCD_SIZE, f);
+			if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
+				printf("Failed reading data from new memory card %s!\n", str);
+				printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
+			}
+
 			fclose(f);
 		}
 		else
-			printf("Memory card %s failed to load!\n", str);
+			printf("Memory card %s failed to open!\n", str);
 	}
 	else {
 		struct stat _buf;
@@ -449,7 +454,11 @@ void LoadMcd(int mcd, char *str) {
 			else if(_buf.st_size == MCD_SIZE + 3904)
 				fseek(f, 3904, SEEK_SET);
 		}
-		fread(data, 1, MCD_SIZE, f);
+		if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
+			printf("Failed reading data from memory card %s!\n", str);
+			printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
+		}
+
 		fclose(f);
 	}
 }
