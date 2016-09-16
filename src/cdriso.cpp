@@ -527,14 +527,15 @@ static int parsetoc(const char *isofile) {
 	tocname[MAXPATHLEN - 1] = '\0';
 	if (strlen(tocname) >= 4) {
 		strcpy(tocname + strlen(tocname) - 4, ".toc");
-	}
-	else {
+	} else {
 		return -1;
 	}
 
+	bool toc_named_as_cue = false;
 	if ((fi = fopen(tocname, "r")) == NULL) {
 		// try changing extension to .cue (to satisfy some stupid tutorials)
 		strcpy(tocname + strlen(tocname) - 4, ".cue");
+
 		if ((fi = fopen(tocname, "r")) == NULL) {
 			// if filename is image.toc.bin, try removing .bin (for Brasero)
 			strcpy(tocname, isofile);
@@ -544,24 +545,41 @@ static int parsetoc(const char *isofile) {
 				if ((fi = fopen(tocname, "r")) == NULL) {
 					return -1;
 				}
-			}
-			else {
+			} else {
 				return -1;
 			}
+		} else {
+			toc_named_as_cue = true;
 		}
-		// check if it's really a TOC named as a .cue
-		fgets(linebuf, sizeof(linebuf), fi);
-		token = strtok(linebuf, " ");
-		if (token && strncmp(token, "CD", 2) != 0 && strcmp(token, "CATALOG") != 0) {
-			fclose(fi);
-			return -1;
-		}
-		fseek(fi, 0, SEEK_SET);
 	}
 
+	// check if it's really a TOC and not a CUE
+	bool is_toc_file = false;
+	while (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
+		if (strstr(linebuf, "TRACK") != NULL) {
+			char* mode_substr = strstr(linebuf, "MODE");
+			if (mode_substr != NULL &&
+				(mode_substr[4] == '1' || mode_substr[4] == '2') &&
+			    mode_substr[5] != '/') {
+				// A line containing both the substrings "TRACK" and either
+				//  "MODE1" or "MODE2" exists, and the mode string lacks a
+				//  trailing slash, which would have indicated a CUE file.
+				is_toc_file = true;
+
+				if (toc_named_as_cue)
+					printf("\nWarning: .CUE file is really a .TOC file (processing as TOC..)\n");
+			}
+		}
+	}
+
+	if (!is_toc_file) {
+		fclose(fi);
+		return -1;
+	}
+
+	fseek(fi, 0, SEEK_SET);
 	memset(&ti, 0, sizeof(ti));
 	cddaBigEndian = TRUE; // cdrdao uses big-endian for CD Audio
-
 	sector_size = CD_FRAMESIZE_RAW;
 	sector_offs = 2 * 75;
 
@@ -649,9 +667,15 @@ static int parsetoc(const char *isofile) {
 		}
 	}
 
-	fclose(fi);
+	if (numtracks <= 0) goto error;
 
+	fclose(fi);
 	return 0;
+
+error:
+	printf("\nError reading .TOC file %s\n", tocname);
+	fclose(fi);
+	return -1;
 }
 
 // this function tries to get the .cue file of the given .bin
