@@ -700,8 +700,7 @@ static int parsecue(const char *isofile) {
 	cuename[MAXPATHLEN - 1] = '\0';
 	if (strlen(cuename) >= 4) {
 		strcpy(cuename + strlen(cuename) - 4, ".cue");
-	}
-	else {
+	} else {
 		return -1;
 	}
 
@@ -712,15 +711,23 @@ static int parsecue(const char *isofile) {
 	// Some stupid tutorials wrongly tell users to use cdrdao to rip a
 	// "bin/cue" image, which is in fact a "bin/toc" image. So let's check
 	// that...
-	if (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
-		if (!strncmp(linebuf, "CD_ROM_XA", 9)) {
-			// Don't proceed further, as this is actually a .toc file rather
-			// than a .cue file.
-			fclose(fi);
-			return parsetoc(isofile);
+	while (fgets(linebuf, sizeof(linebuf), fi) != NULL) {
+		if (strstr(linebuf, "TRACK") != NULL) {
+			char* mode_substr = strstr(linebuf, "MODE");
+			if (mode_substr != NULL &&
+			    (mode_substr[4] == '1' || mode_substr[4] == '2') &&
+			    mode_substr[5] != '/') {
+				// A line containing both the substrings "TRACK" and either
+				//  "MODE1" or "MODE2" exists, and the mode string lacks a
+				//  trailing slash, which indicates this is a .TOC file
+				//  falsely named as a .CUE file.
+				printf("\nWarning: .CUE file is really a .TOC file (processing as TOC..)\n");
+				fclose(fi);
+				return parsetoc(isofile);
+			}
 		}
-		fseek(fi, 0, SEEK_SET);
 	}
+	fseek(fi, 0, SEEK_SET);
 
 	// build a path for files referenced in .cue
 	strncpy(filepath, cuename, sizeof(filepath));
@@ -841,9 +848,15 @@ static int parsecue(const char *isofile) {
 		}
 	}
 
-	fclose(fi);
+	if (numtracks <= 0) goto error;
 
+	fclose(fi);
 	return 0;
+
+error:
+	printf("\nError reading .CUE file %s\n", cuename);
+	fclose(fi);
+	return -1;
 }
 
 // this function tries to get the .ccd file of the given .img
