@@ -1508,7 +1508,9 @@ static int cdread_2048(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 
-	fseek(f, base + sector * 2048, SEEK_SET);
+	if (fseek(f, base + sector * 2048, SEEK_SET) == -1)
+		return -1;
+
 	ret = fread((char *)dest + 12 * 2, 1, 2048, f);
 
 	// not really necessary, fake mode 2 header
