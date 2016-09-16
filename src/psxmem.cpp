@@ -203,13 +203,12 @@ void psxMemReset() {
 
 	memset(psxM, 0, 0x00200000);
 	memset(psxP, 0, 0x00010000);
+	memset(psxR, 0, 0x80000);    // Bios memory
 
 	if (Config.HLE==FALSE) {
 		dirstream = opendir(Config.BiosDir);
-
 		if (dirstream == NULL) {
 			printf("Could not open BIOS directory: \"%s\". Enabling HLE Bios!\n", Config.BiosDir);
-			memset(psxR, 0, 0x80000);
 			Config.HLE = TRUE;
 			return;
 		}
@@ -224,7 +223,19 @@ void psxMemReset() {
 				if (f == NULL) {
 					continue;
 				} else {
-					fread(psxR, 1, 0x80000, f);
+					size_t bytes_read, bytes_expected = 0x80000;
+					bytes_read = fread(psxR, 1, bytes_expected, f);
+					if (bytes_read == 0) {
+						printf("Error: skipping empty BIOS file %s!\n", bios);
+						fclose(f);
+						continue;
+					} else if (bytes_read < bytes_expected) {
+						printf("Warning: size of BIOS file %s is smaller than expected!\n", bios);
+						printf("Expected %zu bytes and got only %zu\n", bytes_expected, bytes_read);
+					} else {
+						printf("Loaded BIOS image: %s\n", bios);
+					}
+
 					fclose(f);
 					Config.HLE = FALSE;
 					biosfound = TRUE;
@@ -235,11 +246,13 @@ void psxMemReset() {
 		closedir(dirstream);
 
 		if (!biosfound) {
-			printf("Could not locate BIOS: \"%s\". Enabling HLE Bios!\n", Config.Bios);
-			memset(psxR, 0, 0x80000);
+			printf("Could not locate BIOS: \"%s\". Enabling HLE BIOS!\n", Config.Bios);
 			Config.HLE = TRUE;
 		}
-	} else Config.HLE = TRUE;
+	}
+
+	if (Config.HLE)
+		printf("Using HLE emulated BIOS functions. Expect incompatibilities.\n");
 }
 
 void psxMemShutdown() {
