@@ -874,8 +874,7 @@ static int parseccd(const char *isofile) {
 	ccdname[MAXPATHLEN - 1] = '\0';
 	if (strlen(ccdname) >= 4) {
 		strcpy(ccdname + strlen(ccdname) - 4, ".ccd");
-	}
-	else {
+	} else {
 		return -1;
 	}
 
@@ -906,7 +905,8 @@ static int parseccd(const char *isofile) {
 		}
 	}
 
-	fclose(fi);
+	if (numtracks <= 0)
+		goto error;
 
 	// Fill out the last track's end based on size
 	if (numtracks >= 1) {
@@ -915,7 +915,13 @@ static int parseccd(const char *isofile) {
 		sec2msf(t, ti[numtracks].length);
 	}
 
+	fclose(fi);
 	return 0;
+
+error:
+	printf("\nError reading .CCD file %s\n", ccdname);
+	fclose(fi);
+	return -1;
 }
 
 // this function tries to get the .mds file of the given .mdf
