@@ -1558,7 +1558,7 @@ long CDR_open(void) {
 		return -1;
 	}
 
-	printf(("Loaded CD Image: %s"), GetIsoFile());
+	printf("Loaded CD Image: %s", GetIsoFile());
 
 	cddaBigEndian = FALSE;
 	subChanMixed = FALSE;
@@ -1632,10 +1632,11 @@ long CDR_open(void) {
 	if (ftello(cdHandle) % 2048 == 0) {
 		unsigned int modeTest = 0;
 		fseek(cdHandle, 0, SEEK_SET);
-		fread(&modeTest, 4, 1, cdHandle);
-		if (SWAP32(modeTest) != 0xffffff00) {
-			printf("[2048]");
-			isMode1CDR_ = TRUE;
+		if (fread(&modeTest, 4, 1, cdHandle) == 1) {
+			if (SWAP32(modeTest) != 0xffffff00) {
+				printf("[2048]");
+				isMode1CDR_ = TRUE;
+			}
 		}
 	}
 	fseek(cdHandle, 0, SEEK_SET);
@@ -1801,10 +1802,12 @@ long CDR_readTrack(unsigned char *time) {
 		return -1;
 
 	if (subHandle != NULL) {
-		fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET);
-		fread(subbuffer, 1, SUB_FRAMESIZE, subHandle);
-
-		if (subChanRaw) DecodeRawSubData();
+		if (fseek(subHandle, sector * SUB_FRAMESIZE, SEEK_SET) != -1 &&
+		    fread(subbuffer, 1, SUB_FRAMESIZE, subHandle) == SUB_FRAMESIZE) {
+			if (subChanRaw) DecodeRawSubData();
+		} else {
+			printf("Error reading subchannel info in CDR_readTrack()\n");
+		}
 	}
 
 	return 0;
