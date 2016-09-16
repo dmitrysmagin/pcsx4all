@@ -107,8 +107,6 @@ void mmssdd( char *b, char *p )
 	} \
 	time[0] = itob(time[0]); time[1] = itob(time[1]); time[2] = itob(time[2]);
 
-//senquack - TODO: add PPF support from PCSX Rearmed?
-// (its misc.c has call to CheckPPFCache() here)
 #define READTRACK() \
 	if (CDR_readTrack(time) == -1) return -1; \
 	buf = CDR_getBuffer(); \
@@ -130,7 +128,7 @@ int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 	int i;
 
 	// only try to scan if a filename is given
-	if (!strlen(filename)) return -1;
+	if (filename == NULL || filename[0] == '\0') return -1;
 
 	i = 0;
 	while (i < 4096) {
@@ -432,8 +430,9 @@ static int PSXGetFileType(FILE *f) {
 
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
-    fread(mybuf, 2048, 1, f);
-	fseek(f, current, SEEK_SET);
+	if (fread(mybuf, 2048, 1, f) != 1 ||
+	    fseek(f, current, SEEK_SET) == -1)
+		goto invalid;
 
 	exe_hdr = (EXE_HEADER *)mybuf;
 	if (memcmp(exe_hdr->id, "PS-X EXE", 8) == 0)
@@ -446,9 +445,11 @@ static int PSXGetFileType(FILE *f) {
 	if (SWAPu16(coff_hdr->f_magic) == 0x0162)
 		return COFF_EXE;
 
+	// Fall-through:
+invalid:
 	return INVALID_EXE;
 }
-#define FREAD(c,a,b) fread(a,sizeof(u8),b,c)
+
 /* TODO Error handling - return integer for each error case below, defined in an enum. Pass variable on return */
 int Load(const char *ExePath) {
 #ifdef DEBUG_ANALYSIS
@@ -473,16 +474,23 @@ int Load(const char *ExePath) {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
-                fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile);
+				if (fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile) != 1) {
+					printf("Error reading PSX_EXE executable file\n");
+					retval = -1;
+					break;
+				}
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
 				if (mem != NULL) {
-					fseek(tmpFile, 0x800, SEEK_SET);		
-                    fread(mem, section_size, 1, tmpFile);
+					if (fseek(tmpFile, 0x800, SEEK_SET) == -1 ||
+					    fread(mem, section_size, 1, tmpFile) != 1) {
+						printf("Error reading PSX_EXE executable file\n");
+						retval = -1;
+						break;
+					}
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
 				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
@@ -491,13 +499,29 @@ int Load(const char *ExePath) {
 				retval = 0;
 				break;
 			case CPE_EXE:
-				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
+				/* Something tells me we should go to 4 and read the "08 00" here... */
+				if (fseek(tmpFile, 6, SEEK_SET) == -1) {
+					printf("Error reading CPE_EXE executable file\n");
+					retval = -1;
+					break;
+				}
+
 				do {
-                    fread(&opcode, 1, 1, tmpFile);
+					if (fread(&opcode, 1, 1, tmpFile) != 1) {
+						printf("Error reading CPE_EXE executable file\n");
+						retval = -1;
+						break;
+					}
+
 					switch (opcode) {
 						case 1: /* Section loading */
-                            fread(&section_address, 4, 1, tmpFile);
-                            fread(&section_size, 4, 1, tmpFile);
+							if (fread(&section_address, 4, 1, tmpFile) != 1 ||
+							    fread(&section_size, 4, 1, tmpFile) != 1) {
+								printf("Error reading CPE_EXE executable file\n");
+								retval = -1;
+								break;
+							}
+
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 #ifdef EMU_LOG
@@ -505,14 +529,23 @@ int Load(const char *ExePath) {
 #endif
 							mem = PSXM(section_address);
 							if (mem != NULL) {
-                                fread(mem, section_size, 1, tmpFile);
+								if (fread(mem, section_size, 1, tmpFile) != 1) {
+									printf("Error reading CPE_EXE executable file\n");
+									retval = -1;
+									break;
+								}
 								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;
 						case 3: /* register loading (PC only?) */
-							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-                            fread(&psxRegs.pc, 4, 1, tmpFile);
-							psxRegs.pc = SWAPu32(psxRegs.pc);
+							u32 new_pc;
+							if (fseek(tmpFile, 2, SEEK_CUR) == -1 || /* unknown field */
+							    fread(&new_pc, 4, 1, tmpFile) != 1) {
+								printf("Error reading CPE_EXE executable file\n");
+								retval = -1;
+								break;
+							}
+							psxRegs.pc = SWAPu32(new_pc);
 							break;
 						case 0: /* End of file */
 							break;
@@ -539,16 +572,17 @@ int Load(const char *ExePath) {
 		CdromLabel[0] = '\0';
 	}
 
+	fclose(tmpFile);
 	return retval;
 }
 
 // STATES
-
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
 static const u32 SaveVersion = 0x8b410004;
+#define FREAD(c,a,b) fread(a,sizeof(u8),b,c)
 #define FWRITE(c,a,b) fwrite(a,sizeof(u8),b,c)
 int SaveState(const char *file) {
     FILE* f;
