@@ -1101,7 +1101,11 @@ static int handlepbp(const char *isofile) {
 	}
 
 	psisoimg_offs = pbp_hdr.psar_offs;
-	fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+	ret = fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+	if (ret != sizeof(psar_sig)) {
+		printf("failed to read sig (1)\n");
+		goto fail_io;
+	}
 	psar_sig[10] = 0;
 	if (strcmp(psar_sig, "PSTITLEIMG") == 0) {
 		// multidisk image?
@@ -1141,7 +1145,11 @@ static int handlepbp(const char *isofile) {
 			goto fail_io;
 		}
 
-		fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+		ret = fread(psar_sig, 1, sizeof(psar_sig), cdHandle);
+		if (ret != sizeof(psar_sig)) {
+			printf("failed to read sig (2)\n");
+			goto fail_io;
+		}
 		psar_sig[10] = 0;
 	}
 
@@ -1158,16 +1166,27 @@ static int handlepbp(const char *isofile) {
 	}
 
 	// first 3 entries are special
-	fseek(cdHandle, sizeof(toc_entry), SEEK_CUR);
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fseek(cdHandle, sizeof(toc_entry), SEEK_CUR) == -1 ||
+	    fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry)) {
+		printf("failed reading first toc entry\n");
+		goto fail_io;
+	}
+
 	numtracks = btoi(toc_entry.index1[0]);
 
-	fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+	if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry)) {
+		printf("failed reading second toc entry\n");
+		goto fail_io;
+	}
+
 	cd_length = btoi(toc_entry.index1[0]) * 60 * 75 +
 		btoi(toc_entry.index1[1]) * 75 + btoi(toc_entry.index1[2]);
 
 	for (i = 1; i <= numtracks; i++) {
-		fread(&toc_entry, 1, sizeof(toc_entry), cdHandle);
+		if (fread(&toc_entry, 1, sizeof(toc_entry), cdHandle) != sizeof(toc_entry)) {
+			printf("failed reading toc entry for track %d\n", i);
+			goto fail_io;
+		}
 
 		ti[i].type = (toc_entry.type == 1) ? CDDA : DATA;
 
