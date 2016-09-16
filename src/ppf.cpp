@@ -214,15 +214,17 @@ void BuildPPFCache() {
 	if (ppffile == NULL) return;
 
 	memset(buffer, 0, 5);
-	fread(buffer, 3, 1, ppffile);
+	if (fread(buffer, 3, 1, ppffile) != 1)
+		goto error;
 
 	if (strcmp(buffer, "PPF") != 0) {
-		printf("Invalid PPF patch: %s.\n", szPPF);
-		fclose(ppffile);
-		return;
+		printf("Invalid PPF patch file (header mismatch).\n");
+		goto error;
 	}
 
-	fseek(ppffile, 5, SEEK_SET);
+	if (fseek(ppffile, 5, SEEK_SET) == -1)
+		goto error;
+
 	method = fgetc(ppffile);
 
 	switch (method) {
@@ -234,15 +236,17 @@ void BuildPPFCache() {
 			break;
 
 		case 1: // ppf2
-			fseek(ppffile, -8, SEEK_END);
-
 			memset(buffer, 0, 5);
-			fread(buffer, 4, 1, ppffile);
+			if (fseek(ppffile, -8, SEEK_END) == -1 ||
+			    fread(buffer, 4, 1, ppffile) != 1)
+				goto error;
 
 			if (strcmp(".DIZ", buffer) != 0) {
 				dizyn = 0;
 			} else {
-				fread(&dizlen, 4, 1, ppffile);
+				if (fread(&dizlen, 4, 1, ppffile) != 1)
+					goto error;
+
 				dizlen = SWAP32(dizlen);
 				dizyn = 1;
 			}
@@ -262,18 +266,24 @@ void BuildPPFCache() {
 			break;
 
 		case 2: // ppf3
-			fseek(ppffile, 57, SEEK_SET);
-			blockcheck = fgetc(ppffile);
-			undo = fgetc(ppffile);
+			if (fseek(ppffile, 57, SEEK_SET) == -1)
+				goto error;
 
-			fseek(ppffile, -6, SEEK_END);
+			if ((blockcheck = fgetc(ppffile)) == EOF ||
+			    (undo = fgetc(ppffile)) == EOF)
+				goto error;
+
 			memset(buffer, 0, 5);
-			fread(buffer, 4, 1, ppffile);
+			if (fseek(ppffile, -6, SEEK_END) == -1 ||
+			    fread(buffer, 4, 1, ppffile) != 1)
+				goto error;
+
 			dizlen = 0;
 
 			if (strcmp(".DIZ", buffer) == 0) {
-				fseek(ppffile, -2, SEEK_END);
-				fread(&dizlen, 2, 1, ppffile);
+				if (fseek(ppffile, -2, SEEK_END) == -1 ||
+				    fread(&dizlen, 2, 1, ppffile) != 1)
+					goto error;
 				dizlen = SWAP32(dizlen);
 				dizlen += 36;
 			}
@@ -291,22 +301,31 @@ void BuildPPFCache() {
 			}
 			break;
 
+		case EOF: // EOF received from fgetc()
+			goto error;
+
 		default:
-			fclose(ppffile);
 			printf("Unsupported PPF version (%d).\n", method + 1);
-			return;
+			goto error;
 	}
 
 	// now do the data reading
 	do {
-		fseek(ppffile, seekpos, SEEK_SET);
-		fread(&pos, 4, 1, ppffile);
+		if (fseek(ppffile, seekpos, SEEK_SET) == -1 || 
+		    fread(&pos, 4, 1, ppffile) != 1)
+			goto error;
+
 		pos = SWAP32(pos);
 
-		if (method == 2) fread(buffer, 4, 1, ppffile); // skip 4 bytes on ppf3 (no int64 support here)
+		if (method == 2) // skip 4 bytes on ppf3 (no int64 support here)
+			if (fread(buffer, 4, 1, ppffile) != 1)
+				goto error;
 
-		anz = fgetc(ppffile);
-		fread(ppfmem, anz, 1, ppffile);
+		if ((anz = fgetc(ppffile)) == EOF)
+			goto error;
+
+		if (fread(ppfmem, anz, 1, ppffile) != 1)
+			goto error;
 
 		ladr = pos / CD_FRAMESIZE_RAW;
 		off = pos % CD_FRAMESIZE_RAW;
@@ -333,6 +352,12 @@ void BuildPPFCache() {
 	FillPPFCache(); // build address array
 
 	printf("Loaded PPF %d.0 patch: %s.\n", method + 1, szPPF);
+	return;
+
+error:
+	fclose(ppffile);
+	printf("Error reading patch file %s in BuildPPFCache()!\n", szPPF);
+	return;
 }
 
 // redump.org SBI files, slightly different handling from PCSX-Reloaded
@@ -349,18 +374,17 @@ int LoadSBI(const char *fname, int sector_count) {
 		return -1;
 
 	sbi_sectors = (unsigned char *)calloc(1, sector_count / 8);
-	if (sbi_sectors == NULL) {
-		fclose(sbihandle);
-		return -1;
-	}
+	if (sbi_sectors == NULL)
+		goto error;
 
 	// 4-byte SBI header
-	fread(buffer, 1, 4, sbihandle);
+	if (fread(buffer, 1, 4, sbihandle) != 4)
+		goto error;
 	while (1) {
-		s = fread(sbitime, 1, 3, sbihandle);
-		if (s != 3)
+		if (fread(sbitime, 1, 3, sbihandle) != 3)
 			break;
-		fread(&t, 1, 1, sbihandle);
+		if (fread(&t, 1, 1, sbihandle) != 1)
+			goto error;
 		switch (t) {
 		default:
 		case 1:
@@ -371,7 +395,8 @@ int LoadSBI(const char *fname, int sector_count) {
 			s = 3;
 			break;
 		}
-		fseek(sbihandle, s, SEEK_CUR);
+		if (fseek(sbihandle, s, SEEK_CUR) == -1)
+			goto error;
 
 		s = MSF2SECT(btoi(sbitime[0]), btoi(sbitime[1]), btoi(sbitime[2]));
 		if (s < sector_count)
@@ -381,8 +406,12 @@ int LoadSBI(const char *fname, int sector_count) {
 	}
 
 	fclose(sbihandle);
-
 	return 0;
+
+error:
+	fclose(sbihandle);
+	printf("Error reading file %s in LoadSBI()!\n", fname);
+	return -1;
 }
 
 void UnloadSBI(void) {
