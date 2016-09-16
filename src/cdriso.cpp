@@ -1390,11 +1390,15 @@ static int cdread_sub_mixed(FILE *f, unsigned int base, void *dest, int sector)
 {
 	int ret;
 
-	fseek(f, base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET);
+	if (fseek(f, base + sector * (CD_FRAMESIZE_RAW + SUB_FRAMESIZE), SEEK_SET) == -1)
+		return -1;
 	ret = fread(dest, 1, CD_FRAMESIZE_RAW, f);
-	fread(subbuffer, 1, SUB_FRAMESIZE, f);
 
-	if (subChanRaw) DecodeRawSubData();
+	if (fread(subbuffer, 1, SUB_FRAMESIZE, f) != SUB_FRAMESIZE) {
+		printf("Error reading mixed subchannel info in cdread_sub_mixed()\n");
+	} else {
+		if (subChanRaw) DecodeRawSubData();
+	}
 
 	return ret;
 }
