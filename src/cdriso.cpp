@@ -1381,7 +1381,8 @@ static int opensbifile(const char *isoname) {
 
 static int cdread_normal(FILE *f, unsigned int base, void *dest, int sector)
 {
-	fseek(f, base + sector * CD_FRAMESIZE_RAW, SEEK_SET);
+	if (fseek(f, base + sector * CD_FRAMESIZE_RAW, SEEK_SET) == -1)
+		return -1;
 	return fread(dest, 1, CD_FRAMESIZE_RAW, f);
 }
 
