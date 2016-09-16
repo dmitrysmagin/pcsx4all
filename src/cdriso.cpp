@@ -924,13 +924,15 @@ error:
 	return -1;
 }
 
+//Alcohol 120% 'Media Descriptor Image' (.mds/.mdf) format support
 // this function tries to get the .mds file of the given .mdf
 // the necessary data is put into the ti (trackinformation)-array
 static int parsemds(const char *isofile) {
-	char			mdsname[MAXPATHLEN];
-	FILE			*fi;
-	unsigned int	offset, extra_offset, l, i;
-	unsigned short	s;
+	char      mdsname[MAXPATHLEN];
+	FILE      *fi;
+	uint32_t  offset, extra_offset, l, i;
+	uint16_t  s;
+	int       c;
 
 	numtracks = 0;
 
@@ -939,95 +941,116 @@ static int parsemds(const char *isofile) {
 	mdsname[MAXPATHLEN - 1] = '\0';
 	if (strlen(mdsname) >= 4) {
 		strcpy(mdsname + strlen(mdsname) - 4, ".mds");
-	}
-	else {
+	} else {
 		return -1;
 	}
 
-	if ((fi = fopen(mdsname, "rb")) == NULL) {
+	if ((fi = fopen(mdsname, "rb")) == NULL)
 		return -1;
-	}
 
 	memset(&ti, 0, sizeof(ti));
 
 	// check if it's a valid mds file
-	fread(&i, 1, sizeof(unsigned int), fi);
+	if (fread(&i, 4, 1, fi) != 1)
+		goto error;
 	i = SWAP32(i);
 	if (i != 0x4944454D) {
 		// not an valid mds file
-		fclose(fi);
-		return -1;
+		printf("\nError: %s is not a valid .MDS file\n", mdsname);
+		goto error;
 	}
 
 	// get offset to session block
-	fseek(fi, 0x50, SEEK_SET);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fseek(fi, 0x50, SEEK_SET) == -1 ||
+	    fread(&offset, 4, 1, fi) != 1)
+		goto error;
 	offset = SWAP32(offset);
 
 	// get total number of tracks
 	offset += 14;
-	fseek(fi, offset, SEEK_SET);
-	fread(&s, 1, sizeof(unsigned short), fi);
+	if (fseek(fi, offset, SEEK_SET) == -1 ||
+	    fread(&s, 2, 1, fi) != 1)
+		goto error;
 	s = SWAP16(s);
 	numtracks = s;
 
 	// get offset to track blocks
-	fseek(fi, 4, SEEK_CUR);
-	fread(&offset, 1, sizeof(unsigned int), fi);
+	if (fseek(fi, 4, SEEK_CUR) == -1 ||
+	    fread(&offset, 4, 1, fi) != 1)
+		goto error;
 	offset = SWAP32(offset);
 
 	// skip lead-in data
 	while (1) {
-		fseek(fi, offset + 4, SEEK_SET);
-		if (fgetc(fi) < 0xA0) {
+		if (fseek(fi, offset + 4, SEEK_SET) == -1 ||
+			(c = fgetc(fi)) == EOF)
+			goto error;
+		if (c < 0xA0)
 			break;
-		}
 		offset += 0x50;
 	}
 
 	// check if the image contains mixed subchannel data
-	fseek(fi, offset + 1, SEEK_SET);
-	subChanMixed = subChanRaw = (fgetc(fi) ? TRUE : FALSE);
+	if (fseek(fi, offset + 1, SEEK_SET) == -1 ||
+	    fgetc(fi) == EOF)
+		goto error;
+	subChanMixed = subChanRaw = (c ? TRUE : FALSE);
 
 	// read track data
 	for (i = 1; i <= numtracks; i++) {
-		fseek(fi, offset, SEEK_SET);
+		if (fseek(fi, offset, SEEK_SET) == -1)
+			goto error;
 
 		// get the track type
-		ti[i].type = ((fgetc(fi) == 0xA9) ? CDDA : DATA);
+		if ((c = fgetc(fi)) == EOF)
+			goto error;
+		ti[i].type = (c == 0xA9) ? CDDA : DATA;
 		fseek(fi, 8, SEEK_CUR);
 
 		// get the track starting point
-		ti[i].start[0] = fgetc(fi);
-		ti[i].start[1] = fgetc(fi);
-		ti[i].start[2] = fgetc(fi);
+		for (int j = 0; j <= 2; ++j) {
+			if ((c = fgetc(fi)) == EOF)
+				goto error;
+			ti[i].start[j] = c;
+		}
 
-		fread(&extra_offset, 1, sizeof(unsigned int), fi);
+		if (fread(&extra_offset, 4, 1, fi) != 1)
+			goto error;
 		extra_offset = SWAP32(extra_offset);
 
 		// get track start offset (in .mdf)
-		fseek(fi, offset + 0x28, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fseek(fi, offset + 0x28, SEEK_SET) == -1 ||
+		    fread(&l, 4, 1, fi) != 1)
+			goto error;
 		l = SWAP32(l);
 		ti[i].start_offset = l;
 
 		// get pregap
-		fseek(fi, extra_offset, SEEK_SET);
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fseek(fi, extra_offset, SEEK_SET) == -1 ||
+		    fread(&l, 4, 1, fi) != 1)
+			goto error;
 		l = SWAP32(l);
 		if (l != 0 && i > 1)
 			pregapOffset = msf2sec(ti[i].start);
 
 		// get the track length
-		fread(&l, 1, sizeof(unsigned int), fi);
+		if (fread(&l, 4, 1, fi) != 1)
+			goto error;
 		l = SWAP32(l);
 		sec2msf(l, ti[i].length);
 
 		offset += 0x50;
 	}
 
+	if (numtracks == 0) goto error;
+
 	fclose(fi);
 	return 0;
+
+error:
+	printf("\nError reading .MDS file %s\n", mdsname);
+	fclose(fi);
+	return -1;
 }
 
 static int handlepbp(const char *isofile) {
