@@ -621,48 +621,60 @@ static const u32 SaveVersion = 0x8b410004;
 
 int SaveState(const char *file) {
 	void* f;
-	GPUFreeze_t *gpufP;
-	SPUFreeze_t *spufP;
-	int Size;
-	unsigned char *pMem;
+	GPUFreeze_t *gpufP = NULL;
+	SPUFreeze_t *spufP = NULL;
+	unsigned char *pMem = NULL;
+	u32 Size;
 
-	f = SaveFuncs.open(file, "wb");
-	if (f == NULL) return -1;
+	if ((f = SaveFuncs.open(file, "wb")) == NULL) {
+		printf("Error opening savestate file for writing: %s\n", file);
+		return -1;
+	}
 
 	port_mute();
 	
-	SaveFuncs.write(f, (void*)PcsxHeader, 32);
-	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
-	SaveFuncs.write(f, (void *)&Config.HLE, sizeof(boolean));
+	if (SaveFuncs.write(f, (void*)PcsxHeader, 32) != 32                      ||
+	     SaveFuncs.write(f, (void*)&SaveVersion, sizeof(u32)) != sizeof(u32) ||
+	     SaveFuncs.write(f, (void*)&Config.HLE, sizeof(boolean)) != sizeof(boolean) )
+		goto error;
 
-	pMem = (unsigned char *) malloc(128*96*3);
-	if (pMem == NULL) return -1;
-	SaveFuncs.write(f, pMem, 128*96*3);
+	// senquack - This is used for a small embedded screenshot in PCSX Rearmed,
+	//  but here and in original PCSX4ALL code is just an unused placeholder.
+	if ((pMem = (unsigned char *)malloc(128*96*3)) == NULL ||
+	     SaveFuncs.write(f, pMem, 128*96*3) != (128*96*3))
+		goto error;
 	free(pMem);
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
 
-	SaveFuncs.write(f, psxM, 0x00200000);
-	SaveFuncs.write(f, psxR, 0x00080000);
-	SaveFuncs.write(f, psxH, 0x00010000);
-	SaveFuncs.write(f, (void*)&psxRegs, sizeof(psxRegs));
+	if (SaveFuncs.write(f, psxM,  0x00200000) != 0x00200000 ||
+	     SaveFuncs.write(f, psxR, 0x00080000) != 0x00080000 ||
+	     SaveFuncs.write(f, psxH, 0x00010000) != 0x00010000 ||
+	     SaveFuncs.write(f, (void*)&psxRegs, sizeof(psxRegs)) != sizeof(psxRegs))
+		goto error;
 
 	// gpu
-	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
+	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL)
+		goto error;
 	gpufP->ulFreezeVersion = 1;
-	if (!GPU_freeze(1, gpufP)) return -3;
-	SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t));
+	if ((!GPU_freeze(1, gpufP)) ||
+	     SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t))
+		goto error;
 	free(gpufP);
 
 	// spu
-	spufP = (SPUFreeze_t *) malloc(16);
+	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
+		goto error;
 	SPU_freeze(2, spufP);
-	Size = spufP->Size; SaveFuncs.write(f, &Size, 4);
+	Size = spufP->Size;
 	free(spufP);
-	spufP = (SPUFreeze_t *) malloc(Size);
-	if (!SPU_freeze(1, spufP)) return -4;
-	SaveFuncs.write(f, spufP, Size);
+	if (SaveFuncs.write(f, &Size, 4) != 4)
+		goto error;
+	if ((spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
+		 (!SPU_freeze(1, spufP))                      ||
+	     SaveFuncs.write(f, spufP, Size) != Size)
+		goto error;
 	free(spufP);
 
 	sioFreeze(f, 1);
@@ -674,34 +686,46 @@ int SaveState(const char *file) {
 	SaveFuncs.close(f);
 	port_sync();
 	return 0;
+
+error:
+	printf("Error in SaveState() writing file %s\n", file);
+	printf("..out of RAM or no free space left on filesystem?\n");
+	free(pMem);  free(gpufP);  free(spufP);
+	SaveFuncs.close(f);
+	return -1;
 }
 
 int LoadState(const char *file) {
 	void* f;
-	GPUFreeze_t *gpufP;
-	SPUFreeze_t *spufP;
-	int Size;
+	GPUFreeze_t *gpufP = NULL;
+	SPUFreeze_t *spufP = NULL;
+	u32 Size;
 	char header[32];
 	u32 version;
 	boolean hle;
 
-	f = SaveFuncs.open(file, "rb");
-	if (f == NULL) return -1;
-
-	SaveFuncs.read(f, header, sizeof(header));
-	SaveFuncs.read(f, &version, sizeof(u32));
-	SaveFuncs.read(f, &hle, sizeof(boolean));
-
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE) {
-		SaveFuncs.close(f);
-		return -2;
+	if ((f = SaveFuncs.open(file, "rb")) == NULL) {
+		printf("Error opening savestate file for reading: %s\n", file);
+		return -1;
 	}
+
+	if (SaveFuncs.read(f, header, sizeof(header)) != sizeof(header) ||
+	     SaveFuncs.read(f, &version, sizeof(u32)) != sizeof(u32)    ||
+	     SaveFuncs.read(f, &hle, sizeof(boolean)) != sizeof(boolean))
+		goto error;
+
+	if (strncmp("STv4 PCSX", header, 9) != 0 ||
+	     version != SaveVersion              ||
+	     hle != Config.HLE)
+		goto error;
+
 	psxCpu->Reset();
 
-	SaveFuncs.seek(f, 128*96*3, SEEK_CUR);
-	SaveFuncs.read(f, psxM, 0x00200000);
-	SaveFuncs.read(f, psxR, 0x00080000);
-	SaveFuncs.read(f, psxH, 0x00010000);
+	if (SaveFuncs.seek(f, 128*96*3, SEEK_CUR) == -1        ||
+	     SaveFuncs.read(f, psxM, 0x00200000) != 0x00200000 ||
+	     SaveFuncs.read(f, psxR, 0x00080000) != 0x00080000 ||
+	     SaveFuncs.read(f, psxH, 0x00010000) != 0x00010000)
+		goto error;
 
 #ifdef DEBUG_BIOS
 	u32 repeated=0;
@@ -709,7 +733,8 @@ int LoadState(const char *file) {
 	u32 regs_offset=SaveFuncs.seek(f, 0, SEEK_CUR);
 #endif
 
-	SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs));
+	if (SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs)) != sizeof(psxRegs))
+		goto error;
 	psxRegs.psxM=psxM;
 	psxRegs.psxP=psxP;
 	psxRegs.psxR=psxR;
@@ -735,18 +760,20 @@ label_repeat_:
 #endif
 
 	// gpu
-	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
-	SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t));
-	if (!GPU_freeze(0, gpufP)) return -3;
+	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL          ||
+	     SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t) ||
+	     (!GPU_freeze(0, gpufP)))
+		goto error;
 	free(gpufP);
 	if (HW_GPU_STATUS == 0)
 		HW_GPU_STATUS = GPU_readStatus();
 
 	// spu
-	SaveFuncs.read(f, &Size, 4);
-	spufP = (SPUFreeze_t *)malloc(Size);
-	SaveFuncs.read(f, spufP, Size);
-	if (!SPU_freeze(0, spufP)) return -4;
+	if (SaveFuncs.read(f, &Size, 4) != 4               ||
+	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
+	     SaveFuncs.read(f, spufP, Size) != Size        ||
+	     (!SPU_freeze(0, spufP)))
+		goto error;
 	free(spufP);
 
 	sioFreeze(f, 0);
@@ -784,6 +811,12 @@ label_repeat_:
 #endif
 
 	return 0;
+
+error:
+	printf("Error in LoadState() loading file %s\n", file);
+	free(gpufP);  free(spufP);
+	SaveFuncs.close(f);
+	return -1;
 }
 
 int CheckState(const char *file) {
@@ -792,12 +825,19 @@ int CheckState(const char *file) {
 	u32 version;
 	boolean hle;
 
-	f = SaveFuncs.open(file, "rb");
-	if (f == NULL) return -1;
+	if ((f = SaveFuncs.open(file, "rb")) == NULL) {
+		printf("Error in CheckState() loading file: %s\n", file);
+		return -1;
+	}
 
-	SaveFuncs.read(f, header, sizeof(header));
-	SaveFuncs.read(f, &version, sizeof(u32));
-	SaveFuncs.read(f, &hle, sizeof(boolean));
+	if (SaveFuncs.read(f, header, sizeof(header)) != sizeof(header) ||
+	     SaveFuncs.read(f, &version, sizeof(u32)) != sizeof(u32)    ||
+	     SaveFuncs.read(f, &hle, sizeof(boolean)) != sizeof(boolean)) {
+		printf("Error in CheckState() reading file %s\n", file);
+		SaveFuncs.close(f);
+		return -1;
+	}
+
 	SaveFuncs.close(f);
 
 	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE)
