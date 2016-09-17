@@ -34,9 +34,8 @@ MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
 CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
-	-Wall -Wno-sign-compare -Wunused -Wpointer-arith \
-	-Wno-unused-value -Wno-write-strings -Wno-narrowing \
-	-Waggregate-return -Wno-cast-align \
+	-Wall -Wunused -Wpointer-arith \
+	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
