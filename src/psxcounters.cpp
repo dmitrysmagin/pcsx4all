@@ -624,7 +624,7 @@ void psxRcntInit(void)
 
 /******************************************************************************/
 
-s32 psxRcntFreeze( gzFile f, s32 Mode )
+s32 psxRcntFreeze(void *f, s32 Mode)
 {
     u32 spuSyncCount = 0;
     u32 count;

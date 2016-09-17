@@ -70,6 +70,6 @@ extern u32  psxHwRead32(u32 add);
 extern void psxHwWrite8 (u32 add, u8  value);
 extern void psxHwWrite16(u32 add, u16 value);
 extern void psxHwWrite32(u32 add, u32 value);
-extern int psxHwFreeze(gzFile f, int Mode);
+extern int psxHwFreeze(void* f, int Mode);
 
 #endif /* __PSXHW_H__ */

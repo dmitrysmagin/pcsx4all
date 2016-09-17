@@ -35,6 +35,6 @@ extern void psxDma0(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma1(u32 madr, u32 bcr, u32 chcr);
 extern void mdec0Interrupt();
 extern void mdec1Interrupt(void);
-extern int  mdecFreeze(gzFile f, int Mode);
+extern int  mdecFreeze(void* f, int Mode);
 
 #endif

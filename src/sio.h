@@ -49,7 +49,7 @@ extern unsigned short sioReadBaud16(void);
 void netError();
 
 extern void sioInterrupt(void);
-extern int sioFreeze(gzFile f, int Mode);
+extern int sioFreeze(void* f, int Mode);
 
 extern void LoadMcd(int mcd, char *str);
 extern void LoadMcds(char *mcd1, char *mcd2);

@@ -32,6 +32,7 @@
 #include "ppf.h"
 #include "psxevents.h"
 #include "port.h"
+#include <zlib.h>
 
 #ifdef _WIN32
 #define strncasecmp _strnicmp
@@ -577,59 +578,85 @@ int Load(const char *ExePath) {
 }
 
 // STATES
+static void *zlib_open(const char *name, const char *mode)
+{
+	return (void*)gzopen(name, mode);
+}
+
+static int zlib_read(void *file, void *buf, u32 len)
+{
+	return gzread((gzFile)file, buf, len);
+}
+
+static int zlib_write(void *file, const void *buf, u32 len)
+{
+	return gzwrite((gzFile)file, (void*)buf, len);
+}
+
+static long zlib_seek(void *file, long offs, int whence)
+{
+	return gzseek((gzFile)file, offs, whence);
+}
+
+static void zlib_close(void *file)
+{
+	gzclose((gzFile)file);
+}
+
+struct PcsxSaveFuncs SaveFuncs = {
+	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
+};
+
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
 static const u32 SaveVersion = 0x8b410004;
-#define FREAD(c,a,b) fread(a,sizeof(u8),b,c)
-#define FWRITE(c,a,b) fwrite(a,sizeof(u8),b,c)
+
 int SaveState(const char *file) {
-    FILE* f;
+	void* f;
 	GPUFreeze_t *gpufP;
 	SPUFreeze_t *spufP;
 	int Size;
 	unsigned char *pMem;
 
-    f = fopen(file, "wb");
+	f = SaveFuncs.open(file, "wb");
 	if (f == NULL) return -1;
 
 	port_mute();
 	
-    FWRITE(f, (void*)PcsxHeader, 32);
-    FWRITE(f, (void *)&SaveVersion, sizeof(u32));
-    FWRITE(f, (void *)&Config.HLE, sizeof(boolean));
+	SaveFuncs.write(f, (void*)PcsxHeader, 32);
+	SaveFuncs.write(f, (void *)&SaveVersion, sizeof(u32));
+	SaveFuncs.write(f, (void *)&Config.HLE, sizeof(boolean));
 
 	pMem = (unsigned char *) malloc(128*96*3);
 	if (pMem == NULL) return -1;
-    FWRITE(f, pMem, 128*96*3);
+	SaveFuncs.write(f, pMem, 128*96*3);
 	free(pMem);
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
 
-    FWRITE(f, psxM, 0x00200000);
-    FWRITE(f, psxR, 0x00080000);
-    FWRITE(f, psxH, 0x00010000);
-    FWRITE(f, (void*)&psxRegs, sizeof(psxRegs));
+	SaveFuncs.write(f, psxM, 0x00200000);
+	SaveFuncs.write(f, psxR, 0x00080000);
+	SaveFuncs.write(f, psxH, 0x00010000);
+	SaveFuncs.write(f, (void*)&psxRegs, sizeof(psxRegs));
 
 	// gpu
 	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
 	gpufP->ulFreezeVersion = 1;
-    if(!GPU_freeze(1, gpufP)) return -3;
-    FWRITE(f, gpufP, sizeof(GPUFreeze_t));
+	if (!GPU_freeze(1, gpufP)) return -3;
+	SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t));
 	free(gpufP);
-	if (HW_GPU_STATUS == 0)
-		HW_GPU_STATUS = GPU_readStatus();
 
 	// spu
 	spufP = (SPUFreeze_t *) malloc(16);
 	SPU_freeze(2, spufP);
-    Size = spufP->Size; FWRITE(f, &Size, 4);
+	Size = spufP->Size; SaveFuncs.write(f, &Size, 4);
 	free(spufP);
 	spufP = (SPUFreeze_t *) malloc(Size);
-    if(!SPU_freeze(1, spufP)) return -4;
-    FWRITE(f, spufP, Size);
+	if (!SPU_freeze(1, spufP)) return -4;
+	SaveFuncs.write(f, spufP, Size);
 	free(spufP);
 
 	sioFreeze(f, 1);
@@ -638,50 +665,54 @@ int SaveState(const char *file) {
 	psxRcntFreeze(f, 1);
 	mdecFreeze(f, 1);
 
-    fclose(f);
-
+	SaveFuncs.close(f);
 	port_sync();
-	
 	return 0;
 }
 
 int LoadState(const char *file) {
-    FILE* f;
+	void* f;
 	GPUFreeze_t *gpufP;
 	SPUFreeze_t *spufP;
 	int Size;
 	char header[32];
 	u32 version;
 	boolean hle;
-    f = fopen(file, "rb");
+
+	f = SaveFuncs.open(file, "rb");
 	if (f == NULL) return -1;
-    FREAD(f, header, sizeof(header));
-    FREAD(f, &version, sizeof(u32));
-    FREAD(f, &hle, sizeof(boolean));
+
+	SaveFuncs.read(f, header, sizeof(header));
+	SaveFuncs.read(f, &version, sizeof(u32));
+	SaveFuncs.read(f, &hle, sizeof(boolean));
 
 	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE) {
-        fclose(f);
-        return -2;
+		SaveFuncs.close(f);
+		return -2;
 	}
-    psxCpu->Reset();
+	psxCpu->Reset();
 
-    fseek(f, 128*96*3, SEEK_CUR);
+	SaveFuncs.seek(f, 128*96*3, SEEK_CUR);
+	SaveFuncs.read(f, psxM, 0x00200000);
+	SaveFuncs.read(f, psxR, 0x00080000);
+	SaveFuncs.read(f, psxH, 0x00010000);
 
-    FREAD(f, psxM, 0x00200000);
-    FREAD(f, psxR, 0x00080000);
-    FREAD(f, psxH, 0x00010000);
 #ifdef DEBUG_BIOS
-	u32 repeated=0, regs_offset=gztell(f);
+	u32 repeated=0;
+	//seek(f,0,SEEKCUR) returns current position in file:
+	u32 regs_offset=SaveFuncs.seek(f, 0, SEEK_CUR);
 #endif
-    FREAD(f, (void*)&psxRegs, sizeof(psxRegs));
+
+	SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs));
 	psxRegs.psxM=psxM;
 	psxRegs.psxP=psxP;
 	psxRegs.psxR=psxR;
 	psxRegs.psxH=psxH;
 	psxRegs.io_cycle_counter=0;
 #if !defined(DEBUG_CPU) && (defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES))
+	//senquack TODO: Get rid of all this old psxRegs.cycle_add hackery if possible
 	psxRegs.cycle_add=0;
-	gzseek(f, gztell(f)-4, SEEK_SET);
+	SaveFuncs.seek(f, -4, SEEK_CUR);
 #endif
 
 	//senquack - Clear & intialize new event scheduler queue based on
@@ -694,21 +725,23 @@ int LoadState(const char *file) {
 		psxBiosFreeze(0);
 
 #ifdef DEBUG_BIOS
- label_repeat_:
+label_repeat_:
 #endif
+
 	// gpu
+	gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t));
+	SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t));
+	if (!GPU_freeze(0, gpufP)) return -3;
+	free(gpufP);
+	if (HW_GPU_STATUS == 0)
+		HW_GPU_STATUS = GPU_readStatus();
 
-    gpufP = (GPUFreeze_t *) malloc (sizeof(GPUFreeze_t));
-    FREAD(f, gpufP, sizeof(GPUFreeze_t));
-    if(!GPU_freeze(0, gpufP)) return -3;
-    free(gpufP);
-
-    // spu
-    FREAD(f, &Size, 4);
-    spufP = (SPUFreeze_t *) malloc (Size);
-    FREAD(f, spufP, Size);
-    if(!SPU_freeze(0, spufP)) return -4;
-    free(spufP);
+	// spu
+	SaveFuncs.read(f, &Size, 4);
+	spufP = (SPUFreeze_t *)malloc(Size);
+	SaveFuncs.read(f, spufP, Size);
+	if (!SPU_freeze(0, spufP)) return -4;
+	free(spufP);
 
 	sioFreeze(f, 0);
 	cdrFreeze(f, 0);
@@ -716,7 +749,7 @@ int LoadState(const char *file) {
 	psxRcntFreeze(f, 0);
 	mdecFreeze(f, 0);
 
-    fclose(f);
+	SaveFuncs.close(f);
 
 #ifdef DEBUG_CPU_OPCODES
 #ifndef DEBUG_BIOS
@@ -725,10 +758,10 @@ int LoadState(const char *file) {
 	if (Config.HLE) {
 		if (!repeated && !strcmp("dbgbios_hle",file)){
 			repeated=1;
-			f = gzopen("dbgbios_bios", "rb");
+			f = SaveFuncs.open("dbgbios_bios", "rb");
 			if (f) {
-				gzseek(f,regs_offset,SEEK_SET);
-                FREAD(f, (void*)&psxRegs, sizeof(psxRegs));
+				SaveFuncs.seek(f,regs_offset,SEEK_SET);
+				SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs));
 				psxRegs.psxM=psxM;
 				psxRegs.psxP=psxP;
 				psxRegs.psxR=psxR;
@@ -748,19 +781,18 @@ int LoadState(const char *file) {
 }
 
 int CheckState(const char *file) {
-    FILE* f;
+	void* f;
 	char header[32];
 	u32 version;
 	boolean hle;
 
-    f = fopen(file, "rb");
+	f = SaveFuncs.open(file, "rb");
 	if (f == NULL) return -1;
 
-    FREAD(f, header, sizeof(header));
-    FREAD(f, &version, sizeof(u32));
-    FREAD(f, &hle, sizeof(boolean));
-
-    fclose(f);
+	SaveFuncs.read(f, header, sizeof(header));
+	SaveFuncs.read(f, &version, sizeof(u32));
+	SaveFuncs.read(f, &hle, sizeof(boolean));
+	SaveFuncs.close(f);
 
 	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE)
 		return -1;

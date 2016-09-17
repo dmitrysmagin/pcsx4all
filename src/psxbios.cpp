@@ -26,6 +26,7 @@
 #include "psxhw.h"
 #include "gpu.h"
 #include "profiler.h"
+#include <zlib.h>
 
 //We try to emulate bios :) HELP US :P
 

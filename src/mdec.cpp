@@ -670,7 +670,7 @@ void mdec1Interrupt() {
 //senquack - Kept original PCSX4ALL mdecFreeze() for reference until
 // savestates can be verified to be working with new code updates here:
 #if 0
-int mdecFreeze(gzFile f, int Mode) {
+int mdecFreeze(void* f, int Mode) {
 	gzfreeze(&mdec, sizeof(mdec));
 	gzfreeze(iq_y, sizeof(iq_y));
 	gzfreeze(iq_uv, sizeof(iq_uv));
@@ -681,7 +681,7 @@ int mdecFreeze(gzFile f, int Mode) {
 
 //senquack - Newer version of above from PCSX Reloaded/Rearmed (still taking
 // unused gzFile first parameter where as Reloaded/Rearmed use void *)
-int mdecFreeze(gzFile f, int Mode) {
+int mdecFreeze(void* f, int Mode) {
 	u8 *base = (u8 *)&psxM[0x100000];
 	u32 v;
 
