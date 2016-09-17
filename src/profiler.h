@@ -41,7 +41,7 @@
 #define pcsx4all_prof_end(A)
 #define pcsx4all_prof_pause(A)
 #define pcsx4all_prof_resume(A)
-#define pcsx4all_prof_add(MSG) 0
+#define pcsx4all_prof_add(MSG)
 #define pcsx4all_prof_show()
 #define pcsx4all_prof_start(A)
 #define pcsx4all_prof_end(A)

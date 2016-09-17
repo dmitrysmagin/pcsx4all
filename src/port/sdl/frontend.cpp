@@ -165,7 +165,7 @@ do { \
 	num_items = 0; \
 } while (0)
 
-static char *wildcards[] = {
+static const char *wildcards[] = {
 	//senquack - we do not (yet) support these 3 PocketISO compressed formats
 	// TODO: adapt PCSX Rearmed's cdrcimg.c plugin to get these
 	//"z", "bz", "znx",
