@@ -640,7 +640,7 @@ int SaveState(const char *file) {
 
 	// senquack - This is used for a small embedded screenshot in PCSX Rearmed,
 	//  but here and in original PCSX4ALL code is just an unused placeholder.
-	if ((pMem = (unsigned char *)malloc(128*96*3)) == NULL ||
+	if ((pMem = (unsigned char *)calloc(128*96*3, 1)) == NULL ||
 	     SaveFuncs.write(f, pMem, 128*96*3) != (128*96*3))
 		goto error;
 	free(pMem);
