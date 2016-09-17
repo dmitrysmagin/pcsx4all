@@ -580,7 +580,13 @@ int Load(const char *ExePath) {
 // STATES
 static void *zlib_open(const char *name, const char *mode)
 {
-	return (void*)gzopen(name, mode);
+	// Default zlib compression level is 6, which is a bit slow.. 4 is faster:
+	const char* compr_level = "4";
+	char full_mode[12];
+	strncpy(full_mode, mode, 10);
+	full_mode[10] = '\0';
+	strcat(full_mode, compr_level);
+	return (void*)gzopen(name, full_mode);
 }
 
 static int zlib_read(void *file, void *buf, u32 len)
