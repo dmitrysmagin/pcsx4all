@@ -115,7 +115,7 @@ struct PcsxSaveFuncs {
 	int   (*read)(void *file, void *buf, u32 len);
 	int   (*write)(void *file, const void *buf, u32 len);
 	long  (*seek)(void *file, long offs, int whence);
-	void  (*close)(void *file);
+	int   (*close)(void *file);
 
 	int   fd;         // The fd we receive from OS's open()
 	int   lib_fd;     // The dupe'd fd we tell compression lib to use

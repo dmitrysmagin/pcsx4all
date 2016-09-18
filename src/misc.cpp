@@ -630,12 +630,14 @@ static long zlib_seek(void *file, long offs, int whence)
 	return gzseek((gzFile)file, offs, whence);
 }
 
-static void zlib_close(void *file)
+static int zlib_close(void *file)
 {
-	gzclose((gzFile)file);
-	fsync(SaveFuncs.fd);
-	close(SaveFuncs.fd);
+	int retval = 0;
+	if (gzclose((gzFile)file) != Z_OK) retval = -1;
+	if (fsync(SaveFuncs.fd)) retval = -1;
+	if (close(SaveFuncs.fd)) retval = -1;
 	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
+	return retval;
 }
 #ifdef _cplusplus
 }
@@ -657,6 +659,7 @@ int SaveState(const char *file) {
 	SPUFreeze_t *spufP = NULL;
 	unsigned char *pMem = NULL;
 	u32 Size;
+	bool close_error = false;
 
 	if ((f = SaveFuncs.open(file, true)) == NULL) {
 		printf("Error opening savestate file for writing: %s\n", file);
@@ -715,14 +718,19 @@ int SaveState(const char *file) {
 	psxRcntFreeze(f, 1);
 	mdecFreeze(f, 1);
 
-	SaveFuncs.close(f);
+	if (SaveFuncs.close(f)) {
+		close_error = true;
+		goto error;
+	}
 	return 0;
 
 error:
 	printf("Error in SaveState() writing file %s\n", file);
 	printf("..out of RAM or no free space left on filesystem?\n");
-	free(pMem);  free(gpufP);  free(spufP);
-	SaveFuncs.close(f);
+	if (!close_error) {
+		free(pMem);  free(gpufP);  free(spufP);
+		SaveFuncs.close(f);
+	}
 	return -1;
 }
 
