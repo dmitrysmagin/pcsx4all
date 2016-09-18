@@ -672,15 +672,15 @@ int SaveState(const char *file) {
 
 	port_mute();
 	
-	if (SaveFuncs.write(f, (void*)PcsxHeader, 32) != 32                      ||
-	     SaveFuncs.write(f, (void*)&SaveVersion, sizeof(u32)) != sizeof(u32) ||
-	     SaveFuncs.write(f, (void*)&Config.HLE, sizeof(boolean)) != sizeof(boolean) )
+	if ( freeze_rw(f, FREEZE_SAVE, (void*)PcsxHeader, 32)              ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&SaveVersion, sizeof(u32))   ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&Config.HLE, sizeof(boolean)) )
 		goto error;
 
 	// senquack - This is used for a small embedded screenshot in PCSX Rearmed,
 	//  but here and in original PCSX4ALL code is just an unused placeholder.
-	if ((pMem = (unsigned char *)calloc(128*96*3, 1)) == NULL ||
-	     SaveFuncs.write(f, pMem, 128*96*3) != (128*96*3))
+	if ( (pMem = (unsigned char *)calloc(128*96*3, 1)) == NULL ||
+	     freeze_rw(f, FREEZE_SAVE, pMem, 128*96*3) )
 		goto error;
 	free(pMem);
 	pMem = NULL;
@@ -688,18 +688,18 @@ int SaveState(const char *file) {
 	if (Config.HLE)
 		psxBiosFreeze(1);
 
-	if (SaveFuncs.write(f, psxM,  0x00200000) != 0x00200000 ||
-	     SaveFuncs.write(f, psxR, 0x00080000) != 0x00080000 ||
-	     SaveFuncs.write(f, psxH, 0x00010000) != 0x00010000 ||
-	     SaveFuncs.write(f, (void*)&psxRegs, sizeof(psxRegs)) != sizeof(psxRegs))
+	if ( freeze_rw(f, FREEZE_SAVE, psxM, 0x00200000)  ||
+	     freeze_rw(f, FREEZE_SAVE, psxR, 0x00080000)  ||
+	     freeze_rw(f, FREEZE_SAVE, psxH, 0x00010000)  ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&psxRegs, sizeof(psxRegs)) )
 		goto error;
 
 	// gpu
 	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL)
 		goto error;
 	gpufP->ulFreezeVersion = 1;
-	if ((!GPU_freeze(FREEZE_SAVE, gpufP)) ||
-	     SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t))
+	if ( (!GPU_freeze(FREEZE_SAVE, gpufP)) ||
+	     freeze_rw(f, FREEZE_SAVE, gpufP, sizeof(GPUFreeze_t)) )
 		goto error;
 	free(gpufP);
 	gpufP = NULL;
@@ -710,11 +710,11 @@ int SaveState(const char *file) {
 	SPU_freeze(FREEZE_INFO, spufP);
 	Size = spufP->Size;
 	free(spufP);
-	if (SaveFuncs.write(f, &Size, 4) != 4)
+	if (freeze_rw(f, FREEZE_SAVE, &Size, 4))
 		goto error;
-	if ((spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-	     (!SPU_freeze(FREEZE_SAVE, spufP))            ||
-	     SaveFuncs.write(f, spufP, Size) != Size)
+	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP))             ||
+	     freeze_rw(f, FREEZE_SAVE, spufP, Size) )
 		goto error;
 	free(spufP);
 	spufP = NULL;
@@ -756,9 +756,9 @@ int LoadState(const char *file) {
 		return -1;
 	}
 
-	if (SaveFuncs.read(f, header, sizeof(header)) != sizeof(header) ||
-	     SaveFuncs.read(f, &version, sizeof(u32)) != sizeof(u32)    ||
-	     SaveFuncs.read(f, &hle, sizeof(boolean)) != sizeof(boolean))
+	if ( freeze_rw(f, FREEZE_LOAD, header, sizeof(header)) ||
+	     freeze_rw(f, FREEZE_LOAD, &version, sizeof(u32))  ||
+	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )
 		goto error;
 
 	if (strncmp("STv4 PCSX", header, 9) != 0 ||
@@ -768,10 +768,10 @@ int LoadState(const char *file) {
 
 	psxCpu->Reset();
 
-	if (SaveFuncs.seek(f, 128*96*3, SEEK_CUR) == -1        ||
-	     SaveFuncs.read(f, psxM, 0x00200000) != 0x00200000 ||
-	     SaveFuncs.read(f, psxR, 0x00080000) != 0x00080000 ||
-	     SaveFuncs.read(f, psxH, 0x00010000) != 0x00010000)
+	if ( SaveFuncs.seek(f, 128*96*3, SEEK_CUR) == -1 ||
+	     freeze_rw(f, FREEZE_LOAD, psxM, 0x00200000) ||
+	     freeze_rw(f, FREEZE_LOAD, psxR, 0x00080000) ||
+	     freeze_rw(f, FREEZE_LOAD, psxH, 0x00010000) )
 		goto error;
 
 #ifdef DEBUG_BIOS
@@ -780,7 +780,7 @@ int LoadState(const char *file) {
 	u32 regs_offset=SaveFuncs.seek(f, 0, SEEK_CUR);
 #endif
 
-	if (SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs)) != sizeof(psxRegs))
+	if (freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs)))
 		goto error;
 	psxRegs.psxM=psxM;
 	psxRegs.psxP=psxP;
@@ -807,8 +807,8 @@ label_repeat_:
 #endif
 
 	// gpu
-	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL          ||
-	     SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t) ||
+	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL ||
+	     freeze_rw(f, FREEZE_LOAD, gpufP, sizeof(GPUFreeze_t))       ||
 	     (!GPU_freeze(FREEZE_LOAD, gpufP)))
 		goto error;
 	free(gpufP);
@@ -817,9 +817,9 @@ label_repeat_:
 		HW_GPU_STATUS = GPU_readStatus();
 
 	// spu
-	if (SaveFuncs.read(f, &Size, 4) != 4               ||
-	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-	     SaveFuncs.read(f, spufP, Size) != Size        ||
+	if ( freeze_rw(f, FREEZE_LOAD, &Size, 4)            ||
+	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL  ||
+	     freeze_rw(f, FREEZE_LOAD, spufP, Size)         ||
 	     (!SPU_freeze(FREEZE_LOAD, spufP)))
 		goto error;
 	free(spufP);
@@ -844,7 +844,7 @@ label_repeat_:
 			f = SaveFuncs.open("dbgbios_bios", false);
 			if (f) {
 				SaveFuncs.seek(f,regs_offset,SEEK_SET);
-				SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs));
+				freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs));
 				psxRegs.psxM=psxM;
 				psxRegs.psxP=psxP;
 				psxRegs.psxR=psxR;
@@ -880,9 +880,9 @@ int CheckState(const char *file) {
 		return -1;
 	}
 
-	if (SaveFuncs.read(f, header, sizeof(header)) != sizeof(header) ||
-	     SaveFuncs.read(f, &version, sizeof(u32)) != sizeof(u32)    ||
-	     SaveFuncs.read(f, &hle, sizeof(boolean)) != sizeof(boolean)) {
+	if ( freeze_rw(f, FREEZE_LOAD, header, sizeof(header)) ||
+	     freeze_rw(f, FREEZE_LOAD, &version, sizeof(u32))  ||
+	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )   {
 		printf("Error in CheckState() reading file %s\n", file);
 		SaveFuncs.close(f);
 		return -1;
