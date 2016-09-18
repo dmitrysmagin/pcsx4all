@@ -667,47 +667,39 @@ void mdec1Interrupt() {
 	}
 }
 
-//senquack - Kept original PCSX4ALL mdecFreeze() for reference until
-// savestates can be verified to be working with new code updates here:
-#if 0
-int mdecFreeze(void* f, int Mode) {
-	gzfreeze(&mdec, sizeof(mdec));
-	gzfreeze(iq_y, sizeof(iq_y));
-	gzfreeze(iq_uv, sizeof(iq_uv));
-
-	return 0;
-}
-#endif //0
-
-//senquack - Newer version of above from PCSX Reloaded/Rearmed (still taking
-// unused gzFile first parameter where as Reloaded/Rearmed use void *)
-int mdecFreeze(void* f, int Mode) {
+int mdecFreeze(void* f, FreezeMode mode)
+{
 	u8 *base = (u8 *)&psxM[0x100000];
 	u32 v;
 
-	gzfreeze(&mdec.reg0, sizeof(mdec.reg0));
-	gzfreeze(&mdec.reg1, sizeof(mdec.reg1));
+	if ( freeze_rw(f, mode, &mdec.reg0, sizeof(mdec.reg0)) ||
+	     freeze_rw(f, mode, &mdec.reg1, sizeof(mdec.reg1)) )
+		return -1;
 
 	// old code used to save raw pointers..
 	v = (u8 *)mdec.rl - base;
-	gzfreeze(&v, sizeof(v));
+	if (freeze_rw(f, mode, &v, sizeof(v)))
+		return -1;
 	mdec.rl = (u16 *)(base + (v & 0xffffe));
 	v = (u8 *)mdec.rl_end - base;
-	gzfreeze(&v, sizeof(v));
+	if (freeze_rw(f, mode, &v, sizeof(v)))
+		return -1;
 	mdec.rl_end = (u16 *)(base + (v & 0xffffe));
 
 	v = 0;
 	if (mdec.block_buffer_pos)
 		v = mdec.block_buffer_pos - base;
-	gzfreeze(&v, sizeof(v));
+	if (freeze_rw(f, mode, &v, sizeof(v)))
+		return -1;
 	mdec.block_buffer_pos = 0;
 	if (v)
 		mdec.block_buffer_pos = base + (v & 0xfffff);
 
-	gzfreeze(&mdec.block_buffer, sizeof(mdec.block_buffer));
-	gzfreeze(&mdec.pending_dma1, sizeof(mdec.pending_dma1));
-	gzfreeze(iq_y, sizeof(iq_y));
-	gzfreeze(iq_uv, sizeof(iq_uv));
+	if ( freeze_rw(f, mode, &mdec.block_buffer, sizeof(mdec.block_buffer)) ||
+	     freeze_rw(f, mode, &mdec.pending_dma1, sizeof(mdec.pending_dma1)) ||
+	     freeze_rw(f, mode, iq_y, sizeof(iq_y))                            ||
+	     freeze_rw(f, mode, iq_uv, sizeof(iq_uv)) )
+		return -1;
 
 	return 0;
 }

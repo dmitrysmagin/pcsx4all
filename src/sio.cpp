@@ -847,19 +847,21 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 	strncpy(Info->Name, ptr, 16);
 }
 
-int sioFreeze(void* f, int Mode) {
-	gzfreeze(buf, sizeof(buf));
-	gzfreeze(&StatReg, sizeof(StatReg));
-	gzfreeze(&ModeReg, sizeof(ModeReg));
-	gzfreeze(&CtrlReg, sizeof(CtrlReg));
-	gzfreeze(&BaudReg, sizeof(BaudReg));
-	gzfreeze(&bufcount, sizeof(bufcount));
-	gzfreeze(&parp, sizeof(parp));
-	gzfreeze(&mcdst, sizeof(mcdst));
-	gzfreeze(&rdwr, sizeof(rdwr));
-	gzfreeze(&adrH, sizeof(adrH));
-	gzfreeze(&adrL, sizeof(adrL));
-	gzfreeze(&padst, sizeof(padst));
-
-	return 0;
+int sioFreeze(void* f, FreezeMode mode)
+{
+	if (    freeze_rw(f, mode, buf, sizeof(buf))
+	     || freeze_rw(f, mode, &StatReg, sizeof(StatReg))
+	     || freeze_rw(f, mode, &ModeReg, sizeof(ModeReg))
+	     || freeze_rw(f, mode, &CtrlReg, sizeof(CtrlReg))
+	     || freeze_rw(f, mode, &BaudReg, sizeof(BaudReg))
+	     || freeze_rw(f, mode, &bufcount, sizeof(bufcount))
+	     || freeze_rw(f, mode, &parp, sizeof(parp))
+	     || freeze_rw(f, mode, &mcdst, sizeof(mcdst))
+	     || freeze_rw(f, mode, &rdwr, sizeof(rdwr))
+	     || freeze_rw(f, mode, &adrH, sizeof(adrH))
+	     || freeze_rw(f, mode, &adrL, sizeof(adrL))
+	     || freeze_rw(f, mode, &padst, sizeof(padst)) )
+		return -1;
+	else
+		return 0;
 }

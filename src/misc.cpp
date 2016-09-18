@@ -584,9 +584,6 @@ int Load(const char *ExePath) {
 /////////////////////////////
 // Savestate file handling //
 /////////////////////////////
-#ifdef _cplusplus
-extern "C" {
-#endif
 static void *zlib_open(const char *name, boolean writing)
 {
 	int         flags;
@@ -639,9 +636,16 @@ static int zlib_close(void *file)
 	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
 	return retval;
 }
-#ifdef _cplusplus
+
+int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len)
+{
+	if (mode == FREEZE_LOAD) {
+		if (SaveFuncs.read(file, buf, len) != len) return -1;
+	} else if (mode == FREEZE_SAVE) {
+		if (SaveFuncs.write(file, buf, len) != len) return -1;
+	}
+	return 0;
 }
-#endif
 
 struct PcsxSaveFuncs SaveFuncs = {
 	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close, -1, -1
@@ -679,6 +683,7 @@ int SaveState(const char *file) {
 	     SaveFuncs.write(f, pMem, 128*96*3) != (128*96*3))
 		goto error;
 	free(pMem);
+	pMem = NULL;
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
@@ -693,30 +698,33 @@ int SaveState(const char *file) {
 	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL)
 		goto error;
 	gpufP->ulFreezeVersion = 1;
-	if ((!GPU_freeze(1, gpufP)) ||
+	if ((!GPU_freeze(FREEZE_SAVE, gpufP)) ||
 	     SaveFuncs.write(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t))
 		goto error;
 	free(gpufP);
+	gpufP = NULL;
 
 	// spu
 	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
 		goto error;
-	SPU_freeze(2, spufP);
+	SPU_freeze(FREEZE_INFO, spufP);
 	Size = spufP->Size;
 	free(spufP);
 	if (SaveFuncs.write(f, &Size, 4) != 4)
 		goto error;
 	if ((spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-		 (!SPU_freeze(1, spufP))                      ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP))            ||
 	     SaveFuncs.write(f, spufP, Size) != Size)
 		goto error;
 	free(spufP);
+	spufP = NULL;
 
-	sioFreeze(f, 1);
-	cdrFreeze(f, 1);
-	psxHwFreeze(f, 1);
-	psxRcntFreeze(f, 1);
-	mdecFreeze(f, 1);
+	if (    sioFreeze(f, FREEZE_SAVE)
+	     || cdrFreeze(f, FREEZE_SAVE)
+	     || psxHwFreeze(f, FREEZE_SAVE)
+	     || psxRcntFreeze(f, FREEZE_SAVE)
+	     || mdecFreeze(f, FREEZE_SAVE) )
+		goto error;
 
 	if (SaveFuncs.close(f)) {
 		close_error = true;
@@ -801,9 +809,10 @@ label_repeat_:
 	// gpu
 	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL          ||
 	     SaveFuncs.read(f, gpufP, sizeof(GPUFreeze_t)) != sizeof(GPUFreeze_t) ||
-	     (!GPU_freeze(0, gpufP)))
+	     (!GPU_freeze(FREEZE_LOAD, gpufP)))
 		goto error;
 	free(gpufP);
+	gpufP = NULL;
 	if (HW_GPU_STATUS == 0)
 		HW_GPU_STATUS = GPU_readStatus();
 
@@ -811,15 +820,17 @@ label_repeat_:
 	if (SaveFuncs.read(f, &Size, 4) != 4               ||
 	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
 	     SaveFuncs.read(f, spufP, Size) != Size        ||
-	     (!SPU_freeze(0, spufP)))
+	     (!SPU_freeze(FREEZE_LOAD, spufP)))
 		goto error;
 	free(spufP);
+	spufP = NULL;
 
-	sioFreeze(f, 0);
-	cdrFreeze(f, 0);
-	psxHwFreeze(f, 0);
-	psxRcntFreeze(f, 0);
-	mdecFreeze(f, 0);
+	if ( sioFreeze(f, FREEZE_LOAD)      ||
+	     cdrFreeze(f, FREEZE_LOAD)      ||
+	     psxHwFreeze(f, FREEZE_LOAD)    ||
+	     psxRcntFreeze(f, FREEZE_LOAD)  ||
+	     mdecFreeze(f, FREEZE_LOAD)     )
+		goto error;
 
 	SaveFuncs.close(f);
 

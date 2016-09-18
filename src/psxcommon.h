@@ -107,9 +107,6 @@ extern PcsxConfig Config;
 /////////////////////////////
 // Savestate file handling //
 /////////////////////////////
-#ifdef _cplusplus
-extern "C" {
-#endif
 struct PcsxSaveFuncs {
 	void *(*open)(const char *name, boolean writing);
 	int   (*read)(void *file, void *buf, u32 len);
@@ -120,16 +117,22 @@ struct PcsxSaveFuncs {
 	int   fd;         // The fd we receive from OS's open()
 	int   lib_fd;     // The dupe'd fd we tell compression lib to use
 };
+
+// Defined in misc.cpp:
+#ifdef _cplusplus
+extern "C" {
+#endif
+enum FreezeMode {
+	FREEZE_LOAD = 0,
+	FREEZE_SAVE = 1,
+	FREEZE_INFO = 2    // Query plugin for amount of ram to allocate for freeze
+};
+int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len);
 #ifdef _cplusplus
 }
 #endif
 
 extern struct PcsxSaveFuncs SaveFuncs;
-
-#define gzfreeze(ptr, size) { \
-	if (Mode == 1) SaveFuncs.write(f, ptr, size); \
-	if (Mode == 0) SaveFuncs.read(f, ptr, size); \
-}
 
 
 //#define BIAS	2
