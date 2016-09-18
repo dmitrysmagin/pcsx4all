@@ -32,7 +32,11 @@
 #include "ppf.h"
 #include "psxevents.h"
 #include "port.h"
+#include <fcntl.h>
 #include <zlib.h>
+#if !defined(O_BINARY)
+#define O_BINARY 0
+#endif
 
 #ifdef _WIN32
 #define strncasecmp _strnicmp
@@ -577,16 +581,38 @@ int Load(const char *ExePath) {
 	return retval;
 }
 
-// STATES
-static void *zlib_open(const char *name, const char *mode)
+/////////////////////////////
+// Savestate file handling //
+/////////////////////////////
+#ifdef _cplusplus
+extern "C" {
+#endif
+static void *zlib_open(const char *name, boolean writing)
 {
-	// Default zlib compression level is 6, which is a bit slow.. 4 is faster:
-	const char* compr_level = "4";
-	char full_mode[12];
-	strncpy(full_mode, mode, 10);
-	full_mode[10] = '\0';
-	strcat(full_mode, compr_level);
-	return (void*)gzopen(name, full_mode);
+	int         flags;
+	mode_t      perm;
+	const char* zlib_mode;
+	if (writing) {
+		flags = O_RDWR | O_CREAT | O_TRUNC | O_BINARY;
+		// Permissions of created file will match what fopen() uses:
+		perm = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+		// Default zlib compression level 6 is a bit slow.. 4 is faster
+		zlib_mode = "rw4";
+	} else {
+		flags = O_RDONLY | O_BINARY;
+		perm = 0;
+		zlib_mode = "r";
+	}
+
+	SaveFuncs.fd = open(name, flags, perm);
+	if (SaveFuncs.fd == -1) return NULL;
+
+	// Open a duplicate of the fd so that when gzclose() is called and closes
+	//  its fd, we still have a fd handle
+	SaveFuncs.lib_fd = dup(SaveFuncs.fd);
+
+	// Returns a gzFile (as void*)
+	return (void*)gzdopen(SaveFuncs.lib_fd, zlib_mode);
 }
 
 static int zlib_read(void *file, void *buf, u32 len)
@@ -607,10 +633,16 @@ static long zlib_seek(void *file, long offs, int whence)
 static void zlib_close(void *file)
 {
 	gzclose((gzFile)file);
+	fsync(SaveFuncs.fd);
+	close(SaveFuncs.fd);
+	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
 }
+#ifdef _cplusplus
+}
+#endif
 
 struct PcsxSaveFuncs SaveFuncs = {
-	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
+	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close, -1, -1
 };
 
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
@@ -626,7 +658,7 @@ int SaveState(const char *file) {
 	unsigned char *pMem = NULL;
 	u32 Size;
 
-	if ((f = SaveFuncs.open(file, "wb")) == NULL) {
+	if ((f = SaveFuncs.open(file, true)) == NULL) {
 		printf("Error opening savestate file for writing: %s\n", file);
 		return -1;
 	}
@@ -684,7 +716,6 @@ int SaveState(const char *file) {
 	mdecFreeze(f, 1);
 
 	SaveFuncs.close(f);
-	port_sync();
 	return 0;
 
 error:
@@ -704,7 +735,7 @@ int LoadState(const char *file) {
 	u32 version;
 	boolean hle;
 
-	if ((f = SaveFuncs.open(file, "rb")) == NULL) {
+	if ((f = SaveFuncs.open(file, false)) == NULL) {
 		printf("Error opening savestate file for reading: %s\n", file);
 		return -1;
 	}
@@ -791,7 +822,7 @@ label_repeat_:
 	if (Config.HLE) {
 		if (!repeated && !strcmp("dbgbios_hle",file)){
 			repeated=1;
-			f = SaveFuncs.open("dbgbios_bios", "rb");
+			f = SaveFuncs.open("dbgbios_bios", false);
 			if (f) {
 				SaveFuncs.seek(f,regs_offset,SEEK_SET);
 				SaveFuncs.read(f, (void*)&psxRegs, sizeof(psxRegs));
@@ -825,7 +856,7 @@ int CheckState(const char *file) {
 	u32 version;
 	boolean hle;
 
-	if ((f = SaveFuncs.open(file, "rb")) == NULL) {
+	if ((f = SaveFuncs.open(file, false)) == NULL) {
 		printf("Error in CheckState() loading file: %s\n", file);
 		return -1;
 	}
