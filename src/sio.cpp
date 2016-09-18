@@ -25,6 +25,7 @@
 #include "sio.h"
 #include "psxevents.h"
 #include <sys/stat.h>
+#include <unistd.h>
 
 // Status Flags
 #define TX_RDY		0x0001
@@ -486,8 +487,9 @@ void SaveMcd(char *mcd, char *data, uint32_t adr, int size) {
 			fseek(f, adr, SEEK_SET);
 
 		fwrite(data + adr, 1, size, f);
+		fflush(f);
+		fsync(fileno(f));
 		fclose(f);
-		port_sync();
 		return;
 	}
 
@@ -647,8 +649,9 @@ void CreateMcd(char *mcd) {
 	while ((s--) >= 0)
 		fputc(0, f);
 
+	fflush(f);
+	fsync(fileno(f));
 	fclose(f);
-	port_sync();
 }
 
 void ConvertMcd(char *mcd, char *data) {
@@ -660,8 +663,9 @@ void ConvertMcd(char *mcd, char *data) {
 		f = fopen(mcd, "wb");
 		if (f != NULL) {		
 			fwrite(data-3904, 1, MCD_SIZE+3904, f);
+			fflush(f);
+			fsync(fileno(f));
 			fclose(f);
-			port_sync();
 		}		
 		f = fopen(mcd, "r+");		
 		s = s + 3904;
@@ -690,8 +694,9 @@ void ConvertMcd(char *mcd, char *data) {
 		fputc(0, f); s--;
 		fputc(0xff, f);
 		while (s-- > (MCD_SIZE+1)) fputc(0, f);
+		fflush(f);
+		fsync(fileno(f));
 		fclose(f);
-		port_sync();
 	} else if(strstr(mcd, ".mem") || strstr(mcd,".vgs")) {		
 		f = fopen(mcd, "wb");
 		if (f != NULL) {		
@@ -713,14 +718,16 @@ void ConvertMcd(char *mcd, char *data) {
 		fputc(0, f); s--;
 		fputc(2, f);
 		while (s-- > (MCD_SIZE+1)) fputc(0, f);
+		fflush(f);
+		fsync(fileno(f));
 		fclose(f);
-		port_sync();
 	} else {
 		f = fopen(mcd, "wb");
 		if (f != NULL) {		
 			fwrite(data, 1, MCD_SIZE, f);
+			fflush(f);
+			fsync(fileno(f));
 			fclose(f);
-			port_sync();
 		}
 	}
 }
