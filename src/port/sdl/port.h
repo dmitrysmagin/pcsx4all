@@ -35,7 +35,6 @@ extern void video_set(unsigned short* pVideo,unsigned int width,unsigned int hei
 extern void video_clear(void);
 extern void pcsx4all_exit(void);
 extern void port_printf(int x, int y, const char *text);
-extern void port_sync(void);
 extern void port_mute(void);
 
 extern unsigned short *SCREEN;
