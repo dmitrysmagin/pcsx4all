@@ -34,10 +34,9 @@ MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
 CFLAGS = -mips32r2 -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
-	 -Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align \
-	 -Wno-unused-value -Wno-write-strings -Wno-narrowing \
-	 -Waggregate-return -Wno-cast-align \
-	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
+	-Wall -Wunused -Wpointer-arith \
+	-Wno-sign-compare -Wno-cast-align \
+	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
@@ -63,12 +62,12 @@ endif
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/interpreter obj/interpreter/$(INTERPRETER) \
 	  obj/recompiler obj/recompiler/$(RECOMPILER) \
-	  obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+	  obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
 all: maketree $(TARGET)
 
@@ -89,13 +88,6 @@ endif
 OBJS += obj/gte/$(GTE)/gte.o
 OBJS += obj/gpu/$(GPU)/gpu.o
 OBJS += obj/spu/$(SPU)/spu.o
-
-OBJS += \
-	obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o \
-	obj/zlib/gzio.o obj/zlib/uncompr.o obj/zlib/deflate.o \
-	obj/zlib/trees.o obj/zlib/zutil.o obj/zlib/inflate.o \
-	obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
-	obj/zlib/inffast.o obj/zlib/infutil.o
 
 OBJS += obj/port/$(PORT)/port.o
 OBJS += obj/port/$(PORT)/frontend.o

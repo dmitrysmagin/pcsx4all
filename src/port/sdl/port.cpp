@@ -1175,11 +1175,6 @@ void port_printf(int x, int y, const char *text)
 	}
 }
 
-void port_sync(void)
-{
-	//sync();
-}
-
 void port_mute(void)
 {
 	//wiz_sound_thread_mute();

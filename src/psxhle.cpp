@@ -146,7 +146,7 @@ static void hleBootstrap(void) { // 0xbfc00000
 	printf("hleBootstrap\n");
 	CheckCdrom();
 	LoadCdrom();
-	printf("CdromLabel: \"%s\": PC = %8.8lx (SP = %8.8lx)\n", CdromLabel, psxRegs.pc, psxRegs.GPR.n.sp);
+	printf("CdromLabel: \"%s\": PC = %8.8x (SP = %8.8x)\n", CdromLabel, psxRegs.pc, psxRegs.GPR.n.sp);
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 

@@ -1631,43 +1631,27 @@ void cdrReset() {
 	getCdInfo();
 }
 
-//senquack - Kept original PCSX4ALL code here for reference until savestates
-// can be verified working with the newer Reloaded/Rearmed code below it (TODO)
-#if 0
-int cdrFreeze(gzFile f, int Mode) {
-	uintptr_t tmp;
-
-	gzfreeze(&cdr, sizeof(cdr));
-
-	if (Mode == 1)
-		tmp = cdr.pTransfer - cdr.Transfer;
-
-	gzfreeze(&tmp, sizeof(tmp));
-
-	if (Mode == 0)
-		cdr.pTransfer = cdr.Transfer + tmp;
-
-	return 0;
-}
-#endif //0
-int cdrFreeze(void *f, int Mode) {
+int cdrFreeze(void *f, FreezeMode mode)
+{
 	u32 tmp;
 	u8 tmpp[3];
 
-	if (Mode == 0 && !Config.Cdda)
+	if (mode == FREEZE_LOAD && !Config.Cdda)
 		CDR_stop();
 	
 	cdr.freeze_ver = 0x63647202;
-	gzfreeze(&cdr, sizeof(cdr));
+	if (freeze_rw(f, mode, &cdr, sizeof(cdr)))
+		return -1;
 	
-	if (Mode == 1) {
+	if (mode == FREEZE_SAVE) {
 		cdr.ParamP = cdr.ParamC;
 		tmp = pTransfer - cdr.Transfer;
 	}
 
-	gzfreeze(&tmp, sizeof(tmp));
+	if (freeze_rw(f, mode, &tmp, sizeof(tmp)))
+		return -1;
 
-	if (Mode == 0) {
+	if (mode == FREEZE_LOAD) {
 		getCdInfo();
 
 		pTransfer = cdr.Transfer + tmp;

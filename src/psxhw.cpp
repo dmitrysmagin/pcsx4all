@@ -1241,6 +1241,6 @@ void psxHwWrite32(u32 add, u32 value) {
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 }
 
-int psxHwFreeze(gzFile f, int Mode) {
+int psxHwFreeze(void* f, FreezeMode mode) {
 	return 0;
 }

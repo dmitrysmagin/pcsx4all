@@ -32,6 +32,11 @@
 #include "ppf.h"
 #include "psxevents.h"
 #include "port.h"
+#include <fcntl.h>
+#include <zlib.h>
+#if !defined(O_BINARY)
+#define O_BINARY 0
+#endif
 
 #ifdef _WIN32
 #define strncasecmp _strnicmp
@@ -107,8 +112,6 @@ void mmssdd( char *b, char *p )
 	} \
 	time[0] = itob(time[0]); time[1] = itob(time[1]); time[2] = itob(time[2]);
 
-//senquack - TODO: add PPF support from PCSX Rearmed?
-// (its misc.c has call to CheckPPFCache() here)
 #define READTRACK() \
 	if (CDR_readTrack(time) == -1) return -1; \
 	buf = CDR_getBuffer(); \
@@ -130,7 +133,7 @@ int GetCdromFile(u8 *mdir, u8 *time, const char *filename) {
 	int i;
 
 	// only try to scan if a filename is given
-	if (!strlen(filename)) return -1;
+	if (filename == NULL || filename[0] == '\0') return -1;
 
 	i = 0;
 	while (i < 4096) {
@@ -432,8 +435,9 @@ static int PSXGetFileType(FILE *f) {
 
 	current = ftell(f);
 	fseek(f, 0L, SEEK_SET);
-    fread(mybuf, 2048, 1, f);
-	fseek(f, current, SEEK_SET);
+	if (fread(mybuf, 2048, 1, f) != 1 ||
+	    fseek(f, current, SEEK_SET) == -1)
+		goto invalid;
 
 	exe_hdr = (EXE_HEADER *)mybuf;
 	if (memcmp(exe_hdr->id, "PS-X EXE", 8) == 0)
@@ -446,9 +450,11 @@ static int PSXGetFileType(FILE *f) {
 	if (SWAPu16(coff_hdr->f_magic) == 0x0162)
 		return COFF_EXE;
 
+	// Fall-through:
+invalid:
 	return INVALID_EXE;
 }
-#define FREAD(c,a,b) fread(a,sizeof(u8),b,c)
+
 /* TODO Error handling - return integer for each error case below, defined in an enum. Pass variable on return */
 int Load(const char *ExePath) {
 #ifdef DEBUG_ANALYSIS
@@ -473,16 +479,23 @@ int Load(const char *ExePath) {
 		type = PSXGetFileType(tmpFile);
 		switch (type) {
 			case PSX_EXE:
-                fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile);
+				if (fread(&tmpHead,sizeof(EXE_HEADER),1,tmpFile) != 1) {
+					printf("Error reading PSX_EXE executable file\n");
+					retval = -1;
+					break;
+				}
 				section_address = SWAP32(tmpHead.t_addr);
 				section_size = SWAP32(tmpHead.t_size);
 				mem = PSXM(section_address);
 				if (mem != NULL) {
-					fseek(tmpFile, 0x800, SEEK_SET);		
-                    fread(mem, section_size, 1, tmpFile);
+					if (fseek(tmpFile, 0x800, SEEK_SET) == -1 ||
+					    fread(mem, section_size, 1, tmpFile) != 1) {
+						printf("Error reading PSX_EXE executable file\n");
+						retval = -1;
+						break;
+					}
 					psxCpu->Clear(section_address, section_size / 4);
 				}
-				fclose(tmpFile);
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
 				psxRegs.GPR.n.sp = SWAP32(tmpHead.s_addr); 
@@ -491,13 +504,29 @@ int Load(const char *ExePath) {
 				retval = 0;
 				break;
 			case CPE_EXE:
-				fseek(tmpFile, 6, SEEK_SET); /* Something tells me we should go to 4 and read the "08 00" here... */
+				/* Something tells me we should go to 4 and read the "08 00" here... */
+				if (fseek(tmpFile, 6, SEEK_SET) == -1) {
+					printf("Error reading CPE_EXE executable file\n");
+					retval = -1;
+					break;
+				}
+
 				do {
-                    fread(&opcode, 1, 1, tmpFile);
+					if (fread(&opcode, 1, 1, tmpFile) != 1) {
+						printf("Error reading CPE_EXE executable file\n");
+						retval = -1;
+						break;
+					}
+
 					switch (opcode) {
 						case 1: /* Section loading */
-                            fread(&section_address, 4, 1, tmpFile);
-                            fread(&section_size, 4, 1, tmpFile);
+							if (fread(&section_address, 4, 1, tmpFile) != 1 ||
+							    fread(&section_size, 4, 1, tmpFile) != 1) {
+								printf("Error reading CPE_EXE executable file\n");
+								retval = -1;
+								break;
+							}
+
 							section_address = SWAPu32(section_address);
 							section_size = SWAPu32(section_size);
 #ifdef EMU_LOG
@@ -505,19 +534,28 @@ int Load(const char *ExePath) {
 #endif
 							mem = PSXM(section_address);
 							if (mem != NULL) {
-                                fread(mem, section_size, 1, tmpFile);
+								if (fread(mem, section_size, 1, tmpFile) != 1) {
+									printf("Error reading CPE_EXE executable file\n");
+									retval = -1;
+									break;
+								}
 								psxCpu->Clear(section_address, section_size / 4);
 							}
 							break;
 						case 3: /* register loading (PC only?) */
-							fseek(tmpFile, 2, SEEK_CUR); /* unknown field */
-                            fread(&psxRegs.pc, 4, 1, tmpFile);
-							psxRegs.pc = SWAPu32(psxRegs.pc);
+							u32 new_pc;
+							if (fseek(tmpFile, 2, SEEK_CUR) == -1 || /* unknown field */
+							    fread(&new_pc, 4, 1, tmpFile) != 1) {
+								printf("Error reading CPE_EXE executable file\n");
+								retval = -1;
+								break;
+							}
+							psxRegs.pc = SWAPu32(new_pc);
 							break;
 						case 0: /* End of file */
 							break;
 						default:
-							printf("Unknown CPE opcode %02x at position %08x.\n", opcode, ftell(tmpFile) - 1);
+							printf("Unknown CPE opcode %02x at position %08lx.\n", opcode, ftell(tmpFile) - 1);
 							retval = -1;
 							break;
 					}
@@ -539,115 +577,220 @@ int Load(const char *ExePath) {
 		CdromLabel[0] = '\0';
 	}
 
+	fclose(tmpFile);
 	return retval;
 }
 
-// STATES
+/////////////////////////////
+// Savestate file handling //
+/////////////////////////////
+static void *zlib_open(const char *name, boolean writing)
+{
+	int         flags;
+	mode_t      perm;
+	const char* zlib_mode;
+	if (writing) {
+		flags = O_RDWR | O_CREAT | O_TRUNC | O_BINARY;
+		// Permissions of created file will match what fopen() uses:
+		perm = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+		// Default zlib compression level 6 is a bit slow.. 4 is faster
+		zlib_mode = "rw4";
+	} else {
+		flags = O_RDONLY | O_BINARY;
+		perm = 0;
+		zlib_mode = "r";
+	}
+
+	SaveFuncs.fd = open(name, flags, perm);
+	if (SaveFuncs.fd == -1) return NULL;
+
+	// Open a duplicate of the fd so that when gzclose() is called and closes
+	//  its fd, we still have a fd handle
+	SaveFuncs.lib_fd = dup(SaveFuncs.fd);
+
+	// Returns a gzFile (as void*)
+	return (void*)gzdopen(SaveFuncs.lib_fd, zlib_mode);
+}
+
+static int zlib_read(void *file, void *buf, u32 len)
+{
+	return gzread((gzFile)file, buf, len);
+}
+
+static int zlib_write(void *file, const void *buf, u32 len)
+{
+	return gzwrite((gzFile)file, (void*)buf, len);
+}
+
+static long zlib_seek(void *file, long offs, int whence)
+{
+	return gzseek((gzFile)file, offs, whence);
+}
+
+static int zlib_close(void *file)
+{
+	int retval = 0;
+	if (gzclose((gzFile)file) != Z_OK) retval = -1;
+	if (fsync(SaveFuncs.fd)) retval = -1;
+	if (close(SaveFuncs.fd)) retval = -1;
+	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
+	return retval;
+}
+
+int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len)
+{
+	if (mode == FREEZE_LOAD) {
+		if (SaveFuncs.read(file, buf, len) != len) return -1;
+	} else if (mode == FREEZE_SAVE) {
+		if (SaveFuncs.write(file, buf, len) != len) return -1;
+	}
+	return 0;
+}
+
+struct PcsxSaveFuncs SaveFuncs = {
+	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close, -1, -1
+};
 
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment the value below.
 static const u32 SaveVersion = 0x8b410004;
-#define FWRITE(c,a,b) fwrite(a,sizeof(u8),b,c)
-int SaveState(const char *file) {
-    FILE* f;
-	GPUFreeze_t *gpufP;
-	SPUFreeze_t *spufP;
-	int Size;
-	unsigned char *pMem;
 
-    f = fopen(file, "wb");
-	if (f == NULL) return -1;
+int SaveState(const char *file) {
+	void* f;
+	GPUFreeze_t *gpufP = NULL;
+	SPUFreeze_t *spufP = NULL;
+	unsigned char *pMem = NULL;
+	u32 Size;
+	bool close_error = false;
+
+	if ((f = SaveFuncs.open(file, true)) == NULL) {
+		printf("Error opening savestate file for writing: %s\n", file);
+		return -1;
+	}
 
 	port_mute();
 	
-    FWRITE(f, (void*)PcsxHeader, 32);
-    FWRITE(f, (void *)&SaveVersion, sizeof(u32));
-    FWRITE(f, (void *)&Config.HLE, sizeof(boolean));
+	if ( freeze_rw(f, FREEZE_SAVE, (void*)PcsxHeader, 32)              ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&SaveVersion, sizeof(u32))   ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&Config.HLE, sizeof(boolean)) )
+		goto error;
 
-	pMem = (unsigned char *) malloc(128*96*3);
-	if (pMem == NULL) return -1;
-    FWRITE(f, pMem, 128*96*3);
+	// senquack - This is used for a small embedded screenshot in PCSX Rearmed,
+	//  but here and in original PCSX4ALL code is just an unused placeholder.
+	if ( (pMem = (unsigned char *)calloc(128*96*3, 1)) == NULL ||
+	     freeze_rw(f, FREEZE_SAVE, pMem, 128*96*3) )
+		goto error;
 	free(pMem);
+	pMem = NULL;
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
 
-    FWRITE(f, psxM, 0x00200000);
-    FWRITE(f, psxR, 0x00080000);
-    FWRITE(f, psxH, 0x00010000);
-    FWRITE(f, (void*)&psxRegs, sizeof(psxRegs));
+	if ( freeze_rw(f, FREEZE_SAVE, psxM, 0x00200000)  ||
+	     freeze_rw(f, FREEZE_SAVE, psxR, 0x00080000)  ||
+	     freeze_rw(f, FREEZE_SAVE, psxH, 0x00010000)  ||
+	     freeze_rw(f, FREEZE_SAVE, (void*)&psxRegs, sizeof(psxRegs)) )
+		goto error;
 
 	// gpu
-	gpufP = (GPUFreeze_t *) malloc(sizeof(GPUFreeze_t));
+	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL)
+		goto error;
 	gpufP->ulFreezeVersion = 1;
-    if(!GPU_freeze(1, gpufP)) return -3;
-    FWRITE(f, gpufP, sizeof(GPUFreeze_t));
+	if ( (!GPU_freeze(FREEZE_SAVE, gpufP)) ||
+	     freeze_rw(f, FREEZE_SAVE, gpufP, sizeof(GPUFreeze_t)) )
+		goto error;
 	free(gpufP);
-	if (HW_GPU_STATUS == 0)
-		HW_GPU_STATUS = GPU_readStatus();
+	gpufP = NULL;
 
 	// spu
-	spufP = (SPUFreeze_t *) malloc(16);
-	SPU_freeze(2, spufP);
-    Size = spufP->Size; FWRITE(f, &Size, 4);
+	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
+		goto error;
+	SPU_freeze(FREEZE_INFO, spufP);
+	Size = spufP->Size;
 	free(spufP);
-	spufP = (SPUFreeze_t *) malloc(Size);
-    if(!SPU_freeze(1, spufP)) return -4;
-    FWRITE(f, spufP, Size);
+	if (freeze_rw(f, FREEZE_SAVE, &Size, 4))
+		goto error;
+	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP))             ||
+	     freeze_rw(f, FREEZE_SAVE, spufP, Size) )
+		goto error;
 	free(spufP);
+	spufP = NULL;
 
-	sioFreeze(f, 1);
-	cdrFreeze(f, 1);
-	psxHwFreeze(f, 1);
-	psxRcntFreeze(f, 1);
-	mdecFreeze(f, 1);
+	if (    sioFreeze(f, FREEZE_SAVE)
+	     || cdrFreeze(f, FREEZE_SAVE)
+	     || psxHwFreeze(f, FREEZE_SAVE)
+	     || psxRcntFreeze(f, FREEZE_SAVE)
+	     || mdecFreeze(f, FREEZE_SAVE) )
+		goto error;
 
-    fclose(f);
-
-	port_sync();
-	
+	if (SaveFuncs.close(f)) {
+		close_error = true;
+		goto error;
+	}
 	return 0;
+
+error:
+	printf("Error in SaveState() writing file %s\n", file);
+	printf("..out of RAM or no free space left on filesystem?\n");
+	if (!close_error) {
+		free(pMem);  free(gpufP);  free(spufP);
+		SaveFuncs.close(f);
+	}
+	return -1;
 }
 
 int LoadState(const char *file) {
-    FILE* f;
-	GPUFreeze_t *gpufP;
-	SPUFreeze_t *spufP;
-	int Size;
+	void* f;
+	GPUFreeze_t *gpufP = NULL;
+	SPUFreeze_t *spufP = NULL;
+	u32 Size;
 	char header[32];
 	u32 version;
 	boolean hle;
-    f = fopen(file, "rb");
-	if (f == NULL) return -1;
-    FREAD(f, header, sizeof(header));
-    FREAD(f, &version, sizeof(u32));
-    FREAD(f, &hle, sizeof(boolean));
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE) {
-        fclose(f);
-        return -2;
+	if ((f = SaveFuncs.open(file, false)) == NULL) {
+		printf("Error opening savestate file for reading: %s\n", file);
+		return -1;
 	}
-    psxCpu->Reset();
 
-    fseek(f, 128*96*3, SEEK_CUR);
+	if ( freeze_rw(f, FREEZE_LOAD, header, sizeof(header)) ||
+	     freeze_rw(f, FREEZE_LOAD, &version, sizeof(u32))  ||
+	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )
+		goto error;
 
-    FREAD(f, psxM, 0x00200000);
-    FREAD(f, psxR, 0x00080000);
-    FREAD(f, psxH, 0x00010000);
+	if (strncmp("STv4 PCSX", header, 9) != 0 ||
+	     version != SaveVersion              ||
+	     hle != Config.HLE)
+		goto error;
+
+	psxCpu->Reset();
+
+	if ( SaveFuncs.seek(f, 128*96*3, SEEK_CUR) == -1 ||
+	     freeze_rw(f, FREEZE_LOAD, psxM, 0x00200000) ||
+	     freeze_rw(f, FREEZE_LOAD, psxR, 0x00080000) ||
+	     freeze_rw(f, FREEZE_LOAD, psxH, 0x00010000) )
+		goto error;
+
 #ifdef DEBUG_BIOS
-	u32 repeated=0, regs_offset=gztell(f);
+	u32 repeated=0;
+	//seek(f,0,SEEKCUR) returns current position in file:
+	u32 regs_offset=SaveFuncs.seek(f, 0, SEEK_CUR);
 #endif
-    FREAD(f, (void*)&psxRegs, sizeof(psxRegs));
+
+	if (freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs)))
+		goto error;
 	psxRegs.psxM=psxM;
 	psxRegs.psxP=psxP;
 	psxRegs.psxR=psxR;
 	psxRegs.psxH=psxH;
 	psxRegs.io_cycle_counter=0;
 #if !defined(DEBUG_CPU) && (defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES))
+	//senquack TODO: Get rid of all this old psxRegs.cycle_add hackery if possible
 	psxRegs.cycle_add=0;
-	gzseek(f, gztell(f)-4, SEEK_SET);
+	SaveFuncs.seek(f, -4, SEEK_CUR);
 #endif
 
 	//senquack - Clear & intialize new event scheduler queue based on
@@ -660,29 +803,36 @@ int LoadState(const char *file) {
 		psxBiosFreeze(0);
 
 #ifdef DEBUG_BIOS
- label_repeat_:
+label_repeat_:
 #endif
+
 	// gpu
+	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL ||
+	     freeze_rw(f, FREEZE_LOAD, gpufP, sizeof(GPUFreeze_t))       ||
+	     (!GPU_freeze(FREEZE_LOAD, gpufP)))
+		goto error;
+	free(gpufP);
+	gpufP = NULL;
+	if (HW_GPU_STATUS == 0)
+		HW_GPU_STATUS = GPU_readStatus();
 
-    gpufP = (GPUFreeze_t *) malloc (sizeof(GPUFreeze_t));
-    FREAD(f, gpufP, sizeof(GPUFreeze_t));
-    if(!GPU_freeze(0, gpufP)) return -3;
-    free(gpufP);
+	// spu
+	if ( freeze_rw(f, FREEZE_LOAD, &Size, 4)            ||
+	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL  ||
+	     freeze_rw(f, FREEZE_LOAD, spufP, Size)         ||
+	     (!SPU_freeze(FREEZE_LOAD, spufP)))
+		goto error;
+	free(spufP);
+	spufP = NULL;
 
-    // spu
-    FREAD(f, &Size, 4);
-    spufP = (SPUFreeze_t *) malloc (Size);
-    FREAD(f, spufP, Size);
-    if(!SPU_freeze(0, spufP)) return -4;
-    free(spufP);
+	if ( sioFreeze(f, FREEZE_LOAD)      ||
+	     cdrFreeze(f, FREEZE_LOAD)      ||
+	     psxHwFreeze(f, FREEZE_LOAD)    ||
+	     psxRcntFreeze(f, FREEZE_LOAD)  ||
+	     mdecFreeze(f, FREEZE_LOAD)     )
+		goto error;
 
-	sioFreeze(f, 0);
-	cdrFreeze(f, 0);
-	psxHwFreeze(f, 0);
-	psxRcntFreeze(f, 0);
-	mdecFreeze(f, 0);
-
-    fclose(f);
+	SaveFuncs.close(f);
 
 #ifdef DEBUG_CPU_OPCODES
 #ifndef DEBUG_BIOS
@@ -691,10 +841,10 @@ int LoadState(const char *file) {
 	if (Config.HLE) {
 		if (!repeated && !strcmp("dbgbios_hle",file)){
 			repeated=1;
-			f = gzopen("dbgbios_bios", "rb");
+			f = SaveFuncs.open("dbgbios_bios", false);
 			if (f) {
-				gzseek(f,regs_offset,SEEK_SET);
-                FREAD(f, (void*)&psxRegs, sizeof(psxRegs));
+				SaveFuncs.seek(f,regs_offset,SEEK_SET);
+				freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs));
 				psxRegs.psxM=psxM;
 				psxRegs.psxP=psxP;
 				psxRegs.psxR=psxR;
@@ -711,22 +861,34 @@ int LoadState(const char *file) {
 #endif
 
 	return 0;
+
+error:
+	printf("Error in LoadState() loading file %s\n", file);
+	free(gpufP);  free(spufP);
+	SaveFuncs.close(f);
+	return -1;
 }
 
 int CheckState(const char *file) {
-    FILE* f;
+	void* f;
 	char header[32];
 	u32 version;
 	boolean hle;
 
-    f = fopen(file, "rb");
-	if (f == NULL) return -1;
+	if ((f = SaveFuncs.open(file, false)) == NULL) {
+		printf("Error in CheckState() loading file: %s\n", file);
+		return -1;
+	}
 
-    FREAD(f, header, sizeof(header));
-    FREAD(f, &version, sizeof(u32));
-    FREAD(f, &hle, sizeof(boolean));
+	if ( freeze_rw(f, FREEZE_LOAD, header, sizeof(header)) ||
+	     freeze_rw(f, FREEZE_LOAD, &version, sizeof(u32))  ||
+	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )   {
+		printf("Error in CheckState() reading file %s\n", file);
+		SaveFuncs.close(f);
+		return -1;
+	}
 
-    fclose(f);
+	SaveFuncs.close(f);
 
 	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE)
 		return -1;

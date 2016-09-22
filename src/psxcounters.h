@@ -48,7 +48,7 @@ extern u32 psxRcntRcount(u32 index);
 extern u32 psxRcntRmode(u32 index);
 extern u32 psxRcntRtarget(u32 index);
 
-extern s32 psxRcntFreeze(gzFile f, s32 Mode);
+extern int psxRcntFreeze(void* f, FreezeMode mode);
 
 extern unsigned psxGetSpuSync(void);
 

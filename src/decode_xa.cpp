@@ -52,17 +52,17 @@ static double K1[4] = {
 };
 #else
 static int K0[4] = {
-	0.0       * (1<<SHC),
-	0.9375    * (1<<SHC),
-	1.796875  * (1<<SHC),
-	1.53125   * (1<<SHC)
+	(int)(0.0       * (double)(1<<SHC)),
+	(int)(0.9375    * (double)(1<<SHC)),
+	(int)(1.796875  * (double)(1<<SHC)),
+	(int)(1.53125   * (double)(1<<SHC))
 };
  
 static int K1[4] = {
-	0.0       * (1<<SHC),
-	0.0       * (1<<SHC),
-	-0.8125   * (1<<SHC),
-	-0.859375 * (1<<SHC)
+	(int)(0.0       * (double)(1<<SHC)),
+	(int)(0.0       * (double)(1<<SHC)),
+	(int)(-0.8125   * (double)(1<<SHC)),
+	(int)(-0.859375 * (double)(1<<SHC))
 };
 #endif
 

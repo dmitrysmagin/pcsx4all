@@ -624,19 +624,20 @@ void psxRcntInit(void)
 
 /******************************************************************************/
 
-s32 psxRcntFreeze( gzFile f, s32 Mode )
+int psxRcntFreeze(void *f, FreezeMode mode)
 {
     u32 spuSyncCount = 0;
     u32 count;
     s32 i;
 
-    gzfreeze( &rcnts, sizeof(rcnts) );
-    gzfreeze( &hSyncCount, sizeof(hSyncCount) );
-    gzfreeze( &spuSyncCount, sizeof(spuSyncCount) );
-    gzfreeze( &psxNextCounter, sizeof(psxNextCounter) );
-    gzfreeze( &psxNextsCounter, sizeof(psxNextsCounter) );
+    if (    freeze_rw(f, mode, &rcnts, sizeof(rcnts))
+         || freeze_rw(f, mode, &hSyncCount, sizeof(hSyncCount))
+         || freeze_rw(f, mode, &spuSyncCount, sizeof(spuSyncCount))
+         || freeze_rw(f, mode, &psxNextCounter, sizeof(psxNextCounter))
+         || freeze_rw(f, mode, &psxNextsCounter, sizeof(psxNextsCounter)) )
+    return -1;
 
-    if (Mode == 0)
+    if (mode == FREEZE_LOAD)
     {
         // don't trust things from a savestate
         for( i = 0; i < CounterQuantity; ++i )

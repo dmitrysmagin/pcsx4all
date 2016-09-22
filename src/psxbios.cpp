@@ -26,6 +26,7 @@
 #include "psxhw.h"
 #include "gpu.h"
 #include "profiler.h"
+#include <zlib.h>
 
 //We try to emulate bios :) HELP US :P
 
@@ -917,7 +918,7 @@ void psxBios_malloc(void) { // 33
 		// this fixes Burning Road
 		if (*chunk == 0) {
 			newchunk = chunk;
-			dsize = ((u32)heap_end - (u32)chunk) - 4;
+			dsize = ((uptr)heap_end - (uptr)chunk) - 4;
 			colflag = 1;
 			break;
 		}

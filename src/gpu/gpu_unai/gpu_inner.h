@@ -337,7 +337,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				do
 				{
 					// blit-mask
-					if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endtile; }
+					if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endtile; }
 					//  masking
 					uDst = *pDst;
 					if(M) { if (uDst&0x8000) goto endtile;  }
@@ -371,7 +371,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			do
 			{
 				// blit-mask
-				if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endgou; }
+				if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endgou; }
 				//  masking
 				if(M) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
 				//  blend
@@ -440,7 +440,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 		do
 		{
 			// blit-mask
-			if (BI) { if((bMsk>>((((u32)pDst)>>1)&7))&1) goto endpoly; }
+			if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpoly; }
 			//  masking
 			if(M) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
 

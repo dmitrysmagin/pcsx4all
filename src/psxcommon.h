@@ -37,7 +37,6 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <assert.h>
-#include <zlib.h>
 
 /* Port includes */
 #include "port.h"
@@ -105,11 +104,36 @@ typedef struct {
 
 extern PcsxConfig Config;
 
+/////////////////////////////
+// Savestate file handling //
+/////////////////////////////
+struct PcsxSaveFuncs {
+	void *(*open)(const char *name, boolean writing);
+	int   (*read)(void *file, void *buf, u32 len);
+	int   (*write)(void *file, const void *buf, u32 len);
+	long  (*seek)(void *file, long offs, int whence);
+	int   (*close)(void *file);
 
-#define gzfreeze(ptr, size) { \
-	if (Mode == 1) gzwrite(f, ptr, size); \
-	if (Mode == 0) gzread(f, ptr, size); \
+	int   fd;         // The fd we receive from OS's open()
+	int   lib_fd;     // The dupe'd fd we tell compression lib to use
+};
+
+// Defined in misc.cpp:
+#ifdef _cplusplus
+extern "C" {
+#endif
+enum FreezeMode {
+	FREEZE_LOAD = 0,
+	FREEZE_SAVE = 1,
+	FREEZE_INFO = 2    // Query plugin for amount of ram to allocate for freeze
+};
+int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len);
+#ifdef _cplusplus
 }
+#endif
+
+extern struct PcsxSaveFuncs SaveFuncs;
+
 
 //#define BIAS	2
 extern u32 BIAS;
