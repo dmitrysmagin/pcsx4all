@@ -31,7 +31,11 @@ int LoadPlugins(void) {
 
 	ReleasePlugins();
 
-	LoadMcds(Config.Mcd1, Config.Mcd2);
+	if ( LoadMcd(1, Config.Mcd1) < 0 ||
+	     LoadMcd(2, Config.Mcd2) < 0 ) {
+		printf("Error initializing memcards\n");
+		return -1;
+	}
 
 	ret = CDR_init();
 	if (ret < 0) { printf ("Error initializing CD-ROM plugin: %d\n", ret); return -1; }

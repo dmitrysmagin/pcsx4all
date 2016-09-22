@@ -51,11 +51,9 @@ void netError();
 extern void sioInterrupt(void);
 extern int sioFreeze(void* f, FreezeMode mode);
 
-extern void LoadMcd(int mcd, char *str);
-extern void LoadMcds(char *mcd1, char *mcd2);
-extern void SaveMcd(char *mcd, char *data, uint32_t adr, int size);
-extern void CreateMcd(char *mcd);
-extern void ConvertMcd(char *mcd, char *data);
+extern int LoadMcd(int mcd_num, char *mcd);
+extern int SaveMcd(char *mcd, char *data, uint32_t adr, int size);
+extern int CreateMcd(char *mcd);
 
 typedef struct {
 	char Title[48 + 1]; // Title in ASCII

@@ -400,336 +400,331 @@ void sioInterrupt() {
 	}
 }
 
-void LoadMcd(int mcd, char *str) {
+int LoadMcd(int mcd_num, char *mcd)
+{
 	size_t bytes_read;
 	FILE *f;
 	char *data = NULL;
+	struct stat stat_buf;
+	bool convert_data = false;
 
-	//senquack - updated to match PCSXR code:
-	if (mcd != 1 && mcd != 2)
-		return;
-	if (mcd == 1) {
+	if ((mcd_num != 1 && mcd_num != 2) || mcd == NULL)
+		return -1;
+
+	if (mcd_num == 1) {
 		data = Mcd1Data;
 		cardh1[1] |= 8; // mark as new
-	}
-	if (mcd == 2) {
+	} else {
 		data = Mcd2Data;
 		cardh2[1] |= 8;
 	}
 
-
-	if (*str == 0) {
-		sprintf(str, "memcards/card%d.mcd", mcd);
-		printf("No memory card value was specified - creating a default card %s\n", str);
+	if (*mcd == 0) {
+		sprintf(mcd, "memcards/card%d.mcd", mcd_num);
+		printf("No memory card value was specified - creating a default card %s\n", mcd);
 	}
-	f = fopen(str, "rb");
-	if (f == NULL) {
-		printf("The memory card %s doesn't exist - creating it\n", str);
-		CreateMcd(str);
-		f = fopen(str, "rb");
-		if (f != NULL) {
-			struct stat _buf;
 
-			if (stat(str, &_buf) != -1) {
-				if (_buf.st_size == MCD_SIZE + 64) 
-					fseek(f, 64, SEEK_SET);
-				else if(_buf.st_size == MCD_SIZE + 3904)
-					fseek(f, 3904, SEEK_SET);
-			}			
-			if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
-				printf("Failed reading data from new memory card %s!\n", str);
-				printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
+	if ((f = fopen(mcd, "rb")) == NULL) {
+		printf("The memory card %s doesn't exist - creating it\n", mcd);
+		CreateMcd(mcd);
+		if ((f = fopen(mcd, "rb")) == NULL)
+			goto error;
+	}
+
+	printf("Loading memory card %s\n", mcd);
+	if (fstat(fileno(f), &stat_buf) != -1) {
+		if (stat_buf.st_size == MCD_SIZE + 64) {
+			// Assume Connectix Virtual Gamestation .vgs/.mem format
+			printf("Detected Connectix VGS memcard format.\n");
+			convert_data = true;
+			long data_offset = 64;
+			if (fseek(f, data_offset, SEEK_SET) == -1) {
+				printf("Error seeking to position %ld (VGS data offset).\n", data_offset);
+				goto error;
 			}
-
-			fclose(f);
+		} else if (stat_buf.st_size == MCD_SIZE + 3904) {
+			// Assume DexDrive .gme format
+			printf("Detected DexDrive memcard format.\n");
+			convert_data = true;
+			long data_offset = 3904;
+			if (fseek(f, data_offset, SEEK_SET) == -1) {
+				printf("Error seeking to position %ld (DexDrive data offset).\n", data_offset);
+				goto error;
+			}
+		} else if (stat_buf.st_size != MCD_SIZE) {
+			printf("Error: unknown memcard format (not raw image, DexDrive, or Connectix VGS)\n");
+			goto error;
 		}
-		else
-			printf("Memory card %s failed to open!\n", str);
 	}
-	else {
-		struct stat _buf;
-		printf("Loading memory card %s\n", str);
-		if (stat(str, &_buf) != -1) {
-			if (_buf.st_size == MCD_SIZE + 64) 
-				fseek(f, 64, SEEK_SET);
-			else if(_buf.st_size == MCD_SIZE + 3904)
-				fseek(f, 3904, SEEK_SET);
-		}
-		if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
-			printf("Failed reading data from memory card %s!\n", str);
-			printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
+
+	if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
+		printf("Failed reading data from memory card %s!\n", mcd);
+		printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
+		goto error;
+	}
+
+	fclose(f);
+
+	// If memcard filename does not contain .gme, .mem, or .vgs, go ahead
+	//  and convert it to native raw memcard format.
+	if (convert_data &&
+		!(strcasestr(mcd, ".gme") ||
+		  strcasestr(mcd, ".mem") ||
+		  strcasestr(mcd, ".vgs")) ) {
+		// Truncate file to 0 bytes, then write just the memcard data back
+		if ( (f = fopen(mcd, "wb")) == NULL ||
+		     fwrite(data, 1, MCD_SIZE, f) != MCD_SIZE ) {
+			printf("Error converting memcard file %s\n", mcd);
+			if (f) fclose(f);
+			return -1;
 		}
 
+		printf("Converted memcard file to native raw format.\n");
 		fclose(f);
 	}
+
+	return 0;
+
+error:
+	printf("Error in %s:", __func__);
+	perror(NULL);
+	if (f) {
+		printf("Error reading memcard file %s\n", mcd);
+		fclose(f);
+	} else {
+		printf("Error opening memcard file %s\n", mcd);
+	}
+	return -1;
 }
 
-void LoadMcds(char *mcd1, char *mcd2) {
-	LoadMcd(1, mcd1);
-	LoadMcd(2, mcd2);
-}
-
-void SaveMcd(char *mcd, char *data, uint32_t adr, int size) {
+int SaveMcd(char *mcd, char *data, uint32_t adr, int size)
+{
 	FILE *f;
-	
-	f = fopen(mcd, "r+b");
-	if (f != NULL) {
-		struct stat _buf;
+	long fpos = adr;
+	struct stat stat_buf;
 
-		if (stat(mcd, &_buf) != -1) {
-			if (_buf.st_size == MCD_SIZE + 64)
-				fseek(f, adr + 64, SEEK_SET);
-			else if (_buf.st_size == MCD_SIZE + 3904)
-				fseek(f, adr + 3904, SEEK_SET);
-			else
-				fseek(f, adr, SEEK_SET);
-		} else
-			fseek(f, adr, SEEK_SET);
-
-		fwrite(data + adr, 1, size, f);
-		fflush(f);
-		fsync(fileno(f));
-		fclose(f);
-		return;
+	if (mcd == NULL || mcd[0] == '\0') {
+		printf("Error: NULL or empty filename parameter in %s\n", __func__);
+		return -1;
 	}
 
-	ConvertMcd(mcd, data);
+	if ((f = fopen(mcd, "r+b")) == NULL)
+		goto error;
+	
+	if (fstat(fileno(f), &stat_buf) != -1) {
+		if (stat_buf.st_size == MCD_SIZE + 64) {
+			// Assume Connectix Virtual Gamestation .vgs/.mem format
+			fpos += 64;
+		} else if (stat_buf.st_size == MCD_SIZE + 3904) {
+			// Assume DexDrive .gme format
+			fpos += 3904;
+		}
+	}
+
+	if ( fseek(f, fpos, SEEK_SET)               ||
+		 fwrite(data + adr, 1, size, f) != size ||
+		 fflush(f)                              ||
+		 fsync(fileno(f)) )
+		goto error;
+
+	fclose(f);
+	return 0;
+
+error:
+	printf("Error in %s:", __func__);
+	perror(NULL);
+	if (f) {
+		printf("Error writing memcard file %s\n", mcd);
+		fclose(f);
+	} else {
+		printf("Error opening memcard file %s\n", mcd);
+	}
+	return -1;
 }
 
-void CreateMcd(char *mcd) {
+#define errchk_fputc(c, file)       \
+do {                                \
+     if (fputc((c), (file)) == EOF) \
+          goto error;               \
+} while (0)
+
+int CreateMcd(char *mcd)
+{
 	FILE *f;	
-	struct stat _buf;
 	int s = MCD_SIZE;
 	int i = 0, j;
 
-	f = fopen(mcd, "wb");
-	if (f == NULL)
-		return;
-
-	if (stat(mcd, &_buf)!=-1) {		
-		if ((_buf.st_size == MCD_SIZE + 3904) || strstr(mcd, ".gme")) {			
-			s = s + 3904;
-			fputc('1', f);
-			s--;
-			fputc('2', f);
-			s--;
-			fputc('3', f);
-			s--;
-			fputc('-', f);
-			s--;
-			fputc('4', f);
-			s--;
-			fputc('5', f);
-			s--;
-			fputc('6', f);
-			s--;
-			fputc('-', f);
-			s--;
-			fputc('S', f);
-			s--;
-			fputc('T', f);
-			s--;
-			fputc('D', f);
-			s--;
-			for (i = 0; i < 7; i++) {
-				fputc(0, f);
-				s--;
-			}
-			fputc(1, f);
-			s--;
-			fputc(0, f);
-			s--;
-			fputc(1, f);
-			s--;
-			fputc('M', f);
-			s--; 
-			fputc('Q', f);
-			s--; 
-			for (i = 0; i < 14; i++) {
-				fputc(0xa0, f);
-				s--;
-			}
-			fputc(0, f);
-			s--;
-			fputc(0xff, f);
-			while (s-- > (MCD_SIZE + 1))
-				fputc(0, f);
-		} else if ((_buf.st_size == MCD_SIZE + 64) || strstr(mcd, ".mem") || strstr(mcd, ".vgs")) {
-			s = s + 64;
-			fputc('V', f);
-			s--;
-			fputc('g', f);
-			s--;
-			fputc('s', f);
-			s--;
-			fputc('M', f);
-			s--;
-			for (i = 0; i < 3; i++) {
-				fputc(1, f);
-				s--;
-				fputc(0, f);
-				s--;
-				fputc(0, f);
-				s--;
-				fputc(0, f);
-				s--;
-			}
-			fputc(0, f);
-			s--;
-			fputc(2, f);
-			while (s-- > (MCD_SIZE + 1))
-				fputc(0, f);
-		}
+	if (mcd == NULL || mcd[0] == '\0') {
+		printf("Error: NULL or empty filename parameter in %s\n", __func__);
+		return -1;
 	}
-	fputc('M', f);
+
+	if ( (f = fopen(mcd, "wb")) == NULL)
+		goto error;
+
+	if (strcasestr(mcd, ".gme"))
+	{
+		// DexDrive .gme format
+		s = s + 3904;
+		errchk_fputc('1', f);
+		s--;
+		errchk_fputc('2', f);
+		s--;
+		errchk_fputc('3', f);
+		s--;
+		errchk_fputc('-', f);
+		s--;
+		errchk_fputc('4', f);
+		s--;
+		errchk_fputc('5', f);
+		s--;
+		errchk_fputc('6', f);
+		s--;
+		errchk_fputc('-', f);
+		s--;
+		errchk_fputc('S', f);
+		s--;
+		errchk_fputc('T', f);
+		s--;
+		errchk_fputc('D', f);
+		s--;
+		for (i = 0; i < 7; i++) {
+			errchk_fputc(0, f);
+			s--;
+		}
+		errchk_fputc(1, f);
+		s--;
+		errchk_fputc(0, f);
+		s--;
+		errchk_fputc(1, f);
+		s--;
+		errchk_fputc('M', f);
+		s--;
+		errchk_fputc('Q', f);
+		s--;
+		for (i = 0; i < 14; i++) {
+			errchk_fputc(0xa0, f);
+			s--;
+		}
+		errchk_fputc(0, f);
+		s--;
+		errchk_fputc(0xff, f);
+		while (s-- > (MCD_SIZE + 1))
+			errchk_fputc(0, f);
+	} else if (strcasestr(mcd, ".mem") || strcasestr(mcd, ".vgs"))
+	{
+		// Connectix Virtual Gamestation .vgs/.mem format
+		s = s + 64;
+		errchk_fputc('V', f);
+		s--;
+		errchk_fputc('g', f);
+		s--;
+		errchk_fputc('s', f);
+		s--;
+		errchk_fputc('M', f);
+		s--;
+		for (i = 0; i < 3; i++) {
+			errchk_fputc(1, f);
+			s--;
+			errchk_fputc(0, f);
+			s--;
+			errchk_fputc(0, f);
+			s--;
+			errchk_fputc(0, f);
+			s--;
+		}
+		errchk_fputc(0, f);
+		s--;
+		errchk_fputc(2, f);
+		while (s-- > (MCD_SIZE + 1))
+			errchk_fputc(0, f);
+	}
+	errchk_fputc('M', f);
 	s--;
-	fputc('C', f);
+	errchk_fputc('C', f);
 	s--;
 	while (s-- > (MCD_SIZE - 127))
-		fputc(0, f);
-	fputc(0xe, f);
+		errchk_fputc(0, f);
+	errchk_fputc(0xe, f);
 	s--;
 
 	for (i = 0; i < 15; i++) { // 15 blocks
-		fputc(0xa0, f);
+		errchk_fputc(0xa0, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
 		for (j = 0; j < 117; j++) {
-			fputc(0x00, f);
+			errchk_fputc(0x00, f);
 			s--;
 		}
-		fputc(0xa0, f);
+		errchk_fputc(0xa0, f);
 		s--;
 	}
 
 	for (i = 0; i < 20; i++) {
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0x00, f);
+		errchk_fputc(0x00, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
-		fputc(0xff, f);
+		errchk_fputc(0xff, f);
 		s--;
 		for (j = 0; j < 118; j++) {
-			fputc(0x00, f);
+			errchk_fputc(0x00, f);
 			s--;
 		}
 	}
 
 	while ((s--) >= 0)
-		fputc(0, f);
+		errchk_fputc(0, f);
 
-	fflush(f);
-	fsync(fileno(f));
+	if ( fflush(f) ||
+	     fsync(fileno(f)) )
+		goto error;
+
 	fclose(f);
-}
+	return 0;
 
-void ConvertMcd(char *mcd, char *data) {
-	FILE *f;
-	int i = 0;
-	int s = MCD_SIZE;
-
-	if (strstr(mcd, ".gme")) {		
-		f = fopen(mcd, "wb");
-		if (f != NULL) {		
-			fwrite(data-3904, 1, MCD_SIZE+3904, f);
-			fflush(f);
-			fsync(fileno(f));
-			fclose(f);
-		}		
-		f = fopen(mcd, "r+");		
-		s = s + 3904;
-		fputc('1', f); s--;
-		fputc('2', f); s--;
-		fputc('3', f); s--;
-		fputc('-', f); s--;
-		fputc('4', f); s--;
-		fputc('5', f); s--;
-		fputc('6', f); s--;
-		fputc('-', f); s--;
-		fputc('S', f); s--;
-		fputc('T', f); s--;
-		fputc('D', f); s--;
-		for(i=0;i<7;i++) {
-			fputc(0, f); s--;
-		}		
-		fputc(1, f); s--;
-		fputc(0, f); s--;
-		fputc(1, f); s--;
-		fputc('M', f); s--;
-		fputc('Q', f); s--;
-		for(i=0;i<14;i++) {
-			fputc(0xa0, f); s--;
-		}
-		fputc(0, f); s--;
-		fputc(0xff, f);
-		while (s-- > (MCD_SIZE+1)) fputc(0, f);
-		fflush(f);
-		fsync(fileno(f));
-		fclose(f);
-	} else if(strstr(mcd, ".mem") || strstr(mcd,".vgs")) {		
-		f = fopen(mcd, "wb");
-		if (f != NULL) {		
-			fwrite(data-64, 1, MCD_SIZE+64, f);
-			fclose(f);
-		}		
-		f = fopen(mcd, "r+");		
-		s = s + 64;				
-		fputc('V', f); s--;
-		fputc('g', f); s--;
-		fputc('s', f); s--;
-		fputc('M', f); s--;
-		for(i=0;i<3;i++) {
-			fputc(1, f); s--;
-			fputc(0, f); s--;
-			fputc(0, f); s--;
-			fputc(0, f); s--;
-		}
-		fputc(0, f); s--;
-		fputc(2, f);
-		while (s-- > (MCD_SIZE+1)) fputc(0, f);
-		fflush(f);
-		fsync(fileno(f));
+error:
+	printf("Error in %s:", __func__);
+	perror(NULL);
+	if (f) {
+		printf("Error writing memcard file %s\n", mcd);
 		fclose(f);
 	} else {
-		f = fopen(mcd, "wb");
-		if (f != NULL) {		
-			fwrite(data, 1, MCD_SIZE, f);
-			fflush(f);
-			fsync(fileno(f));
-			fclose(f);
-		}
+		printf("Error creating memcard file %s\n", mcd);
 	}
+
+	return -1;
 }
 
 // remove the leading and trailing spaces in a string
