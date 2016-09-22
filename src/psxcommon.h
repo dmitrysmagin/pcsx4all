@@ -134,6 +134,13 @@ int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len);
 
 extern struct PcsxSaveFuncs SaveFuncs;
 
+// Windows lacks fsync():
+#if defined(_WIN32) && !defined(__CYGWIN__)
+static inline int fsync(int f)
+{
+	return 0;
+}
+#endif
 
 //#define BIAS	2
 extern u32 BIAS;
