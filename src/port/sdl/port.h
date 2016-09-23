@@ -12,6 +12,15 @@
 #include <sys/types.h>
 #include <assert.h>
 
+///////////////////////////
+// Windows compatibility //
+///////////////////////////
+#if defined(_WIN32) && !defined(__CYGWIN__)
+// Windows lacks fsync():
+static inline int fsync(int f) { return 0; }
+#endif
+
+
 #define UDIV(n,d) ((n)/(d))
 #define SDIV(n,d) ((n)/(d))
 
