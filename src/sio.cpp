@@ -48,6 +48,48 @@
 #define RTS			0x0020
 #define SIO_RESET	0x0040
 
+#if defined(_WIN32) && !defined(__CYGWIN__)
+// MINGW doesn't have strcasestr(), so implement it here
+// Taken from https://github.com/darkrose/csvdb/blob/master/src/lib/result.c
+// missing alloca() replaced with malloc()+free()
+
+char *strcasestr(const char *haystack, const char *needle)
+{
+	char *h = (char *)malloc(strlen(haystack) + 1);
+	char *n = (char *)malloc(strlen(needle) + 1);
+	char *t;
+	int i;
+
+	for (i = 0; haystack[i]; i++) {
+		if (isupper(haystack[i])) {
+			h[i] = tolower(haystack[i]);
+			continue;
+		}
+		h[i] = haystack[i];
+	}
+	h[i] = 0;
+	for (i = 0; needle[i]; i++) {
+		if (isupper(needle[i])) {
+			n[i] = tolower(needle[i]);
+			continue;
+		}
+		n[i] = needle[i];
+	}
+	n[i] = 0;
+
+	t = strstr(h,n);
+	if (!t) {
+		free(h);
+		free(n);
+		return NULL;
+	}
+
+	free(h);
+	free(n);
+	return (char *)(haystack + (t - h));
+}
+#endif
+
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];
