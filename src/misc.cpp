@@ -584,32 +584,62 @@ int Load(const char *ExePath) {
 /////////////////////////////
 // Savestate file handling //
 /////////////////////////////
+
+// zlib_open() returns a gzFile (as void*), or NULL on error
 static void *zlib_open(const char *name, boolean writing)
 {
+	void* gzfile_ptr = NULL;
+	// Default zlib compression level 6 is a bit slow.. 4 is faster
+	const char* zlib_mode = writing ? "rw4" : "r";
+
+	if (!name || name[0] == '\0') {
+		printf("Error: NULL ptr or empty filename passed to zlib_open()\n");
+		return NULL;
+	}
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	// Windows without Cygwin:
+	// Let zlib handle all file operations
+	if ((gzfile_ptr = (void*)gzopen(name, zlib_mode)) == NULL)
+		printf("Error in %s() opening file %s\n", __func__, name);
+	return gzfile_ptr;
+#else
+	// When running under UNIX, manage fd directly so fsync() can be called
 	int         flags;
 	mode_t      perm;
-	const char* zlib_mode;
 	if (writing) {
 		flags = O_RDWR | O_CREAT | O_TRUNC | O_BINARY;
 		// Permissions of created file will match what fopen() uses:
 		perm = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
-		// Default zlib compression level 6 is a bit slow.. 4 is faster
-		zlib_mode = "rw4";
 	} else {
 		flags = O_RDONLY | O_BINARY;
 		perm = 0;
-		zlib_mode = "r";
 	}
 
-	SaveFuncs.fd = open(name, flags, perm);
-	if (SaveFuncs.fd == -1) return NULL;
+	if ((SaveFuncs.fd = open(name, flags, perm)) == -1)
+		goto error;
 
 	// Open a duplicate of the fd so that when gzclose() is called and closes
 	//  its fd, we still have a fd handle
-	SaveFuncs.lib_fd = dup(SaveFuncs.fd);
+	if ((SaveFuncs.lib_fd = dup(SaveFuncs.fd)) == -1)
+		goto error;
 
-	// Returns a gzFile (as void*)
-	return (void*)gzdopen(SaveFuncs.lib_fd, zlib_mode);
+	if ((gzfile_ptr = (void*)gzdopen(SaveFuncs.lib_fd, zlib_mode)) == NULL) {
+		printf("Error returned from gzdopen()\n");
+		goto zlib_error;
+	}
+
+	return gzfile_ptr;
+
+error:
+	perror(__func__);
+zlib_error:
+	printf("Error in %s() opening file %s\n", __func__, name);
+	if (SaveFuncs.lib_fd != -1) close(SaveFuncs.lib_fd);
+	if (SaveFuncs.fd != -1) close(SaveFuncs.fd);
+	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
+	return NULL;
+#endif
 }
 
 static int zlib_read(void *file, void *buf, u32 len)
@@ -631,9 +661,13 @@ static int zlib_close(void *file)
 {
 	int retval = 0;
 	if (gzclose((gzFile)file) != Z_OK) retval = -1;
+
+#if !(defined(_WIN32) && !defined(__CYGWIN__))
 	if (fsync(SaveFuncs.fd)) retval = -1;
 	if (close(SaveFuncs.fd)) retval = -1;
 	SaveFuncs.fd = SaveFuncs.lib_fd = -1;
+#endif
+
 	return retval;
 }
 

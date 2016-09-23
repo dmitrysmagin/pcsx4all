@@ -114,8 +114,10 @@ struct PcsxSaveFuncs {
 	long  (*seek)(void *file, long offs, int whence);
 	int   (*close)(void *file);
 
+#if !(defined(_WIN32) && !defined(__CYGWIN__))
 	int   fd;         // The fd we receive from OS's open()
 	int   lib_fd;     // The dupe'd fd we tell compression lib to use
+#endif
 };
 
 // Defined in misc.cpp:
