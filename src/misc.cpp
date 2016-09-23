@@ -33,6 +33,7 @@
 #include "psxevents.h"
 #include "port.h"
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <zlib.h>
 #if !defined(O_BINARY)
 #define O_BINARY 0
@@ -682,7 +683,10 @@ int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len)
 }
 
 struct PcsxSaveFuncs SaveFuncs = {
-	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close, -1, -1
+	zlib_open, zlib_read, zlib_write, zlib_seek, zlib_close
+#if !(defined(_WIN32) && !defined(__CYGWIN__))
+	, -1, -1
+#endif
 };
 
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
