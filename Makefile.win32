@@ -34,7 +34,7 @@ MCD2_FILE = \"mcd002.mcr\"
 CFLAGS = -ggdb3 -O2 -march=i686 -DGCW_ZERO \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
-	-Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
+	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-D$(GPU) -Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
@@ -56,12 +56,12 @@ CFLAGS = -ggdb3 -O2 -march=i686 -DGCW_ZERO \
 #CFLAGS += -DAUTOEVENTS
 #CFLAGS += -DAUTOEVENTS_MAX=8000
 
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lz
 
 OBJDIRS = \
 	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	obj/interpreter obj/interpreter/$(INTERPRETER) \
-	obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+	obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
 
 all: maketree $(TARGET)
 
@@ -77,12 +77,6 @@ OBJS += obj/gte/$(GTE)/gte.o
 OBJS += obj/gpu/$(GPU)/gpu.o
 OBJS += obj/spu/$(SPU)/spu.o
 
-OBJS += \
-	obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o \
-	obj/zlib/gzio.o obj/zlib/uncompr.o obj/zlib/deflate.o \
-	obj/zlib/trees.o obj/zlib/zutil.o obj/zlib/inflate.o \
-	obj/zlib/infblock.o obj/zlib/infcodes.o obj/zlib/inftrees.o \
-	obj/zlib/inffast.o obj/zlib/infutil.o
 
 OBJS += obj/port/$(PORT)/port.o
 OBJS += obj/port/$(PORT)/frontend.o
