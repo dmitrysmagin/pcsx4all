@@ -454,6 +454,11 @@ void pad_update(void)
 
 	// SELECT+START for menu
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {
+		//Sync and close any memcard files opened for writing
+		//TODO: Disallow entering menu until they are synced/closed
+		// automatically, displaying message that write is in progress.
+		sioSyncMcds();
+
 		emu_running = false;
 		GameMenu();
 		emu_running = true;

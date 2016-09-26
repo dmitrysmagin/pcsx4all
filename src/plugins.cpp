@@ -31,8 +31,8 @@ int LoadPlugins(void) {
 
 	ReleasePlugins();
 
-	if ( LoadMcd(1, Config.Mcd1) < 0 ||
-	     LoadMcd(2, Config.Mcd2) < 0 ) {
+	if ( LoadMcd(MCD1, Config.Mcd1) < 0 ||
+	     LoadMcd(MCD2, Config.Mcd2) < 0 ) {
 		printf("Error initializing memcards\n");
 		return -1;
 	}

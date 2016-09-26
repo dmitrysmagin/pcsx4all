@@ -54,6 +54,7 @@ enum psxEventType {
 	                       // interval for SPU update-and-feed)
 	PSXINT_RESET_CYCLE_VAL,          // Reset psxRegs.cycle value to 0 to ensure
 	                                 //  it can never overflow
+	PSXINT_SIO_SYNC_MCD,             // Flush/sync/close memcards opened for writing
 	PSXINT_COUNT,
 	PSXINT_NEXT_EVENT = PSXINT_COUNT //The most imminent event's entry is
 	                                 // always copied to this slot in

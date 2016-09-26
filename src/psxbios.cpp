@@ -1148,13 +1148,13 @@ void psxBios_format() { // 0x41
 	if (strcmp(Ra0, "bu00:") == 0 && Config.Mcd1[0] != '\0')
 	{
 		CreateMcd(Config.Mcd1);
-		LoadMcd(1, Config.Mcd1);
+		LoadMcd(MCD1, Config.Mcd1);
 		v0 = 1;
 	}
 	else if (strcmp(Ra0, "bu10:") == 0 && Config.Mcd2[0] != '\0')
 	{
 		CreateMcd(Config.Mcd2);
-		LoadMcd(2, Config.Mcd2);
+		LoadMcd(MCD2, Config.Mcd2);
 		v0 = 1;
 	}
 	else
@@ -1911,7 +1911,7 @@ void psxBios_UnDeliverEvent(void) { // 0x20
 			FDesc[1 + mcd].mcfile = i; \
 			/*printf("openC %s\n", ptr);*/ \
 			v0 = 1 + mcd; \
-			SaveMcd((mcd==1?Config.Mcd1:Config.Mcd2), Mcd##mcd##Data, 128 * i, 128); \
+			SaveMcd((mcd==1 ? MCD1 : MCD2), Mcd##mcd##Data, 128 * i, 128); \
 			break; \
 		} \
 	} \
@@ -2012,7 +2012,7 @@ void psxBios_read(void) { // 0x34
 	ptr = Mcd##mcd##Data + offset; \
 	memcpy(ptr, Ra1, a2); \
 	FDesc[1 + mcd].offset += a2; \
-	SaveMcd((mcd==1?Config.Mcd1:Config.Mcd2), Mcd##mcd##Data, offset, a2); \
+	SaveMcd((mcd==1 ? MCD1 : MCD2), Mcd##mcd##Data, offset, a2); \
 	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
 	else v0 = a2; \
 	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
@@ -2187,7 +2187,7 @@ void psxBios_nextfile(void) { // 43
 		memset(ptr+0xa+namelen, 0, 0x75-namelen); \
 		for (j=0; j<127; j++) cxor^= ptr[j]; \
 		ptr[127] = cxor; \
-		SaveMcd((mcd==1?Config.Mcd1:Config.Mcd2), Mcd##mcd##Data, 128 * i + 0xa, 0x76); \
+		SaveMcd((mcd==1 ? MCD1 : MCD2), Mcd##mcd##Data, 128 * i + 0xa, 0x76); \
 		v0 = 1; \
 		break; \
 	} \
@@ -2229,7 +2229,7 @@ void psxBios_rename(void) { // 44
 		if ((*ptr & 0xF0) != 0x50) continue; \
 		if (strcmp(Ra0+5, ptr+0xa)) continue; \
 		*ptr = (*ptr & 0xf) | 0xA0; \
-		SaveMcd((mcd==1?Config.Mcd1:Config.Mcd2), Mcd##mcd##Data, 128 * i, 1); \
+		SaveMcd((mcd==1 ? MCD1 : MCD2), Mcd##mcd##Data, 128 * i, 1); \
 		/*printf("delete %s\n", ptr+0xa);*/ \
 		v0 = 1; \
 		break; \
@@ -2313,10 +2313,10 @@ void psxBios__card_write(void) { // 0x4e
 	if (pa2) {
 		if (port == 0) {
 			memcpy(Mcd1Data + a1 * 128, pa2, 128);
-			SaveMcd(Config.Mcd1, Mcd1Data, a1 * 128, 128);
+			SaveMcd(MCD1, Mcd1Data, a1 * 128, 128);
 		} else {
 			memcpy(Mcd2Data + a1 * 128, pa2, 128);
-			SaveMcd(Config.Mcd2, Mcd2Data, a1 * 128, 128);
+			SaveMcd(MCD2, Mcd2Data, a1 * 128, 128);
 		}
 	}
 
