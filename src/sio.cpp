@@ -48,42 +48,52 @@
 #define RTS			0x0020
 #define SIO_RESET	0x0040
 
-// *** FOR WORKS ON PADS AND MEMORY CARDS *****
+struct SioStruct {
+	unsigned char buf[256];
+	unsigned char cardh1[4];
+	unsigned char cardh2[4];
 
-static unsigned char buf[256];
-//senquack - updated to match PCSXR code:
-static unsigned char cardh1[4] = { 0xff, 0x08, 0x5a, 0x5d };
-static unsigned char cardh2[4] = { 0xff, 0x08, 0x5a, 0x5d };
+	unsigned short StatReg;
+	unsigned short ModeReg;
+	unsigned short CtrlReg;
+	unsigned short BaudReg;
 
-//static unsigned short StatReg = 0x002b;
-// Transfer Ready and the Buffer is Empty
-static unsigned short StatReg = TX_RDY | TX_EMPTY;
-static unsigned short ModeReg;
-static unsigned short CtrlReg;
-static unsigned short BaudReg;
+	unsigned int bufcount;
+	unsigned int parp;
+	unsigned int mcdst,rdwr;
+	unsigned char adrH,adrL;
+	unsigned int padst;
 
-static unsigned int bufcount;
-static unsigned int parp;
-static unsigned int mcdst,rdwr;
-static unsigned char adrH,adrL;
-static unsigned int padst;
+	u32 sio_cycle; /* for SIO_INT() */
+};
+
+static SioStruct psxSio;
 
 char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
 char McdDisable[2]; //senquack - added from PCSXR
 
-static u32 sio_cycle; /* for SIO_INT() */
-
 void sioInit(void) {
+	//senquack - added initialization of sio data:
+	memset(&psxSio, 0, sizeof(psxSio));
+
 	if (autobias) {
-		sio_cycle=136*8;
+		psxSio.sio_cycle = 136*8;
 	} else {
 		//senquack-Rearmed uses 535 in all cases, so we'll use that instead:
 		//sio_cycle=200*BIAS; /* for SIO_INT() */
 
 		// clk cycle byte
 		// 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
-		sio_cycle=535;
+		psxSio.sio_cycle = 535;
 	}
+
+	//senquack - updated to match PCSXR code:
+	psxSio.cardh1[0] = psxSio.cardh2[0] = 0xff;
+	psxSio.cardh1[1] = psxSio.cardh2[1] = 0x08;
+	psxSio.cardh1[2] = psxSio.cardh2[2] = 0x5a;
+	psxSio.cardh1[3] = psxSio.cardh2[3] = 0x5d;
+	// Transfer Ready and the Buffer is Empty
+	psxSio.StatReg = TX_RDY | TX_EMPTY;
 }
 
 //senquack - Updated to use PSXINT_* enum and intCycle struct (much cleaner than before)
@@ -96,7 +106,7 @@ static inline void SIO_INT(void) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_SIO_Int++;
 #endif
-	psxEventQueue.enqueue(PSXINT_SIO, sio_cycle);
+	psxEventQueue.enqueue(PSXINT_SIO, psxSio.sio_cycle);
 }
 
 void sioWrite8(unsigned char value) {
@@ -108,129 +118,129 @@ void sioWrite8(unsigned char value) {
 #endif
 	//senquack - all calls to SIO_INT() here now pass param SIO_CYCLES
 	//           whereas before they passed nothing:
-	switch (padst) {
+	switch (psxSio.padst) {
 		case 1: SIO_INT();
-			if ((value&0x40) == 0x40) {
-				padst = 2; parp = 1;
+			if ((value & 0x40) == 0x40) {
+				psxSio.padst = 2; psxSio.parp = 1;
 
-					switch (CtrlReg&0x2002) {
-						case 0x0002:
-							buf[parp] = PAD1_poll();
-							break;
-						case 0x2002:
-							buf[parp] = PAD2_poll();
-							break;
-					}
-
-				if (!(buf[parp] & 0x0f)) {
-					bufcount = 2 + 32;
-				} else {
-					bufcount = 2 + (buf[parp] & 0x0f) * 2;
+				switch (psxSio.CtrlReg & 0x2002) {
+					case 0x0002:
+						psxSio.buf[psxSio.parp] = PAD1_poll();
+						break;
+					case 0x2002:
+						psxSio.buf[psxSio.parp] = PAD2_poll();
+						break;
 				}
-				if (buf[parp] == 0x41) {
+
+				if (!(psxSio.buf[psxSio.parp] & 0x0f)) {
+					psxSio.bufcount = 2 + 32;
+				} else {
+					psxSio.bufcount = 2 + (psxSio.buf[psxSio.parp] & 0x0f) * 2;
+				}
+				if (psxSio.buf[psxSio.parp] == 0x41) {
 					switch (value) {
 						case 0x43:
-							buf[1] = 0x43;
+							psxSio.buf[1] = 0x43;
 							break;
 						case 0x45:
-							buf[1] = 0xf3;
+							psxSio.buf[1] = 0xf3;
 							break;
 					}
 				}
 			}
-			else padst = 0;
+			else psxSio.padst = 0;
 			return;
 		case 2:
-			parp++;
+			psxSio.parp++;
 
-				switch (CtrlReg&0x2002) {
-					case 0x0002: buf[parp] = PAD1_poll(); break;
-					case 0x2002: buf[parp] = PAD2_poll(); break;
-				}
+			switch (psxSio.CtrlReg & 0x2002) {
+				case 0x0002: psxSio.buf[psxSio.parp] = PAD1_poll(); break;
+				case 0x2002: psxSio.buf[psxSio.parp] = PAD2_poll(); break;
+			}
 
-			if (parp == bufcount) { padst = 0; return; }
+			if (psxSio.parp == psxSio.bufcount) { psxSio.padst = 0; return; }
 			SIO_INT();
 			return;
 	}
 
-	switch (mcdst) {
+	switch (psxSio.mcdst) {
 		case 1:
 			SIO_INT();
-			if (rdwr) { parp++; return; }
-			parp = 1;
+			if (psxSio.rdwr) { psxSio.parp++; return; }
+			psxSio.parp = 1;
 			switch (value) {
-				case 0x52: rdwr = 1; break;
-				case 0x57: rdwr = 2; break;
-				default: mcdst = 0;
+				case 0x52: psxSio.rdwr = 1; break;
+				case 0x57: psxSio.rdwr = 2; break;
+				default: psxSio.mcdst = 0;
 			}
 			return;
 		case 2: // address H
 			SIO_INT();
-			adrH = value;
-			*buf = 0;
-			parp = 0;
-			bufcount = 1;
-			mcdst = 3;
+			psxSio.adrH = value;
+			*psxSio.buf = 0;
+			psxSio.parp = 0;
+			psxSio.bufcount = 1;
+			psxSio.mcdst = 3;
 			return;
 		case 3: // address L
 			SIO_INT();
-			adrL = value;
-			*buf = adrH;
-			parp = 0;
-			bufcount = 1;
-			mcdst = 4;
+			psxSio.adrL = value;
+			*psxSio.buf = psxSio.adrH;
+			psxSio.parp = 0;
+			psxSio.bufcount = 1;
+			psxSio.mcdst = 4;
 			return;
 		case 4:
 			SIO_INT();
-			parp = 0;
-			switch (rdwr) {
+			psxSio.parp = 0;
+			switch (psxSio.rdwr) {
 				case 1: // read
-					buf[0] = 0x5c;
-					buf[1] = 0x5d;
-					buf[2] = adrH;
-					buf[3] = adrL;
-					switch (CtrlReg&0x2002) {
+					psxSio.buf[0] = 0x5c;
+					psxSio.buf[1] = 0x5d;
+					psxSio.buf[2] = psxSio.adrH;
+					psxSio.buf[3] = psxSio.adrL;
+					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(&buf[4], Mcd1Data + (adrL | (adrH << 8)) * 128, 128);
+							memcpy(&psxSio.buf[4], Mcd1Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(&buf[4], Mcd2Data + (adrL | (adrH << 8)) * 128, 128);
+							memcpy(&psxSio.buf[4], Mcd2Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
 					{
-					char cxor = 0;
-					int i;
-					for (i=2;i<128+4;i++)
-						cxor^=buf[i];
-					buf[132] = cxor;
+						char cxor = 0;
+						int i;
+						for (i=2;i<128+4;i++)
+							cxor ^= psxSio.buf[i];
+						psxSio.buf[132] = cxor;
 					}
-					buf[133] = 0x47;
-					bufcount = 133;
+					psxSio.buf[133] = 0x47;
+					psxSio.bufcount = 133;
 					break;
 				case 2: // write
-					buf[0] = adrL;
-					buf[1] = value;
-					buf[129] = 0x5c;
-					buf[130] = 0x5d;
-					buf[131] = 0x47;
-					bufcount = 131;
+					psxSio.buf[0] = psxSio.adrL;
+					psxSio.buf[1] = value;
+					psxSio.buf[129] = 0x5c;
+					psxSio.buf[130] = 0x5d;
+					psxSio.buf[131] = 0x47;
+					psxSio.bufcount = 131;
 					break;
 			}
-			mcdst = 5;
+			psxSio.mcdst = 5;
 			return;
 		case 5:	
-			parp++;
+			psxSio.parp++;
 			//senquack - updated to match PCSXR code:
-			if ((rdwr == 1 && parp == 132) ||
-			    (rdwr == 2 && parp == 129)) {
+			if ((psxSio.rdwr == 1 && psxSio.parp == 132) ||
+			    (psxSio.rdwr == 2 && psxSio.parp == 129)) {
 				// clear "new card" flags
-				if (CtrlReg & 0x2000)
-					cardh2[1] &= ~8;
+				if (psxSio.CtrlReg & 0x2000)
+					psxSio.cardh2[1] &= ~8;
 				else
-					cardh1[1] &= ~8;
+					psxSio.cardh1[1] &= ~8;
 			}
-			if (rdwr == 2) {
-				if (parp < 128) buf[parp + 1] = value;
+			if (psxSio.rdwr == 2) {
+				if (psxSio.parp < 128) psxSio.buf[psxSio.parp + 1] = value;
 			}
 			SIO_INT();
 			return;
@@ -238,44 +248,41 @@ void sioWrite8(unsigned char value) {
 
 	switch (value) {
 		case 0x01: // start pad
-			StatReg |= RX_RDY;		// Transfer is Ready
+			psxSio.StatReg |= RX_RDY;		// Transfer is Ready
 
-				switch (CtrlReg&0x2002) {
-					case 0x0002: buf[0] = PAD1_startPoll(); break;
-					case 0x2002: buf[0] = PAD2_startPoll(); break;
-				}
+			switch (psxSio.CtrlReg & 0x2002) {
+				case 0x0002: psxSio.buf[0] = PAD1_startPoll(); break;
+				case 0x2002: psxSio.buf[0] = PAD2_startPoll(); break;
+			}
 
-			bufcount = 2;
-			parp = 0;
-			padst = 1;
+			psxSio.bufcount = 2;
+			psxSio.parp = 0;
+			psxSio.padst = 1;
 			SIO_INT();
 			return;
 		case 0x81: // start memcard
-			if (CtrlReg & 0x2000)
-			{
+			if (psxSio.CtrlReg & 0x2000) {
 				if (McdDisable[1])
 					goto no_device;
-				memcpy(buf, cardh2, 4);
-			}
-			else
-			{
+				memcpy(psxSio.buf, psxSio.cardh2, 4);
+			} else {
 				if (McdDisable[0])
 					goto no_device;
-				memcpy(buf, cardh1, 4);
+				memcpy(psxSio.buf, psxSio.cardh1, 4);
 			}
-			StatReg |= RX_RDY;
-			parp = 0;
-			bufcount = 3;
-			mcdst = 1;
-			rdwr = 0;
+			psxSio.StatReg |= RX_RDY;
+			psxSio.parp = 0;
+			psxSio.bufcount = 3;
+			psxSio.mcdst = 1;
+			psxSio.rdwr = 0;
 			SIO_INT();
 			return;
 		default:
 		no_device:
-			StatReg |= RX_RDY;
-			buf[0] = 0xff;
-			parp = 0;
-			bufcount = 0;
+			psxSio.StatReg |= RX_RDY;
+			psxSio.buf[0] = 0xff;
+			psxSio.parp = 0;
+			psxSio.bufcount = 0;
 			return;
 	}
 }
@@ -290,21 +297,21 @@ void sioWriteMode16(unsigned short value) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioWriteMode16++;
 #endif
-	ModeReg = value;
+	psxSio.ModeReg = value;
 }
 
 void sioWriteCtrl16(unsigned short value) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioWriteCtrl16++;
 #endif
-	CtrlReg = value & ~RESET_ERR;
-	if (value & RESET_ERR) StatReg &= ~IRQ;
+	psxSio.CtrlReg = value & ~RESET_ERR;
+	if (value & RESET_ERR) psxSio.StatReg &= ~IRQ;
 	//senquack - Updated to match PCSX Rearmed
 	// 'no DTR resets device, tested on the real thing'
-	//if ((CtrlReg & SIO_RESET) || (!CtrlReg)) {
-	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
-		padst = 0; mcdst = 0; parp = 0;
-		StatReg = TX_RDY | TX_EMPTY;
+	//if ((psxSio.CtrlReg & SIO_RESET) || (!psxSio.CtrlReg)) {
+	if ((psxSio.CtrlReg & SIO_RESET) || !(psxSio.CtrlReg & DTR)) {
+		psxSio.padst = 0; psxSio.mcdst = 0; psxSio.parp = 0;
+		psxSio.StatReg = TX_RDY | TX_EMPTY;
 		psxEventQueue.dequeue(PSXINT_SIO);
 	}
 }
@@ -314,8 +321,8 @@ void sioWriteBaud16(unsigned short value) {
 	dbg_anacnt_sioWriteBaud16++;
 #endif
 	if (autobias)
-		sio_cycle=value*8;
-	BaudReg = value;
+		psxSio.sio_cycle = value*8;
+	psxSio.BaudReg = value;
 }
 
 unsigned char sioRead8() {
@@ -324,30 +331,30 @@ unsigned char sioRead8() {
 #endif
 	unsigned char ret = 0;
 
-	if ((StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
+	if ((psxSio.StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
 //		StatReg &= ~RX_OVERRUN;
-		ret = buf[parp];
-		if (parp == bufcount) {
-			StatReg &= ~RX_RDY;		// Receive is not Ready now
-			if (mcdst == 5) {
-				mcdst = 0;
-				if (rdwr == 2) {
-					switch (CtrlReg & 0x2002) {
+		ret = psxSio.buf[psxSio.parp];
+		if (psxSio.parp == psxSio.bufcount) {
+			psxSio.StatReg &= ~RX_RDY;		// Receive is not Ready now
+			if (psxSio.mcdst == 5) {
+				psxSio.mcdst = 0;
+				if (psxSio.rdwr == 2) {
+					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(Mcd1Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(MCD1, Mcd1Data, (adrL | (adrH << 8)) * 128, 128);
+							memcpy(Mcd1Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, &psxSio.buf[1], 128);
+							SaveMcd(MCD1, Mcd1Data, (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(Mcd2Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(MCD2, Mcd2Data, (adrL | (adrH << 8)) * 128, 128);
+							memcpy(Mcd2Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, &psxSio.buf[1], 128);
+							SaveMcd(MCD2, Mcd2Data, (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
 				}
 			}
-			if (padst == 2) padst = 0;
-			if (mcdst == 1) {
-				mcdst = 2;
-				StatReg|= RX_RDY;
+			if (psxSio.padst == 2) psxSio.padst = 0;
+			if (psxSio.mcdst == 1) {
+				psxSio.mcdst = 2;
+				psxSio.StatReg |= RX_RDY;
 			}
 		}
 	}
@@ -361,28 +368,28 @@ unsigned short sioReadStat16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadStat16++;
 #endif
-	return StatReg;
+	return psxSio.StatReg;
 }
 
 unsigned short sioReadMode16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadMode16++;
 #endif
-	return ModeReg;
+	return psxSio.ModeReg;
 }
 
 unsigned short sioReadCtrl16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadCtrl16++;
 #endif
-	return CtrlReg;
+	return psxSio.CtrlReg;
 }
 
 unsigned short sioReadBaud16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadBaud16++;
 #endif
-	return BaudReg;
+	return psxSio.BaudReg;
 }
 
 void sioInterrupt() {
@@ -394,8 +401,8 @@ void sioInterrupt() {
 #endif
 	//printf("Sio Interrupt\n");
 	//  pcsx_rearmed: only do IRQ if it's bit has been cleared
-	if (!(StatReg & IRQ)) {
-		StatReg |= IRQ;
+	if (!(psxSio.StatReg & IRQ)) {
+		psxSio.StatReg |= IRQ;
 		psxHu32ref(0x1070) |= SWAPu32(0x80);
 		// Ensure psxBranchTest() is called soon when IRQ is pending:
 		ResetIoCycle();
@@ -497,10 +504,10 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 
 	if (mcd_num == MCD1) {
 		data = Mcd1Data;
-		cardh1[1] |= 8; // mark as new
+		psxSio.cardh1[1] |= 8; // mark as new
 	} else {
 		data = Mcd2Data;
-		cardh2[1] |= 8;
+		psxSio.cardh2[1] |= 8;
 	}
 
 	mc.filename = filename;
@@ -922,18 +929,18 @@ void GetMcdBlockInfo(enum MemcardNum mcd_num, int block, McdBlock *Info) {
 
 int sioFreeze(void* f, FreezeMode mode)
 {
-	if (    freeze_rw(f, mode, buf, sizeof(buf))
-	     || freeze_rw(f, mode, &StatReg, sizeof(StatReg))
-	     || freeze_rw(f, mode, &ModeReg, sizeof(ModeReg))
-	     || freeze_rw(f, mode, &CtrlReg, sizeof(CtrlReg))
-	     || freeze_rw(f, mode, &BaudReg, sizeof(BaudReg))
-	     || freeze_rw(f, mode, &bufcount, sizeof(bufcount))
-	     || freeze_rw(f, mode, &parp, sizeof(parp))
-	     || freeze_rw(f, mode, &mcdst, sizeof(mcdst))
-	     || freeze_rw(f, mode, &rdwr, sizeof(rdwr))
-	     || freeze_rw(f, mode, &adrH, sizeof(adrH))
-	     || freeze_rw(f, mode, &adrL, sizeof(adrL))
-	     || freeze_rw(f, mode, &padst, sizeof(padst)) )
+	if (    freeze_rw(f, mode, psxSio.buf, sizeof(psxSio.buf))
+	     || freeze_rw(f, mode, &psxSio.StatReg, sizeof(psxSio.StatReg))
+	     || freeze_rw(f, mode, &psxSio.ModeReg, sizeof(psxSio.ModeReg))
+	     || freeze_rw(f, mode, &psxSio.CtrlReg, sizeof(psxSio.CtrlReg))
+	     || freeze_rw(f, mode, &psxSio.BaudReg, sizeof(psxSio.BaudReg))
+	     || freeze_rw(f, mode, &psxSio.bufcount, sizeof(psxSio.bufcount))
+	     || freeze_rw(f, mode, &psxSio.parp, sizeof(psxSio.parp))
+	     || freeze_rw(f, mode, &psxSio.mcdst, sizeof(psxSio.mcdst))
+	     || freeze_rw(f, mode, &psxSio.rdwr, sizeof(psxSio.rdwr))
+	     || freeze_rw(f, mode, &psxSio.adrH, sizeof(psxSio.adrH))
+	     || freeze_rw(f, mode, &psxSio.adrL, sizeof(psxSio.adrL))
+	     || freeze_rw(f, mode, &psxSio.padst, sizeof(psxSio.padst)) )
 		return -1;
 	else
 		return 0;
