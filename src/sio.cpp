@@ -48,48 +48,6 @@
 #define RTS			0x0020
 #define SIO_RESET	0x0040
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-// MINGW doesn't have strcasestr(), so implement it here
-// Taken from https://github.com/darkrose/csvdb/blob/master/src/lib/result.c
-// missing alloca() replaced with malloc()+free()
-
-char *strcasestr(const char *haystack, const char *needle)
-{
-	char *h = (char *)malloc(strlen(haystack) + 1);
-	char *n = (char *)malloc(strlen(needle) + 1);
-	char *t;
-	int i;
-
-	for (i = 0; haystack[i]; i++) {
-		if (isupper(haystack[i])) {
-			h[i] = tolower(haystack[i]);
-			continue;
-		}
-		h[i] = haystack[i];
-	}
-	h[i] = 0;
-	for (i = 0; needle[i]; i++) {
-		if (isupper(needle[i])) {
-			n[i] = tolower(needle[i]);
-			continue;
-		}
-		n[i] = needle[i];
-	}
-	n[i] = 0;
-
-	t = strstr(h,n);
-	if (!t) {
-		free(h);
-		free(n);
-		return NULL;
-	}
-
-	free(h);
-	free(n);
-	return (char *)(haystack + (t - h));
-}
-#endif
-
 // *** FOR WORKS ON PADS AND MEMORY CARDS *****
 
 static unsigned char buf[256];
@@ -454,7 +412,6 @@ struct Memcard {
 	Memcard() :
 		file(NULL),
 		filename(NULL),
-		data_offset(0),
 		cur_offset(0)
 	{}
 
@@ -470,7 +427,6 @@ struct Memcard {
 
 	FILE* file;         // File ptr when memcard is being written to
 	char* filename;
-	long  data_offset;  // Offset to memcard data (normally 0 for raw files)
 	long  cur_offset;   // Current file offset (when file is open for writing)
 };
 
@@ -532,7 +488,6 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 	FlushMcd(mcd_num, false);
 	mc.filename = NULL;
 	mc.file = NULL;
-	mc.data_offset = 0;
 	mc.cur_offset = 0;
 
 	if (filename == NULL) {
@@ -567,18 +522,16 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 			// Assume Connectix Virtual Gamestation .vgs/.mem format
 			printf("Detected Connectix VGS memcard format.\n");
 			convert_data = true;
-			mc.data_offset = 64;
-			if (fseek(f, mc.data_offset, SEEK_SET) == -1) {
-				printf("Error seeking to position %ld (VGS data offset).\n", mc.data_offset);
+			if (fseek(f, 64, SEEK_SET) == -1) {
+				printf("Error seeking to position 64 (VGS data offset).\n");
 				goto error;
 			}
 		} else if (stat_buf.st_size == MCD_SIZE + 3904) {
 			// Assume DexDrive .gme format
 			printf("Detected DexDrive memcard format.\n");
 			convert_data = true;
-			mc.data_offset = 3904;
-			if (fseek(f, mc.data_offset, SEEK_SET) == -1) {
-				printf("Error seeking to position %ld (DexDrive data offset).\n", mc.data_offset);
+			if (fseek(f, 3904, SEEK_SET) == -1) {
+				printf("Error seeking to position 3904 (DexDrive data offset).\n");
 				goto error;
 			}
 		} else if (stat_buf.st_size != MCD_SIZE) {
@@ -595,15 +548,8 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 
 	fclose(f);
 
-	// If memcard filename does not contain .gme, .mem, or .vgs, go ahead
-	//  and convert it to native raw memcard format.
-	if (convert_data &&
-		!(strcasestr(mc.filename, ".gme") ||
-		  strcasestr(mc.filename, ".mem") ||
-		  strcasestr(mc.filename, ".vgs")) )
-	{
-		mc.data_offset = 0;
-
+	// Convert file to native raw memcard format, if not already
+	if (convert_data) {
 		// Truncate file to 0 bytes, then write just the memcard data back
 		if ( (f = fopen(mc.filename, "wb")) == NULL ||
 		     fwrite(data, 1, MCD_SIZE, f) != MCD_SIZE ) {
@@ -613,7 +559,6 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 			mc.filename = NULL;
 			return -1;
 		}
-
 		printf("Converted memcard file to native raw format.\n");
 		fclose(f);
 	}
@@ -646,10 +591,10 @@ int SaveMcd(enum MemcardNum mcd_num, char *data, uint32_t adr, int size)
 			goto error;
 	}
 
-	if (mc.cur_offset != (mc.data_offset + adr)) {
-		if (fseek(mc.file, (mc.data_offset + adr), SEEK_SET))
+	if (mc.cur_offset != adr) {
+		if (fseek(mc.file, adr, SEEK_SET))
 			goto error;
-		mc.cur_offset = mc.data_offset + adr;
+		mc.cur_offset = adr;
 	}
 
 	if (fwrite(data + adr, 1, size, mc.file) != size)
