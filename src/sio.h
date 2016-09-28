@@ -56,12 +56,15 @@ enum MemcardNum {
 	MCD2 = 1
 };
 
-extern char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
-
 void sioSyncMcds(void);
-int FlushMcd(enum MemcardNum mcd_num, boolean sync_file);
+void sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size);
+void sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size);
+char* sioMcdDataPtr(enum MemcardNum mcd_num);
+bool sioMcdEnabled(enum MemcardNum mcd_num);
+
+int FlushMcd(enum MemcardNum mcd_num, bool sync_file);
 int LoadMcd(enum MemcardNum mcd_num, char* filename);
-int SaveMcd(enum MemcardNum mcd_num, char *data, uint32_t adr, int size);
+int SaveMcd(enum MemcardNum mcd_num, uint32_t adr, int size);
 int CreateMcd(char *filename);
 
 typedef struct {

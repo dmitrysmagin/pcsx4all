@@ -69,8 +69,30 @@ struct SioStruct {
 
 static SioStruct psxSio;
 
-char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
-char McdDisable[2]; //senquack - added from PCSXR
+struct Memcard {
+	Memcard() :
+		filename(NULL),
+		file(NULL),
+		cur_offset(0)
+	{}
+
+	~Memcard()
+	{
+		if (file) {
+			const char *tmpstr = filename ? filename : "";
+			printf("Warning: memcard file not closed, closing via dtor: %s\n", tmpstr);
+			fclose(file);
+			file = NULL;
+		}
+	}
+
+	char* filename;       // Filename ptr, or NULL if card is disabled
+	FILE* file;           // File ptr is non-NULL when card is being written to
+	long  cur_offset;     // Current file offset (when file is open for writing)
+	char  data[MCD_SIZE];
+};
+
+static Memcard memcards[2];
 
 void sioInit(void) {
 	//senquack - added initialization of sio data:
@@ -201,12 +223,13 @@ void sioWrite8(unsigned char value) {
 					psxSio.buf[3] = psxSio.adrL;
 					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(&psxSio.buf[4], Mcd1Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
+							sioMcdRead(MCD1, (char*)&psxSio.buf[4], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(&psxSio.buf[4], Mcd2Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
+							sioMcdRead(MCD2, (char*)&psxSio.buf[4], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
+
 					{
 						char cxor = 0;
 						int i;
@@ -262,11 +285,11 @@ void sioWrite8(unsigned char value) {
 			return;
 		case 0x81: // start memcard
 			if (psxSio.CtrlReg & 0x2000) {
-				if (McdDisable[1])
+				if (!sioMcdEnabled(MCD2))
 					goto no_device;
 				memcpy(psxSio.buf, psxSio.cardh2, 4);
 			} else {
-				if (McdDisable[0])
+				if (!sioMcdEnabled(MCD1))
 					goto no_device;
 				memcpy(psxSio.buf, psxSio.cardh1, 4);
 			}
@@ -332,7 +355,7 @@ unsigned char sioRead8() {
 	unsigned char ret = 0;
 
 	if ((psxSio.StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
-//		StatReg &= ~RX_OVERRUN;
+		//psxSio.StatReg &= ~RX_OVERRUN;
 		ret = psxSio.buf[psxSio.parp];
 		if (psxSio.parp == psxSio.bufcount) {
 			psxSio.StatReg &= ~RX_RDY;		// Receive is not Ready now
@@ -341,12 +364,10 @@ unsigned char sioRead8() {
 				if (psxSio.rdwr == 2) {
 					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(Mcd1Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, &psxSio.buf[1], 128);
-							SaveMcd(MCD1, Mcd1Data, (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
+							sioMcdWrite(MCD1, (char*)&psxSio.buf[1], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(Mcd2Data + (psxSio.adrL | (psxSio.adrH << 8)) * 128, &psxSio.buf[1], 128);
-							SaveMcd(MCD2, Mcd2Data, (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
+							sioMcdWrite(MCD2, (char*)&psxSio.buf[1], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
 				}
@@ -415,37 +436,13 @@ void sioInterrupt() {
 
 //#define DEBUG_MEMCARDS
 
-struct Memcard {
-	Memcard() :
-		file(NULL),
-		filename(NULL),
-		cur_offset(0)
-	{}
-
-	~Memcard()
-	{
-		if (file) {
-			const char *tmpstr = filename ? filename : "";
-			printf("Warning: memcard file not closed, closing via destructor: %s\n", tmpstr);
-			fclose(file);
-			file = NULL;
-		}
-	}
-
-	FILE* file;         // File ptr when memcard is being written to
-	char* filename;
-	long  cur_offset;   // Current file offset (when file is open for writing)
-};
-
-Memcard memcards[2];
-
-//Number of cycles after last memcard write to wait until
-// PSXINT_SIO_SYNC_MCD event closes the memcard file.
+// Number of cycles after last memcard write to wait until
+//  PSXINT_SIO_SYNC_MCD event closes the memcard file.
 #define MEMCARD_SYNC_DELAY (PSXCLK / 4)
 
 // FlushMcd() ensures a memcard file temporarily opened for writing gets
 //  closed. If 'sync_file' is true, it will call fsync() before closing it.
-int FlushMcd(enum MemcardNum mcd_num, boolean sync_file)
+int FlushMcd(enum MemcardNum mcd_num, bool sync_file)
 {
 	Memcard &mc = memcards[mcd_num];
 
@@ -483,6 +480,86 @@ void sioSyncMcds()
 #endif
 }
 
+// If 'src' pointer is non-NULL, memcard data array will be updated
+//  with data at offset 'adr' starting from source 'src' of size 'size',
+//  then, memcard file will be written with this new data. If the data
+//  at 'src' pointer is identical to existing array data, it is a no-op.
+//  This prevents unnecessary sector writes, particularly write-tests
+//  to offset 0x1f80 (block 0, sector 63) at BIOS/game startup.
+// If 'src' pointer is NULL, just the file write will occur.
+void sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size)
+{
+	if (adr >= MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr);
+		return;
+	}
+
+	if ((adr + size) > MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr, size);
+		size = MCD_SIZE - adr;
+		printf("Adjusted size to within 128KB range: %x\n", size);
+	}
+
+	bool write_file = true;
+	if (src) {
+		char* dst = memcards[mcd_num].data + adr;
+		if (memcmp(dst, src, size) != 0) {
+			memcpy(dst, src, size);
+		} else {
+			// Source data is identical to existing memcard data, don't write
+			write_file = false;
+#ifdef DEBUG_MEMCARDS
+			printf("Prevented redundant write of %u bytes to memcard %d at addr %x\n",
+					size, mcd_num+1, adr);
+#endif
+		}
+	}
+
+	if (write_file) {
+		SaveMcd(mcd_num, adr, size);
+#ifdef DEBUG_MEMCARDS
+		printf("Wrote %u bytes to memcard %d\n", size, mcd_num + 1);
+#endif
+	}
+
+	// If memcard file was already open for writing, or was just opened by
+	//  call to SaveMcd(), (re)schedule a memcard file flush/sync/close
+	if (memcards[mcd_num].file != NULL)
+		psxEventQueue.enqueue(PSXINT_SIO_SYNC_MCD, MEMCARD_SYNC_DELAY);
+}
+
+void sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size)
+{
+	if (adr >= MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr);
+		return;
+	}
+
+	if ((adr + size) > MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr, size);
+		size = MCD_SIZE - adr;
+		printf("Adjusted size to within 128KB range: %x\n", size);
+	}
+
+	const char* src = memcards[mcd_num].data + adr;
+	memcpy(dst, src, size);
+}
+
+inline char* sioMcdDataPtr(enum MemcardNum mcd_num)
+{
+	return memcards[mcd_num].data;
+}
+
+inline bool sioMcdEnabled(enum MemcardNum mcd_num)
+{
+	return memcards[mcd_num].filename != NULL;
+}
+
+// If filename ptr is NULL, memcard will be disabled
 int LoadMcd(enum MemcardNum mcd_num, char* filename)
 {
 	FILE *f;
@@ -492,21 +569,21 @@ int LoadMcd(enum MemcardNum mcd_num, char* filename)
 	bool convert_data = false;
 	Memcard &mc = memcards[mcd_num];
 
-	FlushMcd(mcd_num, false);
+	FlushMcd(mcd_num, true);
 	mc.filename = NULL;
 	mc.file = NULL;
 	mc.cur_offset = 0;
+	memset(mc.data, 0, MCD_SIZE);
 
 	if (filename == NULL) {
-		printf("Error in %s(): NULL filename param\n", __func__);
-		return -1;
+		printf("%s(): NULL filename param, memcard %d disabled.\n", __func__, mcd_num+1);
+		return 0;
 	}
 
+	data = memcards[mcd_num].data;
 	if (mcd_num == MCD1) {
-		data = Mcd1Data;
 		psxSio.cardh1[1] |= 8; // mark as new
 	} else {
-		data = Mcd2Data;
 		psxSio.cardh2[1] |= 8;
 	}
 
@@ -585,7 +662,7 @@ error:
 	return -1;
 }
 
-int SaveMcd(enum MemcardNum mcd_num, char *data, uint32_t adr, int size)
+int SaveMcd(enum MemcardNum mcd_num, uint32_t adr, int size)
 {
 	Memcard &mc = memcards[mcd_num];
 
@@ -604,14 +681,13 @@ int SaveMcd(enum MemcardNum mcd_num, char *data, uint32_t adr, int size)
 		mc.cur_offset = adr;
 	}
 
-	if (fwrite(data + adr, 1, size, mc.file) != size)
+	if (fwrite(mc.data + adr, 1, size, mc.file) != size)
 		goto error;
 
 	mc.cur_offset += size;
 
-	// (Re)schedule a memcard file flush/sync/close, leaving
-	//  file open for writing for now.
-	psxEventQueue.enqueue(PSXINT_SIO_SYNC_MCD, MEMCARD_SYNC_DELAY);
+	// Leave file open for writing, it will be close automatically
+	//  by PSXINT_SIO_SYNC_MCD event
 	return 0;
 
 error:
@@ -846,19 +922,14 @@ void GetMcdBlockInfo(enum MemcardNum mcd_num, int block, McdBlock *Info) {
 
 	memset(Info, 0, sizeof(McdBlock));
 
-	if (McdDisable[mcd_num])
+	if (!sioMcdEnabled(mcd_num))
 		return;
 
-	data = (mcd_num == MCD1) ? Mcd1Data : Mcd2Data;
-
+	data = memcards[mcd_num].data;
 	ptr = data + block * 8192 + 2;
-
 	Info->IconCount = *ptr & 0x3;
-
 	ptr+= 2;
-
 	x = 0;
-
 	str = Info->Title;
 	sstr = Info->sTitle;
 
