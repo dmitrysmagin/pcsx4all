@@ -23,7 +23,7 @@
 */
 
 //senquack NOTE: CDROM functions have been updated to PCSX Reloaded code
-// TODO: update remaining functions like BIOS/savestates?
+// TODO: update remaining functions like BIOS
 
 #include "misc.h"
 #include "cdrom.h"
@@ -34,6 +34,7 @@
 #include "port.h"
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <zlib.h>
 #if !defined(O_BINARY)
 #define O_BINARY 0
@@ -932,4 +933,17 @@ int CheckState(const char *file) {
 		return -1;
 
 	return 0;
+}
+
+////////////////////////////
+// Misc utility functions //
+////////////////////////////
+
+bool FileExists(const char* filename)
+{
+	if (!filename || *filename == '\0')
+		return false;
+	struct stat st;
+	int result = stat(filename, &st);
+	return result == 0;
 }
