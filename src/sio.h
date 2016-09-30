@@ -56,16 +56,25 @@ enum MemcardNum {
 	MCD2 = 1
 };
 
+/* High-level memcard operations
+ * (Emulator code should use these when possible/appropriate)
+ */
 void sioSyncMcds(void);
-void sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size);
-void sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size);
+int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size);
+int sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size);
 char* sioMcdDataPtr(enum MemcardNum mcd_num);
-bool sioMcdEnabled(enum MemcardNum mcd_num);
+bool sioMcdInserted(enum MemcardNum mcd_num);
+int sioMcdFormat(enum MemcardNum mcd_num);
 
+/* Low-level memcard operations, used by above functions
+ *  and any memcard management code.
+ */
 int FlushMcd(enum MemcardNum mcd_num, bool sync_file);
+int EjectMcd(enum MemcardNum mcd_num);
+void InitMcdData(char *mcd_data);
+int CreateMcd(char *filename, bool overwrite_file);
 int LoadMcd(enum MemcardNum mcd_num, char* filename);
 int SaveMcd(enum MemcardNum mcd_num, uint32_t adr, int size);
-int CreateMcd(char *filename);
 
 typedef struct {
 	char Title[48 + 1]; // Title in ASCII
