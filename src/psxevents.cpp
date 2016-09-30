@@ -220,7 +220,8 @@ EventQueue::EventFunc * const EventQueue::eventFuncs[PSXINT_COUNT] = {
 	[PSXINT_CDRPLAY]         = cdrPlayInterrupt,
 	[PSXINT_SPUIRQ]          = HandleSPU_IRQ,
 	[PSXINT_SPU_UPDATE]      = UpdateSPU,
-	[PSXINT_RESET_CYCLE_VAL] = psxResetCycleValue
+	[PSXINT_RESET_CYCLE_VAL] = psxResetCycleValue,
+	[PSXINT_SIO_SYNC_MCD]    = sioSyncMcds
 };
 
 EventQueue psxEventQueue;

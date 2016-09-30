@@ -19,11 +19,12 @@
  ***************************************************************************/
 
 /*
-* SIO functions.
+* SIO functions (Pads / Memcards)
 */
 
 #include "sio.h"
 #include "psxevents.h"
+#include "misc.h"
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -48,82 +49,49 @@
 #define RTS			0x0020
 #define SIO_RESET	0x0040
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-// MINGW doesn't have strcasestr(), so implement it here
-// Taken from https://github.com/darkrose/csvdb/blob/master/src/lib/result.c
-// missing alloca() replaced with malloc()+free()
+struct SioStruct {
+	unsigned char buf[256];
+	unsigned char cardh1[4];
+	unsigned char cardh2[4];
 
-char *strcasestr(const char *haystack, const char *needle)
-{
-	char *h = (char *)malloc(strlen(haystack) + 1);
-	char *n = (char *)malloc(strlen(needle) + 1);
-	char *t;
-	int i;
+	unsigned short StatReg;
+	unsigned short ModeReg;
+	unsigned short CtrlReg;
+	unsigned short BaudReg;
 
-	for (i = 0; haystack[i]; i++) {
-		if (isupper(haystack[i])) {
-			h[i] = tolower(haystack[i]);
-			continue;
-		}
-		h[i] = haystack[i];
-	}
-	h[i] = 0;
-	for (i = 0; needle[i]; i++) {
-		if (isupper(needle[i])) {
-			n[i] = tolower(needle[i]);
-			continue;
-		}
-		n[i] = needle[i];
-	}
-	n[i] = 0;
+	unsigned int bufcount;
+	unsigned int parp;
+	unsigned int mcdst,rdwr;
+	unsigned char adrH,adrL;
+	unsigned int padst;
 
-	t = strstr(h,n);
-	if (!t) {
-		free(h);
-		free(n);
-		return NULL;
-	}
+	u32 sio_cycle; /* for SIO_INT() */
+};
 
-	free(h);
-	free(n);
-	return (char *)(haystack + (t - h));
-}
-#endif
+static SioStruct psxSio;
 
-// *** FOR WORKS ON PADS AND MEMORY CARDS *****
-
-static unsigned char buf[256];
-//senquack - updated to match PCSXR code:
-static unsigned char cardh1[4] = { 0xff, 0x08, 0x5a, 0x5d };
-static unsigned char cardh2[4] = { 0xff, 0x08, 0x5a, 0x5d };
-
-//static unsigned short StatReg = 0x002b;
-// Transfer Ready and the Buffer is Empty
-static unsigned short StatReg = TX_RDY | TX_EMPTY;
-static unsigned short ModeReg;
-static unsigned short CtrlReg;
-static unsigned short BaudReg;
-
-static unsigned int bufcount;
-static unsigned int parp;
-static unsigned int mcdst,rdwr;
-static unsigned char adrH,adrL;
-static unsigned int padst;
-
-char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
-char McdDisable[2]; //senquack - added from PCSXR
-
-static u32 sio_cycle; /* for SIO_INT() */
 void sioInit(void) {
-	if (autobias)
-		sio_cycle=136*8;
-	else
+	//senquack - added initialization of sio data:
+	memset(&psxSio, 0, sizeof(psxSio));
+
+	if (autobias) {
+		psxSio.sio_cycle = 136*8;
+	} else {
 		//senquack-Rearmed uses 535 in all cases, so we'll use that instead:
 		//sio_cycle=200*BIAS; /* for SIO_INT() */
 
 		// clk cycle byte
 		// 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
-		sio_cycle=535;
+		psxSio.sio_cycle = 535;
+	}
+
+	//senquack - updated to match PCSXR code:
+	psxSio.cardh1[0] = psxSio.cardh2[0] = 0xff;
+	psxSio.cardh1[1] = psxSio.cardh2[1] = 0x08;
+	psxSio.cardh1[2] = psxSio.cardh2[2] = 0x5a;
+	psxSio.cardh1[3] = psxSio.cardh2[3] = 0x5d;
+	// Transfer Ready and the Buffer is Empty
+	psxSio.StatReg = TX_RDY | TX_EMPTY;
 }
 
 //senquack - Updated to use PSXINT_* enum and intCycle struct (much cleaner than before)
@@ -136,7 +104,7 @@ static inline void SIO_INT(void) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_SIO_Int++;
 #endif
-	psxEventQueue.enqueue(PSXINT_SIO, sio_cycle);
+	psxEventQueue.enqueue(PSXINT_SIO, psxSio.sio_cycle);
 }
 
 void sioWrite8(unsigned char value) {
@@ -148,129 +116,130 @@ void sioWrite8(unsigned char value) {
 #endif
 	//senquack - all calls to SIO_INT() here now pass param SIO_CYCLES
 	//           whereas before they passed nothing:
-	switch (padst) {
+	switch (psxSio.padst) {
 		case 1: SIO_INT();
-			if ((value&0x40) == 0x40) {
-				padst = 2; parp = 1;
+			if ((value & 0x40) == 0x40) {
+				psxSio.padst = 2; psxSio.parp = 1;
 
-					switch (CtrlReg&0x2002) {
-						case 0x0002:
-							buf[parp] = PAD1_poll();
-							break;
-						case 0x2002:
-							buf[parp] = PAD2_poll();
-							break;
-					}
-
-				if (!(buf[parp] & 0x0f)) {
-					bufcount = 2 + 32;
-				} else {
-					bufcount = 2 + (buf[parp] & 0x0f) * 2;
+				switch (psxSio.CtrlReg & 0x2002) {
+					case 0x0002:
+						psxSio.buf[psxSio.parp] = PAD1_poll();
+						break;
+					case 0x2002:
+						psxSio.buf[psxSio.parp] = PAD2_poll();
+						break;
 				}
-				if (buf[parp] == 0x41) {
+
+				if (!(psxSio.buf[psxSio.parp] & 0x0f)) {
+					psxSio.bufcount = 2 + 32;
+				} else {
+					psxSio.bufcount = 2 + (psxSio.buf[psxSio.parp] & 0x0f) * 2;
+				}
+				if (psxSio.buf[psxSio.parp] == 0x41) {
 					switch (value) {
 						case 0x43:
-							buf[1] = 0x43;
+							psxSio.buf[1] = 0x43;
 							break;
 						case 0x45:
-							buf[1] = 0xf3;
+							psxSio.buf[1] = 0xf3;
 							break;
 					}
 				}
 			}
-			else padst = 0;
+			else psxSio.padst = 0;
 			return;
 		case 2:
-			parp++;
+			psxSio.parp++;
 
-				switch (CtrlReg&0x2002) {
-					case 0x0002: buf[parp] = PAD1_poll(); break;
-					case 0x2002: buf[parp] = PAD2_poll(); break;
-				}
+			switch (psxSio.CtrlReg & 0x2002) {
+				case 0x0002: psxSio.buf[psxSio.parp] = PAD1_poll(); break;
+				case 0x2002: psxSio.buf[psxSio.parp] = PAD2_poll(); break;
+			}
 
-			if (parp == bufcount) { padst = 0; return; }
+			if (psxSio.parp == psxSio.bufcount) { psxSio.padst = 0; return; }
 			SIO_INT();
 			return;
 	}
 
-	switch (mcdst) {
+	switch (psxSio.mcdst) {
 		case 1:
 			SIO_INT();
-			if (rdwr) { parp++; return; }
-			parp = 1;
+			if (psxSio.rdwr) { psxSio.parp++; return; }
+			psxSio.parp = 1;
 			switch (value) {
-				case 0x52: rdwr = 1; break;
-				case 0x57: rdwr = 2; break;
-				default: mcdst = 0;
+				case 0x52: psxSio.rdwr = 1; break;
+				case 0x57: psxSio.rdwr = 2; break;
+				default: psxSio.mcdst = 0;
 			}
 			return;
 		case 2: // address H
 			SIO_INT();
-			adrH = value;
-			*buf = 0;
-			parp = 0;
-			bufcount = 1;
-			mcdst = 3;
+			psxSio.adrH = value;
+			*psxSio.buf = 0;
+			psxSio.parp = 0;
+			psxSio.bufcount = 1;
+			psxSio.mcdst = 3;
 			return;
 		case 3: // address L
 			SIO_INT();
-			adrL = value;
-			*buf = adrH;
-			parp = 0;
-			bufcount = 1;
-			mcdst = 4;
+			psxSio.adrL = value;
+			*psxSio.buf = psxSio.adrH;
+			psxSio.parp = 0;
+			psxSio.bufcount = 1;
+			psxSio.mcdst = 4;
 			return;
 		case 4:
 			SIO_INT();
-			parp = 0;
-			switch (rdwr) {
+			psxSio.parp = 0;
+			switch (psxSio.rdwr) {
 				case 1: // read
-					buf[0] = 0x5c;
-					buf[1] = 0x5d;
-					buf[2] = adrH;
-					buf[3] = adrL;
-					switch (CtrlReg&0x2002) {
+					psxSio.buf[0] = 0x5c;
+					psxSio.buf[1] = 0x5d;
+					psxSio.buf[2] = psxSio.adrH;
+					psxSio.buf[3] = psxSio.adrL;
+					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(&buf[4], Mcd1Data + (adrL | (adrH << 8)) * 128, 128);
+							sioMcdRead(MCD1, (char*)&psxSio.buf[4], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(&buf[4], Mcd2Data + (adrL | (adrH << 8)) * 128, 128);
+							sioMcdRead(MCD2, (char*)&psxSio.buf[4], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
+
 					{
-					char cxor = 0;
-					int i;
-					for (i=2;i<128+4;i++)
-						cxor^=buf[i];
-					buf[132] = cxor;
+						char cxor = 0;
+						int i;
+						for (i=2;i<128+4;i++)
+							cxor ^= psxSio.buf[i];
+						psxSio.buf[132] = cxor;
 					}
-					buf[133] = 0x47;
-					bufcount = 133;
+					psxSio.buf[133] = 0x47;
+					psxSio.bufcount = 133;
 					break;
 				case 2: // write
-					buf[0] = adrL;
-					buf[1] = value;
-					buf[129] = 0x5c;
-					buf[130] = 0x5d;
-					buf[131] = 0x47;
-					bufcount = 131;
+					psxSio.buf[0] = psxSio.adrL;
+					psxSio.buf[1] = value;
+					psxSio.buf[129] = 0x5c;
+					psxSio.buf[130] = 0x5d;
+					psxSio.buf[131] = 0x47;
+					psxSio.bufcount = 131;
 					break;
 			}
-			mcdst = 5;
+			psxSio.mcdst = 5;
 			return;
 		case 5:	
-			parp++;
+			psxSio.parp++;
 			//senquack - updated to match PCSXR code:
-			if ((rdwr == 1 && parp == 132) ||
-			    (rdwr == 2 && parp == 129)) {
+			if ((psxSio.rdwr == 1 && psxSio.parp == 132) ||
+			    (psxSio.rdwr == 2 && psxSio.parp == 129)) {
 				// clear "new card" flags
-				if (CtrlReg & 0x2000)
-					cardh2[1] &= ~8;
+				if (psxSio.CtrlReg & 0x2000)
+					psxSio.cardh2[1] &= ~8;
 				else
-					cardh1[1] &= ~8;
+					psxSio.cardh1[1] &= ~8;
 			}
-			if (rdwr == 2) {
-				if (parp < 128) buf[parp + 1] = value;
+			if (psxSio.rdwr == 2) {
+				if (psxSio.parp < 128) psxSio.buf[psxSio.parp + 1] = value;
 			}
 			SIO_INT();
 			return;
@@ -278,44 +247,41 @@ void sioWrite8(unsigned char value) {
 
 	switch (value) {
 		case 0x01: // start pad
-			StatReg |= RX_RDY;		// Transfer is Ready
+			psxSio.StatReg |= RX_RDY;		// Transfer is Ready
 
-				switch (CtrlReg&0x2002) {
-					case 0x0002: buf[0] = PAD1_startPoll(); break;
-					case 0x2002: buf[0] = PAD2_startPoll(); break;
-				}
+			switch (psxSio.CtrlReg & 0x2002) {
+				case 0x0002: psxSio.buf[0] = PAD1_startPoll(); break;
+				case 0x2002: psxSio.buf[0] = PAD2_startPoll(); break;
+			}
 
-			bufcount = 2;
-			parp = 0;
-			padst = 1;
+			psxSio.bufcount = 2;
+			psxSio.parp = 0;
+			psxSio.padst = 1;
 			SIO_INT();
 			return;
 		case 0x81: // start memcard
-			if (CtrlReg & 0x2000)
-			{
-				if (McdDisable[1])
+			if (psxSio.CtrlReg & 0x2000) {
+				if (!sioMcdInserted(MCD2))
 					goto no_device;
-				memcpy(buf, cardh2, 4);
-			}
-			else
-			{
-				if (McdDisable[0])
+				memcpy(psxSio.buf, psxSio.cardh2, 4);
+			} else {
+				if (!sioMcdInserted(MCD1))
 					goto no_device;
-				memcpy(buf, cardh1, 4);
+				memcpy(psxSio.buf, psxSio.cardh1, 4);
 			}
-			StatReg |= RX_RDY;
-			parp = 0;
-			bufcount = 3;
-			mcdst = 1;
-			rdwr = 0;
+			psxSio.StatReg |= RX_RDY;
+			psxSio.parp = 0;
+			psxSio.bufcount = 3;
+			psxSio.mcdst = 1;
+			psxSio.rdwr = 0;
 			SIO_INT();
 			return;
 		default:
 		no_device:
-			StatReg |= RX_RDY;
-			buf[0] = 0xff;
-			parp = 0;
-			bufcount = 0;
+			psxSio.StatReg |= RX_RDY;
+			psxSio.buf[0] = 0xff;
+			psxSio.parp = 0;
+			psxSio.bufcount = 0;
 			return;
 	}
 }
@@ -330,21 +296,21 @@ void sioWriteMode16(unsigned short value) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioWriteMode16++;
 #endif
-	ModeReg = value;
+	psxSio.ModeReg = value;
 }
 
 void sioWriteCtrl16(unsigned short value) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioWriteCtrl16++;
 #endif
-	CtrlReg = value & ~RESET_ERR;
-	if (value & RESET_ERR) StatReg &= ~IRQ;
+	psxSio.CtrlReg = value & ~RESET_ERR;
+	if (value & RESET_ERR) psxSio.StatReg &= ~IRQ;
 	//senquack - Updated to match PCSX Rearmed
 	// 'no DTR resets device, tested on the real thing'
-	//if ((CtrlReg & SIO_RESET) || (!CtrlReg)) {
-	if ((CtrlReg & SIO_RESET) || !(CtrlReg & DTR)) {
-		padst = 0; mcdst = 0; parp = 0;
-		StatReg = TX_RDY | TX_EMPTY;
+	//if ((psxSio.CtrlReg & SIO_RESET) || (!psxSio.CtrlReg)) {
+	if ((psxSio.CtrlReg & SIO_RESET) || !(psxSio.CtrlReg & DTR)) {
+		psxSio.padst = 0; psxSio.mcdst = 0; psxSio.parp = 0;
+		psxSio.StatReg = TX_RDY | TX_EMPTY;
 		psxEventQueue.dequeue(PSXINT_SIO);
 	}
 }
@@ -354,8 +320,8 @@ void sioWriteBaud16(unsigned short value) {
 	dbg_anacnt_sioWriteBaud16++;
 #endif
 	if (autobias)
-		sio_cycle=value*8;
-	BaudReg = value;
+		psxSio.sio_cycle = value*8;
+	psxSio.BaudReg = value;
 }
 
 unsigned char sioRead8() {
@@ -364,30 +330,28 @@ unsigned char sioRead8() {
 #endif
 	unsigned char ret = 0;
 
-	if ((StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
-//		StatReg &= ~RX_OVERRUN;
-		ret = buf[parp];
-		if (parp == bufcount) {
-			StatReg &= ~RX_RDY;		// Receive is not Ready now
-			if (mcdst == 5) {
-				mcdst = 0;
-				if (rdwr == 2) {
-					switch (CtrlReg & 0x2002) {
+	if ((psxSio.StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
+		//psxSio.StatReg &= ~RX_OVERRUN;
+		ret = psxSio.buf[psxSio.parp];
+		if (psxSio.parp == psxSio.bufcount) {
+			psxSio.StatReg &= ~RX_RDY;		// Receive is not Ready now
+			if (psxSio.mcdst == 5) {
+				psxSio.mcdst = 0;
+				if (psxSio.rdwr == 2) {
+					switch (psxSio.CtrlReg & 0x2002) {
 						case 0x0002:
-							memcpy(Mcd1Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(Config.Mcd1, Mcd1Data, (adrL | (adrH << 8)) * 128, 128);
+							sioMcdWrite(MCD1, (char*)&psxSio.buf[1], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 						case 0x2002:
-							memcpy(Mcd2Data + (adrL | (adrH << 8)) * 128, &buf[1], 128);
-							SaveMcd(Config.Mcd2, Mcd2Data, (adrL | (adrH << 8)) * 128, 128);
+							sioMcdWrite(MCD2, (char*)&psxSio.buf[1], (psxSio.adrL | (psxSio.adrH << 8)) * 128, 128);
 							break;
 					}
 				}
 			}
-			if (padst == 2) padst = 0;
-			if (mcdst == 1) {
-				mcdst = 2;
-				StatReg|= RX_RDY;
+			if (psxSio.padst == 2) psxSio.padst = 0;
+			if (psxSio.mcdst == 1) {
+				psxSio.mcdst = 2;
+				psxSio.StatReg |= RX_RDY;
 			}
 		}
 	}
@@ -401,28 +365,28 @@ unsigned short sioReadStat16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadStat16++;
 #endif
-	return StatReg;
+	return psxSio.StatReg;
 }
 
 unsigned short sioReadMode16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadMode16++;
 #endif
-	return ModeReg;
+	return psxSio.ModeReg;
 }
 
 unsigned short sioReadCtrl16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadCtrl16++;
 #endif
-	return CtrlReg;
+	return psxSio.CtrlReg;
 }
 
 unsigned short sioReadBaud16() {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_sioReadBaud16++;
 #endif
-	return BaudReg;
+	return psxSio.BaudReg;
 }
 
 void sioInterrupt() {
@@ -434,93 +398,377 @@ void sioInterrupt() {
 #endif
 	//printf("Sio Interrupt\n");
 	//  pcsx_rearmed: only do IRQ if it's bit has been cleared
-	if (!(StatReg & IRQ)) {
-		StatReg |= IRQ;
+	if (!(psxSio.StatReg & IRQ)) {
+		psxSio.StatReg |= IRQ;
 		psxHu32ref(0x1070) |= SWAPu32(0x80);
 		// Ensure psxBranchTest() is called soon when IRQ is pending:
 		ResetIoCycle();
 	}
 }
 
-int LoadMcd(int mcd_num, char *mcd)
+int sioFreeze(void* f, FreezeMode mode)
 {
-	size_t bytes_read;
-	FILE *f;
+	if (    freeze_rw(f, mode, psxSio.buf, sizeof(psxSio.buf))
+	     || freeze_rw(f, mode, &psxSio.StatReg, sizeof(psxSio.StatReg))
+	     || freeze_rw(f, mode, &psxSio.ModeReg, sizeof(psxSio.ModeReg))
+	     || freeze_rw(f, mode, &psxSio.CtrlReg, sizeof(psxSio.CtrlReg))
+	     || freeze_rw(f, mode, &psxSio.BaudReg, sizeof(psxSio.BaudReg))
+	     || freeze_rw(f, mode, &psxSio.bufcount, sizeof(psxSio.bufcount))
+	     || freeze_rw(f, mode, &psxSio.parp, sizeof(psxSio.parp))
+	     || freeze_rw(f, mode, &psxSio.mcdst, sizeof(psxSio.mcdst))
+	     || freeze_rw(f, mode, &psxSio.rdwr, sizeof(psxSio.rdwr))
+	     || freeze_rw(f, mode, &psxSio.adrH, sizeof(psxSio.adrH))
+	     || freeze_rw(f, mode, &psxSio.adrL, sizeof(psxSio.adrL))
+	     || freeze_rw(f, mode, &psxSio.padst, sizeof(psxSio.padst)) )
+		return -1;
+	else
+		return 0;
+}
+
+////////////////////////
+// Memcard operations //
+////////////////////////
+
+//TODO: Provide callback for error reporting in frontend GUIs
+
+struct Memcard {
+	Memcard() :
+		filename(NULL),
+		file(NULL),
+		cur_offset(0)
+	{}
+
+	~Memcard()
+	{
+		if (file) {
+			const char *tmpstr = filename ? filename : "";
+			printf("Warning: memcard file not closed, closing via dtor: %s\n", tmpstr);
+			fclose(file);
+			file = NULL;
+		}
+	}
+
+	char* filename;       // Filename ptr, or NULL if card is disabled
+	FILE* file;           // File ptr is non-NULL when card is being written to
+	long  cur_offset;     // Current file offset (when file is open for writing)
+	char  data[MCD_SIZE];
+};
+
+static Memcard memcards[2];
+
+// Number of cycles after last memcard write to wait until
+//  PSXINT_SIO_SYNC_MCD event closes the memcard file.
+#define MEMCARD_SYNC_DELAY (PSXCLK / 4)
+
+// Intended to be called from within the running emulator after a small
+//  amount of time has passed after a memcard has been written to.
+//  This is done by scheduling a PSXINT_SIO_SYNC_MCD event. This allows
+//  memcard I/O to be done against a file kept open for a decent amount of
+//  time, allowing buffering and fewer open/close system calls.
+//  Will flush, sync, and close any memcard files opened for writing.
+void sioSyncMcds()
+{
+	FlushMcd(MCD1, true);
+	FlushMcd(MCD2, true);
+#ifdef DEBUG_MEMCARDS
+	printf("%s()\n", __func__);
+#endif
+}
+
+// If 'src' pointer is non-NULL, memcard data array will be updated
+//  with data at offset 'adr' starting from source 'src' of size 'size',
+//  then, memcard file will be written with this new data. If the data
+//  at 'src' pointer is identical to existing array data, it is a no-op.
+//  This prevents unnecessary sector writes, particularly write-tests
+//  to offset 0x1f80 (block 0, sector 63) at BIOS/game startup.
+// If 'src' pointer is NULL, just the file write will occur.
+int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size)
+{
+	if (adr >= MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr);
+		return -1;
+	}
+
+	if ((adr + size) > MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr, size);
+		size = MCD_SIZE - adr;
+		printf("Adjusted size to within 128KB range: %x\n", size);
+	}
+
+	bool write_file = true;
+	if (src) {
+		char* dst = memcards[mcd_num].data + adr;
+		if (memcmp(dst, src, size) != 0) {
+			memcpy(dst, src, size);
+		} else {
+			// Source data is identical to existing memcard data
+			write_file = false;
+#ifdef DEBUG_MEMCARDS
+			printf("Prevented redundant write of %u bytes to memcard %d at addr %x\n",
+					size, mcd_num+1, adr);
+#endif
+		}
+	}
+
+	int retval = 0;
+	if (write_file) {
+#ifdef DEBUG_MEMCARDS
+		printf("Writing %u bytes to memcard %d\n", size, mcd_num + 1);
+#endif
+		retval = SaveMcd(mcd_num, adr, size);
+	}
+
+	// If memcard file was already open for writing, or was just opened by
+	//  call to SaveMcd(), (re)schedule a memcard file flush/sync/close
+	if (memcards[mcd_num].file != NULL)
+		psxEventQueue.enqueue(PSXINT_SIO_SYNC_MCD, MEMCARD_SYNC_DELAY);
+
+	return retval;
+}
+
+int sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size)
+{
+	if (adr >= MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr);
+		return -1;
+	}
+
+	if ((adr + size) > MCD_SIZE) {
+		printf("Error in %s(): memcard %d, adr %x + size %x is outside memcard bounds (128KB)\n",
+				__func__, mcd_num+1, adr, size);
+		size = MCD_SIZE - adr;
+		printf("Adjusted size to within 128KB range: %x\n", size);
+	}
+
+	const char* src = memcards[mcd_num].data + adr;
+	memcpy(dst, src, size);
+	return 0;
+}
+
+char* sioMcdDataPtr(enum MemcardNum mcd_num)
+{
+	return memcards[mcd_num].data;
+}
+
+bool sioMcdInserted(enum MemcardNum mcd_num)
+{
+	return memcards[mcd_num].filename != NULL;
+}
+
+int sioMcdFormat(enum MemcardNum mcd_num)
+{
+#ifdef DEBUG_MEMCARDS
+	printf("%s() on memcard %d\n", __func__, mcd_num+1);
+#endif
+
+	InitMcdData(sioMcdDataPtr(mcd_num));
+	return sioMcdWrite(mcd_num, NULL, 0, MCD_SIZE);
+}
+
+// FlushMcd() ensures a memcard file temporarily opened for writing gets
+//  closed. If 'sync_file' is true, it will call fsync() before closing it.
+int FlushMcd(enum MemcardNum mcd_num, bool sync_file)
+{
+	Memcard &mc = memcards[mcd_num];
+
+	if (!mc.file)
+		return 0;
+
+	int retval = 0;
+	if (sync_file) {
+		if (fflush(mc.file)) retval = -1;
+		if (fsync(fileno(mc.file))) retval = -1;
+	}
+	if (fclose(mc.file)) retval = -1;
+	mc.file = NULL;
+	mc.cur_offset = 0;
+	if (retval < 0) {
+		perror(__func__);
+		const char* tmpstr = mc.filename ? mc.filename : "";
+		printf("Error in %s() writing memcard file %s\n", __func__, tmpstr);
+	}
+	return retval;
+}
+
+int EjectMcd(enum MemcardNum mcd_num)
+{
+	int retval = FlushMcd(mcd_num, true);
+	Memcard &mc = memcards[mcd_num];
+	mc.filename = NULL;
+	mc.file = NULL;
+	mc.cur_offset = 0;
+	memset(mc.data, 0, MCD_SIZE);
+	return retval;
+}
+
+void InitMcdData(char *mcd_data)
+{
+	memset(mcd_data, 0, MCD_SIZE);
+	unsigned off = 0;
+
+	// Header
+	mcd_data[off++] = 'M';
+	mcd_data[off++] = 'C';
+	off += 0x7d;
+	mcd_data[off++] = 0x0e;
+
+	// Block directory
+	for (int i = 0; i < 15; i++) {
+		mcd_data[off++] = 0xa0;
+		off += 0x07;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x75;
+		mcd_data[off++] = 0xa0;
+	}
+
+	// Broken sectors list
+	for (int i = 0; i < 20; i++) {
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x04;
+		mcd_data[off++] = 0xff;
+		mcd_data[off++] = 0xff;
+		off += 0x76;
+	}
+}
+
+int CreateMcd(char *filename, bool overwrite_file)
+{
+	if (filename == NULL || filename[0] == '\0') {
+		printf("Error: NULL or empty filename parameter in %s\n", __func__);
+		return -1;
+	}
+
+	if (!overwrite_file && FileExists(filename)) {
+#ifdef DEBUG_MEMCARDS
+		printf("%s(): File %s exists, will not overwrite.\n", __func__, filename);
+#endif
+		return 0;
+	}
+
+	FILE *f = NULL;
+	char mcd_data[MCD_SIZE];
+	InitMcdData(mcd_data);
+	if ( (f = fopen(filename, "wb")) == NULL          ||
+	     fwrite(mcd_data, 1, MCD_SIZE, f) != MCD_SIZE ||
+	     fflush(f)                                    ||
+	     fsync(fileno(f)) )
+		goto error;
+
+	if (fclose(f)) {
+		f = NULL;
+		goto error;
+	}
+
+	return 0;
+
+error:
+	printf("Error in %s() creating memcard file %s:\n", __func__, filename);
+	perror(NULL);
+	if (f) fclose(f);
+	return -1;
+}
+
+// If filename ptr is NULL, memcard will be disabled
+int LoadMcd(enum MemcardNum mcd_num, char* filename)
+{
+	FILE *f = NULL;
+	size_t bytes_read = 0;
 	char *data = NULL;
 	struct stat stat_buf;
 	bool convert_data = false;
+	Memcard &mc = memcards[mcd_num];
 
-	if ((mcd_num != 1 && mcd_num != 2) || mcd == NULL)
-		return -1;
+	EjectMcd(mcd_num);
 
-	if (mcd_num == 1) {
-		data = Mcd1Data;
-		cardh1[1] |= 8; // mark as new
+	if (filename == NULL) {
+		printf("%s(): NULL filename param, memcard %d slot is now empty.\n", __func__, mcd_num+1);
+		return 0;
+	}
+
+	if (mcd_num == MCD1) {
+		psxSio.cardh1[1] |= 8; // mark as new
 	} else {
-		data = Mcd2Data;
-		cardh2[1] |= 8;
+		psxSio.cardh2[1] |= 8;
 	}
 
-	if (*mcd == 0) {
-		sprintf(mcd, "memcards/card%d.mcd", mcd_num);
-		printf("No memory card value was specified - creating a default card %s\n", mcd);
+	mc.filename = filename;
+	if (*mc.filename == 0) {
+		sprintf(mc.filename, "memcards/card%d.mcd", mcd_num+1);
+		printf("No memory card value was specified - creating a default card %s\n", mc.filename);
 	}
 
-	if ((f = fopen(mcd, "rb")) == NULL) {
-		printf("The memory card %s doesn't exist - creating it\n", mcd);
-		CreateMcd(mcd);
-		if ((f = fopen(mcd, "rb")) == NULL)
+	if ((f = fopen(mc.filename, "rb")) == NULL) {
+		printf("The memory card %s doesn't exist - creating it\n", mc.filename);
+		if (CreateMcd(mc.filename, false)) {
+			printf("Error in %s(): Creating memcard file failed.\n", __func__);
+			printf("Maybe file already exists and file/folder lacks permissions?\n");
+			printf("Memcard slot %d is now empty.\n", mcd_num+1);
+			mc.filename = NULL;
+			return -1;
+		}
+		if ((f = fopen(mc.filename, "rb")) == NULL)
 			goto error;
 	}
 
-	printf("Loading memory card %s\n", mcd);
+	printf("Loading memory card %s\n", mc.filename);
+
 	if (fstat(fileno(f), &stat_buf) != -1) {
 		if (stat_buf.st_size == MCD_SIZE + 64) {
 			// Assume Connectix Virtual Gamestation .vgs/.mem format
 			printf("Detected Connectix VGS memcard format.\n");
 			convert_data = true;
-			long data_offset = 64;
-			if (fseek(f, data_offset, SEEK_SET) == -1) {
-				printf("Error seeking to position %ld (VGS data offset).\n", data_offset);
+			if (fseek(f, 64, SEEK_SET) == -1) {
+				printf("Error seeking to position 64 (VGS data offset).\n");
 				goto error;
 			}
 		} else if (stat_buf.st_size == MCD_SIZE + 3904) {
 			// Assume DexDrive .gme format
 			printf("Detected DexDrive memcard format.\n");
 			convert_data = true;
-			long data_offset = 3904;
-			if (fseek(f, data_offset, SEEK_SET) == -1) {
-				printf("Error seeking to position %ld (DexDrive data offset).\n", data_offset);
+			if (fseek(f, 3904, SEEK_SET) == -1) {
+				printf("Error seeking to position 3904 (DexDrive data offset).\n");
 				goto error;
 			}
 		} else if (stat_buf.st_size != MCD_SIZE) {
-			printf("Error: unknown memcard format (not raw image, DexDrive, or Connectix VGS)\n");
-			goto error;
+			// If there's a size mismatch, just issue a warning
+			// TODO: add error-reporting callback for GUI frontend
+			printf("Warning: unknown memcard format (not raw image, DexDrive, or Connectix VGS)\n"
+			       "File size: %lu\n"
+			       "Expected size: 131072 (raw), 134976 (DexDrive), 131136 (VGS)\n",
+			       stat_buf.st_size);
 		}
+	} else {
+		perror("Warning: fstat() file size check failed");
 	}
 
+	data = memcards[mcd_num].data;
 	if ((bytes_read = fread(data, 1, MCD_SIZE, f)) != MCD_SIZE) {
-		printf("Failed reading data from memory card %s!\n", mcd);
+		printf("Error reading data from memory card %s!\n", mc.filename);
 		printf("Wanted %zu bytes and got %zu\n", (size_t)MCD_SIZE, bytes_read);
 		goto error;
 	}
 
 	fclose(f);
 
-	// If memcard filename does not contain .gme, .mem, or .vgs, go ahead
-	//  and convert it to native raw memcard format.
-	if (convert_data &&
-		!(strcasestr(mcd, ".gme") ||
-		  strcasestr(mcd, ".mem") ||
-		  strcasestr(mcd, ".vgs")) ) {
+	// Convert file to native raw memcard format, if not already
+	if (convert_data) {
 		// Truncate file to 0 bytes, then write just the memcard data back
-		if ( (f = fopen(mcd, "wb")) == NULL ||
+		if ( (f = fopen(mc.filename, "wb")) == NULL ||
 		     fwrite(data, 1, MCD_SIZE, f) != MCD_SIZE ) {
-			printf("Error converting memcard file %s\n", mcd);
+			perror("Error converting memcard file");
+			printf("Maybe file/folder lacks write permissions?\n");
+			printf("Memcard slot %d is now empty.\n", mcd_num+1);
 			if (f) fclose(f);
+			mc.filename = NULL;
 			return -1;
 		}
-
 		printf("Converted memcard file to native raw format.\n");
 		fclose(f);
 	}
@@ -528,244 +776,57 @@ int LoadMcd(int mcd_num, char *mcd)
 	return 0;
 
 error:
-	printf("Error in %s:", __func__);
+	printf("Error in %s():\n", __func__);
 	perror(NULL);
 	if (f) {
-		printf("Error reading memcard file %s\n", mcd);
+		printf("Error reading memcard file %s\n", mc.filename);
 		fclose(f);
 	} else {
-		printf("Error opening memcard file %s\n", mcd);
+		printf("Error opening memcard file %s\n", mc.filename);
+	}
+	// If we couldn't read more than one 8kb block, disable the memcard
+	if (bytes_read <= 0x2000) {
+		EjectMcd(mcd_num);
+		printf("Memcard slot %d is now empty.\n", mcd_num+1);
 	}
 	return -1;
 }
 
-int SaveMcd(char *mcd, char *data, uint32_t adr, int size)
+int SaveMcd(enum MemcardNum mcd_num, uint32_t adr, int size)
 {
-	FILE *f;
-	long fpos = adr;
-	struct stat stat_buf;
+	Memcard &mc = memcards[mcd_num];
 
-	if (mcd == NULL || mcd[0] == '\0') {
-		printf("Error: NULL or empty filename parameter in %s\n", __func__);
-		return -1;
+	// File isn't currently open for writing
+	if (mc.file == NULL) {
+		if (mc.filename == NULL || *mc.filename == '\0')
+			return 0;
+		mc.cur_offset = 0;
+		if ((mc.file = fopen(mc.filename, "r+b")) == NULL)
+			goto error;
 	}
 
-	if ((f = fopen(mcd, "r+b")) == NULL)
-		goto error;
-	
-	if (fstat(fileno(f), &stat_buf) != -1) {
-		if (stat_buf.st_size == MCD_SIZE + 64) {
-			// Assume Connectix Virtual Gamestation .vgs/.mem format
-			fpos += 64;
-		} else if (stat_buf.st_size == MCD_SIZE + 3904) {
-			// Assume DexDrive .gme format
-			fpos += 3904;
-		}
+	if (mc.cur_offset != adr) {
+		if (fseek(mc.file, adr, SEEK_SET))
+			goto error;
+		mc.cur_offset = adr;
 	}
 
-	if ( fseek(f, fpos, SEEK_SET)               ||
-		 fwrite(data + adr, 1, size, f) != size ||
-		 fflush(f)                              ||
-		 fsync(fileno(f)) )
+	if (fwrite(mc.data + adr, 1, size, mc.file) != size)
 		goto error;
 
-	fclose(f);
+	mc.cur_offset += size;
+
+	// Leave file open for writing, it will be close automatically
+	//  by PSXINT_SIO_SYNC_MCD event
 	return 0;
 
 error:
-	printf("Error in %s:", __func__);
+	printf("Error in %s() writing to memcard %d\n", __func__, mcd_num+1);
 	perror(NULL);
-	if (f) {
-		printf("Error writing memcard file %s\n", mcd);
-		fclose(f);
-	} else {
-		printf("Error opening memcard file %s\n", mcd);
-	}
-	return -1;
-}
-
-#define errchk_fputc(c, file)       \
-do {                                \
-     if (fputc((c), (file)) == EOF) \
-          goto error;               \
-} while (0)
-
-int CreateMcd(char *mcd)
-{
-	FILE *f;	
-	int s = MCD_SIZE;
-	int i = 0, j;
-
-	if (mcd == NULL || mcd[0] == '\0') {
-		printf("Error: NULL or empty filename parameter in %s\n", __func__);
-		return -1;
-	}
-
-	if ( (f = fopen(mcd, "wb")) == NULL)
-		goto error;
-
-	if (strcasestr(mcd, ".gme"))
 	{
-		// DexDrive .gme format
-		s = s + 3904;
-		errchk_fputc('1', f);
-		s--;
-		errchk_fputc('2', f);
-		s--;
-		errchk_fputc('3', f);
-		s--;
-		errchk_fputc('-', f);
-		s--;
-		errchk_fputc('4', f);
-		s--;
-		errchk_fputc('5', f);
-		s--;
-		errchk_fputc('6', f);
-		s--;
-		errchk_fputc('-', f);
-		s--;
-		errchk_fputc('S', f);
-		s--;
-		errchk_fputc('T', f);
-		s--;
-		errchk_fputc('D', f);
-		s--;
-		for (i = 0; i < 7; i++) {
-			errchk_fputc(0, f);
-			s--;
-		}
-		errchk_fputc(1, f);
-		s--;
-		errchk_fputc(0, f);
-		s--;
-		errchk_fputc(1, f);
-		s--;
-		errchk_fputc('M', f);
-		s--;
-		errchk_fputc('Q', f);
-		s--;
-		for (i = 0; i < 14; i++) {
-			errchk_fputc(0xa0, f);
-			s--;
-		}
-		errchk_fputc(0, f);
-		s--;
-		errchk_fputc(0xff, f);
-		while (s-- > (MCD_SIZE + 1))
-			errchk_fputc(0, f);
-	} else if (strcasestr(mcd, ".mem") || strcasestr(mcd, ".vgs"))
-	{
-		// Connectix Virtual Gamestation .vgs/.mem format
-		s = s + 64;
-		errchk_fputc('V', f);
-		s--;
-		errchk_fputc('g', f);
-		s--;
-		errchk_fputc('s', f);
-		s--;
-		errchk_fputc('M', f);
-		s--;
-		for (i = 0; i < 3; i++) {
-			errchk_fputc(1, f);
-			s--;
-			errchk_fputc(0, f);
-			s--;
-			errchk_fputc(0, f);
-			s--;
-			errchk_fputc(0, f);
-			s--;
-		}
-		errchk_fputc(0, f);
-		s--;
-		errchk_fputc(2, f);
-		while (s-- > (MCD_SIZE + 1))
-			errchk_fputc(0, f);
+		const char* tmpstr = mc.filename ? mc.filename : "";
+		printf("Error writing to memcard file %s\n", tmpstr);
 	}
-	errchk_fputc('M', f);
-	s--;
-	errchk_fputc('C', f);
-	s--;
-	while (s-- > (MCD_SIZE - 127))
-		errchk_fputc(0, f);
-	errchk_fputc(0xe, f);
-	s--;
-
-	for (i = 0; i < 15; i++) { // 15 blocks
-		errchk_fputc(0xa0, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		for (j = 0; j < 117; j++) {
-			errchk_fputc(0x00, f);
-			s--;
-		}
-		errchk_fputc(0xa0, f);
-		s--;
-	}
-
-	for (i = 0; i < 20; i++) {
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0x00, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		errchk_fputc(0xff, f);
-		s--;
-		for (j = 0; j < 118; j++) {
-			errchk_fputc(0x00, f);
-			s--;
-		}
-	}
-
-	while ((s--) >= 0)
-		errchk_fputc(0, f);
-
-	if ( fflush(f) ||
-	     fsync(fileno(f)) )
-		goto error;
-
-	fclose(f);
-	return 0;
-
-error:
-	printf("Error in %s:", __func__);
-	perror(NULL);
-	if (f) {
-		printf("Error writing memcard file %s\n", mcd);
-		fclose(f);
-	} else {
-		printf("Error creating memcard file %s\n", mcd);
-	}
-
 	return -1;
 }
 
@@ -790,7 +851,7 @@ static void trim(char *str) {
 		*(dest--) = '\0';
 }
 
-void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
+void GetMcdBlockInfo(enum MemcardNum mcd_num, int block, McdBlock *Info) {
 	char *data = NULL, *ptr, *str, *sstr;
 	unsigned short clut[16];
 	unsigned short c;
@@ -798,24 +859,14 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 
 	memset(Info, 0, sizeof(McdBlock));
 
-	//senquack - updated to match PCSXR code:
-	if (mcd != 1 && mcd != 2)
+	if (!sioMcdInserted(mcd_num))
 		return;
 
-	if (McdDisable[mcd - 1])
-		return;
-
-	if (mcd == 1) data = Mcd1Data;
-	if (mcd == 2) data = Mcd2Data;
-
+	data = memcards[mcd_num].data;
 	ptr = data + block * 8192 + 2;
-
 	Info->IconCount = *ptr & 0x3;
-
 	ptr+= 2;
-
 	x = 0;
-
 	str = Info->Title;
 	sstr = Info->sTitle;
 
@@ -882,23 +933,4 @@ void GetMcdBlockInfo(int mcd, int block, McdBlock *Info) {
 	strncpy(Info->ID, ptr, 12);
 	ptr += 12;
 	strncpy(Info->Name, ptr, 16);
-}
-
-int sioFreeze(void* f, FreezeMode mode)
-{
-	if (    freeze_rw(f, mode, buf, sizeof(buf))
-	     || freeze_rw(f, mode, &StatReg, sizeof(StatReg))
-	     || freeze_rw(f, mode, &ModeReg, sizeof(ModeReg))
-	     || freeze_rw(f, mode, &CtrlReg, sizeof(CtrlReg))
-	     || freeze_rw(f, mode, &BaudReg, sizeof(BaudReg))
-	     || freeze_rw(f, mode, &bufcount, sizeof(bufcount))
-	     || freeze_rw(f, mode, &parp, sizeof(parp))
-	     || freeze_rw(f, mode, &mcdst, sizeof(mcdst))
-	     || freeze_rw(f, mode, &rdwr, sizeof(rdwr))
-	     || freeze_rw(f, mode, &adrH, sizeof(adrH))
-	     || freeze_rw(f, mode, &adrL, sizeof(adrL))
-	     || freeze_rw(f, mode, &padst, sizeof(padst)) )
-		return -1;
-	else
-		return 0;
 }

@@ -77,4 +77,5 @@ extern int toLoadState;
 extern int toExit;
 extern char *SaveState_filename;
 
+extern bool FileExists(const char* filename);
 #endif /* __MISC_H__ */

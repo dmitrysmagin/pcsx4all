@@ -28,10 +28,6 @@
 #include "plugins.h"
 #include "psemu_plugin_defs.h"
 
-#define MCD_SIZE	(1024 * 8 * 16)
-
-extern char Mcd1Data[MCD_SIZE], Mcd2Data[MCD_SIZE];
-
 extern void sioInit(void);
 
 extern void sioWrite8(unsigned char value);
@@ -46,14 +42,39 @@ extern unsigned short sioReadMode16(void);
 extern unsigned short sioReadCtrl16(void);
 extern unsigned short sioReadBaud16(void);
 
-void netError();
-
 extern void sioInterrupt(void);
 extern int sioFreeze(void* f, FreezeMode mode);
 
-extern int LoadMcd(int mcd_num, char *mcd);
-extern int SaveMcd(char *mcd, char *data, uint32_t adr, int size);
-extern int CreateMcd(char *mcd);
+////////////////////////
+// Memcard operations //
+////////////////////////
+
+#define MCD_SIZE	(1024 * 8 * 16)
+
+enum MemcardNum {
+	MCD1 = 0,
+	MCD2 = 1
+};
+
+/* High-level memcard operations
+ * (Emulator code should use these when possible/appropriate)
+ */
+void sioSyncMcds(void);
+int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size);
+int sioMcdRead(enum MemcardNum mcd_num, char *dst, uint32_t adr, int size);
+char* sioMcdDataPtr(enum MemcardNum mcd_num);
+bool sioMcdInserted(enum MemcardNum mcd_num);
+int sioMcdFormat(enum MemcardNum mcd_num);
+
+/* Low-level memcard operations, used by above functions
+ *  and any memcard management code.
+ */
+int FlushMcd(enum MemcardNum mcd_num, bool sync_file);
+int EjectMcd(enum MemcardNum mcd_num);
+void InitMcdData(char *mcd_data);
+int CreateMcd(char *filename, bool overwrite_file);
+int LoadMcd(enum MemcardNum mcd_num, char* filename);
+int SaveMcd(enum MemcardNum mcd_num, uint32_t adr, int size);
 
 typedef struct {
 	char Title[48 + 1]; // Title in ASCII
@@ -65,6 +86,6 @@ typedef struct {
 	unsigned char Flags;
 } McdBlock;
 
-extern void GetMcdBlockInfo(int mcd, int block, McdBlock *info);
+void GetMcdBlockInfo(enum MemcardNum mcd_num, int block, McdBlock *Info);
 
 #endif
