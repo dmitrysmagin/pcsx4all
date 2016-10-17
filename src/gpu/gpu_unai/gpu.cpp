@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -18,6 +19,7 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#include <stddef.h>
 #include "psxcommon.h"
 #include "port.h"
 #include "profiler.h"

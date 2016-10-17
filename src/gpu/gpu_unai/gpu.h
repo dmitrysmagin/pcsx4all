@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -27,6 +28,8 @@
 #define	FRAME_WIDTH			  1024
 #define	FRAME_HEIGHT		  512
 #define	FRAME_OFFSET(x,y)	(((y)<<10)+(x))
+#define FRAME_BYTE_STRIDE     2048
+#define FRAME_BYTES_PER_PIXEL 2
 
 #define VIDEO_WIDTH 320
 

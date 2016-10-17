@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -19,20 +20,21 @@
 ***************************************************************************/
 
 ///////////////////////////////////////////////////////////////////////////////
-//  Inner loop driver instanciation file
+// Inner loop driver instantiation file
+//
+// 2016 - Fixes and improvements by Senquack (dansilsby@gmail.com)
 
 ///////////////////////////////////////////////////////////////////////////////
-//  Option Masks
-#define   L ((CF>>0)&1)
-#define   B ((CF>>1)&1)
-#define   M ((CF>>2)&1)
-#define  BM ((CF>>3)&3)
-#define  TM ((CF>>5)&3)
-#define   G ((CF>>7)&1)
-
-#define  MB ((CF>>8)&1)
-
-#define  BI ((CF>>9)&1)
+//  Option Masks (CF template paramter)
+#define   L ((CF>>0)&1)  // Lighting
+#define   B ((CF>>1)&1)  // Blending
+#define   M ((CF>>2)&1)  // Mask bit check
+#define  BM ((CF>>3)&3)  // Blend mode   0..3
+#define  TM ((CF>>5)&3)  // Texture mode 1..3 (0: texturing disabled)
+#define   G ((CF>>7)&1)  // Gouraud shading
+#define  MB ((CF>>8)&1)  // Mask bit set
+#define  BI ((CF>>9)&1)  // Blit increment check (skip rendering pixels that
+                         //  wouldn't get displayed on low-resolution screen)
 
 #ifdef __arm__
 #ifndef ENABLE_GPU_ARMV7
@@ -48,63 +50,213 @@
 
 #include "gpu_inner_light.h"
 
-///////////////////////////////////////////////////////////////////////////////
-//  GPU Pixel operations generator
-template<const int CF>
-static void gpuPixelFn(u16 *pixel,const u16 data)
-{
-	if ((!M)&&(!B))
-	{
-		if(MB) { *pixel = data | 0x8000; }
-		else   { *pixel = data; }
-	}
-	else if ((M)&&(!B))
-	{
-		if (!(*pixel&0x8000))
-		{
-			if(MB) { *pixel = data | 0x8000; }
-			else   { *pixel = data; }
-		}
-	}
-	else
-	{
-		u16 uDst = *pixel;
-		if(M) { if (uDst&0x8000) return; }
-		u16 uSrc = data;
-		u32 uMsk; if (BM==0) uMsk=0x7BDE;
-		if (BM==0) gpuBlending00(uSrc, uDst);
-		if (BM==1) gpuBlending01(uSrc, uDst);
-		if (BM==2) gpuBlending02(uSrc, uDst);
-		if (BM==3) gpuBlending03(uSrc, uDst);
+// If defined, Gouraud colors are fixed-point 5.11, otherwise they are 8.16
+// This is only for debugging/verification of low-precision colors in C.
+// Low-precision Gouraud is intended for use by SIMD-optimized inner drivers
+// which get/use Gouraud colors in SIMD registers.
+//#define GPU_GOURAUD_LOW_PRECISION
 
-		if(MB) { *pixel = uSrc | 0x8000; }
-		else   { *pixel = uSrc; }
-	}
+// How many bits of fixed-point precision GouraudColor uses
+#ifdef GPU_GOURAUD_LOW_PRECISION
+#define GPU_GOURAUD_FIXED_BITS 11
+#else
+#define GPU_GOURAUD_FIXED_BITS 16
+#endif
+
+// Used to pass Gouraud colors to the inner loop drivers.
+// TODO: adapt all the inner drivers to get their color values through
+//       pointers to these rather than through global variables.
+struct GouraudColor {
+#ifdef GPU_GOURAUD_LOW_PRECISION
+	u16 r, g, b;
+	s16 r_incr, g_incr, b_incr;
+#else
+	u32 r, g, b;
+	s32 r_incr, g_incr, b_incr;
+#endif
+};
+
+static inline u16 gpuGouraudColor15bpp(u32 r, u32 g, u32 b)
+{
+	r >>= GPU_GOURAUD_FIXED_BITS;
+	g >>= GPU_GOURAUD_FIXED_BITS;
+	b >>= GPU_GOURAUD_FIXED_BITS;
+
+#ifndef GPU_GOURAUD_LOW_PRECISION
+	// High-precision Gouraud colors are 8-bit + fractional
+	r >>= 3;  g >>= 3;  b >>= 3;
+#endif
+
+	return r | (g << 5) | (b << 10);
 }
 
-static void PixelNULL(u16 *pixel,const u16 data)
+///////////////////////////////////////////////////////////////////////////////
+//  GPU Pixel span operations generator gpuPixelSpanFn<>
+//  Oct 2016: Created/adapted from old gpuPixelFn by senquack:
+//  Original gpuPixelFn was used to draw lines one pixel at a time. I wrote
+//  new line algorithms that draw lines using horizontal/vertical/diagonal
+//  spans of pixels, necessitating new pixel-drawing function that could
+//  not only render spans of pixels, but gouraud-shade them as well.
+//  This speeds up line rendering and would allow tile-rendering (untextured
+//  rectangles) to use the same set of functions. Since tiles are always
+//  monochrome, they simply wouldn't use the extra set of 32 gouraud-shaded
+//  gpuPixelSpanFn functions (TODO?).
+//
+// NOTE: While the PS1 framebuffer is 16 bit, we use 8-bit pointers here,
+//       so that pDst can be incremented directly by 'incr' parameter
+//       without having to shift it before use.
+template<const int CF>
+static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
+{
+	u16 col;
+	struct GouraudColor * gcPtr;
+	u32 r, g, b;
+	s32 r_incr, g_incr, b_incr;
+
+	if (G) {
+		gcPtr = (GouraudColor*)data;
+		r = gcPtr->r;  r_incr = gcPtr->r_incr;
+		g = gcPtr->g;  g_incr = gcPtr->g_incr;
+		b = gcPtr->b;  b_incr = gcPtr->b_incr;
+	} else {
+		col = (u16)data;
+	}
+
+	do {
+		if (!G)
+		{   // NO GOURAUD
+			if ((!M)&&(!B))
+			{
+				if (MB) { *(u16*)pDst = col | 0x8000; }
+				else    { *(u16*)pDst = col; }
+			}
+			else if ((M)&&(!B))
+			{
+				if (!(*(u16*)pDst & 0x8000))
+				{
+					if (MB) { *(u16*)pDst = col | 0x8000; }
+					else    { *(u16*)pDst = col; }
+				}
+			}
+			else
+			{
+				u16 uDst = *(u16*)pDst;
+				if (M) { if (uDst & 0x8000) goto endpixel; }
+				u16 uSrc = col;
+				u32 uMsk; if (BM==0) uMsk=0x7BDE;
+				if (BM==0) gpuBlending00(uSrc, uDst);
+				if (BM==1) gpuBlending01(uSrc, uDst);
+				if (BM==2) gpuBlending02(uSrc, uDst);
+				if (BM==3) gpuBlending03(uSrc, uDst);
+
+				if (MB) { *(u16*)pDst = uSrc | 0x8000; }
+				else    { *(u16*)pDst = uSrc; }
+			}
+
+		} else
+		{   // GOURAUD
+
+			if ((!M)&&(!B))
+			{
+				col = gpuGouraudColor15bpp(r, g, b);
+				if (MB) { *(u16*)pDst = col | 0x8000; }
+				else    { *(u16*)pDst = col; }
+			}
+			else if ((M)&&(!B))
+			{
+				col = gpuGouraudColor15bpp(r, g, b);
+				if (!(*(u16*)pDst & 0x8000))
+				{
+					if (MB) { *(u16*)pDst = col | 0x8000; }
+					else    { *(u16*)pDst = col; }
+				}
+			}
+			else
+			{
+				u16 uDst = *(u16*)pDst;
+				if (M) { if (uDst & 0x8000) goto endpixel; }
+				col = gpuGouraudColor15bpp(r, g, b);
+				u16 uSrc = col;
+				u32 uMsk; if (BM==0) uMsk=0x7BDE;
+				if (BM==0) gpuBlending00(uSrc, uDst);
+				if (BM==1) gpuBlending01(uSrc, uDst);
+				if (BM==2) gpuBlending02(uSrc, uDst);
+				if (BM==3) gpuBlending03(uSrc, uDst);
+
+				if (MB) { *(u16*)pDst = uSrc | 0x8000; }
+				else    { *(u16*)pDst = uSrc; }
+			}
+		}
+
+endpixel:
+		if (G) {
+			r += r_incr;
+			g += g_incr;
+			b += b_incr;
+		}
+		pDst += incr;
+	} while (len-- > 1);
+
+	// Note from senquack: Normally, I'd prefer to write a 'do {} while (--len)'
+	//  loop, or even a for() loop, however, on MIPS platforms anything but the
+	//  'do {} while (len-- > 1)' tends to generate very unoptimal asm, with
+	//  many unneeded MULs/ADDs/branches at the ends of these functions.
+	//  If you change the loop structure above, be sure to compare the quality
+	//  of the generated code!!
+
+	if (G) {
+		gcPtr->r = r;
+		gcPtr->g = g;
+		gcPtr->b = b;
+	}
+	return pDst;
+}
+
+static u8* PixelSpanNULL(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
-		fprintf(stdout,"PixelNULL()\n");
+		fprintf(stdout,"PixelSpanNULL()\n");
 	#endif
+	return pDst;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////
-//  Pixel drawing drivers, for lines (only blending)
-typedef void (*PD)(u16 *pixel,const u16 data);
-const PD  gpuPixelDrivers[32] =   //  We only generate pixel op for MASKING/BLEND_ENABLE/BLEND_MODE
+typedef u8* (*PSD)(u8* dst, uintptr_t data, ptrdiff_t incr, size_t len);
+const PSD gpuPixelSpanDrivers[64] =
 { 
-	gpuPixelFn<0x00<<1>,gpuPixelFn<0x01<<1>,gpuPixelFn<0x02<<1>,gpuPixelFn<0x03<<1>,  
-	PixelNULL,gpuPixelFn<0x05<<1>,PixelNULL,gpuPixelFn<0x07<<1>,
-	PixelNULL,gpuPixelFn<0x09<<1>,PixelNULL,gpuPixelFn<0x0B<<1>,
-	PixelNULL,gpuPixelFn<0x0D<<1>,PixelNULL,gpuPixelFn<0x0F<<1>,
+	// Array index | 'CF' template field | Field value
+	// ------------+---------------------+----------------
+	// Bit 0       | (B)  Blending       | off (0), on (1)
+	// Bit 1       | (M)  Mask check     | off (0), on (1)
+	// Bit 3:2     | (BM) Blend mode     | 0..3
+	// Bit 4       | (MB) Mask set       | off (0), on (1)
+	// Bit 5       | (G)  Gouraud        | off (0), on (1)
+	//
+	// NULL entries are ones for which blending is disabled and blend-mode
+	//  field is non-zero, which is obviously invalid.
 
-	gpuPixelFn<(0x00<<1)|256>,gpuPixelFn<(0x01<<1)|256>,gpuPixelFn<(0x02<<1)|256>,gpuPixelFn<(0x03<<1)|256>,  
-	PixelNULL,gpuPixelFn<(0x05<<1)|256>,PixelNULL,gpuPixelFn<(0x07<<1)|256>,
-	PixelNULL,gpuPixelFn<(0x09<<1)|256>,PixelNULL,gpuPixelFn<(0x0B<<1)|256>,
-	PixelNULL,gpuPixelFn<(0x0D<<1)|256>,PixelNULL,gpuPixelFn<(0x0F<<1)|256>
+	// Flat-shaded
+	gpuPixelSpanFn<0x00<<1>,         gpuPixelSpanFn<0x01<<1>,         gpuPixelSpanFn<0x02<<1>,         gpuPixelSpanFn<0x03<<1>,
+	PixelSpanNULL,                   gpuPixelSpanFn<0x05<<1>,         PixelSpanNULL,                   gpuPixelSpanFn<0x07<<1>,
+	PixelSpanNULL,                   gpuPixelSpanFn<0x09<<1>,         PixelSpanNULL,                   gpuPixelSpanFn<0x0B<<1>,
+	PixelSpanNULL,                   gpuPixelSpanFn<0x0D<<1>,         PixelSpanNULL,                   gpuPixelSpanFn<0x0F<<1>,
+
+	// Flat-shaded + PixelMSB (MB)
+	gpuPixelSpanFn<(0x00<<1)|0x100>, gpuPixelSpanFn<(0x01<<1)|0x100>, gpuPixelSpanFn<(0x02<<1)|0x100>, gpuPixelSpanFn<(0x03<<1)|0x100>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x100>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x100>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x0D<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0F<<1)|0x100>,
+
+	// Gouraud-shaded (G)
+	gpuPixelSpanFn<(0x00<<1)|0x80>,  gpuPixelSpanFn<(0x01<<1)|0x80>,  gpuPixelSpanFn<(0x02<<1)|0x80>,  gpuPixelSpanFn<(0x03<<1)|0x80>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x80>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x80>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x0D<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x0F<<1)|0x80>,
+
+	// Gouraud-shaded (G) + PixelMSB (MB)
+	gpuPixelSpanFn<(0x00<<1)|0x180>, gpuPixelSpanFn<(0x01<<1)|0x180>, gpuPixelSpanFn<(0x02<<1)|0x180>, gpuPixelSpanFn<(0x03<<1)|0x180>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x180>, PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x180>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x180>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x180>,
+	PixelSpanNULL,                   gpuPixelSpanFn<(0x0D<<1)|0x180>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0F<<1)|0x180>
 };
 
 ///////////////////////////////////////////////////////////////////////////////

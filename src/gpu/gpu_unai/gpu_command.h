@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -218,10 +219,12 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!skipGPU)
 			{
 				NULL_GPU();
-				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLF(packet, driver);
+				// Shift index right by one, as untextured prims don't use lighting
+				u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+				PSD driver = gpuPixelSpanDrivers[driver_idx];
+				gpuDrawLineF(packet, driver);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawLineF(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -236,10 +239,12 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!skipGPU)
 			{
 				NULL_GPU();
-				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLF(packet, driver);
+				// Shift index right by one, as untextured prims don't use lighting
+				u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+				PSD driver = gpuPixelSpanDrivers[driver_idx];
+				gpuDrawLineF(packet, driver);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawLF(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawLineF(0x%x)\n",PRIM));
 			}
 			if ((PacketBuffer.U4[3] & 0xF000F000) != 0x50005000)
 			{
@@ -257,10 +262,14 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!skipGPU)
 			{
 				NULL_GPU();
-				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLG(packet, driver);
+				// Shift index right by one, as untextured prims don't use lighting
+				u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+				// Index MSB selects Gouraud-shaded PixelSpanDriver:
+				driver_idx |= (1 << 5);
+				PSD driver = gpuPixelSpanDrivers[driver_idx];
+				gpuDrawLineG(packet, driver);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawLineG(0x%x)\n",PRIM));
 			}
 		} break;
 
@@ -275,10 +284,14 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!skipGPU)
 			{
 				NULL_GPU();
-				PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-				gpuDrawLG(packet, driver);
+				// Shift index right by one, as untextured prims don't use lighting
+				u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+				// Index MSB selects Gouraud-shaded PixelSpanDriver:
+				driver_idx |= (1 << 5);
+				PSD driver = gpuPixelSpanDrivers[driver_idx];
+				gpuDrawLineG(packet, driver);
 				fb_dirty = true;
-				DO_LOG(("gpuDrawLG(0x%x)\n",PRIM));
+				DO_LOG(("gpuDrawLineG(0x%x)\n",PRIM));
 			}
 			if ((PacketBuffer.U4[4] & 0xF000F000) != 0x50005000)
 			{

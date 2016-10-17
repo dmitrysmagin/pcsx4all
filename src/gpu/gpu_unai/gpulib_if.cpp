@@ -2,6 +2,7 @@
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
 *   Copyright (C) 2011 notaz                                              *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -19,6 +20,7 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +48,8 @@ static inline s32 GPU_DIV(s32 rs, s32 rt)
 #define	FRAME_WIDTH        1024
 #define	FRAME_HEIGHT       512
 #define	FRAME_OFFSET(x,y)  (((y)<<10)+(x))
+#define FRAME_BYTE_STRIDE     2048
+#define FRAME_BYTES_PER_PIXEL 2
 
 char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
 
@@ -326,22 +330,26 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x41:
       case 0x42:
       case 0x43: {          // Monochrome line
-        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLF(packet, driver);
+        // Shift index right by one, as untextured prims don't use lighting
+        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        PSD driver = gpuPixelSpanDrivers[driver_idx];
+        gpuDrawLineF(packet, driver);
       } break;
 
       case 0x48 ... 0x4F: { // Monochrome line strip
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
 
-        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLF(packet, driver);
+        // Shift index right by one, as untextured prims don't use lighting
+        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        PSD driver = gpuPixelSpanDrivers[driver_idx];
+        gpuDrawLineF(packet, driver);
 
         while(1)
         {
           PacketBuffer.U4[1] = PacketBuffer.U4[2];
           PacketBuffer.U4[2] = *list_position++;
-          gpuDrawLF(packet, driver);
+          gpuDrawLineF(packet, driver);
 
           num_vertexes++;
           if(list_position >= list_end) {
@@ -359,16 +367,24 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x51:
       case 0x52:
       case 0x53: {          // Gouraud-shaded line
-        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLG(packet, driver);
+        // Shift index right by one, as untextured prims don't use lighting
+        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        // Index MSB selects Gouraud-shaded PixelSpanDriver:
+        driver_idx |= (1 << 5);
+        PSD driver = gpuPixelSpanDrivers[driver_idx];
+        gpuDrawLineG(packet, driver);
       } break;
 
       case 0x58 ... 0x5F: { // Gouraud-shaded line strip
         u32 num_vertexes = 1;
         u32 *list_position = &(list[2]);
 
-        PD driver = gpuPixelDrivers[(Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1];
-        gpuDrawLG(packet, driver);
+        // Shift index right by one, as untextured prims don't use lighting
+        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        // Index MSB selects Gouraud-shaded PixelSpanDriver:
+        driver_idx |= (1 << 5);
+        PSD driver = gpuPixelSpanDrivers[driver_idx];
+        gpuDrawLineG(packet, driver);
 
         while(1)
         {
@@ -376,7 +392,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           PacketBuffer.U4[1] = PacketBuffer.U4[3];
           PacketBuffer.U4[2] = *list_position++;
           PacketBuffer.U4[3] = *list_position++;
-          gpuDrawLG(packet, driver);
+          gpuDrawLineG(packet, driver);
 
           num_vertexes++;
           if(list_position >= list_end) {
