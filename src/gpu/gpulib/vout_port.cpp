@@ -1,6 +1,7 @@
 /*
  * (C) Gražvydas "notaz" Ignotas, 2011
  *   Copyright (C) 2016 PCSX4ALL Team
+ *   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)
  *   Copyright (C) 2010 Unai
  *
  * This work is licensed under the terms of any of these licenses
@@ -37,34 +38,33 @@
 #define s64 int64_t
 
 template<typename T>
-INLINE  T Min2 (const T _a, const T _b)             { return (_a<_b)?_a:_b; }
+INLINE  T Min2 (const T _a, const T _b) { return (_a<_b)?_a:_b; }
 
 static inline void GPU_BlitWW(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(!isRGB24)
+	if (!isRGB24)
 	{
-		#ifndef USE_BGR15
-			uCount = 20;
-			const u32* src32 = (const u32*) src;
-			u32* dst32 = (u32*)(void*) dst16;
-			do{
-				dst32[0] = RGB16X2(src32[0]);
-				dst32[1] = RGB16X2(src32[1]);
-				dst32[2] = RGB16X2(src32[2]);
-				dst32[3] = RGB16X2(src32[3]);
-				dst32[4] = RGB16X2(src32[4]);
-				dst32[5] = RGB16X2(src32[5]);
-				dst32[6] = RGB16X2(src32[6]);
-				dst32[7] = RGB16X2(src32[7]);
-				dst32 += 8;
-				src32 += 8;
-			}while(--uCount);
-		#else
-			memcpy(dst16,src,640);
-		#endif
-	}
-	else
+#ifndef USE_BGR15
+		uCount = 20;
+		const u32* src32 = (const u32*) src;
+		u32* dst32 = (u32*)(void*) dst16;
+		do {
+			dst32[0] = RGB16X2(src32[0]);
+			dst32[1] = RGB16X2(src32[1]);
+			dst32[2] = RGB16X2(src32[2]);
+			dst32[3] = RGB16X2(src32[3]);
+			dst32[4] = RGB16X2(src32[4]);
+			dst32[5] = RGB16X2(src32[5]);
+			dst32[6] = RGB16X2(src32[6]);
+			dst32[7] = RGB16X2(src32[7]);
+			dst32 += 8;
+			src32 += 8;
+		} while(--uCount);
+#else
+		memcpy(dst16, src, 640);
+#endif
+	} else
 	{
 		uCount = 20;
 		const u8* src8 = (const u8*)src;
@@ -88,52 +88,51 @@ static inline void GPU_BlitWW(const void* src, u16* dst16, bool isRGB24)
 			dst16[15] = RGB24(src8[45], src8[46], src8[47] );
 			dst16 += 16;
 			src8  += 48;
-		}while(--uCount);
+		} while (--uCount);
 	}
 }
 
 static inline void GPU_BlitWWSWWSWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(!isRGB24)
+	if (!isRGB24)
 	{
-		#ifndef USE_BGR15
-			uCount = 32;
-			const u16* src16 = (const u16*) src;
-			do{
-				dst16[ 0] = RGB16(src16[0]);
-				dst16[ 1] = RGB16(src16[1]);
-				dst16[ 2] = RGB16(src16[3]);
-				dst16[ 3] = RGB16(src16[4]);
-				dst16[ 4] = RGB16(src16[6]);
-				dst16[ 5] = RGB16(src16[8]);
-				dst16[ 6] = RGB16(src16[9]);
-				dst16[ 7] = RGB16(src16[11]);
-				dst16[ 8] = RGB16(src16[12]);
-				dst16[ 9] = RGB16(src16[14]);
-				dst16 += 10;
-				src16 += 16;
-			}while(--uCount);
-		#else
-			uCount = 64;
-			const u16* src16 = (const u16*) src;
-			do{
-				*dst16++ = *src16++;
-				*dst16++ = *src16;
-				src16+=2;
-				*dst16++ = *src16++;
-				*dst16++ = *src16;
-				src16+=2;
-				*dst16++ = *src16;
-				src16+=2;
-			}while(--uCount);
-		#endif
-	}
-	else
+#ifndef USE_BGR15
+		uCount = 32;
+		const u16* src16 = (const u16*) src;
+		do {
+			dst16[ 0] = RGB16(src16[0]);
+			dst16[ 1] = RGB16(src16[1]);
+			dst16[ 2] = RGB16(src16[3]);
+			dst16[ 3] = RGB16(src16[4]);
+			dst16[ 4] = RGB16(src16[6]);
+			dst16[ 5] = RGB16(src16[8]);
+			dst16[ 6] = RGB16(src16[9]);
+			dst16[ 7] = RGB16(src16[11]);
+			dst16[ 8] = RGB16(src16[12]);
+			dst16[ 9] = RGB16(src16[14]);
+			dst16 += 10;
+			src16 += 16;
+		} while (--uCount);
+#else
+		uCount = 64;
+		const u16* src16 = (const u16*) src;
+		do {
+			*dst16++ = *src16++;
+			*dst16++ = *src16;
+			src16 += 2;
+			*dst16++ = *src16++;
+			*dst16++ = *src16;
+			src16 += 2;
+			*dst16++ = *src16;
+			src16 += 2;
+		} while (--uCount);
+#endif
+	} else
 	{
 		uCount = 32;
 		const u8* src8 = (const u8*)src;
-		do{
+		do {
 			dst16[ 0] = RGB24(src8[ 0], src8[ 1], src8[ 2] );
 			dst16[ 1] = RGB24(src8[ 3], src8[ 4], src8[ 5] );
 			dst16[ 2] = RGB24(src8[ 9], src8[10], src8[11] );
@@ -148,50 +147,49 @@ static inline void GPU_BlitWWSWWSWS(const void* src, u16* dst16, bool isRGB24)
 
 			dst16 += 10;
 			src8  += 48;
-		}while(--uCount);
+		} while (--uCount);
 	}
 }
 
 static inline void GPU_BlitWWWWWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(!isRGB24)
+	if (!isRGB24)
 	{
-		#ifndef USE_BGR15
-			uCount = 32;
-			const u16* src16 = (const u16*) src;
-			do{
-				dst16[ 0] = RGB16(src16[0]);
-				dst16[ 1] = RGB16(src16[1]);
-				dst16[ 2] = RGB16(src16[2]);
-				dst16[ 3] = RGB16(src16[3]);
-				dst16[ 4] = RGB16(src16[4]);
-				dst16[ 5] = RGB16(src16[6]);
-				dst16[ 6] = RGB16(src16[7]);
-				dst16[ 7] = RGB16(src16[8]);
-				dst16[ 8] = RGB16(src16[9]);
-				dst16[ 9] = RGB16(src16[10]);
-				dst16 += 10;
-				src16 += 12;
-			}while(--uCount);
-		#else
-			uCount = 64;
-			const u16* src16 = (const u16*) src;
-			do{
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16;
-				src16+=2;
-			}while(--uCount);
-		#endif
-	}
-	else
+#ifndef USE_BGR15
+		uCount = 32;
+		const u16* src16 = (const u16*) src;
+		do {
+			dst16[ 0] = RGB16(src16[0]);
+			dst16[ 1] = RGB16(src16[1]);
+			dst16[ 2] = RGB16(src16[2]);
+			dst16[ 3] = RGB16(src16[3]);
+			dst16[ 4] = RGB16(src16[4]);
+			dst16[ 5] = RGB16(src16[6]);
+			dst16[ 6] = RGB16(src16[7]);
+			dst16[ 7] = RGB16(src16[8]);
+			dst16[ 8] = RGB16(src16[9]);
+			dst16[ 9] = RGB16(src16[10]);
+			dst16 += 10;
+			src16 += 12;
+		} while (--uCount);
+#else
+		uCount = 64;
+		const u16* src16 = (const u16*) src;
+		do {
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16;
+			src16 += 2;
+		} while (--uCount);
+#endif
+	} else
 	{
 		uCount = 32;
 		const u8* src8 = (const u8*)src;
-		do{
+		do {
 			dst16[0] = RGB24(src8[ 0], src8[ 1], src8[ 2] );
 			dst16[1] = RGB24(src8[ 3], src8[ 4], src8[ 5] );
 			dst16[2] = RGB24(src8[ 6], src8[ 7], src8[ 8] );
@@ -204,60 +202,59 @@ static inline void GPU_BlitWWWWWS(const void* src, u16* dst16, bool isRGB24)
 			dst16[9] = RGB24(src8[30], src8[31], src8[32] );
 			dst16 += 10;
 			src8  += 36;
-		}while(--uCount);
+		} while (--uCount);
 	}
 }
 
 static inline void GPU_BlitWWWWWWWWS(const void* src, u16* dst16, bool isRGB24, u32 uClip_src)
 {
 	u32 uCount;
-	if(!isRGB24)
+	if (!isRGB24)
 	{
-		#ifndef USE_BGR15
-			uCount = 20;
-			const u16* src16 = ((const u16*) src) + uClip_src;
-			do{
-				dst16[ 0] = RGB16(src16[0]);
-				dst16[ 1] = RGB16(src16[1]);
-				dst16[ 2] = RGB16(src16[2]);
-				dst16[ 3] = RGB16(src16[3]);
-				dst16[ 4] = RGB16(src16[4]);
-				dst16[ 5] = RGB16(src16[5]);
-				dst16[ 6] = RGB16(src16[6]);
-				dst16[ 7] = RGB16(src16[7]);
+#ifndef USE_BGR15
+		uCount = 20;
+		const u16* src16 = ((const u16*) src) + uClip_src;
+		do {
+			dst16[ 0] = RGB16(src16[0]);
+			dst16[ 1] = RGB16(src16[1]);
+			dst16[ 2] = RGB16(src16[2]);
+			dst16[ 3] = RGB16(src16[3]);
+			dst16[ 4] = RGB16(src16[4]);
+			dst16[ 5] = RGB16(src16[5]);
+			dst16[ 6] = RGB16(src16[6]);
+			dst16[ 7] = RGB16(src16[7]);
 
-				dst16[ 8] = RGB16(src16[9]);
-				dst16[ 9] = RGB16(src16[10]);
-				dst16[10] = RGB16(src16[11]);
-				dst16[11] = RGB16(src16[12]);
-				dst16[12] = RGB16(src16[13]);
-				dst16[13] = RGB16(src16[14]);
-				dst16[14] = RGB16(src16[15]);
-				dst16[15] = RGB16(src16[16]);
-				dst16 += 16;
-				src16 += 18;
-			}while(--uCount);
-		#else
-			uCount = 40;
-			const u16* src16 = ((const u16*) src) + uClip_src;
-			do{
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16;
-				src16+=2;
-			}while(--uCount);
-		#endif
-	}
-	else
+			dst16[ 8] = RGB16(src16[9]);
+			dst16[ 9] = RGB16(src16[10]);
+			dst16[10] = RGB16(src16[11]);
+			dst16[11] = RGB16(src16[12]);
+			dst16[12] = RGB16(src16[13]);
+			dst16[13] = RGB16(src16[14]);
+			dst16[14] = RGB16(src16[15]);
+			dst16[15] = RGB16(src16[16]);
+			dst16 += 16;
+			src16 += 18;
+		} while (--uCount);
+#else
+		uCount = 40;
+		const u16* src16 = ((const u16*) src) + uClip_src;
+		do {
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16;
+			src16 += 2;
+		} while (--uCount);
+#endif
+	} else
 	{
 		uCount = 20;
 		const u8* src8 = (const u8*)src + (uClip_src<<1) + uClip_src;
-		do{
+		do {
 			dst16[ 0] = RGB24(src8[ 0], src8[ 1], src8[ 2] );
 			dst16[ 1] = RGB24(src8[ 3], src8[ 4], src8[ 5] );
 			dst16[ 2] = RGB24(src8[ 6], src8[ 7], src8[ 8] );
@@ -277,49 +274,48 @@ static inline void GPU_BlitWWWWWWWWS(const void* src, u16* dst16, bool isRGB24, 
 			dst16[15] = RGB24(src8[48], src8[49], src8[50] );
 			dst16 += 16;
 			src8  += 54;
-		}while(--uCount);
+		} while (--uCount);
 	}
 }
 
 static inline void GPU_BlitWWDWW(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(!isRGB24)
+	if (!isRGB24)
 	{
-		#ifndef USE_BGR15
-			uCount = 32;
-			const u16* src16 = (const u16*) src;
-			do{
-				dst16[ 0] = RGB16(src16[0]);
-				dst16[ 1] = RGB16(src16[1]);
-				dst16[ 2] = dst16[1];
-				dst16[ 3] = RGB16(src16[2]);
-				dst16[ 4] = RGB16(src16[3]);
-				dst16[ 5] = RGB16(src16[4]);
-				dst16[ 6] = RGB16(src16[5]);
-				dst16[ 7] = dst16[6];
-				dst16[ 8] = RGB16(src16[6]);
-				dst16[ 9] = RGB16(src16[7]);
-				dst16 += 10;
-				src16 +=  8;
-			}while(--uCount);
-		#else
-			uCount = 64;
-			const u16* src16 = (const u16*) src;
-			do{
-				*dst16++ = *src16++;
-				*dst16++ = *src16;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-				*dst16++ = *src16++;
-			}while(--uCount);
-		#endif
-	}
-	else
+#ifndef USE_BGR15
+		uCount = 32;
+		const u16* src16 = (const u16*) src;
+		do {
+			dst16[ 0] = RGB16(src16[0]);
+			dst16[ 1] = RGB16(src16[1]);
+			dst16[ 2] = dst16[1];
+			dst16[ 3] = RGB16(src16[2]);
+			dst16[ 4] = RGB16(src16[3]);
+			dst16[ 5] = RGB16(src16[4]);
+			dst16[ 6] = RGB16(src16[5]);
+			dst16[ 7] = dst16[6];
+			dst16[ 8] = RGB16(src16[6]);
+			dst16[ 9] = RGB16(src16[7]);
+			dst16 += 10;
+			src16 +=  8;
+		} while (--uCount);
+#else
+		uCount = 64;
+		const u16* src16 = (const u16*) src;
+		do {
+			*dst16++ = *src16++;
+			*dst16++ = *src16;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+			*dst16++ = *src16++;
+		} while (--uCount);
+#endif
+	} else
 	{
 		uCount = 32;
 		const u8* src8 = (const u8*)src;
-		do{
+		do {
 			dst16[ 0] = RGB24(src8[0], src8[ 1], src8[ 2] );
 			dst16[ 1] = RGB24(src8[3], src8[ 4], src8[ 5] );
 			dst16[ 2] = dst16[1];
@@ -333,7 +329,7 @@ static inline void GPU_BlitWWDWW(const void* src, u16* dst16, bool isRGB24)
 			dst16[ 9] = RGB24(src8[21], src8[22], src8[23] );
 			dst16 += 10;
 			src8  += 24;
-		}while(--uCount);
+		} while (--uCount);
 	}
 }
 
@@ -341,48 +337,47 @@ static inline void GPU_BlitWWDWW(const void* src, u16* dst16, bool isRGB24)
 static inline void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
-	if(!isRGB24)
-	{
-		#ifndef USE_BGR15
-			uCount = 20;
-			const u16* src16 = (const u16*) src;
-			do{
-				dst16[ 0] = RGB16(src16[0]);
-				dst16[ 1] = RGB16(src16[2]);
-				dst16[ 2] = RGB16(src16[4]);
-				dst16[ 3] = RGB16(src16[6]);
+	if (!isRGB24) {
+#ifndef USE_BGR15
+		uCount = 20;
+		const u16* src16 = (const u16*) src;
+		do {
+			dst16[ 0] = RGB16(src16[0]);
+			dst16[ 1] = RGB16(src16[2]);
+			dst16[ 2] = RGB16(src16[4]);
+			dst16[ 3] = RGB16(src16[6]);
 
-				dst16[ 4] = RGB16(src16[8]);
-				dst16[ 5] = RGB16(src16[10]);
-				dst16[ 6] = RGB16(src16[12]);
-				dst16[ 7] = RGB16(src16[14]);
+			dst16[ 4] = RGB16(src16[8]);
+			dst16[ 5] = RGB16(src16[10]);
+			dst16[ 6] = RGB16(src16[12]);
+			dst16[ 7] = RGB16(src16[14]);
 
-				dst16[ 8] = RGB16(src16[16]);
-				dst16[ 9] = RGB16(src16[18]);
-				dst16[10] = RGB16(src16[20]);
-				dst16[11] = RGB16(src16[22]);
+			dst16[ 8] = RGB16(src16[16]);
+			dst16[ 9] = RGB16(src16[18]);
+			dst16[10] = RGB16(src16[20]);
+			dst16[11] = RGB16(src16[22]);
 
-				dst16[12] = RGB16(src16[24]);
-				dst16[13] = RGB16(src16[26]);
-				dst16[14] = RGB16(src16[28]);
-				dst16[15] = RGB16(src16[30]);
+			dst16[12] = RGB16(src16[24]);
+			dst16[13] = RGB16(src16[26]);
+			dst16[14] = RGB16(src16[28]);
+			dst16[15] = RGB16(src16[30]);
 
-				dst16 += 16;
-				src16 += 32;
-			}while(--uCount);
-		#else
-			uCount = 320;
-			const u16* src16 = (const u16*) src;
-			do{
-				*dst16++ = *src16; src16+=2;
-			}while(--uCount);
-		#endif
-	}
-	else
+			dst16 += 16;
+			src16 += 32;
+		} while (--uCount);
+#else
+		uCount = 320;
+		const u16* src16 = (const u16*) src;
+		do {
+			*dst16++ = *src16;
+			src16 += 2;
+		} while (--uCount);
+#endif
+	} else
 	{
 		uCount = 20;
 		const u8* src8 = (const u8*) src;
-		do{
+		do {
 			dst16[ 0] = RGB24(src8[ 0], src8[ 1], src8[ 2] );
 			dst16[ 1] = RGB24(src8[ 6], src8[ 7], src8[ 8] );
 			dst16[ 2] = RGB24(src8[12], src8[13], src8[14] );
@@ -405,20 +400,8 @@ static inline void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 
 			dst16 += 16;
 			src8  += 96;
-		}while(--uCount);
+		} while(--uCount);
 	}
-}
-
-
-
-int vout_init(void)
-{
-  return 0;
-}
-
-int vout_finish(void)
-{
-  return 0;
 }
 
 // Basically an adaption of old gpu_unai/gpu.cpp's gpuVideoOutput() that
@@ -426,105 +409,114 @@ int vout_finish(void)
 // TODO: clean up / improve / add HW scaling support
 void vout_update(void)
 {
-  const int VIDEO_WIDTH = 320;
+	const int VIDEO_WIDTH = 320;
 
-  //Debugging:
+	//Debugging:
 #if 0
-  if (gpu.screen.w != gpu.screen.hres) {
-	  int start_x = (gpu.screen.x1 - 0x260) * gpu.screen.hres / 2560;
-	  int end_x = (gpu.screen.x2 - 0x260) * gpu.screen.hres / 2560;
-	  int rounded_w= (((gpu.screen.x2 - gpu.screen.x1) / 2560) + 2) & (~3);
-	  printf("screen.w: %d  screen.hres: %d  rounded_w:%d\n", gpu.screen.w, gpu.screen.hres, rounded_w);
-	  printf("start_x: %d  end_x: %d  x1: %d  x2: %d\n", start_x, end_x, gpu.screen.x1, gpu.screen.x2);
-  }
+	if (gpu.screen.w != gpu.screen.hres) {
+		int start_x = (gpu.screen.x1 - 0x260) * gpu.screen.hres / 2560;
+		int end_x = (gpu.screen.x2 - 0x260) * gpu.screen.hres / 2560;
+		int rounded_w= (((gpu.screen.x2 - gpu.screen.x1) / 2560) + 2) & (~3);
+		printf("screen.w: %d  screen.hres: %d  rounded_w:%d\n", gpu.screen.w, gpu.screen.hres, rounded_w);
+		printf("start_x: %d  end_x: %d  x1: %d  x2: %d\n", start_x, end_x, gpu.screen.x1, gpu.screen.x2);
+	}
 #endif
 
-  int x0 = gpu.screen.x & ~1; // alignment needed by blitter
-  int y0 = gpu.screen.y;
-  int w0 = gpu.screen.hres;
-  int h0 = gpu.screen.vres;
-  int h1 = gpu.screen.h;     // height of image displayed on screen
+	int x0 = gpu.screen.x & ~1; // alignment needed by blitter
+	int y0 = gpu.screen.y;
+	int w0 = gpu.screen.hres;
+	int h0 = gpu.screen.vres;
+	int h1 = gpu.screen.h;     // height of image displayed on screen
 
-  if (w0 == 0 || h0 == 0)
-    return;
+	if (w0 == 0 || h0 == 0)
+		return;
 
-  u16* dest_screen16 = SCREEN;
-  u16* src_screen16  = &(((u16*)gpu.vram)[FRAME_OFFSET(x0,y0)]);
-  bool isRGB24 = gpu.status.rgb24;
+	u16* dest_screen16 = SCREEN;
+	u16* src_screen16  = &(((u16*)gpu.vram)[FRAME_OFFSET(x0,y0)]);
+	bool isRGB24 = gpu.status.rgb24;
 
-  //  Height centering
-  int sizeShift = 1;
-  if (h0 == 256) {
-	  h0 = 240;
-  } else if (h0 == 480) {
-	  sizeShift = 2;
-  }
+	//  Height centering
+	int sizeShift = 1;
+	if (h0 == 256) {
+		h0 = 240;
+	} else if (h0 == 480) {
+		sizeShift = 2;
+	}
 
-  if (h1>h0) {
-	  src_screen16 += ((h1-h0)/2)*1024;
-	  h1 = h0;
-  } else if (h1<h0) {
-	  dest_screen16 += ((h0-h1)>>sizeShift)*VIDEO_WIDTH;
-  }
+	if (h1 > h0) {
+		src_screen16 += ((h1-h0) / 2) * 1024;
+		h1 = h0;
+	} else if (h1<h0) {
+		dest_screen16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
+	}
 
-  int incY = (h0==480) ? 2 : 1;
-  h0=(h0==480 ? 2048 : 1024);
+	int incY = (h0 == 480) ? 2 : 1;
+	h0 = ((h0 == 480) ? 2048 : 1024);
 
-  switch ( w0 )
-  {
-	  case 256:
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWWDWW(src_screen16, dest_screen16, isRGB24);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-	  case 368:
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWWWWWWWWS(src_screen16, dest_screen16, isRGB24, 4);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-	  case 320:
-		  //senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
-		  src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWW(src_screen16, dest_screen16, isRGB24);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-	  case 384:
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWWWWWS(src_screen16, dest_screen16, isRGB24);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-	  case 512:
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWWSWWSWS(src_screen16, dest_screen16, isRGB24);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-	  case 640:
-		  for(int y1=y0+h1; y0<y1; y0+=incY)
-		  {
-			  GPU_BlitWS(src_screen16, dest_screen16, isRGB24);
-			  dest_screen16 += VIDEO_WIDTH;
-			  src_screen16 += h0;
-		  }
-		  break;
-  }
+	switch ( w0 )
+	{
+		case 256: {
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWWDWW(src_screen16, dest_screen16, isRGB24);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
 
-  video_flip();
+		case 368: {
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWWWWWWWWS(src_screen16, dest_screen16, isRGB24, 4);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
+
+		case 320: {
+			//senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
+			src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWW(src_screen16, dest_screen16, isRGB24);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
+
+		case 384: {
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWWWWWS(src_screen16, dest_screen16, isRGB24);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
+
+		case 512: {
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWWSWWSWS(src_screen16, dest_screen16, isRGB24);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
+
+		case 640: {
+			for (int y1=y0+h1; y0<y1; y0+=incY) {
+				GPU_BlitWS(src_screen16, dest_screen16, isRGB24);
+				dest_screen16 += VIDEO_WIDTH;
+				src_screen16 += h0;
+			}
+		} break;
+	}
+
+	video_flip();
+}
+
+int vout_init(void)
+{
+	return 0;
+}
+
+int vout_finish(void)
+{
+	return 0;
 }
 
 //senquack - Handles PSX display disabling (TODO: implement?)
