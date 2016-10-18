@@ -86,8 +86,23 @@ OBJS += \
 	obj/recompiler/mips/mips_disasm.o
 endif
 
-OBJS += obj/gte/$(GTE)/gte.o
+#*********************************************************************
+# Compile with new 'gpulib' adapted from PCSX Rearmed?
+#  Experimental as of Oct 2016 (Will eventually become default)
+#  Fixes many game incompatibilities and centralizes/improves many
+#  things that once were the responsibility of individual GPU plugins.
+#  NOTE: For now, only GPU Unai has been adapted.
+ifeq ($(USE_GPULIB),1)
+CFLAGS += -DUSE_GPULIB
+OBJDIRS += obj/gpu/gpulib
+OBJS += obj/gpu/$(GPU)/gpulib_if.o
+OBJS += obj/gpu/gpulib/gpu.o obj/gpu/gpulib/vout_port.o
+else
 OBJS += obj/gpu/$(GPU)/gpu.o
+endif
+#*********************************************************************
+
+OBJS += obj/gte/$(GTE)/gte.o
 OBJS += obj/spu/$(SPU)/spu.o
 
 OBJS += obj/port/$(PORT)/port.o
