@@ -245,7 +245,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
     switch (cmd)
     {
       case 0x02:
-        gpuClearImage();
+        gpuClearImage(packet);
         break;
 
       case 0x20:
@@ -511,7 +511,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       } break;
 
       case 0x80:          //  vid -> vid
-        gpuMoveImage();   //  prim handles updateLace && skip
+        gpuMoveImage(packet);   //  prim handles updateLace && skip
         break;
 
 #ifdef TEST

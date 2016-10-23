@@ -20,13 +20,13 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef USE_GPULIB
-INLINE void gpuLoadImage(void)
+void gpuLoadImage(PtrUnion packet)
 {
 	u16 x0, y0, w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	w0 = PacketBuffer.U2[4];
-	h0 = PacketBuffer.U2[5];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	w0 = packet.U2[4];
+	h0 = packet.U2[5];
 
 	if ((y0 + h0) > FRAME_HEIGHT)
 	{
@@ -47,13 +47,13 @@ INLINE void gpuLoadImage(void)
 
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef USE_GPULIB
-INLINE void gpuStoreImage(void)
+void gpuStoreImage(PtrUnion packet)
 {
 	u16 x0, y0, w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	w0 = PacketBuffer.U2[4];
-	h0 = PacketBuffer.U2[5];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	w0 = packet.U2[4];
+	h0 = packet.U2[5];
 
 	if ((y0 + h0) > FRAME_HEIGHT)
 	{
@@ -71,16 +71,16 @@ INLINE void gpuStoreImage(void)
 }
 #endif // !USE_GPULIB
 
-INLINE void gpuMoveImage(void)
+void gpuMoveImage(PtrUnion packet)
 {
 	u32 x0, y0, x1, y1;
 	s32 w0, h0;
-	x0 = PacketBuffer.U2[2] & 1023;
-	y0 = PacketBuffer.U2[3] & 511;
-	x1 = PacketBuffer.U2[4] & 1023;
-	y1 = PacketBuffer.U2[5] & 511;
-	w0 = PacketBuffer.U2[6];
-	h0 = PacketBuffer.U2[7];
+	x0 = packet.U2[2] & 1023;
+	y0 = packet.U2[3] & 511;
+	x1 = packet.U2[4] & 1023;
+	y1 = packet.U2[5] & 511;
+	w0 = packet.U2[6];
+	h0 = packet.U2[7];
 
 	if( (x0==x1) && (y0==y1) ) return;
 	if ((w0<=0) || (h0<=0)) return;
@@ -151,13 +151,13 @@ INLINE void gpuMoveImage(void)
 	}
 }
 
-INLINE void gpuClearImage(void)
+void gpuClearImage(PtrUnion packet)
 {
 	s32   x0, y0, w0, h0;
-	x0 = PacketBuffer.S2[2];
-	y0 = PacketBuffer.S2[3];
-	w0 = PacketBuffer.S2[4] & 0x3ff;
-	h0 = PacketBuffer.S2[5] & 0x3ff;
+	x0 = packet.S2[2];
+	y0 = packet.S2[3];
+	w0 = packet.S2[4] & 0x3ff;
+	h0 = packet.S2[5] & 0x3ff;
 	 
 	w0 += x0;
 	if (x0 < 0) x0 = 0;
@@ -177,7 +177,7 @@ INLINE void gpuClearImage(void)
 	if (x0&1)
 	{
 		u16* pixel = (u16*)GPU_FrameBuffer + FRAME_OFFSET(x0, y0);
-		u16 rgb = GPU_RGB16(PacketBuffer.S4[0]);
+		u16 rgb = GPU_RGB16(packet.U4[0]);
 		y0 = FRAME_WIDTH - w0;
 		do {
 			x0=w0;
@@ -188,7 +188,7 @@ INLINE void gpuClearImage(void)
 	else
 	{
 		u32* pixel = (u32*)(void*)GPU_FrameBuffer + ((FRAME_OFFSET(x0, y0))>>1);
-		u32 rgb = GPU_RGB16(PacketBuffer.S4[0]);
+		u32 rgb = GPU_RGB16(packet.U4[0]);
 		rgb |= (rgb<<16);
 		if (w0&1)
 		{

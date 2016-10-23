@@ -81,7 +81,7 @@ void gpuSendPacketFunction(const int PRIM)
 	{
 		case 0x02: {
 			NULL_GPU();
-			gpuClearImage();    //  prim handles updateLace && skip
+			gpuClearImage(packet);    //  prim handles updateLace && skip
 			fb_dirty = true;
 			DO_LOG(("gpuClearImage(0x%x)\n",PRIM));
 		} break;
@@ -452,7 +452,7 @@ void gpuSendPacketFunction(const int PRIM)
 		} break;
 
 		case 0x80:          //  vid -> vid
-			gpuMoveImage();   //  prim handles updateLace && skip
+			gpuMoveImage(packet);   //  prim handles updateLace && skip
 			if ((!skipCount) && (DisplayArea[3] == 480)) // Tekken 3 hack
 			{
 				if (!skipGPU) fb_dirty = true;
@@ -464,11 +464,11 @@ void gpuSendPacketFunction(const int PRIM)
 			DO_LOG(("gpuMoveImage(0x%x)\n",PRIM));
 			break;
 		case 0xA0:          //  sys ->vid
-			gpuLoadImage();   //  prim handles updateLace && skip
+			gpuLoadImage(packet);   //  prim handles updateLace && skip
 			DO_LOG(("gpuLoadImage(0x%x)\n",PRIM));
 			break;
 		case 0xC0:          //  vid -> sys
-			gpuStoreImage();  //  prim handles updateLace && skip
+			gpuStoreImage(packet);  //  prim handles updateLace && skip
 			DO_LOG(("gpuStoreImage(0x%x)\n",PRIM));
 			break;
 		case 0xE1:
