@@ -19,35 +19,11 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
-#ifndef NEW_GPU_H
-#define NEW_GPU_H
+#ifndef GPU_UNAI_GPU_H
+#define GPU_UNAI_GPU_H
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU global definitions
-#define	FRAME_BUFFER_SIZE	(1024*512*2)
-#define	FRAME_WIDTH			  1024
-#define	FRAME_HEIGHT		  512
-#define	FRAME_OFFSET(x,y)	(((y)<<10)+(x))
-#define FRAME_BYTE_STRIDE     2048
-#define FRAME_BYTES_PER_PIXEL 2
-
-#define VIDEO_WIDTH 320
-
-template<class T> INLINE void SwapValues(T &x, T &y)
-{
-	T tmp = x; x = y; y = tmp;
-}
-
-INLINE s32 GPU_DIV(s32 rs, s32 rt)
-{
-	return rt ? (SDIV(rs,rt)) : (0);
-}
-
-//senquack - version of above that doesn't check for div-by-zero
-//           (caller *must* check!)
-#define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
-
-#include "gpu_fixedpoint.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Tweaks and Hacks
@@ -55,50 +31,14 @@ extern  int  skipCount;
 extern  bool show_fps;
 
 ///////////////////////////////////////////////////////////////////////////////
-//  interlaced rendering
+//  Interlaced rendering
 extern  int linesInterlace_user;
 extern  bool progressInterlace;
 
+
+///////////////////////////////////////////////////////////////////////////////
+//  Optional lighting/blending
 extern  bool light;
 extern  bool blend;
 
-typedef struct {
-	u32 Version;
-	u32 GPU_gp1;
-	u32 Control[256];
-	unsigned char FrameBuffer[1024*512*2];
-} GPUFreeze_t;
-
-struct  GPUPacket
-{
-	union
-	{
-		u32 U4[16];
-		s32 S4[16];
-		u16 U2[32];
-		s16 S2[32];
-		u8  U1[64];
-		s8  S1[64];
-	};
-};
-
-union PtrUnion
-{
-	u32  *U4;
-	s32  *S4;
-	u16  *U2;
-	s16  *S2;
-	u8   *U1;
-	s8   *S1;
-	void *ptr;
-};
-
-///////////////////////////////////////////////////////////////////////////////
-//  Compile Options
-
-//#define ENABLE_GPU_NULL_SUPPORT   // Enables NullGPU support
-//#define ENABLE_GPU_LOG_SUPPORT    // Enables gpu logger, very slow only for windows debugging
-//#define ENABLE_GPU_ARMV7			// Enables ARMv7 optimized assembly
-
-///////////////////////////////////////////////////////////////////////////////
-#endif  // NEW_GPU_H
+#endif // GPU_UNAI_GPU_H

@@ -25,12 +25,23 @@
 #include "profiler.h"
 #include "debug.h"
 #include "gpu.h"
+#include "gpu_unai.h"
+
+#define VIDEO_WIDTH 320
 
 #ifdef TIME_IN_MSEC
 #define TPS 1000
 #else
 #define TPS 1000000
 #endif
+
+//TODO: Have gpu_unai use GPUFreeze_t declared in plugins.h
+typedef struct {
+	u32 Version;
+	u32 GPU_gp1;
+	u32 Control[256];
+	unsigned char FrameBuffer[1024*512*2];
+} GPUFreeze_t;
 
 int skipCount = 0; /* frame skip (0,1,2,3...) */
 int linesInterlace = 0;  /* internal lines interlace */
@@ -136,21 +147,15 @@ u32 blit_mask=0; /* blit mask */
 
 u32 *last_dma=NULL; /* last dma pointer */
 
-///////////////////////////////////////////////////////////////////////////////
-//  Inner loop driver instanciation file
-#include "gpu_inner.h"
-
-///////////////////////////////////////////////////////////////////////////////
-//  GPU Raster Macros
-#define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
-
-//Sign-extend 11-bit coordinate command param
-#define GPU_EXPANDSIGN(x)  (((s32)(x)<<(32-11))>>(32-11))
-
-#define CHKMAX_X 1024
-#define CHKMAX_Y 512
-
 #define IS_PAL (GPU_GP1&(0x08<<17))
+
+///////////////////////////////////////////////////////////////////////////////
+// GPU fixed point math
+#include "gpu_fixedpoint.h"
+
+///////////////////////////////////////////////////////////////////////////////
+// Inner loop driver instantiation file
+#include "gpu_inner.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 // GPU internal image drawing functions

@@ -131,19 +131,4 @@ INLINE  fixed xLoDivx   (const fixed _a, const fixed _b)
 // --- END INVERSE APPROXIMATION SECTION ---
 ///////////////////////////////////////////////////////////////////////////
 
-///////////////////////////////////////////////////////////////////////////
-template<typename T>
-INLINE  T Min2 (const T _a, const T _b)             { return (_a<_b)?_a:_b; }
-
-template<typename T>
-INLINE  T Min3 (const T _a, const T _b, const T _c) { return  Min2(Min2(_a,_b),_c); }
-
-///////////////////////////////////////////////////////////////////////////
-template<typename T>
-INLINE  T Max2 (const T _a, const T _b)             { return  (_a>_b)?_a:_b; }
-
-template<typename T>
-INLINE  T Max3 (const T _a, const T _b, const T _c) { return  Max2(Max2(_a,_b),_c); }
-
-///////////////////////////////////////////////////////////////////////////
 #endif  //FIXED_H

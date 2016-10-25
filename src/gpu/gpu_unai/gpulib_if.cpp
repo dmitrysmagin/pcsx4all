@@ -26,30 +26,7 @@
 #include <string.h>
 #include "gpu/gpulib/gpu.h"
 #include "port.h"
-
-#define u8 uint8_t
-#define s8 int8_t
-#define u16 uint16_t
-#define s16 int16_t
-#define u32 uint32_t
-#define s32 int32_t
-#define s64 int64_t
-
-static inline s32 GPU_DIV(s32 rs, s32 rt)
-{
-	return rt ? (SDIV(rs,rt)) : (0);
-}
-
-//senquack - version of above that doesn't check for div-by-zero
-//           (caller *must* check!)
-#define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
-
-#define	FRAME_BUFFER_SIZE  (1024*512*2)
-#define	FRAME_WIDTH        1024
-#define	FRAME_HEIGHT       512
-#define	FRAME_OFFSET(x,y)  (((y)<<10)+(x))
-#define FRAME_BYTE_STRIDE     2048
-#define FRAME_BYTES_PER_PIXEL 2
+#include "gpu_unai.h"
 
 char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
 
@@ -119,66 +96,32 @@ static u32   blit_mask=0; /* blit mask - Determines which pixels of rendered
                              on a low-resolution device in high-res modes.
                              Cannot be used if downscaling is in use. */
 
-union PtrUnion
-{
-	u32  *U4;
-	s32  *S4;
-	u16  *U2;
-	s16  *S2;
-	u8   *U1;
-	s8   *S1;
-	void *ptr;
-};
-
-union GPUPacket
-{
-	u32 U4[16];
-	s32 S4[16];
-	u16 U2[32];
-	s16 S2[32];
-	u8  U1[64];
-	s8  S1[64];
-};
-
 static GPUPacket PacketBuffer;
 static u16  *GPU_FrameBuffer;
 static u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "../gpu_unai/gpu_fixedpoint.h"
+// GPU fixed point math
+#include "gpu_fixedpoint.h"
 
-//  Inner loop driver instanciation file
-#include "../gpu_unai/gpu_inner.h"
-
-//  GPU Raster Macros
-#define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
-
-//Sign-extend 11-bit coordinate command param
-#define GPU_EXPANDSIGN(x)  (((s32)(x)<<(32-11))>>(32-11))
-
-#define CHKMAX_X 1024
-#define CHKMAX_Y 512
-
-template<class T> static inline void SwapValues(T &x, T &y)
-{
-	T tmp = x; x = y; y = tmp;
-}
+// Inner loop driver instantiation file
+#include "gpu_inner.h"
 
 // GPU internal image drawing functions
-#include "../gpu_unai/gpu_raster_image.h"
+#include "gpu_raster_image.h"
 
 // GPU internal line drawing functions
-#include "../gpu_unai/gpu_raster_line.h"
+#include "gpu_raster_line.h"
 
 // GPU internal polygon drawing functions
-#include "../gpu_unai/gpu_raster_polygon.h"
+#include "gpu_raster_polygon.h"
 
 // GPU internal sprite drawing functions
-#include "../gpu_unai/gpu_raster_sprite.h"
+#include "gpu_raster_sprite.h"
 
 // GPU command buffer execution/store
-#include "../gpu_unai/gpu_command.h"
+#include "gpu_command.h"
 
 /////////////////////////////////////////////////////////////////////////////
 
