@@ -39,12 +39,15 @@ CFLAGS = -mcpu=arm926ej-s -mtune=arm926ej-s $(DEVLIBS) \
 	-fweb -frename-registers -falign-functions=32 -falign-loops -falign-labels -falign-jumps \
 	-finline -finline-functions -fno-common -fno-builtin \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
-    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
+    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
     -DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
     -D__arm__ -DWIZ -DMMUHACK -DINLINE="static __inline__" -Dasm="__asm__ __volatile__" -Wshadow -DPSXREC
 	# -fsigned-char 
 	# -Wstrict-prototypes -Wbad-function-cast
     # -Wshadow
+
+# Convert $GPU var to uppercase using 'tr' util and make it a CFLAG define
+CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
 
 #senquack- Following will force use of inaccurate fixed-point division
 #          using original inverse-lookup-table. It is faster on systems

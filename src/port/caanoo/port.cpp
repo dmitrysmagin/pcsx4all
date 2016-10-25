@@ -68,7 +68,7 @@ void pad_update(void)
 		}else
 			pcsx4all_exit();
 	}
-	#ifdef gpu_unai
+	#ifdef GPU_UNAI
 	if((key & WIZ_L) && (key & WIZ_R) && (key & WIZ_SELECT))
 	{
 		extern bool show_fps; show_fps=!show_fps;
@@ -189,7 +189,7 @@ int main (int argc, char **argv)
 
 	/*
 	// gpu_dfxvideo
-	#ifdef gpu_dfxvideo
+	#ifdef GPU_DFXVIDEO
 	extern int UseFrameLimit; UseFrameLimit=1; // limit fps 1=on, 0=off
 	extern int UseFrameSkip; UseFrameSkip=1; // frame skip 1=on, 0=off
 	extern int iFrameLimit; iFrameLimit=2; // fps limit 2=auto 1=fFrameRate, 0=off
@@ -214,7 +214,7 @@ int main (int argc, char **argv)
 
 	/*
 	// gpu_drhell
-	#ifdef gpu_drhell
+	#ifdef GPU_DRHELL
 	extern unsigned int autoFrameSkip; autoFrameSkip=1; // auto frameskip
 	extern signed int framesToSkip; framesToSkip=0; // frames to skip
 	#endif
@@ -222,7 +222,7 @@ int main (int argc, char **argv)
 	
 	// gpu_unai
 	/*
-	#ifdef gpu_unai
+	#ifdef GPU_UNAI
 	extern int skipCount; skipCount=0; // frame skip (0,1,2,3...)
 	extern int linesInterlace_user; linesInterlace_user=0; // interlace
 	#endif

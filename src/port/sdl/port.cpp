@@ -47,12 +47,12 @@ enum {
 static SDL_Surface *screen;
 unsigned short *SCREEN;
 
-#ifdef gpu_unai
+#ifdef GPU_UNAI
 /* FPS showing */
 extern char msg[36];
 #endif
 
-#ifdef gpu_dfxvideo
+#ifdef GPU_DFXVIDEO
 extern float fps_cur;
 #endif
 
@@ -465,7 +465,7 @@ void pad_update(void)
 		video_flip();
 		video_clear();
 #endif
-#if defined(gpu_unai) && !defined(USE_GPULIB)
+#if defined(GPU_UNAI) && !defined(USE_GPULIB)
 		extern bool fb_dirty;
 		fb_dirty = true; // redraw screen
 #endif
@@ -632,9 +632,9 @@ void sound_set(unsigned char *pSound, long lBytes)
 void video_flip(void)
 {
 	if (emu_running && Config.ShowFps) {
-#ifdef gpu_unai
+#ifdef GPU_UNAI
 		port_printf(5,5,msg);
-#elif gpu_dfxvideo
+#elif GPU_DFXVIDEO
 		char msg[256];
 		sprintf(msg, "FPS: %02.02f", fps_cur);
 		port_printf(5,5,msg);
@@ -770,7 +770,7 @@ int main (int argc, char **argv)
 	//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
 	// gpu_dfxvideo
-	#ifdef gpu_dfxvideo
+	#ifdef GPU_DFXVIDEO
 	extern int UseFrameLimit; UseFrameLimit=0; // limit fps 1=on, 0=off
 	extern int UseFrameSkip; UseFrameSkip=0; // frame skip 1=on, 0=off
 	extern int iFrameLimit; iFrameLimit=0; // fps limit 2=auto 1=fFrameRate, 0=off
@@ -791,23 +791,23 @@ int main (int argc, char **argv)
 	 256=repeated flat tex triangles (Dark Forces)
 	 512=draw quads with triangles (better g-colors, worse textures)
 	*/
-	#endif
+	#endif //GPU_DFXVIDEO
 
 	// gpu_drhell
-	#ifdef gpu_drhell
+	#ifdef GPU_DRHELL
 	extern unsigned int autoFrameSkip; autoFrameSkip=1; /* auto frameskip */
 	extern signed int framesToSkip; framesToSkip=0; /* frames to skip */
-	#endif
+	#endif //GPU_DRHELL
 
 	// gpu_unai
-	#ifdef gpu_unai
+	#ifdef GPU_UNAI
 	#ifdef USE_GPULIB
 	//TODO: gpulib gpu_unai settings go here
 	#else
 	extern int skipCount; skipCount=0; /* frame skip (0,1,2,3...) */
 	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
 	#endif
-	#endif
+	#endif //GPU_UNAI
 
 	// Load config from file.
 	config_load();
@@ -868,7 +868,7 @@ int main (int argc, char **argv)
 		// GPU
 		if (strcmp(argv[i],"-showfps")==0) { Config.ShowFps=true; } // show FPS
 		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
-	#ifdef gpu_unai
+	#ifdef GPU_UNAI
 	#ifdef USE_GPULIB
 		//TODO: gpulib gpu_unai settings go here
 	#else

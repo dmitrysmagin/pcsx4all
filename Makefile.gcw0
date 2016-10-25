@@ -37,12 +37,15 @@ CFLAGS = -mips32r2 -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
-	-D$(GPU) -Isrc/port/$(PORT) \
+	-Isrc/port/$(PORT) \
 	-Isrc/gte/$(GTE) -D$(INTERPRETER) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
+
+# Convert $GPU var to uppercase using 'tr' util and make it a CFLAG define
+CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
 
 ifdef RECOMPILER
 CFLAGS += -DPSXREC -D$(RECOMPILER)
