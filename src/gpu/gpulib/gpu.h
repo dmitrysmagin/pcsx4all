@@ -8,6 +8,9 @@
  * See the COPYING file in the top-level directory.
  */
 
+#ifndef GPULIB_GPU_H
+#define GPULIB_GPU_H
+
 #include <stdint.h>
 
 #define CMD_BUFFER_LEN          1024
@@ -143,3 +146,4 @@ int  vout_finish(void);
 void vout_update(void);
 void vout_blank(void);
 void vout_set_config(const gpulib_config_t *config);
+#endif // GPULIB_GPU_H
