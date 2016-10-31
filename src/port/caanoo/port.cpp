@@ -1,10 +1,16 @@
-
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
 #include "plugin_lib/perfmon.h"  // FPS / CPU performance monitoring
 #include "wiz_lib.h"
 #include "profiler.h"
+
+// New gpulib from Notaz's PCSX Rearmed handles duties common to GPU plugins
+#ifdef USE_GPULIB
+#include "gpu/gpulib/gpu.h"
+#endif
+
+#include "gpu/gpu_unai/gpu.h"
 
 enum {
 	DKEY_SELECT = 0,
@@ -224,7 +230,7 @@ int main (int argc, char **argv)
 	/*
 	#ifdef GPU_UNAI
 	extern int skipCount; skipCount=0; // frame skip (0,1,2,3...)
-	extern int linesInterlace_user; linesInterlace_user=0; // interlace
+	extern int gpu_unai.lines_ilace_user; gpu_unai.lines_ilace_user=0; // interlace
 	#endif
 	*/
 	
@@ -270,6 +276,7 @@ int main (int argc, char **argv)
 			}
 		}
 		if (strcmp(argv[i],"-adjust")==0) { PSXCLK=(u32)((double)PSXCLK*atof(argv[i+1])); }
+		if (strcmp(argv[i],"-secure_writes")==0) { extern bool rec_secure_writes; rec_secure_writes=true; } // securized writes
 		
 		// Performance monitoring options
 		if (strcmp(argv[i],"-perfmon")==0) {
@@ -279,14 +286,25 @@ int main (int argc, char **argv)
 		}
 
 		// GPU
-		if (strcmp(argv[i],"-framelimit")==0) { extern bool frameLimit; frameLimit=true; } // frames limit
-		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
-		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
-		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
-		if (strcmp(argv[i],"-no_blend")==0) { extern bool blend; blend=false; } // disable blending
-		if (strcmp(argv[i],"-no_light")==0) { extern bool light; light=false; } // disable lighting
+		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
+		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; } // render only every other line
+		if (strcmp(argv[i],"-no_blend")==0) { gpu_unai_config_ext.blending_disabled = true; } // disable blending
+		if (strcmp(argv[i],"-no_light")==0) { gpu_unai_config_ext.lighting_disabled = true; } // disable lighting
+		// Settings specific to older, non-gpulib standalone gpu_unai:
+		#ifndef USE_GPULIB
+			// frame skip (0..7)
+			if ((strcmp(argv[i],"-skip")==0) && ((i+1) < argc)) {
+				int tmp = atoi(argv[i+1]);
+				if (tmp >= 0 && tmp <= 7) {
+					gpu_unai_config_ext.frameskip_count = tmp;
+				} else {
+					printf("ERROR: -skip parameter should be value 0..7\n");
+					exit(1);
+				}
+			}
+			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = true; } // progressive interlace
+		#endif
 
-		if (strcmp(argv[i],"-secure_writes")==0) { extern bool rec_secure_writes; rec_secure_writes=true; } // securized writes
 		// SPU
 	#ifndef spu_null
 		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound

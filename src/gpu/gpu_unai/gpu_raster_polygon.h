@@ -70,8 +70,8 @@ static void polyInitVertexBuffer(const PtrUnion packet, PolyType ptype, u32 is_q
 	u32 *ptr;
 
 	// X,Y coords, adjusted by draw offsets
-	s32 x_off = DrawingOffset[0];
-	s32 y_off = DrawingOffset[1];
+	s32 x_off = gpu_unai.DrawingOffset[0];
+	s32 y_off = gpu_unai.DrawingOffset[1];
 	ptr = &packet.U4[1];
 	for (int i=0;  i < num_verts; ++i, ptr += vert_stride) {
 		s16* coord_ptr = (s16*)ptr;
@@ -188,8 +188,8 @@ static bool polyUseTriangle(int tri_num, PolyVertex **vert_ptrs)
 
 	// Determine if triangle is completely outside clipping range
 	int xmin, xmax, ymin, ymax;
-	xmin = DrawingArea[0];  xmax = DrawingArea[2];
-	ymin = DrawingArea[1];  ymax = DrawingArea[3];
+	xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+	ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 	int clipped_lowest_x  = Max2(xmin,lowest_x);
 	int clipped_lowest_y  = Max2(ymin,lowest_y);
 	int clipped_highest_x = Min2(xmax,highest_x);
@@ -216,7 +216,7 @@ gpuDrawPolyF - Flat-shaded, untextured poly
 ----------------------------------------------------------------------*/
 void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
-	PixelData = GPU_RGB16(packet.U4[0]);
+	gpu_unai.PixelData = GPU_RGB16(packet.U4[0]);
 
 	polyInitVertexBuffer(packet, POLYTYPE_F, is_quad);
 
@@ -324,8 +324,8 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = DrawingArea[0];  xmax = DrawingArea[2];
-			ymin = DrawingArea[1];  ymax = DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -339,10 +339,10 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
-			int li=linesInterlace;
-			int pi=(progressInterlace?(linesInterlace+1):0);
-			int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
+			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ya++, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4 )
@@ -364,11 +364,11 @@ gpuDrawPolyFT - Flat-shaded, textured poly
 ----------------------------------------------------------------------*/
 void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
-	r4 = s32(packet.U1[0]);
-	g4 = s32(packet.U1[1]);
-	b4 = s32(packet.U1[2]);
+	gpu_unai.r4 = packet.U1[0];
+	gpu_unai.g4 = packet.U1[1];
+	gpu_unai.b4 = packet.U1[2];
 	//senquack - TODO: remove these, I don't think they're used in inner driver for FT polys:
-	dr4 = dg4 = db4 = 0;
+	gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 
 	polyInitVertexBuffer(packet, POLYTYPE_FT, is_quad);
 
@@ -396,31 +396,31 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 		ya = y2 - y0;
 		yb = y2 - y1;
 		dx4 = (x2 - x1) * ya - (x2 - x0) * yb;
-		du4 = (u2 - u1) * ya - (u2 - u0) * yb;
-		dv4 = (v2 - v1) * ya - (v2 - v0) * yb;
+		gpu_unai.du4 = (u2 - u1) * ya - (u2 - u0) * yb;
+		gpu_unai.dv4 = (v2 - v1) * ya - (v2 - v0) * yb;
 		dx = dx4;
 		if (dx4 < 0) {
 			dx4 = -dx4;
-			du4 = -du4;
-			dv4 = -dv4;
+			gpu_unai.du4 = -gpu_unai.du4;
+			gpu_unai.dv4 = -gpu_unai.dv4;
 		}
 
 #ifdef GPU_UNAI_USE_FLOATMATH
 #ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 		if (dx4 != 0) {
 			float finv = FloatInv(dx4);
-			du4 = (fixed)((du4 << FIXED_BITS) * finv);
-			dv4 = (fixed)((dv4 << FIXED_BITS) * finv);
+			gpu_unai.du4 = (fixed)((gpu_unai.du4 << FIXED_BITS) * finv);
+			gpu_unai.dv4 = (fixed)((gpu_unai.dv4 << FIXED_BITS) * finv);
 		} else {
-			du4 = dv4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = 0;
 		}
 #else
 		if (dx4 != 0) {
 			float fdiv = dx4;
-			du4 = (fixed)((du4 << FIXED_BITS) / fdiv);
-			dv4 = (fixed)((dv4 << FIXED_BITS) / fdiv);
+			gpu_unai.du4 = (fixed)((gpu_unai.du4 << FIXED_BITS) / fdiv);
+			gpu_unai.dv4 = (fixed)((gpu_unai.dv4 << FIXED_BITS) / fdiv);
 		} else {
-			du4 = dv4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = 0;
 		}
 #endif
 #else  // Integer Division:
@@ -428,17 +428,17 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 		if (dx4 != 0) {
 			int iF, iS;
 			xInv(dx4, iF, iS);
-			du4 = xInvMulx(du4, iF, iS);
-			dv4 = xInvMulx(dv4, iF, iS);
+			gpu_unai.du4 = xInvMulx(gpu_unai.du4, iF, iS);
+			gpu_unai.dv4 = xInvMulx(gpu_unai.dv4, iF, iS);
 		} else {
-			du4 = dv4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = 0;
 		}
 #else
 		if (dx4 != 0) {
-			du4 = GPU_FAST_DIV(du4 << FIXED_BITS, dx4);
-			dv4 = GPU_FAST_DIV(dv4 << FIXED_BITS, dx4);
+			gpu_unai.du4 = GPU_FAST_DIV(gpu_unai.du4 << FIXED_BITS, dx4);
+			gpu_unai.dv4 = GPU_FAST_DIV(gpu_unai.dv4 << FIXED_BITS, dx4);
 		} else {
-			du4 = dv4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = 0;
 		}
 #endif
 #endif
@@ -623,8 +623,8 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = DrawingArea[0];  xmax = DrawingArea[2];
-			ymin = DrawingArea[1];  ymax = DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += dx3 * (ymin - ya);
@@ -640,10 +640,10 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
-			int li=linesInterlace;
-			int pi=(progressInterlace?(linesInterlace+1):0);
-			int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
+			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -653,19 +653,20 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				if ((ya&pi)==pif) continue;
 
 				xa = FixedCeilToInt(x3);  xb = FixedCeilToInt(x4);
-				u4 = u3;  v4 = v3;
+				gpu_unai.u4 = u3;  gpu_unai.v4 = v3;
 
 				fixed itmp = i2x(xa) - x3;
 				if (itmp != 0) {
-					u4 += (du4 * itmp) >> FIXED_BITS;
-					v4 += (dv4 * itmp) >> FIXED_BITS;
+					gpu_unai.u4 += (gpu_unai.du4 * itmp) >> FIXED_BITS;
+					gpu_unai.v4 += (gpu_unai.dv4 * itmp) >> FIXED_BITS;
 				}
 
-				u4 += fixed_HALF;  v4 += fixed_HALF;
+				gpu_unai.u4 += fixed_HALF;
+				gpu_unai.v4 += fixed_HALF;
 
 				if ((xmin - xa) > 0) {
-					u4 += du4 * (xmin - xa);
-					v4 += dv4 * (xmin - xa);
+					gpu_unai.u4 += gpu_unai.du4 * (xmin - xa);
+					gpu_unai.v4 += gpu_unai.dv4 * (xmin - xa);
 					xa = xmin;
 				}
 
@@ -706,35 +707,35 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 		ya = y2 - y0;
 		yb = y2 - y1;
 		dx4 = (x2 - x1) * ya - (x2 - x0) * yb;
-		dr4 = (r2 - r1) * ya - (r2 - r0) * yb;
-		dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
-		db4 = (b2 - b1) * ya - (b2 - b0) * yb;
+		gpu_unai.dr4 = (r2 - r1) * ya - (r2 - r0) * yb;
+		gpu_unai.dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
+		gpu_unai.db4 = (b2 - b1) * ya - (b2 - b0) * yb;
 		dx = dx4;
 		if (dx4 < 0) {
 			dx4 = -dx4;
-			dr4 = -dr4;
-			dg4 = -dg4;
-			db4 = -db4;
+			gpu_unai.dr4 = -gpu_unai.dr4;
+			gpu_unai.dg4 = -gpu_unai.dg4;
+			gpu_unai.db4 = -gpu_unai.db4;
 		}
 
 #ifdef GPU_UNAI_USE_FLOATMATH
 #ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 		if (dx4 != 0) {
 			float finv = FloatInv(dx4);
-			dr4 = (fixed)((dr4 << FIXED_BITS) * finv);
-			dg4 = (fixed)((dg4 << FIXED_BITS) * finv);
-			db4 = (fixed)((db4 << FIXED_BITS) * finv);
+			gpu_unai.dr4 = (fixed)((gpu_unai.dr4 << FIXED_BITS) * finv);
+			gpu_unai.dg4 = (fixed)((gpu_unai.dg4 << FIXED_BITS) * finv);
+			gpu_unai.db4 = (fixed)((gpu_unai.db4 << FIXED_BITS) * finv);
 		} else {
-			dr4 = dg4 = db4 = 0;
+			gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #else
 		if (dx4 != 0) {
 			float fdiv = dx4;
-			dr4 = (fixed)((dr4 << FIXED_BITS) / fdiv);
-			dg4 = (fixed)((dg4 << FIXED_BITS) / fdiv);
-			db4 = (fixed)((db4 << FIXED_BITS) / fdiv);
+			gpu_unai.dr4 = (fixed)((gpu_unai.dr4 << FIXED_BITS) / fdiv);
+			gpu_unai.dg4 = (fixed)((gpu_unai.dg4 << FIXED_BITS) / fdiv);
+			gpu_unai.db4 = (fixed)((gpu_unai.db4 << FIXED_BITS) / fdiv);
 		} else {
-			dr4 = dg4 = db4 = 0;
+			gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #endif
 #else  // Integer Division:
@@ -742,29 +743,29 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 		if (dx4 != 0) {
 			int iF, iS;
 			xInv(dx4, iF, iS);
-			dr4 = xInvMulx(dr4, iF, iS);
-			dg4 = xInvMulx(dg4, iF, iS);
-			db4 = xInvMulx(db4, iF, iS);
+			gpu_unai.dr4 = xInvMulx(gpu_unai.dr4, iF, iS);
+			gpu_unai.dg4 = xInvMulx(gpu_unai.dg4, iF, iS);
+			gpu_unai.db4 = xInvMulx(gpu_unai.db4, iF, iS);
 		} else {
-			dr4 = dg4 = db4 = 0;
+			gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #else
 		if (dx4 != 0) {
-			dr4 = GPU_FAST_DIV(dr4 << FIXED_BITS, dx4);
-			dg4 = GPU_FAST_DIV(dg4 << FIXED_BITS, dx4);
-			db4 = GPU_FAST_DIV(db4 << FIXED_BITS, dx4);
+			gpu_unai.dr4 = GPU_FAST_DIV(gpu_unai.dr4 << FIXED_BITS, dx4);
+			gpu_unai.dg4 = GPU_FAST_DIV(gpu_unai.dg4 << FIXED_BITS, dx4);
+			gpu_unai.db4 = GPU_FAST_DIV(gpu_unai.db4 << FIXED_BITS, dx4);
 		} else {
-			dr4 = dg4 = db4 = 0;
+			gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #endif
 #endif
 
 		// Adapted old Unai code: (New routines use 22.10 fixed point, Unai 16.16)
 		// Used by gouraud versions of gpuPolySpanDriver() to increment all three at once:
-		u32 dr = (u32)(dr4<< 14)&(0xffffffff<<21);   if(dr4<0) dr+= 1<<21;
-		u32 dg = (u32)(dg4<<  3)&(0xffffffff<<10);   if(dg4<0) dg+= 1<<10;
-		u32 db = (u32)(db4>>  8)&(0xffffffff    );   if(db4<0) db+= 1<< 0;
-		lInc = db + dg + dr;
+		u32 dr = (u32)(gpu_unai.dr4 << 14)&(0xffffffff<<21);  if (gpu_unai.dr4<0) dr += 1<<21;
+		u32 dg = (u32)(gpu_unai.dg4 <<  3)&(0xffffffff<<10);  if (gpu_unai.dg4<0) dg += 1<<10;
+		u32 db = (u32)(gpu_unai.db4 >>  8)&(0xffffffff    );  if (gpu_unai.db4<0) db += 1<< 0;
+		gpu_unai.lInc = db + dg + dr;
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -961,8 +962,8 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = DrawingArea[0];  xmax = DrawingArea[2];
-			ymin = DrawingArea[1];  ymax = DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -979,10 +980,10 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
-			int li=linesInterlace;
-			int pi=(progressInterlace?(linesInterlace+1):0);
-			int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
+			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -991,22 +992,25 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 				if (ya&li) continue;
 				if ((ya&pi)==pif) continue;
 
-				xa = FixedCeilToInt(x3);  xb = FixedCeilToInt(x4);
-				r4 = r3;  g4 = g3;  b4 = b3;
+				xa = FixedCeilToInt(x3);
+				xb = FixedCeilToInt(x4);
+				gpu_unai.r4 = r3;  gpu_unai.g4 = g3;  gpu_unai.b4 = b3;
 
 				fixed itmp = i2x(xa) - x3;
 				if (itmp != 0) {
-					r4 += (dr4 * itmp) >> FIXED_BITS;
-					g4 += (dg4 * itmp) >> FIXED_BITS;
-					b4 += (db4 * itmp) >> FIXED_BITS;
+					gpu_unai.r4 += (gpu_unai.dr4 * itmp) >> FIXED_BITS;
+					gpu_unai.g4 += (gpu_unai.dg4 * itmp) >> FIXED_BITS;
+					gpu_unai.b4 += (gpu_unai.db4 * itmp) >> FIXED_BITS;
 				}
 
-				r4 += fixed_HALF;  g4 += fixed_HALF;  b4 += fixed_HALF;
+				gpu_unai.r4 += fixed_HALF;
+				gpu_unai.g4 += fixed_HALF;
+				gpu_unai.b4 += fixed_HALF;
 
 				if ((xmin - xa) > 0) {
-					r4 += (dr4 * (xmin - xa));
-					g4 += (dg4 * (xmin - xa));
-					b4 += (db4 * (xmin - xa));
+					gpu_unai.r4 += (gpu_unai.dr4 * (xmin - xa));
+					gpu_unai.g4 += (gpu_unai.dg4 * (xmin - xa));
+					gpu_unai.b4 += (gpu_unai.db4 * (xmin - xa));
 					xa = xmin;
 				}
 
@@ -1053,43 +1057,43 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 		ya = y2 - y0;
 		yb = y2 - y1;
 		dx4 = (x2 - x1) * ya - (x2 - x0) * yb;
-		du4 = (u2 - u1) * ya - (u2 - u0) * yb;
-		dv4 = (v2 - v1) * ya - (v2 - v0) * yb;
-		dr4 = (r2 - r1) * ya - (r2 - r0) * yb;
-		dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
-		db4 = (b2 - b1) * ya - (b2 - b0) * yb;
+		gpu_unai.du4 = (u2 - u1) * ya - (u2 - u0) * yb;
+		gpu_unai.dv4 = (v2 - v1) * ya - (v2 - v0) * yb;
+		gpu_unai.dr4 = (r2 - r1) * ya - (r2 - r0) * yb;
+		gpu_unai.dg4 = (g2 - g1) * ya - (g2 - g0) * yb;
+		gpu_unai.db4 = (b2 - b1) * ya - (b2 - b0) * yb;
 		dx = dx4;
 		if (dx4 < 0) {
 			dx4 = -dx4;
-			du4 = -du4;
-			dv4 = -dv4;
-			dr4 = -dr4;
-			dg4 = -dg4;
-			db4 = -db4;
+			gpu_unai.du4 = -gpu_unai.du4;
+			gpu_unai.dv4 = -gpu_unai.dv4;
+			gpu_unai.dr4 = -gpu_unai.dr4;
+			gpu_unai.dg4 = -gpu_unai.dg4;
+			gpu_unai.db4 = -gpu_unai.db4;
 		}
 
 #ifdef GPU_UNAI_USE_FLOATMATH
 #ifdef GPU_UNAI_USE_FLOAT_DIV_MULTINV
 		if (dx4 != 0) {
 			float finv = FloatInv(dx4);
-			du4 = (fixed)((du4 << FIXED_BITS) * finv);
-			dv4 = (fixed)((dv4 << FIXED_BITS) * finv);
-			dr4 = (fixed)((dr4 << FIXED_BITS) * finv);
-			dg4 = (fixed)((dg4 << FIXED_BITS) * finv);
-			db4 = (fixed)((db4 << FIXED_BITS) * finv);
+			gpu_unai.du4 = (fixed)((gpu_unai.du4 << FIXED_BITS) * finv);
+			gpu_unai.dv4 = (fixed)((gpu_unai.dv4 << FIXED_BITS) * finv);
+			gpu_unai.dr4 = (fixed)((gpu_unai.dr4 << FIXED_BITS) * finv);
+			gpu_unai.dg4 = (fixed)((gpu_unai.dg4 << FIXED_BITS) * finv);
+			gpu_unai.db4 = (fixed)((gpu_unai.db4 << FIXED_BITS) * finv);
 		} else {
-			du4 = dv4 = dr4 = dg4 = db4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #else
 		if (dx4 != 0) {
 			float fdiv = dx4;
-			du4 = (fixed)((du4 << FIXED_BITS) / fdiv);
-			dv4 = (fixed)((dv4 << FIXED_BITS) / fdiv);
-			dr4 = (fixed)((dr4 << FIXED_BITS) / fdiv);
-			dg4 = (fixed)((dg4 << FIXED_BITS) / fdiv);
-			db4 = (fixed)((db4 << FIXED_BITS) / fdiv);
+			gpu_unai.du4 = (fixed)((gpu_unai.du4 << FIXED_BITS) / fdiv);
+			gpu_unai.dv4 = (fixed)((gpu_unai.dv4 << FIXED_BITS) / fdiv);
+			gpu_unai.dr4 = (fixed)((gpu_unai.dr4 << FIXED_BITS) / fdiv);
+			gpu_unai.dg4 = (fixed)((gpu_unai.dg4 << FIXED_BITS) / fdiv);
+			gpu_unai.db4 = (fixed)((gpu_unai.db4 << FIXED_BITS) / fdiv);
 		} else {
-			du4 = dv4 = dr4 = dg4 = db4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #endif
 #else  // Integer Division:
@@ -1097,33 +1101,33 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 		if (dx4 != 0) {
 			int iF, iS;
 			xInv(dx4, iF, iS);
-			du4 = xInvMulx(du4, iF, iS);
-			dv4 = xInvMulx(dv4, iF, iS);
-			dr4 = xInvMulx(dr4, iF, iS);
-			dg4 = xInvMulx(dg4, iF, iS);
-			db4 = xInvMulx(db4, iF, iS);
+			gpu_unai.du4 = xInvMulx(gpu_unai.du4, iF, iS);
+			gpu_unai.dv4 = xInvMulx(gpu_unai.dv4, iF, iS);
+			gpu_unai.dr4 = xInvMulx(gpu_unai.dr4, iF, iS);
+			gpu_unai.dg4 = xInvMulx(gpu_unai.dg4, iF, iS);
+			gpu_unai.db4 = xInvMulx(gpu_unai.db4, iF, iS);
 		} else {
-			du4 = dv4 = dr4 = dg4 = db4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #else
 		if (dx4 != 0) {
-			du4 = GPU_FAST_DIV(du4 << FIXED_BITS, dx4);
-			dv4 = GPU_FAST_DIV(dv4 << FIXED_BITS, dx4);
-			dr4 = GPU_FAST_DIV(dr4 << FIXED_BITS, dx4);
-			dg4 = GPU_FAST_DIV(dg4 << FIXED_BITS, dx4);
-			db4 = GPU_FAST_DIV(db4 << FIXED_BITS, dx4);
+			gpu_unai.du4 = GPU_FAST_DIV(gpu_unai.du4 << FIXED_BITS, dx4);
+			gpu_unai.dv4 = GPU_FAST_DIV(gpu_unai.dv4 << FIXED_BITS, dx4);
+			gpu_unai.dr4 = GPU_FAST_DIV(gpu_unai.dr4 << FIXED_BITS, dx4);
+			gpu_unai.dg4 = GPU_FAST_DIV(gpu_unai.dg4 << FIXED_BITS, dx4);
+			gpu_unai.db4 = GPU_FAST_DIV(gpu_unai.db4 << FIXED_BITS, dx4);
 		} else {
-			du4 = dv4 = dr4 = dg4 = db4 = 0;
+			gpu_unai.du4 = gpu_unai.dv4 = gpu_unai.dr4 = gpu_unai.dg4 = gpu_unai.db4 = 0;
 		}
 #endif
 #endif
 
 		// Adapted old Unai code: (New routines use 22.10 fixed point, Unai 16.16)
 		// Used by gouraud versions of gpuPolySpanDriver() to increment all three at once:
-		u32 dr = (u32)(dr4<< 14)&(0xffffffff<<21);   if(dr4<0) dr+= 1<<21;
-		u32 dg = (u32)(dg4<<  3)&(0xffffffff<<10);   if(dg4<0) dg+= 1<<10;
-		u32 db = (u32)(db4>>  8)&(0xffffffff    );   if(db4<0) db+= 1<< 0;
-		lInc = db + dg + dr;
+		u32 dr = (u32)(gpu_unai.dr4 << 14)&(0xffffffff<<21);  if (gpu_unai.dr4<0) dr += 1<<21;
+		u32 dg = (u32)(gpu_unai.dg4 <<  3)&(0xffffffff<<10);  if (gpu_unai.dg4<0) dg += 1<<10;
+		u32 db = (u32)(gpu_unai.db4 >>  8)&(0xffffffff    );  if (gpu_unai.db4<0) db += 1<< 0;
+		gpu_unai.lInc = db + dg + dr;
 
 		for (s32 loop0 = 2; loop0; loop0--) {
 			if (loop0 == 2) {
@@ -1345,8 +1349,8 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			}
 
 			s32 xmin, xmax, ymin, ymax;
-			xmin = DrawingArea[0];  xmax = DrawingArea[2];
-			ymin = DrawingArea[1];  ymax = DrawingArea[3];
+			xmin = gpu_unai.DrawingArea[0];  xmax = gpu_unai.DrawingArea[2];
+			ymin = gpu_unai.DrawingArea[1];  ymax = gpu_unai.DrawingArea[3];
 
 			if ((ymin - ya) > 0) {
 				x3 += (dx3 * (ymin - ya));
@@ -1365,10 +1369,10 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 			if (loop1 <= 0)
 				continue;
 
-			u16* PixelBase = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(0, ya)];
-			int li=linesInterlace;
-			int pi=(progressInterlace?(linesInterlace+1):0);
-			int pif=(progressInterlace?(progressInterlace_flag?(linesInterlace+1):0):1);
+			u16* PixelBase = &((u16*)gpu_unai.vram)[FRAME_OFFSET(0, ya)];
+			int li=gpu_unai.ilace_mask;
+			int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
+			int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 			for (; loop1; --loop1, ++ya, PixelBase += FRAME_WIDTH,
 					x3 += dx3, x4 += dx4,
@@ -1378,28 +1382,32 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 				if (ya&li) continue;
 				if ((ya&pi)==pif) continue;
 
-				xa = FixedCeilToInt(x3);  xb = FixedCeilToInt(x4);
-				u4 = u3;  v4 = v3;
-				r4 = r3;  g4 = g3;  b4 = b3;
+				xa = FixedCeilToInt(x3);
+				xb = FixedCeilToInt(x4);
+				gpu_unai.u4 = u3;  gpu_unai.v4 = v3;
+				gpu_unai.r4 = r3;  gpu_unai.g4 = g3;  gpu_unai.b4 = b3;
 
 				fixed itmp = i2x(xa) - x3;
 				if (itmp != 0) {
-					u4 += (du4 * itmp) >> FIXED_BITS;
-					v4 += (dv4 * itmp) >> FIXED_BITS;
-					r4 += (dr4 * itmp) >> FIXED_BITS;
-					g4 += (dg4 * itmp) >> FIXED_BITS;
-					b4 += (db4 * itmp) >> FIXED_BITS;
+					gpu_unai.u4 += (gpu_unai.du4 * itmp) >> FIXED_BITS;
+					gpu_unai.v4 += (gpu_unai.dv4 * itmp) >> FIXED_BITS;
+					gpu_unai.r4 += (gpu_unai.dr4 * itmp) >> FIXED_BITS;
+					gpu_unai.g4 += (gpu_unai.dg4 * itmp) >> FIXED_BITS;
+					gpu_unai.b4 += (gpu_unai.db4 * itmp) >> FIXED_BITS;
 				}
 
-				u4 += fixed_HALF;  v4 += fixed_HALF;
-				r4 += fixed_HALF;  g4 += fixed_HALF;  b4 += fixed_HALF;
+				gpu_unai.u4 += fixed_HALF;
+				gpu_unai.v4 += fixed_HALF;
+				gpu_unai.r4 += fixed_HALF;
+				gpu_unai.g4 += fixed_HALF;
+				gpu_unai.b4 += fixed_HALF;
 
 				if ((xmin - xa) > 0) {
-					u4 += du4 * (xmin - xa);
-					v4 += dv4 * (xmin - xa);
-					r4 += dr4 * (xmin - xa);
-					g4 += dg4 * (xmin - xa);
-					b4 += db4 * (xmin - xa);
+					gpu_unai.u4 += gpu_unai.du4 * (xmin - xa);
+					gpu_unai.v4 += gpu_unai.dv4 * (xmin - xa);
+					gpu_unai.r4 += gpu_unai.dr4 * (xmin - xa);
+					gpu_unai.g4 += gpu_unai.dg4 * (xmin - xa);
+					gpu_unai.b4 += gpu_unai.db4 * (xmin - xa);
 					xa = xmin;
 				}
 

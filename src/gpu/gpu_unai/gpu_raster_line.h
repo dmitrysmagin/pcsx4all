@@ -66,15 +66,15 @@ void gpuDrawLineF(PtrUnion packet, const PSD gpuPixelSpanDriver)
 	// Clip region: xmax/ymax seem to normally be one *past* the rightmost/
 	//  bottommost pixels of the draw area. Since we render every pixel between
 	//  and including both line endpoints, subtract one from xmax/ymax.
-	const int xmin = DrawingArea[0];
-	const int ymin = DrawingArea[1];
-	const int xmax = DrawingArea[2] - 1;
-	const int ymax = DrawingArea[3] - 1;
+	const int xmin = gpu_unai.DrawingArea[0];
+	const int ymin = gpu_unai.DrawingArea[1];
+	const int xmax = gpu_unai.DrawingArea[2] - 1;
+	const int ymax = gpu_unai.DrawingArea[3] - 1;
 
-	x0 = GPU_EXPANDSIGN(packet.S2[2]) + DrawingOffset[0];
-	y0 = GPU_EXPANDSIGN(packet.S2[3]) + DrawingOffset[1];
-	x1 = GPU_EXPANDSIGN(packet.S2[4]) + DrawingOffset[0];
-	y1 = GPU_EXPANDSIGN(packet.S2[5]) + DrawingOffset[1];
+	x0 = GPU_EXPANDSIGN(packet.S2[2]) + gpu_unai.DrawingOffset[0];
+	y0 = GPU_EXPANDSIGN(packet.S2[3]) + gpu_unai.DrawingOffset[1];
+	x1 = GPU_EXPANDSIGN(packet.S2[4]) + gpu_unai.DrawingOffset[0];
+	y1 = GPU_EXPANDSIGN(packet.S2[5]) + gpu_unai.DrawingOffset[1];
 
 	// Always draw top to bottom, so ensure y0 <= y1
 	if (y0 > y1) {
@@ -179,7 +179,7 @@ void gpuDrawLineF(PtrUnion packet, const PSD gpuPixelSpanDriver)
 	// We use u8 pointers even though PS1 has u16 framebuffer.
 	//  This allows pixel-drawing functions to increment dst pointer
 	//  directly by the passed 'incr' value, not having to shift it first.
-	u8 *dst = (u8*)GPU_FrameBuffer + y0 * dst_stride + x0 * dst_depth;
+	u8 *dst = (u8*)gpu_unai.vram + y0 * dst_stride + x0 * dst_depth;
 
 	// SPECIAL CASE: Vertical line
 	if (dx == 0) {
@@ -313,15 +313,15 @@ void gpuDrawLineG(PtrUnion packet, const PSD gpuPixelSpanDriver)
 	// Clip region: xmax/ymax seem to normally be one *past* the rightmost/
 	//  bottommost pixels of the draw area. We'll render every pixel between
 	//  and including both line endpoints, so subtract one from xmax/ymax.
-	const int xmin = DrawingArea[0];
-	const int ymin = DrawingArea[1];
-	const int xmax = DrawingArea[2] - 1;
-	const int ymax = DrawingArea[3] - 1;
+	const int xmin = gpu_unai.DrawingArea[0];
+	const int ymin = gpu_unai.DrawingArea[1];
+	const int xmax = gpu_unai.DrawingArea[2] - 1;
+	const int ymax = gpu_unai.DrawingArea[3] - 1;
 
-	x0 = GPU_EXPANDSIGN(packet.S2[2]) + DrawingOffset[0];
-	y0 = GPU_EXPANDSIGN(packet.S2[3]) + DrawingOffset[1];
-	x1 = GPU_EXPANDSIGN(packet.S2[6]) + DrawingOffset[0];
-	y1 = GPU_EXPANDSIGN(packet.S2[7]) + DrawingOffset[1];
+	x0 = GPU_EXPANDSIGN(packet.S2[2]) + gpu_unai.DrawingOffset[0];
+	y0 = GPU_EXPANDSIGN(packet.S2[3]) + gpu_unai.DrawingOffset[1];
+	x1 = GPU_EXPANDSIGN(packet.S2[6]) + gpu_unai.DrawingOffset[0];
+	y1 = GPU_EXPANDSIGN(packet.S2[7]) + gpu_unai.DrawingOffset[1];
 
 	u32 col0 = packet.U4[0];
 	u32 col1 = packet.U4[2];
@@ -519,7 +519,7 @@ void gpuDrawLineG(PtrUnion packet, const PSD gpuPixelSpanDriver)
 	// We use u8 pointers even though PS1 has u16 framebuffer.
 	//  This allows pixel-drawing functions to increment dst pointer
 	//  directly by the passed 'incr' value, not having to shift it first.
-	u8 *dst = (u8*)GPU_FrameBuffer + y0 * dst_stride + x0 * dst_depth;
+	u8 *dst = (u8*)gpu_unai.vram + y0 * dst_stride + x0 * dst_depth;
 
 	// SPECIAL CASE: Vertical line
 	if (dx == 0) {

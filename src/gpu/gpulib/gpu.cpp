@@ -223,6 +223,9 @@ long GPU_shutdown(void)
 
 void GPU_writeStatus(uint32_t data)
 {
+	//senquack TODO: Would it be wise to add cmd buffer flush here, since
+	// status settings can affect commands already in buffer?
+
   static const short hres[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
   static const short vres[4] = { 240, 480, 256, 480 };
   uint32_t cmd = data >> 24;
@@ -271,6 +274,7 @@ void GPU_writeStatus(uint32_t data)
       break;
     case 0x08:
       gpu.status.reg = (gpu.status.reg & ~0x7f0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
+
       gpu.screen.hres = hres[(gpu.status.reg >> 16) & 7];
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
@@ -733,6 +737,12 @@ void GPU_vBlank(int is_vblank, int lcf)
     renderer_flush_queues();
     renderer_set_interlace(interlace, !lcf);
   }
+}
+
+// Allows frontend to signal plugin to redraw screen after returning to emu
+void GPU_requestScreenRedraw()
+{
+	gpu.state.fb_dirty = 1;
 }
 
 void gpulib_set_config(const gpulib_config_t *config)

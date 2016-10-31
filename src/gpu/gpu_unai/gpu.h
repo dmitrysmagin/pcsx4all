@@ -22,23 +22,42 @@
 #ifndef GPU_UNAI_GPU_H
 #define GPU_UNAI_GPU_H
 
-///////////////////////////////////////////////////////////////////////////////
-//  GPU global definitions
+struct gpu_unai_config_t {
+	bool pixel_skip;         // Option allows skipping rendering pixels that
+						     //  would not be visible when a high horizontal
+						     //  resolution PS1 video mode is set, but a simple
+						     //  pixel-dropping framebuffer blitter is used.
+						     //  Only applies to devices with low resolutions
+						     //  like 320x240. Should not be used if a
+						     //  down-scaling framebuffer blitter is in use.
+						     //  Can cause gfx artifacts if game reads VRAM
+						     //  to do framebuffer effects.
 
-///////////////////////////////////////////////////////////////////////////////
-//  Tweaks and Hacks
-extern  int  skipCount;
+	uint8_t ilace_force;     // Option to force skipping rendering of lines,
+	                         //  for very slow platforms. Value will be
+	                         //  assigned to 'ilace_mask' in gpu_unai struct.
+	                         //  Normally 0. Value '1' will skip rendering
+	                         //  odd lines.
+	bool lighting_disabled;
+	bool blending_disabled;
+
+	////////////////////////////////////////////////////////////////////////////
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
+#ifndef USE_GPULIB
+	bool prog_ilace;         // Progressive interlace option (old option)
+	                         //  This option was somewhat oddly named:
+	                         //  When in interlaced video mode, on a low-res
+	                         //  320x240 device, only the even lines are
+	                         //  rendered. This option will take that one
+	                         //  step further and only render half the even
+	                         //  even lines one frame, and then the other half.
+	int  frameskip_count;    // Frame skip (0,1,2,3...)
+#endif
+};
+
+extern gpu_unai_config_t gpu_unai_config_ext;
+
+// TODO: clean up show_fps frontend option
 extern  bool show_fps;
-
-///////////////////////////////////////////////////////////////////////////////
-//  Interlaced rendering
-extern  int linesInterlace_user;
-extern  bool progressInterlace;
-
-
-///////////////////////////////////////////////////////////////////////////////
-//  Optional lighting/blending
-extern  bool light;
-extern  bool blend;
 
 #endif // GPU_UNAI_GPU_H

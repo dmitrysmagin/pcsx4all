@@ -19,8 +19,13 @@
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
 
+// New gpulib from Notaz's PCSX Rearmed handles duties common to GPU plugins
 #ifdef USE_GPULIB
 #include "gpu/gpulib/gpu.h"
+#endif
+
+#ifdef GPU_UNAI
+#include "gpu/gpu_unai/gpu.h"
 #endif
 
 enum {
@@ -465,11 +470,8 @@ void pad_update(void)
 		video_flip();
 		video_clear();
 #endif
-#if defined(GPU_UNAI) && !defined(USE_GPULIB)
-		extern bool fb_dirty;
-		fb_dirty = true; // redraw screen
-#endif
 		pmonResume();   // Resume performance monitor
+		GPU_requestScreenRedraw(); // GPU plugin should redraw screen
 	}
 #endif
 }
@@ -801,12 +803,7 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 	#ifdef GPU_UNAI
-	#ifdef USE_GPULIB
-	//TODO: gpulib gpu_unai settings go here
-	#else
-	extern int skipCount; skipCount=0; /* frame skip (0,1,2,3...) */
-	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
-	#endif
+		// Use gpu_unai's default settings
 	#endif //GPU_UNAI
 
 	// Load config from file.
@@ -869,17 +866,37 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-showfps")==0) { Config.ShowFps=true; } // show FPS
 		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
 	#ifdef GPU_UNAI
-	#ifdef USE_GPULIB
-		//TODO: gpulib gpu_unai settings go here
-	#else
-		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
-		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
-		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
-	#endif
-	#endif
+		// Render only every other line (looks ugly but faster)
+		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; }
 
-		// SPU
+		// Settings specific to older, non-gpulib standalone gpu_unai:
+		#ifndef USE_GPULIB
+			if (strcmp(argv[i],"-skip")==0) {
+				int val = -1;
+				if (++i < argc) {
+					val = atoi(argv[i]);
+					if (val >= 0 && val <= 7) {
+						gpu_unai_config_ext.frameskip_count = val;
+					} else val = -1;
+				} else {
+					printf("ERROR: missing value for -skip\n");
+				}
 
+				if (val == -1) {
+					printf("ERROR: -skip value must be between 0..8\n");
+					param_parse_error = true;
+					break;
+				}
+			}
+
+			// Progressive interlace option - See gpu_unai/gpu.h
+			// Old option left in from when PCSX4ALL ran on very slow devices.
+			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = true; }
+		#endif //!USE_GPULIB
+	#endif //GPU_UNAI
+
+
+	// SPU
 	#ifndef spu_null
 
 	#ifndef spu_pcsxrearmed

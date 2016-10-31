@@ -13,6 +13,10 @@
 
 #include <stdint.h>
 
+#ifdef GPU_UNAI
+#include "gpu/gpu_unai/gpu.h"  // To get config struct definition
+#endif
+
 #define CMD_BUFFER_LEN          1024
 
 struct psx_gpu {

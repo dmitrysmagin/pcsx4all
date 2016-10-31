@@ -125,21 +125,15 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 	do {
 		if (!G)
 		{   // NO GOURAUD
-			if ((!M)&&(!B))
-			{
+			if ((!M)&&(!B)) {
 				if (MB) { *(u16*)pDst = col | 0x8000; }
 				else    { *(u16*)pDst = col; }
-			}
-			else if ((M)&&(!B))
-			{
-				if (!(*(u16*)pDst & 0x8000))
-				{
+			} else if ((M)&&(!B)) {
+				if (!(*(u16*)pDst & 0x8000)) {
 					if (MB) { *(u16*)pDst = col | 0x8000; }
 					else    { *(u16*)pDst = col; }
 				}
-			}
-			else
-			{
+			} else {
 				u16 uDst = *(u16*)pDst;
 				if (M) { if (uDst & 0x8000) goto endpixel; }
 				u16 uSrc = col;
@@ -156,23 +150,17 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 		} else
 		{   // GOURAUD
 
-			if ((!M)&&(!B))
-			{
+			if ((!M)&&(!B)) {
 				col = gpuGouraudColor15bpp(r, g, b);
 				if (MB) { *(u16*)pDst = col | 0x8000; }
 				else    { *(u16*)pDst = col; }
-			}
-			else if ((M)&&(!B))
-			{
+			} else if ((M)&&(!B)) {
 				col = gpuGouraudColor15bpp(r, g, b);
-				if (!(*(u16*)pDst & 0x8000))
-				{
+				if (!(*(u16*)pDst & 0x8000)) {
 					if (MB) { *(u16*)pDst = col | 0x8000; }
 					else    { *(u16*)pDst = col; }
 				}
-			}
-			else
-			{
+			} else {
 				u16 uDst = *(u16*)pDst;
 				if (M) { if (uDst & 0x8000) goto endpixel; }
 				col = gpuGouraudColor15bpp(r, g, b);
@@ -265,17 +253,13 @@ const PSD gpuPixelSpanDrivers[64] =
 template<const int CF>
 static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 {
-	if ((!M)&&(!B))
-	{
+	if ((!M)&&(!B)) {
 		if (MB) { data = data | 0x8000; }
 		do { *pDst++ = data; } while (--count);
-	}
-	else if ((M)&&(!B))
-	{
+	} else if ((M)&&(!B)) {
 		if (MB) { data = data | 0x8000; }
 		do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
-	}
-	else
+	} else
 	{
 		u16 uSrc;
 		u16 uDst;
@@ -335,8 +319,13 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 {
 	u16 uSrc, uDst;
 	u32 u0 = 0;
-	const u16 *_CBA; if(TM!=3) _CBA=CBA;
-	u32 lCol; if(L)  { lCol = ((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21));  }
+	const u16 *CBA_; if(TM!=3) CBA_ = gpu_unai.CBA;
+	u32 lCol;
+	if (L) {
+		lCol = ((u32)(gpu_unai.b4 <<  2)&(0x03ff))     |
+		       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
+		       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
+	}
 	u8 rgb; if (TM==1) rgb = pTxt[u0>>1];
 	u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
 
@@ -354,8 +343,8 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 		if(M)   { uDst = *pDst;   if (uDst&0x8000) { u0=(u0+1)&mask; goto endsprite; }  }
 
 		//  TEXTURE MAPPING
-		if (TM==1) { if (!(u0&1)) rgb = pTxt[u0>>1]; uSrc = _CBA[(rgb>>((u0&1)<<2))&0xf]; u0=(u0+1)&mask; }
-		if (TM==2) { uSrc = _CBA[pTxt[u0]]; u0=(u0+1)&mask; }
+		if (TM==1) { if (!(u0&1)) rgb = pTxt[u0>>1]; uSrc = CBA_[(rgb>>((u0&1)<<2))&0xf]; u0=(u0+1)&mask; }
+		if (TM==2) { uSrc = CBA_[pTxt[u0]]; u0=(u0+1)&mask; }
 		if (TM==3) { uSrc = ((u16*)pTxt)[u0]; u0=(u0+1)&mask; }
 		if (!uSrc) goto endsprite;
 
@@ -465,26 +454,28 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			// NO GOURAUD
 			u16 data;
 
-			//senquack - NOTE: if no Gouraud shading is used, b4,g4,r4 contain integers,
-			//           not fixed-point (this is behavior of original code)
-			if (L) { u32 lCol=((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); gpuLightingRGB(data,lCol); }
-			else data=PixelData;
-			if ((!M)&&(!B))
-			{
+			//NOTE: if no Gouraud shading is used, gpu_unai.{b4,g4,r4} contain
+			// integers, not fixed-point (this is behavior of original code)
+			if (L) {
+				u32 lCol = ((u32)(gpu_unai.b4<< 2)&(0x03ff))     |
+				           ((u32)(gpu_unai.g4<<13)&(0x07ff<<10)) |
+				           ((u32)(gpu_unai.r4<<24)&(0x07ff<<21));
+				gpuLightingRGB(data,lCol);
+			} else {
+				data=gpu_unai.PixelData;
+			}
+
+			if ((!M)&&(!B)) {
 				if (MB) { data = data | 0x8000; }
 				do { *pDst++ = data; } while (--count);
-			}
-			else if ((M)&&(!B))
-			{
+			} else if ((M)&&(!B)) {
 				if (MB) { data = data | 0x8000; }
 				do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
-			}
-			else
-			{
+			} else {
 				u16 uSrc;
 				u16 uDst;
 				u32 uMsk; if (BM==0) uMsk=0x7BDE;
-				u32 bMsk; if (BI) bMsk=blit_mask;
+				u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
 				do
 				{
 					// blit-mask
@@ -511,14 +502,16 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			// GOURAUD
 			u16 uDst;
 			u16 uSrc;
-			u32 linc=lInc;
+			u32 linc=gpu_unai.lInc;
 
 			//senquack - DRHELL poly code uses 22.10 fixed point, while UNAI used 16.16:
-			//u32 lCol=((u32)(b4>>14)&(0x03ff)) | ((u32)(g4>>3)&(0x07ff<<10)) | ((u32)(r4<<8)&(0x07ff<<21));
-			u32 lCol=((u32)(b4>>8)&(0x03ff)) | ((u32)(g4<<3)&(0x07ff<<10)) | ((u32)(r4<<14)&(0x07ff<<21));
+			//u32 lCol=((u32)(gpu_unai.b4>>14)&(0x03ff)) | ((u32)(gpu_unai.g4>>3)&(0x07ff<<10)) | ((u32)(gpu_unai.r4<<8)&(0x07ff<<21));
+			u32 lCol = ((u32)(gpu_unai.b4 >>  8)&(0x03ff))     |
+			           ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
+			           ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
 
 			u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
-			u32 bMsk; if (BI) bMsk=blit_mask;
+			u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
 			do
 			{
 				// blit-mask
@@ -526,8 +519,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				//  masking
 				if(M) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
 				//  blend
-				if(B)
-				{
+				if(B) {
 					//  light
 					gpuLightingRGB(uSrc,lCol);
 					if(!M)    { uDst = *pDst; }
@@ -535,9 +527,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 					if (BM==1) gpuBlending01(uSrc, uDst);
 					if (BM==2) gpuBlending02(uSrc, uDst);
 					if (BM==3) gpuBlending03(uSrc, uDst);
-				}
-				else
-				{
+				} else {
 					//  light
 					gpuLightingRGB(uSrc,lCol);
 				}
@@ -560,33 +550,38 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 		// TEXTURE
 		u16 uDst;
 		u16 uSrc;
-		u32 linc; if (L&&G) linc=lInc;
+		u32 linc; if (L&&G) linc=gpu_unai.lInc;
 
-		//senquack - note: original UNAI code had u4/v4 packed into one
-		// 32-bit unsigned int, but this proved to lose too much accuracy
+		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
+		// one 32-bit unsigned int, but this proved to lose too much accuracy
 		// (pixel drouputs noticeable in NFS3 sky), so now are separate vars.
-		// u4_msk/v4_msk are new global vars (u4 and v4 were already globals)
-		// TODO: find better way of passing parameters like u4/v4/r4 etc
-		//       into this function than original pass-through-globals method.
-		u32 l_u4_msk = u4_msk;      u32 l_v4_msk = v4_msk;
-		u32 l_u4 = u4 & l_u4_msk;   u32 l_v4 = v4 & l_v4_msk;
-		u32 l_du4 = du4;            u32 l_dv4 = dv4;
+		// TODO: pass these as parameters rather than through globals?
+		u32 l_u4_msk = gpu_unai.u4_msk;      u32 l_v4_msk = gpu_unai.v4_msk;
+		u32 l_u4 = gpu_unai.u4 & l_u4_msk;   u32 l_v4 = gpu_unai.v4 & l_v4_msk;
+		u32 l_du4 = gpu_unai.du4;            u32 l_dv4 = gpu_unai.dv4;
 
-		const u16* _TBA=TBA;
-		const u16* _CBA; if (TM!=3) _CBA=CBA;
+		const u16* TBA_ = gpu_unai.TBA;
+		const u16* CBA_; if (TM!=3) CBA_ = gpu_unai.CBA;
 		u32 lCol;
 
 		//senquack - After adapting DrHell poly code to replace Unai's glitchy
 		// routines, it was necessary to adjust for the differences in fixed
 		// point: DrHell is 22.10, Unai used 16.16. In the following two lines,
-		// the top line expected b4,g4,r4 to be integers, as it is not using
-		// Gouraud shading, so it needed no adjustment. The bottom line did
-		// need adjustment for fixed point changes.
-		if(L && !G) { lCol = ((u32)(b4<< 2)&(0x03ff)) | ((u32)(g4<<13)&(0x07ff<<10)) | ((u32)(r4<<24)&(0x07ff<<21)); }
-		else if(L && G) { lCol = ((u32)(b4>>8)&(0x03ff)) | ((u32)(g4<<3)&(0x07ff<<10)) | ((u32)(r4<<14)&(0x07ff<<21)); 	}
+		// the top line expected gpu_unai.{b4,g4,r4} to be integers, as it is
+		// not using Gouraud shading, so it needed no adjustment. The bottom
+		// line needed no adjustment for fixed point changes.
+		if (L && !G) {
+			lCol = ((u32)(gpu_unai.b4 <<  2)&(0x03ff))     |
+			       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
+			       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
+		} else if (L && G) {
+			lCol = ((u32)(gpu_unai.b4 >>  8)&(0x03ff))     |
+			       ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
+			       ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
+		}
 
 		u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
-		u32 bMsk; if (BI) bMsk=blit_mask;
+		u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
 
 		do
 		{
@@ -600,16 +595,16 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			if (TM==1) { 
 				u32 tu=(l_u4>>10);
 				u32 tv=(l_v4<<1)&(0xff<<11);
-				u8 rgb=((u8*)_TBA)[tv+(tu>>1)];
-				uSrc=_CBA[(rgb>>((tu&1)<<2))&0xf];
+				u8 rgb=((u8*)TBA_)[tv+(tu>>1)];
+				uSrc=CBA_[(rgb>>((tu&1)<<2))&0xf];
 				if(!uSrc) goto endpoly;
 			}
 			if (TM==2) {
-				uSrc = _CBA[(((u8*)_TBA)[(l_u4>>10)+((l_v4<<1)&(0xff<<11))])];
+				uSrc = CBA_[(((u8*)TBA_)[(l_u4>>10)+((l_v4<<1)&(0xff<<11))])];
 				if(!uSrc)  goto endpoly;
 			}
 			if (TM==3) {
-				uSrc = _TBA[(l_u4>>10)+((l_v4)&(0xff<<10))];
+				uSrc = TBA_[(l_u4>>10)+((l_v4)&(0xff<<10))];
 				if(!uSrc)  goto endpoly;
 			}
 
@@ -617,10 +612,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
 
 			//  blend
-			if(B)
-			{
-				if (uSrc&0x8000)
-				{
+			if (B) {
+				if (uSrc&0x8000) {
 					//  light
 					if(L) gpuLightingTXT(uSrc, lCol);
 					if(!M)    { uDst = *pDst; }
@@ -628,15 +621,11 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 					if (BM==1) gpuBlending01(uSrc, uDst);
 					if (BM==2) gpuBlending02(uSrc, uDst);
 					if (BM==3) gpuBlending03(uSrc, uDst);
-				}
-				else
-				{
+				} else {
 					// light
 					if(L) gpuLightingTXT(uSrc, lCol);
 				}
-			}
-			else
-			{
+			} else {
 				//  light
 
 				//senquack - While fixing Silent Hill white-rectangles bug, I

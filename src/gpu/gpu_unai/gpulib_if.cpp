@@ -28,77 +28,8 @@
 #include "port.h"
 #include "gpu_unai.h"
 
+//TODO - overhaul FPS reporting, remove this
 char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
-
-static int force_interlace;
-static int linesInterlace;  /* internal lines interlace */
-static bool progressInterlace_flag = false; /* Progressive interlace flag */
-static bool progressInterlace = false; /* Progressive interlace option*/
-static bool light = true; /* lighting */
-static bool blend = true; /* blending */
-
-//senquack Only PCSX Rearmed's version of gpu_unai had this, not sure it's
-// really necessary. It would require adding 'AH' flag to gpuSpriteSpanFn()
-// in gpu_inner.h and increasing size of sprite span function array.
-//static bool enableAbbeyHack = false; /* Abe's Odyssey hack */
-
-static u8 BLEND_MODE;
-static u8 TEXT_MODE;
-static u8 Masking;
-
-static u16 PixelMSB;
-static u16 PixelData;
-
-///////////////////////////////////////////////////////////////////////////////
-//  GPU Global data
-///////////////////////////////////////////////////////////////////////////////
-
-//  Rasterizer status
-static u8 TextureWindow[4];   // [0] : Texture window offset X
-                              // [1] : Texture window offset Y
-                              // [2] : Texture window mask X
-                              // [3] : Texture window mask Y
-
-static u16 DrawingArea[4];    // [0] : Drawing area top left X
-                              // [1] : Drawing area top left Y
-                              // [2] : Drawing area bottom right X
-                              // [3] : Drawing area bottom right Y
-
-static s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
-                              // [1] : Drawing offset Y (signed)
-
-static u16* TBA;
-static u16* CBA;
-
-//  Inner Loops
-static s32   u4, du4;
-static s32   v4, dv4;
-static s32   r4, dr4;
-static s32   g4, dg4;
-static s32   b4, db4;
-static u32   lInc;
-
-//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
-//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
-//           another word and increment both u4,v4 with one instruction.
-//           During the course of fixing gpu_unai's polygon rendering issues,
-//           I ultimately found it was impossible to keep them combined like
-//           that, as pixel dropouts would always occur, particularly in NFS3
-//           sky background, perhaps from the reduced accuracy. Now they are
-//           incremented individually with du4 and dv4, and masked separetely,
-//           using new vars u4_msk, v4_msk, which store fixed-point masks.
-//           These are updated whenever TextureWindow[2] or [3] are changed.
-//u32   tInc, tMsk;
-static u32   u4_msk, v4_msk;
-
-static u32   blit_mask=0; /* blit mask - Determines which pixels of rendered
-                             objects are skipped. Only used when rendering
-                             on a low-resolution device in high-res modes.
-                             Cannot be used if downscaling is in use. */
-
-static GPUPacket PacketBuffer;
-static u16  *GPU_FrameBuffer;
-static u32   GPU_GP1;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -127,23 +58,47 @@ static u32   GPU_GP1;
 
 int renderer_init(void)
 {
-	GPU_FrameBuffer = (u16 *)gpu.vram;
+  memset((void*)&gpu_unai, 0, sizeof(gpu_unai));
+  gpu_unai.vram = (u16*)gpu.vram;
+
+  // Original standalone gpu_unai initialized TextureWindow[]. I added the
+  //  same behavior here, since it seems unsafe to leave [2],[3] unset when
+  //  using HLE and Rearmed gpu_neon sets this similarly on init. -senquack
+  gpu_unai.TextureWindow[0] = 0;
+  gpu_unai.TextureWindow[1] = 0;
+  gpu_unai.TextureWindow[2] = 255;
+  gpu_unai.TextureWindow[3] = 255;
+  //senquack - new vars must be updated whenever texture window is changed:
+  //           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
+  const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
+  gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+  gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+
+  // Configuration options
+  gpu_unai.ilace_mask = gpu_unai.config.ilace_force = gpu_unai_config_ext.ilace_force;
+  gpu_unai.config.lighting_disabled = gpu_unai_config_ext.lighting_disabled;
+  gpu_unai.config.blending_disabled = gpu_unai_config_ext.blending_disabled;
+  //senquack - disabled, not sure this is needed and would require modifying
+  // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
+  // present in latest PCSX4ALL sources we were using.
+  //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
+
 
 #ifdef GPU_UNAI_USE_INT_DIV_MULTINV
-	// s_invTable
-	for(int i=1;i<=(1<<TABLE_BITS);++i)
-	{
-		double v = 1.0 / double(i);
-		#ifdef GPU_TABLE_10_BITS
-		v *= double(0xffffffff>>1);
-		#else
-		v *= double(0x80000000);
-		#endif
-		s_invTable[i-1]=s32(v);
-	}
+  // s_invTable
+  for(int i=1;i<=(1<<TABLE_BITS);++i)
+  {
+    double v = 1.0 / double(i);
+#ifdef GPU_TABLE_10_BITS
+    v *= double(0xffffffff>>1);
+#else
+    v *= double(0x80000000);
+#endif
+    s_invTable[i-1]=s32(v);
+  }
 #endif
 
-	return 0;
+  return 0;
 }
 
 void renderer_finish(void)
@@ -162,11 +117,12 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
   unsigned int *list_start = list;
   unsigned int *list_end = list + list_len;
 
-  linesInterlace = force_interlace;
-  //senquack - TODO: Make interlacing / lineskip options separete & robust,
+  //TODO: set ilace_mask when resolution changes instead of every time,
   // eliminate #ifdef below.
+  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+
 #ifdef HAVE_PRE_ARMV7 /* XXX */
-  linesInterlace |= gpu.status.interlace;
+  gpu_unai.ilace_mask |= gpu.status.interlace;
 #endif
 
   for (; list < list_end; list += 1 + len)
@@ -179,11 +135,11 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
     }
 
     #define PRIM cmd
-    PacketBuffer.U4[0] = list[0];
+    gpu_unai.PacketBuffer.U4[0] = list[0];
     for (i = 1; i <= len; i++)
-      PacketBuffer.U4[i] = list[i];
+      gpu_unai.PacketBuffer.U4[i] = list[i];
 
-    PtrUnion packet = { .ptr = (void*)&PacketBuffer };
+    PtrUnion packet = { .ptr = (void*)&gpu_unai.PacketBuffer };
 
     switch (cmd)
     {
@@ -195,7 +151,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x21:
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
         gpuDrawPolyF(packet, driver, false);
       } break;
 
@@ -203,10 +159,10 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x25:
       case 0x26:
       case 0x27: {          // Textured 3-pt poly
-        gpuSetCLUT   (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture(PacketBuffer.U4[4] >> 16);
-        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB;
-        if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
+        gpuSetCLUT   (gpu_unai.PacketBuffer.U4[2] >> 16);
+        gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
+        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+        if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
         gpuDrawPolyFT(packet, driver, false);
@@ -216,7 +172,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x29:
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | PixelMSB];
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
         gpuDrawPolyF(packet, driver, true); // is_quad = true
       } break;
 
@@ -224,10 +180,10 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x2D:
       case 0x2E:
       case 0x2F: {          // Textured 4-pt poly
-        gpuSetCLUT   (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture(PacketBuffer.U4[4] >> 16);
-        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | PixelMSB;
-        if (!((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F)))
+        gpuSetCLUT   (gpu_unai.PacketBuffer.U4[2] >> 16);
+        gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
+        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+        if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
         gpuDrawPolyFT(packet, driver, true); // is_quad = true
@@ -237,7 +193,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x31:
       case 0x32:
       case 0x33: {          // Gouraud-shaded 3-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
         gpuDrawPolyG(packet, driver, false);
       } break;
 
@@ -245,9 +201,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x35:
       case 0x36:
       case 0x37: {          // Gouraud-shaded, textured 3-pt poly
-        gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture (PacketBuffer.U4[5] >> 16);
-        PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
+        gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+        gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
         gpuDrawPolyGT(packet, driver, false);
       } break;
 
@@ -255,7 +211,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x39:
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | Masking | Blending | 129 | PixelMSB];
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
         gpuDrawPolyG(packet, driver, true); // is_quad = true
       } break;
 
@@ -263,9 +219,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x3D:
       case 0x3E:
       case 0x3F: {          // Gouraud-shaded, textured 4-pt poly
-        gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        gpuSetTexture (PacketBuffer.U4[5] >> 16);
-        PP driver = gpuPolySpanDrivers[Blending_Mode | TEXT_MODE | Masking | Blending | ((Lighting)?129:0) | PixelMSB];
+        gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+        gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
+        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
         gpuDrawPolyGT(packet, driver, true); // is_quad = true
       } break;
 
@@ -274,7 +230,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x42:
       case 0x43: {          // Monochrome line
         // Shift index right by one, as untextured prims don't use lighting
-        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        u32 driver_idx = (Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1;
         PSD driver = gpuPixelSpanDrivers[driver_idx];
         gpuDrawLineF(packet, driver);
       } break;
@@ -284,14 +240,14 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         u32 *list_position = &(list[2]);
 
         // Shift index right by one, as untextured prims don't use lighting
-        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        u32 driver_idx = (Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1;
         PSD driver = gpuPixelSpanDrivers[driver_idx];
         gpuDrawLineF(packet, driver);
 
         while(1)
         {
-          PacketBuffer.U4[1] = PacketBuffer.U4[2];
-          PacketBuffer.U4[2] = *list_position++;
+          gpu_unai.PacketBuffer.U4[1] = gpu_unai.PacketBuffer.U4[2];
+          gpu_unai.PacketBuffer.U4[2] = *list_position++;
           gpuDrawLineF(packet, driver);
 
           num_vertexes++;
@@ -311,7 +267,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x52:
       case 0x53: {          // Gouraud-shaded line
         // Shift index right by one, as untextured prims don't use lighting
-        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        u32 driver_idx = (Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1;
         // Index MSB selects Gouraud-shaded PixelSpanDriver:
         driver_idx |= (1 << 5);
         PSD driver = gpuPixelSpanDrivers[driver_idx];
@@ -323,7 +279,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         u32 *list_position = &(list[2]);
 
         // Shift index right by one, as untextured prims don't use lighting
-        u32 driver_idx = (Blending_Mode | Masking | Blending | (PixelMSB>>3)) >> 1;
+        u32 driver_idx = (Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1;
         // Index MSB selects Gouraud-shaded PixelSpanDriver:
         driver_idx |= (1 << 5);
         PSD driver = gpuPixelSpanDrivers[driver_idx];
@@ -331,10 +287,10 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
         while(1)
         {
-          PacketBuffer.U4[0] = PacketBuffer.U4[2];
-          PacketBuffer.U4[1] = PacketBuffer.U4[3];
-          PacketBuffer.U4[2] = *list_position++;
-          PacketBuffer.U4[3] = *list_position++;
+          gpu_unai.PacketBuffer.U4[0] = gpu_unai.PacketBuffer.U4[2];
+          gpu_unai.PacketBuffer.U4[1] = gpu_unai.PacketBuffer.U4[3];
+          gpu_unai.PacketBuffer.U4[2] = *list_position++;
+          gpu_unai.PacketBuffer.U4[3] = *list_position++;
           gpuDrawLineG(packet, driver);
 
           num_vertexes++;
@@ -353,7 +309,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x61:
       case 0x62:
       case 0x63: {          // Monochrome rectangle (variable size)
-        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
         gpuDrawT(packet, driver);
       } break;
 
@@ -361,8 +317,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x65:
       case 0x66:
       case 0x67: {          // Textured rectangle (variable size)
-        gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
+        gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
 
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
         // This fixes Silent Hill running animation on loading screens:
@@ -376,9 +332,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         // NOTE: I've changed all textured sprite draw commands here and
         //  elsewhere to use proper behavior, but left poly commands
         //  alone, I don't want to slow rendering down too much. (TODO)
-        //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
+        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+        if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
         gpuDrawS(packet, driver);
@@ -388,8 +344,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x69:
       case 0x6A:
       case 0x6B: {          // Monochrome rectangle (1x1 dot)
-        PacketBuffer.U4[2] = 0x00010001;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpu_unai.PacketBuffer.U4[2] = 0x00010001;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
         gpuDrawT(packet, driver);
       } break;
 
@@ -397,8 +353,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x71:
       case 0x72:
       case 0x73: {          // Monochrome rectangle (8x8)
-        PacketBuffer.U4[2] = 0x00080008;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpu_unai.PacketBuffer.U4[2] = 0x00080008;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
         gpuDrawT(packet, driver);
       } break;
 
@@ -406,14 +362,14 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x75:
       case 0x76:
       case 0x77: {          // Textured rectangle (8x8)
-        PacketBuffer.U4[3] = 0x00080008;
-        gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
+        gpu_unai.PacketBuffer.U4[3] = 0x00080008;
+        gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
 
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
+        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+        if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
         gpuDrawS(packet, driver);
@@ -423,17 +379,17 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x79:
       case 0x7A:
       case 0x7B: {          // Monochrome rectangle (16x16)
-        PacketBuffer.U4[2] = 0x00100010;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | Masking | Blending | (PixelMSB>>3)];
+        gpu_unai.PacketBuffer.U4[2] = 0x00100010;
+        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
         gpuDrawT(packet, driver);
       } break;
 
       case 0x7C:
       case 0x7D:
 #ifdef __arm__
-        if ((GPU_GP1 & 0x180) == 0 && (Masking | PixelMSB) == 0)
+        if ((gpu_unai.GPU_GP1 & 0x180) == 0 && (gpu_unai.Masking | gpu_unai.PixelMSB) == 0)
         {
-          gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
+          gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
           gpuDrawS16(packet);
           break;
         }
@@ -441,13 +397,13 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 #endif
       case 0x7E:
       case 0x7F: {          // Textured rectangle (16x16)
-        PacketBuffer.U4[3] = 0x00100010;
-        gpuSetCLUT    (PacketBuffer.U4[2] >> 16);
-        u32 driver_idx = Blending_Mode | TEXT_MODE | Masking | Blending | (PixelMSB>>1);
+        gpu_unai.PacketBuffer.U4[3] = 0x00100010;
+        gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
+        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>1);
         //senquack - Only color 808080h-878787h allows skipping lighting calculation:
-        //if ((PacketBuffer.U1[0]>0x5F) && (PacketBuffer.U1[1]>0x5F) && (PacketBuffer.U1[2]>0x5F))
+        //if ((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F))
         // Strip lower 3 bits of each color and determine if lighting should be used:
-        if ((PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
+        if ((gpu_unai.PacketBuffer.U4[0] & 0xF8F8F8) != 0x808080)
           driver_idx |= Lighting;
         PS driver = gpuSpriteSpanDrivers[driver_idx];
         gpuDrawS(packet, driver);
@@ -475,8 +431,8 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         goto breakloop;
 #endif
       case 0xE1: {
-        const u32 temp = PacketBuffer.U4[0];
-        GPU_GP1 = (GPU_GP1 & ~0x000007FF) | (temp & 0x000007FF);
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x000007FF) | (temp & 0x000007FF);
         gpuSetTexture(temp);
         gpu.ex_regs[1] = temp;
       } break;
@@ -486,43 +442,44 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           255, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7,
           127, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7
         };
-        const u32 temp = PacketBuffer.U4[0];
-        TextureWindow[0] = ((temp >> 10) & 0x1F) << 3;
-        TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
-        TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
-        TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.TextureWindow[0] = ((temp >> 10) & 0x1F) << 3;
+        gpu_unai.TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
+        gpu_unai.TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
+        gpu_unai.TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
         //senquack - new vars must be updated whenever texture window is changed:
-        u4_msk = i2x(TextureWindow[2]) | ((1 << FIXED_BITS) - 1);
-        v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
-        gpuSetTexture(GPU_GP1);
+        const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
+        gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+        gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+        gpuSetTexture(gpu_unai.GPU_GP1);
         gpu.ex_regs[2] = temp;
       } break;
 
       case 0xE3: {
-        const u32 temp = PacketBuffer.U4[0];
-        DrawingArea[0] = temp         & 0x3FF;
-        DrawingArea[1] = (temp >> 10) & 0x3FF;
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.DrawingArea[0] = temp         & 0x3FF;
+        gpu_unai.DrawingArea[1] = (temp >> 10) & 0x3FF;
         gpu.ex_regs[3] = temp;
       } break;
 
       case 0xE4: {
-        const u32 temp = PacketBuffer.U4[0];
-        DrawingArea[2] = (temp         & 0x3FF) + 1;
-        DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.DrawingArea[2] = (temp         & 0x3FF) + 1;
+        gpu_unai.DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
         gpu.ex_regs[4] = temp;
       } break;
 
       case 0xE5: {
-        const u32 temp = PacketBuffer.U4[0];
-        DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
-        DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
+        gpu_unai.DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
         gpu.ex_regs[5] = temp;
       } break;
 
       case 0xE6: {
-        const u32 temp = PacketBuffer.U4[0];
-        Masking = (temp & 0x2) <<  1;
-        PixelMSB =(temp & 0x1) <<  8;
+        const u32 temp = gpu_unai.PacketBuffer.U4[0];
+        gpu_unai.Masking = (temp & 0x2) <<  1;
+        gpu_unai.PixelMSB =(temp & 0x1) <<  8;
         gpu.ex_regs[6] = temp;
       } break;
     }
@@ -530,7 +487,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
 
 breakloop:
   gpu.ex_regs[1] &= ~0x1ff;
-  gpu.ex_regs[1] |= GPU_GP1 & 0x1ff;
+  gpu.ex_regs[1] |= gpu_unai.GPU_GP1 & 0x1ff;
 
   *last_cmd = cmd;
   return list - list_start;
@@ -554,17 +511,10 @@ void renderer_set_interlace(int enable, int is_odd)
 {
 }
 
+// Handle any gpulib settings applicable to gpu_unai:
 void renderer_set_config(const gpulib_config_t *config)
 {
-  force_interlace = config->gpu_unai_config.lineskip;
-  light = !config->gpu_unai_config.no_light;
-  blend = !config->gpu_unai_config.no_blend;
-
-  //senquack - disabled, not sure this is needed and would require modifying
-  // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
-  // present in latest PCSX4ALL sources we were using.
-  //enableAbbeyHack = config->gpu_unai_config.abe_hack;
-
-  GPU_FrameBuffer = (u16 *)gpu.vram;
+  gpu_unai.vram = (u16*)gpu.vram;
 }
+
 // vim:shiftwidth=2:expandtab

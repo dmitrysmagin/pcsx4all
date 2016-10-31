@@ -131,4 +131,185 @@ static inline s32 GPU_DIV(s32 rs, s32 rt)
 // 'Unsafe' version of above that doesn't check for div-by-zero
 #define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
 
+struct gpu_unai_t {
+	u32 GPU_GP1;
+	GPUPacket PacketBuffer;
+	u16 *vram;
+
+	////////////////////////////////////////////////////////////////////////////
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
+#ifndef USE_GPULIB
+	u32  GPU_GP0;
+	u32  tex_window;       // Current texture window vals (set by GP0(E2h) cmd)
+	s32  PacketCount;
+	s32  PacketIndex;
+	bool fb_dirty;         // Framebuffer is dirty (according to GPU)
+
+	//  Display status
+	//  NOTE: Standalone older gpu_unai didn't care about horiz display range
+	u16  DisplayArea[6];   // [0] : Start of display area (in VRAM) X
+	                       // [1] : Start of display area (in VRAM) Y
+	                       // [2] : Display mode resolution HORIZONTAL
+	                       // [3] : Display mode resolution VERTICAL
+	                       // [4] : Vertical display range (on TV) START
+	                       // [5] : Vertical display range (on TV) END
+
+	////////////////////////////////////////////////////////////////////////////
+	//  Dma Transfers info
+	struct {
+		s32  px,py;
+		s32  x_end,y_end;
+		u16* pvram;
+		u32 *last_dma;     // Last dma pointer
+		bool FrameToRead;  // Load image in progress
+		bool FrameToWrite; // Store image in progress
+	} dma;
+
+	////////////////////////////////////////////////////////////////////////////
+	//  Frameskip
+	struct {
+		int  skipCount;    // Frame skip (0,1,2,3...)
+		bool isSkip;       // Skip frame (according to GPU)
+		bool skipFrame;    // Skip this frame (according to frame skip)
+		bool wasSkip;      // Skip frame old value (according to GPU)
+		bool skipGPU;      // Skip GPU primitives
+	} frameskip;
+
+#endif
+	// END of standalone gpu_unai variables
+	////////////////////////////////////////////////////////////////////////////
+
+
+
+	//  Rasterizer status
+	u8  TextureWindow[4];  // [0] : Texture window offset X
+	                       // [1] : Texture window offset Y
+	                       // [2] : Texture window mask X
+	                       // [3] : Texture window mask Y
+
+	u16 DrawingArea[4];    // [0] : Drawing area top left X
+	                       // [1] : Drawing area top left Y
+	                       // [2] : Drawing area bottom right X
+	                       // [3] : Drawing area bottom right Y
+
+	s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
+	                       // [1] : Drawing offset Y (signed)
+
+	u16* TBA;
+	u16* CBA;
+
+	//  Inner Loop parameters
+	//  TODO: Pass these through their own struct?
+	u16 PixelData;
+	s32   u4, du4;
+	s32   v4, dv4;
+	s32   r4, dr4;
+	s32   g4, dg4;
+	s32   b4, db4;
+	u32   lInc;
+
+	//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
+	//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
+	//           another word and increment both u4,v4 with one instruction.
+	//           During the course of fixing gpu_unai's polygon rendering issues,
+	//           I ultimately found it was impossible to keep them combined like
+	//           that, as pixel dropouts would always occur, particularly in NFS3
+	//           sky background, perhaps from the reduced accuracy. Now they are
+	//           incremented individually with du4 and dv4, and masked separetely,
+	//           using new vars u4_msk, v4_msk, which store fixed-point masks.
+	//           These are updated whenever TextureWindow[2] or [3] are changed.
+	//u32   tInc, tMsk;
+	u32   u4_msk, v4_msk;
+
+	u32 blit_mask;          // Determines what pixels to skip when rendering.
+	                        //  Only useful on low-resolution devices using
+	                        //  a simple pixel-dropping downscaler for PS1
+                            //  high-res modes. See 'pixel_skip' option.
+
+	u8 ilace_mask;          // Determines what lines to skip when rendering.
+	                        //  Normally 0 when PS1 240 vertical res is in
+	                        //  use and ilace_force is 0. When running in
+	                        //  PS1 480 vertical res on a low-resolution
+	                        //  device (320x240), will usually be set to 1
+	                        //  so odd lines are not rendered. (Unless future
+	                        //  full-screen scaling option is in use ..TODO)
+
+	bool prog_ilace_flag;   // Tracks successive frames for 'prog_ilace' option
+
+	u8 BLEND_MODE;
+	u8 TEXT_MODE;
+	u8 Masking;
+
+	u16 PixelMSB;
+
+	struct {
+		bool pixel_skip:1;   // Option allows skipping rendering pixels that
+		                     //  would not be visible when a high horizontal
+		                     //  resolution PS1 video mode is set, but a simple
+		                     //  pixel-dropping framebuffer blitter is used.
+		                     //  Only applies to devices with low resolutions
+		                     //  like 320x240. Should not be used if a
+		                     //  down-scaling framebuffer blitter is in use.
+		                     //  Can cause gfx artifacts if game reads VRAM
+		                     //  to do framebuffer effects.
+
+		u8 ilace_force:3;    // Option to force skipping rendering of lines,
+		                     //  for very slow platforms. Value will be
+		                     //  assigned to 'ilace_mask' in gpu_unai struct.
+		                     //  Normally 0. Value '1' will skip rendering
+		                     //  odd lines.
+
+		bool lighting_disabled:1;
+		bool blending_disabled:1;
+
+		//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
+		// don't think it's necessary. It would require adding 'AH' flag to
+		// gpuSpriteSpanFn() increasing size of sprite span function array.
+		//u8 enableAbbeyHack:1;  // Abe's Odyssey hack
+
+	////////////////////////////////////////////////////////////////////////////
+	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
+#ifndef USE_GPULIB
+		bool prog_ilace:1;       // Progressive interlace option (old option)
+								 //  This option was somewhat oddly named:
+								 //  When in interlaced video mode, on a low-res
+								 //  320x240 device, only the even lines are
+								 //  rendered. This option will take that one
+								 //  step further and only render half the even
+								 //  even lines one frame, and then the other half.
+		u8  frameskip_count:3;   // Frame skip (0..7)
+#endif
+	} config;
+};
+
+static gpu_unai_t gpu_unai;
+
+// Global config that frontend can alter.. Values are read in GPU_init().
+// TODO: if frontend menu modifies a setting, add a function that can notify
+// GPU plugin to use new setting.
+gpu_unai_config_t gpu_unai_config_ext;
+
+///////////////////////////////////////////////////////////////////////////////
+// Hooks to get option status
+static inline bool LightingEnabled()
+{
+	return !gpu_unai.config.lighting_disabled;
+}
+
+static inline bool BlendingEnabled()
+{
+	return !gpu_unai.config.blending_disabled;
+}
+
+static inline bool ProgressiveInterlaceEnabled()
+{
+#ifdef USE_GPULIB
+	// Using this old option greatly decreases quality of image. Disabled
+	//  for now when using new gpulib, since it also adds more work in loops.
+	return false;
+#else
+	return gpu_unai.config.prog_ilace;
+#endif
+}
+
 #endif // GPU_UNAI_GPU_UNAI_H
