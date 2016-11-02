@@ -1089,10 +1089,17 @@ void psxHwWrite32(u32 add, u32 value) {
 			PSXHW_LOG("DMA ICR 32bit write %x\n", value);
 #endif
 		{
-			u32 tmp = (~value) & SWAPu32(HW_DMA_ICR);
-			HW_DMA_ICR = SWAPu32(((tmp ^ value) & 0xffffff) ^ tmp);
+			u32 tmp = value & 0x00ff803f;
+			tmp |= (SWAPu32(HW_DMA_ICR) & ~value) & 0x7f000000;
+			if ((tmp & HW_DMA_ICR_GLOBAL_ENABLE && tmp & 0x7f000000)
+			    || tmp & HW_DMA_ICR_BUS_ERROR) {
+				if (!(SWAPu32(HW_DMA_ICR) & HW_DMA_ICR_IRQ_SENT))
+					psxHu32ref(0x1070) |= SWAP32(8);
+				tmp |= HW_DMA_ICR_IRQ_SENT;
+			}
+			HW_DMA_ICR = SWAPu32(tmp);
 #if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
-			psxRegs.cycle-=psxRegs.cycle_add;psxRegs.cycle_add=0;
+			psxRegs.cycle-=psxRegs.cycle_add; psxRegs.cycle_add=0;
 #endif
 			pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 			return;
