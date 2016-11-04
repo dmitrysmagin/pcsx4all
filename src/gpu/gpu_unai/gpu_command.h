@@ -67,8 +67,83 @@ INLINE void gpuSetCLUT(u16 clut)
 #define Blending_Mode (((PRIM&0x2) && BlendingEnabled()) ? gpu_unai.BLEND_MODE : 0)
 #define Lighting      (((~PRIM)&0x1) && LightingEnabled())
 
-//senquack - now handled by Rearmed's gpulib and gpu_unai/gpulib_if.cpp:
+///////////////////////////////////////////////////////////////////////////////
+//Now handled by Rearmed's gpulib and gpu_unai/gpulib_if.cpp:
+///////////////////////////////////////////////////////////////////////////////
 #ifndef USE_GPULIB
+
+// Handles GP0 draw settings commands 0xE1...0xE6
+static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
+{
+	// Assume incoming GP0 command is 0xE1..0xE6, convert to 1..6
+	u8 num = (cmd_word >> 24) & 7;
+	switch (num) {
+		case 1: {
+			// GP0(E1h) - Draw Mode setting (aka "Texpage")
+			DO_LOG(("GP0(0xE1) DrawMode TexPage(0x%x)\n", cmd_word));
+			u32 cur_texpage = gpu_unai.GPU_GP1 & 0x7FF;
+			u32 new_texpage = cmd_word & 0x7FF;
+			if (cur_texpage != new_texpage) {
+				gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x7FF) | new_texpage;
+				gpuSetTexture(gpu_unai.GPU_GP1);
+			}
+		} break;
+
+		case 2: {
+			// GP0(E2h) - Texture Window setting
+			DO_LOG(("GP0(0xE2) TextureWindow(0x%x)\n", cmd_word));
+			if (cmd_word != gpu_unai.TextureWindowCur) {
+				static const u8 TextureMask[32] = {
+					255, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7,
+					127, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7
+				};
+				gpu_unai.TextureWindowCur = cmd_word;
+				gpu_unai.TextureWindow[0] = ((cmd_word >> 10) & 0x1F) << 3;
+				gpu_unai.TextureWindow[1] = ((cmd_word >> 15) & 0x1F) << 3;
+				gpu_unai.TextureWindow[2] = TextureMask[(cmd_word >> 0) & 0x1F];
+				gpu_unai.TextureWindow[3] = TextureMask[(cmd_word >> 5) & 0x1F];
+				gpu_unai.TextureWindow[0] &= ~gpu_unai.TextureWindow[2];
+				gpu_unai.TextureWindow[1] &= ~gpu_unai.TextureWindow[3];
+
+				// Inner loop vars must be updated whenever texture window is changed:
+				const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
+				gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+				gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+
+				gpuSetTexture(gpu_unai.GPU_GP1);
+			}
+		} break;
+
+		case 3: {
+			// GP0(E3h) - Set Drawing Area top left (X1,Y1)
+			DO_LOG(("GP0(0xE3) DrawingArea Pos(0x%x)\n", cmd_word));
+			gpu_unai.DrawingArea[0] = cmd_word         & 0x3FF;
+			gpu_unai.DrawingArea[1] = (cmd_word >> 10) & 0x3FF;
+		} break;
+
+		case 4: {
+			// GP0(E4h) - Set Drawing Area bottom right (X2,Y2)
+			DO_LOG(("GP0(0xE4) DrawingArea Size(0x%x)\n", cmd_word));
+			gpu_unai.DrawingArea[2] = (cmd_word         & 0x3FF) + 1;
+			gpu_unai.DrawingArea[3] = ((cmd_word >> 10) & 0x3FF) + 1;
+		} break;
+
+		case 5: {
+			// GP0(E5h) - Set Drawing Offset (X,Y)
+			DO_LOG(("GP0(0xE5) DrawingOffset(0x%x)\n", cmd_word));
+			gpu_unai.DrawingOffset[0] = ((s32)cmd_word<<(32-11))>>(32-11);
+			gpu_unai.DrawingOffset[1] = ((s32)cmd_word<<(32-22))>>(32-11);
+		} break;
+
+		case 6: {
+			// GP0(E6h) - Mask Bit Setting
+			DO_LOG(("GP0(0xE6) SetMask(0x%x)\n", cmd_word));
+			gpu_unai.Masking  = (cmd_word & 0x2) <<  1;
+			gpu_unai.PixelMSB = (cmd_word & 0x1) <<  8;
+		} break;
+	}
+}
+
 void gpuSendPacketFunction(const int PRIM)
 {
 	//printf("0x%x\n",PRIM);
@@ -471,69 +546,12 @@ void gpuSendPacketFunction(const int PRIM)
 			gpuStoreImage(packet);  //  prim handles updateLace && skip
 			DO_LOG(("gpuStoreImage(0x%x)\n",PRIM));
 			break;
-		case 0xE1:
-			{
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x000007FF) | (temp & 0x000007FF);
-				gpuSetTexture(temp);
-				DO_LOG(("gpuSetTexture(0x%x)\n",PRIM));
-			}
-			break;
-		case 0xE2:	  
-			{
-				static const u8 TextureMask[32] = {
-					255, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7,	//
-					127, 7, 15, 7, 31, 7, 15, 7, 63, 7, 15, 7, 31, 7, 15, 7	  //
-				};
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				gpu_unai.tex_window = temp&0xFFFFF;
-				gpu_unai.TextureWindow[0] = ((temp >> 10) & 0x1F) << 3;
-				gpu_unai.TextureWindow[1] = ((temp >> 15) & 0x1F) << 3;
-				gpu_unai.TextureWindow[2] = TextureMask[(temp >> 0) & 0x1F];
-				gpu_unai.TextureWindow[3] = TextureMask[(temp >> 5) & 0x1F];
-
-				//senquack - new vars must be updated whenever texture window is changed:
-				const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-				gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-				gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
-
-				gpuSetTexture(gpu_unai.GPU_GP1);
-				DO_LOG(("TextureWindow(0x%x)\n",PRIM));
-			}
-			break;
-		case 0xE3:
-			{
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				gpu_unai.DrawingArea[0] = temp         & 0x3FF;
-				gpu_unai.DrawingArea[1] = (temp >> 10) & 0x3FF;
-				DO_LOG(("DrawingArea Pos(0x%x)\n",PRIM));
-			}
-			break;
-		case 0xE4:
-			{
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				gpu_unai.DrawingArea[2] = (temp         & 0x3FF) + 1;
-				gpu_unai.DrawingArea[3] = ((temp >> 10) & 0x3FF) + 1;
-				DO_LOG(("DrawingArea Size(0x%x)\n",PRIM));
-			}
-			break;
-		case 0xE5:
-			{
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				gpu_unai.DrawingOffset[0] = ((s32)temp<<(32-11))>>(32-11);
-				gpu_unai.DrawingOffset[1] = ((s32)temp<<(32-22))>>(32-11);
-				DO_LOG(("DrawingOffset (0x%x)\n",PRIM));
-			}
-			break;
-		case 0xE6:
-			{
-				const u32 temp = gpu_unai.PacketBuffer.U4[0];
-				//gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x00001800) | ((temp&3) << 11);
-				gpu_unai.Masking = (temp & 0x2) <<  1;
-				gpu_unai.PixelMSB =(temp & 0x1) <<  8;
-				DO_LOG(("SetMask(0x%x)\n",PRIM));
-			}
-			break;
+		case 0xE1 ... 0xE6: { // Draw settings
+			gpuGP0Cmd_0xEx(gpu_unai, gpu_unai.PacketBuffer.U4[0]);
+		} break;
 	}
 }
-#endif //USE_GPULIB
+#endif //!USE_GPULIB
+///////////////////////////////////////////////////////////////////////////////
+// End of code specific to non-gpulib standalone version of gpu_unai
+///////////////////////////////////////////////////////////////////////////////

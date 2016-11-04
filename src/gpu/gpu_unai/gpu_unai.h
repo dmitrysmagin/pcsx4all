@@ -174,14 +174,11 @@ struct gpu_unai_t {
 		bool wasSkip;      // Skip frame old value (according to GPU)
 		bool skipGPU;      // Skip GPU primitives
 	} frameskip;
-
 #endif
 	// END of standalone gpu_unai variables
 	////////////////////////////////////////////////////////////////////////////
 
-
-
-	//  Rasterizer status
+	u32 TextureWindowCur;  // Current setting from last GP0(0xE2) cmd (raw form)
 	u8  TextureWindow[4];  // [0] : Texture window offset X
 	                       // [1] : Texture window offset Y
 	                       // [2] : Texture window mask X
@@ -195,8 +192,8 @@ struct gpu_unai_t {
 	s16 DrawingOffset[2];  // [0] : Drawing offset X (signed)
 	                       // [1] : Drawing offset Y (signed)
 
-	u16* TBA;
-	u16* CBA;
+	u16* TBA;              // Ptr to current texture in VRAM
+	u16* CBA;              // Ptr to current CLUT in VRAM
 
 	//  Inner Loop parameters
 	//  TODO: Pass these through their own struct?
@@ -280,6 +277,7 @@ struct gpu_unai_t {
 		u8  frameskip_count:3;   // Frame skip (0..7)
 #endif
 	} config;
+
 };
 
 static gpu_unai_t gpu_unai;
