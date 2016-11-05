@@ -31,7 +31,7 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -ggdb3 -O2 -march=i686 -DGCW_ZERO \
+CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
