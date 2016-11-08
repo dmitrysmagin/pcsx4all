@@ -32,20 +32,16 @@
 #define WIN32_LEAN_AND_MEAN
 #include <process.h>
 #include <windows.h>
+
 #define strcasecmp _stricmp
-
-#if !(defined(__MINGW32__) || defined(__MINGW64__))
-#define usleep(x) Sleep((x) / 1000)
-#endif
-
 #define fseeko fseek
 #define ftello ftell
 #else // UNIX:
 #include <pthread.h>
-#include <sys/time.h>
-#include <unistd.h>
 #endif
 
+#include <sys/time.h>
+#include <unistd.h>
 #include <errno.h>
 #include <zlib.h>
 
@@ -273,11 +269,8 @@ static void *playthread(void *param)
 		else if (d > CDDA_FRAMETIME) {
 			d = CDDA_FRAMETIME;
 		}
-#ifdef _WIN32
-		Sleep(d);
-#else
+
 		usleep(d * 1000);
-#endif
 
 		t = GetTickCount() + CDDA_FRAMETIME;
 
