@@ -54,14 +54,22 @@
 #define HW_DMA_PCR   (psxHu32ref(0x10f0))
 #define HW_DMA_ICR   (psxHu32ref(0x10f4))
 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
-#define	DMA_INTERRUPT(n) \
-	if (SWAPu32(HW_DMA_ICR) & (1 << (16 + n))) { \
-		HW_DMA_ICR|= SWAP32(1 << (24 + n)); \
-		psxHu32ref(0x1070) |= SWAP32(8);                \
-		ResetIoCycle(); \
-	}
+#define HW_DMA_ICR_BUS_ERROR     (1<<15)
+#define HW_DMA_ICR_GLOBAL_ENABLE (1<<23)
+#define HW_DMA_ICR_IRQ_SENT      (1<<31)
 
+#define DMA_INTERRUPT(n) { \
+	u32 icr = SWAPu32(HW_DMA_ICR); \
+	if (icr & (1 << (16 + n))) { \
+		icr |= 1 << (24 + n); \
+		if (icr & HW_DMA_ICR_GLOBAL_ENABLE && !(icr & HW_DMA_ICR_IRQ_SENT)) { \
+			psxHu32ref(0x1070) |= SWAP32(8); \
+			icr |= HW_DMA_ICR_IRQ_SENT; \
+		} \
+		HW_DMA_ICR = SWAP32(icr); \
+		ResetIoCycle(); \
+	} \
+}
 
 extern void psxHwReset(void);
 extern u8   psxHwRead8 (u32 add);

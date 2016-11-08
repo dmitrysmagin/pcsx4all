@@ -33,14 +33,19 @@
 #include <process.h>
 #include <windows.h>
 #define strcasecmp _stricmp
+
+#if !(defined(__MINGW32__) || defined(__MINGW64__))
 #define usleep(x) Sleep((x) / 1000)
+#endif
+
 #define fseeko fseek
 #define ftello ftell
-#else
+#else // UNIX:
 #include <pthread.h>
 #include <sys/time.h>
 #include <unistd.h>
 #endif
+
 #include <errno.h>
 #include <zlib.h>
 

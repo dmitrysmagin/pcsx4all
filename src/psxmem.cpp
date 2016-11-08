@@ -272,54 +272,218 @@ void psxMemShutdown() {
 	free(psxMemWLUT);
 }
 
-u8 psxMemRead8(u32 mem) {
+u8 psxMemRead8(u32 mem)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemRead8++;
 #endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+
 	u8 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalreads;
-	extern unsigned long long totalreads_ok;
-	totalreads++;
-	if ((mem&0x1fffffff)<0x800000)
-	{
-		totalreads_ok++;
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemRead8");
-			pcsx4all_exit();
-		}
-		ret=*((u8 *)&psxM[mem&0x1fffff]);
-	}
-	else
-	{
-#endif
-		if (t!=0x1f80) ret= *(((u8 *)psxMemRLUT[t]) + m);
-		else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_mh;
-			totalreads_mh++;
-#endif
-			ret= (*(u8*) &psxH[m]);
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			ret = psxHu8(mem);
+		else
+			ret = psxHwRead8(mem);
+	} else {
+		u8 *p = (u8*)(psxMemRLUT[t]);
+		if (p != NULL) {
+			return *(u8*)(p + m);
 		} else {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_hw;
-			totalreads_hw++;
+#ifdef PSXMEM_LOG
+			PSXMEM_LOG("err lb %8.8lx\n", mem);
 #endif
-		       	ret=psxHwRead8(mem);
+			ret = 0;
 		}
-#ifdef DEBUG_FAST_MEMORY
 	}
-#endif
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
 	return ret;
 }
 
+u16 psxMemRead16(u32 mem)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxMemRead16++;
+#endif
+
+	u16 ret;
+	u32 t = mem >> 16;
+	u32 m = mem & 0xffff;
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			ret = psxHu16(mem);
+		else
+			ret = psxHwRead16(mem);
+	} else {
+		u8 *p = (u8*)(psxMemRLUT[t]);
+		if (p != NULL) {
+			ret = SWAPu16(*(u16*)(p + m));
+		} else {
+#ifdef PSXMEM_LOG
+			PSXMEM_LOG("err lh %8.8lx\n", mem);
+#endif
+			ret = 0;
+		}
+	}
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+	return ret;
+}
+
+u32 psxMemRead32(u32 mem)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxMemRead32++;
+#endif
+
+	u32 ret;
+	u32 t = mem >> 16;
+	u32 m = mem & 0xffff;
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			ret = psxHu32(mem);
+		else
+			ret = psxHwRead32(mem);
+	} else {
+		u8 *p = (u8*)(psxMemRLUT[t]);
+		if (p != NULL) {
+			ret = SWAPu32(*(u32*)(p + m));
+		} else {
+#ifdef PSXMEM_LOG
+			if (writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
+#endif
+			ret = 0;
+		}
+	}
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+	return ret;
+}
+
+void psxMemWrite8(u32 mem, u8 value)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxMemWrite8++;
+#endif
+
+	u32 t = mem >> 16;
+	u32 m = mem & 0xffff;
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			psxHu8(mem) = value;
+		else
+			psxHwWrite8(mem, value);
+	} else {
+		u8 *p = (u8*)(psxMemWLUT[t]);
+		if (p != NULL) {
+			*(u8*)(p + m) = value;
+#ifdef PSXREC
+			psxCpu->Clear((mem & (~3)), 1);
+#endif
+		} else {
+#ifdef PSXMEM_LOG
+			PSXMEM_LOG("err sb %8.8lx\n", mem);
+#endif
+		}
+	}
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+}
+
+void psxMemWrite16(u32 mem, u16 value)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxMemWrite16++;
+#endif
+
+	u32 t = mem >> 16;
+	u32 m = mem & 0xffff;
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			psxHu16ref(mem) = SWAPu16(value);
+		else
+			psxHwWrite16(mem, value);
+	} else {
+		u8 *p = (u8*)(psxMemWLUT[t]);
+		if (p != NULL) {
+			*(u16*)(p + m) = SWAPu16(value);
+#ifdef PSXREC
+			psxCpu->Clear((mem & (~3)), 1);
+#endif
+		} else {
+#ifdef PSXMEM_LOG
+			PSXMEM_LOG("err sh %8.8lx\n", mem);
+#endif
+		}
+	}
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+}
+
+void psxMemWrite32(u32 mem, u32 value)
+{
+	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+#ifdef DEBUG_ANALYSIS
+	dbg_anacnt_psxMemWrite32++;
+#endif
+
+	u32 t = mem >> 16;
+	u32 m = mem & 0xffff;
+	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
+		if (m < 0x400)
+			psxHu32ref(mem) = SWAPu32(value);
+		else
+			psxHwWrite32(mem, value);
+	} else {
+		u8 *p = (u8*)(psxMemWLUT[t]);
+		if (p != NULL) {
+			*(u32*)(p + m) = SWAPu32(value);
+#ifdef PSXREC
+			psxCpu->Clear(mem, 1);
+#endif
+		} else {
+			if (mem != 0xfffe0130) {
+#ifdef PSXREC
+				if (!psxRegs.writeok) psxCpu->Clear(mem, 1);
+#endif
+
+#ifdef PSXMEM_LOG
+				if (psxRegs.writeok) { PSXMEM_LOG("err sw %8.8lx\n", mem); }
+#endif
+			} else {
+				// Write to cache control port 0xfffe0130
+				switch (value) {
+					case 0x800: case 0x804:
+						if (psxRegs.writeok == 0) break;
+						psxRegs.writeok = 0;
+						memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
+						memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
+						break;
+					case 0x00: case 0x1e988:
+						if (psxRegs.writeok == 1) break;
+						psxRegs.writeok = 1;
+						for (int i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8*)&psxM[(i & 0x1f) << 16];
+						memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
+						memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
+						break;
+					default:
+#ifdef PSXMEM_LOG
+						PSXMEM_LOG("unk %8.8lx = %x\n", mem, value);
+#endif
+						break;
+				}
+			}
+		}
+	}
+	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//NOTE: Following *_direct() are old funcs used by unmaintained ARM dynarecs
+///////////////////////////////////////////////////////////////////////////////
 u8 psxMemRead8_direct(u32 mem,void *_regs) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemRead8_direct++;
@@ -337,54 +501,6 @@ u8 psxMemRead8_direct(u32 mem,void *_regs) {
 			m|=mem&0x70000;
 			return (*(u8*) &regs->psxR[m]);
 	}
-}
-
-u16 psxMemRead16(u32 mem) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead16++;
-#endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-	u16 ret;
-	u32 t = mem >> 16;
-	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalreads;
-	extern unsigned long long totalreads_ok;
-	totalreads++;
-	if ((mem&0x1fffffff)<0x800000)
-	{
-		totalreads_ok++;
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemRead16");
-			pcsx4all_exit();
-		}
-		ret=*((u16 *)&psxM[mem&0x1fffff]);
-	}
-	else
-	{
-#endif
-		if (t!=0x1f80) ret=SWAPu16(*(u16 *)(((u8 *)(psxMemRLUT[t])) + m));
-		else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_mh;
-			totalreads_mh++;
-#endif
-			ret=(SWAP16(*(u16*)&psxH[m]));
-		} else {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_hw;
-			totalreads_hw++;
-#endif
-		       	ret=psxHwRead16(mem);
-		}
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_FAST_MEMORY
-	}
-#endif
-	return ret;
 }
 
 u16 psxMemRead16_direct(u32 mem,void *_regs) {
@@ -406,54 +522,6 @@ u16 psxMemRead16_direct(u32 mem,void *_regs) {
 	}
 }
 
-u32 psxMemRead32(u32 mem) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead32++;
-#endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-	u32 ret;
-	u32 t = mem >> 16;
-	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalreads;
-	extern unsigned long long totalreads_ok;
-	totalreads++;
-	if ((mem&0x1fffffff)<0x800000)
-	{
-		totalreads_ok++;
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemRead32");
-			pcsx4all_exit();
-		}
-		ret=*((u32 *)&psxM[mem&0x1fffff]);
-	}
-	else
-	{
-#endif
-		if (t!=0x1f80) ret=SWAPu32(*(u32 *)(((u8 *)(psxMemRLUT[t])) + m));
-		else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_mh;
-			totalreads_mh++;
-#endif
-			ret=(SWAP32(*(u32*)&psxH[m]));
-		} else {
-#ifdef DEBUG_FAST_MEMORY
-			extern unsigned long long totalreads_hw;
-			totalreads_hw++;
-#endif
-		       	ret=psxHwRead32(mem);
-		}
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_FAST_MEMORY
-	}
-#endif
-	return ret;
-}
-
 u32 psxMemRead32_direct(u32 mem,void *_regs) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemRead32_direct++;
@@ -473,66 +541,6 @@ u32 psxMemRead32_direct(u32 mem,void *_regs) {
 	}
 }
 
-void psxMemWrite8(u32 mem, u8 value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite8++;
-#endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-	u32 t = mem >> 16;
-	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalwrites;
-	extern unsigned long long totalwrites_ok;
-	totalwrites++;
-	if ((mem&0x1fffffff)<0x800000)
-	{
-		totalwrites_ok++;
-		if (!psxMemWLUT[t])
-		{
-			printf("FALLO psxMemWrite8 al ser 0 psxMemWLUT[%i] (%p)\n",t,mem);
-			pcsx4all_exit();
-		}
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemWrite8");
-			pcsx4all_exit();
-		}
-		*((u8 *)&psxM[mem&0x1fffff]) = value;
-		return;
-	}
-#endif
-	if (t!=0x1f80)
-	{
-		u8 *p=(u8 *)(psxMemWLUT[t]);
-		if (p)
-		{
-			*(p + m) = value;
-			#ifdef PSXREC
-			psxCpu->Clear((mem & (~3)), 1);
-			#endif
-		}
-		#ifdef PSXMEM_LOG
-		else PSXMEM_LOG("err sb %8.8lx\n", mem);
-		#endif
-	}
-	else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_mh;
-		totalwrites_mh++;
-#endif
-		(*(u8*) &psxH[m]) = value;
-	} else {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_hw;
-		totalwrites_hw++;
-#endif
-		psxHwWrite8(mem, value);
-	}
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-}
-
 void psxMemWrite8_direct(u32 mem, u8 value,void *_regs) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemWrite8_direct++;
@@ -548,66 +556,6 @@ void psxMemWrite8_direct(u32 mem, u8 value,void *_regs) {
 			*((u8 *)&regs->psxP[m]) = value;
 			break;
 	}
-}
-
-void psxMemWrite16(u32 mem, u16 value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite16++;
-#endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-	u32 t = mem >> 16;
-	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalwrites;
-	extern unsigned long long totalwrites_ok;
-	totalwrites++;
-	if ((mem&0x1fffffff)<0x800000)
-	{
-		totalwrites_ok++;
-		if (!psxMemWLUT[t])
-		{
-			printf("FALLO psxMemWrite16 al ser 0 psxMemWLUT[%i] (%p)\n",t,mem);
-			pcsx4all_exit();
-		}
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemWrite16");
-			pcsx4all_exit();
-		}
-		*((u16 *)&psxM[mem&0x1fffff]) = value;
-		return;
-	}
-#endif
-	if (t!=0x1f80)
-	{
-		u8 *p=(u8 *)(psxMemWLUT[t]);
-		if (p)
-		{
-			*(u16 *)(p + m) = SWAPu16(value);
-			#ifdef PSXREC
-			psxCpu->Clear((mem & (~3)), 1);
-			#endif
-		}
-		#ifdef PSXMEM_LOG
-		else PSXMEM_LOG("err sh %8.8lx\n", mem);
-		#endif
-	}
-	else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_mh;
-		totalwrites_mh++;
-#endif
-		(*(u16*)&psxH[m]) = SWAPu16(value);
-	} else {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_hw;
-		totalwrites_hw++;
-#endif
-		psxHwWrite16(mem, value);
-	}
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 }
 
 void psxMemWrite16_direct(u32 mem, u16 value,void *_regs) {
@@ -626,107 +574,6 @@ void psxMemWrite16_direct(u32 mem, u16 value,void *_regs) {
 	}
 }
 
-void psxMemWrite32_error(u32 mem, u32 value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite32_error++;
-#endif
-	static int writeok = 1;
-	if (mem==0xfffe0130)
-	{
-		switch (value) {
-			case 0x800: case 0x804:
-				if (writeok == 0) break;
-				psxRegs.writeok = writeok = 0;
-				memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
-				memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
-				memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
-				break;
-			case 0x00: case 0x1e988:
-				if (writeok == 1) break;
-				psxRegs.writeok = writeok = 1;
-				{ int i; for (i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8 *)&psxM[(i & 0x1f) << 16]; }
-				memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
-				memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
-				break;
-			default:
-				#ifdef PSXMEM_LOG
-				PSXMEM_LOG("unk %8.8lx = %x\n", mem, value);
-				#endif
-				break;
-		}
-	}
-	#ifdef PSXREC
-	else
-	{
-		if (!writeok) psxCpu->Clear(mem, 1);
-		#ifdef PSXMEM_LOG
-		if (writeok) { PSXMEM_LOG("err sw %8.8lx\n", mem); }
-		#endif
-	}
-	#endif
-}
-
-void psxMemWrite32(u32 mem, u32 value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite32++;
-#endif
-//	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-	u32 t = mem >> 16;
-	u32 m = mem & 0xffff;
-#ifdef DEBUG_FAST_MEMORY
-	extern unsigned long long totalwrites;
-	extern unsigned long long totalwrites_ok;
-	totalwrites++;
-	if (((mem&0x1fffffff)<0x800000)&&(Config.HLE))
-	{
-		totalwrites_ok++;
-		if (!psxMemWLUT[t])
-		{
-			printf("FALLO psxMemWrite32 al ser 0 psxMemWLUT[%i] (%p)\n",t,mem);
-			pcsx4all_exit();
-		}
-		if ((((u8 *)psxMemRLUT[t]) + m) != (u8 *)&psxM[mem&0x1fffff])
-		{
-			printf("%p 0x%X 0x%X (0x%X 0x%X)\n",mem,t,m,m+t*0x10000,mem&0x1fffff);
-			printf("%p %p %p\n",psxMemRLUT[t]+m,&psxM[m+t*0x10000],&psxM[mem&0x1fffff]);
-			puts("FALLO psxMemWrite32");
-			pcsx4all_exit();
-		}
-		*((u32 *)&psxM[mem&0x1fffff]) = value;
-		return;
-	}
-#endif
-	if (t!=0x1f80)
-	{
-		u8 *p=(u8 *)(psxMemWLUT[t]);
-		if (p)
-		{
-			*(u32 *)(p + m) = SWAPu32(value);
-			#ifdef PSXREC
-			psxCpu->Clear(mem, 1);
-			#endif
-		}
-		else
-		{
-			psxMemWrite32_error(mem,value);
-		}
-	}
-	else if (m<0x1000) {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_mh;
-		totalwrites_mh++;
-#endif
-		(*(u32*)&psxH[m]) = SWAPu32(value);
-	} else {
-#ifdef DEBUG_FAST_MEMORY
-		extern unsigned long long totalwrites_hw;
-		totalwrites_hw++;
-#endif
-		psxHwWrite32(mem, value);
-	}
-//	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-}
-
 void psxMemWrite32_direct(u32 mem, u32 value,void *_regs) {
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_psxMemWrite32_direct++;
@@ -742,24 +589,3 @@ void psxMemWrite32_direct(u32 mem, u32 value,void *_regs) {
 			*((u32 *)&regs->psxP[m]) = value;
 	}
 }
-
-#if 0
-void *psxMemPointer(u32 mem) {
-	char *p;
-	u32 t;
-
-	t = mem >> 16;
-	if (t == 0x1f80) {
-		if (mem < 0x1f801000)
-			return (void *)&psxH[mem]; // WRONG???
-		else
-			return NULL;
-	} else {
-		p = (char *)(psxMemWLUT[t]);
-		if (p != NULL) {
-			return (void *)(p + (mem & 0xffff));
-		}
-		return NULL;
-	}
-}
-#endif

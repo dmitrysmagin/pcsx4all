@@ -109,8 +109,7 @@ SOUND_DRIVERS=sdl
 #		list previously in Makefile
 OBJS += obj/spu/spu_pcsxrearmed/dma.o obj/spu/spu_pcsxrearmed/freeze.o \
 	obj/spu/spu_pcsxrearmed/out.o obj/spu/spu_pcsxrearmed/nullsnd.o \
-	obj/spu/spu_pcsxrearmed/adsr.o obj/spu/spu_pcsxrearmed/reverb.o \
-	obj/spu/spu_pcsxrearmed/registers.o obj/spu/spu_pcsxrearmed/xa.o
+	obj/spu/spu_pcsxrearmed/registers.o
 ifeq "$(ARCH)" "arm"
 OBJS += obj/spu/spu_pcsxrearmed/arm_utils.o
 endif

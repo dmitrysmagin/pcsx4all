@@ -991,7 +991,7 @@ void psxBios_malloc(void) { // 33
 	}
 
 	// return pointer to allocated memory
-	v0 = ((unsigned long)chunk - (unsigned long)psxM) + 4;
+	v0 = ((uptr)chunk - (uptr)psxM) + 4;
 	v0|= 0x80000000;
 	//printf ("malloc %x,%x\n", v0, a0);
 	pc0 = ra;

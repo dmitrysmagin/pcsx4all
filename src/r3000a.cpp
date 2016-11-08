@@ -130,8 +130,10 @@ void psxException(u32 code, u32 bd) {
 #endif
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
 //	_pcsx4all_prof_end(PCSX4ALL_PROF_CPU,0);
-	// Set the Cause
-	psxRegs.CP0.n.Cause = code;
+
+	// Set the Cause, preserving R/W 'interrupt pending field' bits 8,9
+	// (From Notaz's PCSX Rearmed)
+	psxRegs.CP0.n.Cause = (psxRegs.CP0.n.Cause & 0x300) | code;
 
 	// Set the EPC & PC
 	if (bd) {
