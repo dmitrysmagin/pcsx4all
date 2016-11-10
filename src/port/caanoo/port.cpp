@@ -2,6 +2,7 @@
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
+#include "plugin_lib/perfmon.h"  // FPS / CPU performance monitoring
 #include "wiz_lib.h"
 #include "profiler.h"
 
@@ -270,6 +271,13 @@ int main (int argc, char **argv)
 		}
 		if (strcmp(argv[i],"-adjust")==0) { PSXCLK=(u32)((double)PSXCLK*atof(argv[i+1])); }
 		
+		// Performance monitoring options
+		if (strcmp(argv[i],"-perfmon")==0) {
+			// Enable detailed stats and console output
+			Config.PerfmonConsoleOutput = true;
+			Config.PerfmonDetailedStats = true;
+		}
+
 		// GPU
 		if (strcmp(argv[i],"-framelimit")==0) { extern bool frameLimit; frameLimit=true; } // frames limit
 		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
@@ -309,6 +317,7 @@ int main (int argc, char **argv)
 	}
 
 	psxReset();	
+	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
 
 	if (cdrfilename[0]!='\0') { if (CheckCdrom() == -1) { printf("Failed checking ISO image.\n"); SetIsoFile(NULL); }
 	else { if (LoadCdrom() == -1) { printf("Failed loading ISO image.\n"); SetIsoFile(NULL); } } }

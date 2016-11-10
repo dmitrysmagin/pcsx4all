@@ -49,6 +49,7 @@
 #include "psxevents.h"
 #include "gpu.h"
 #include "profiler.h"
+#include "plugin_lib/perfmon.h"
 
 /******************************************************************************/
 
@@ -384,6 +385,9 @@ void psxRcntUpdate()
             HW_GPU_STATUS &= ~PSXGPU_LCF;
             setIrq( 0x01 );
             GPU_updateLace();
+
+            pmonUpdate();  // Update and display performance stats
+
             pad_update();
 
 #ifdef spu_pcsxrearmed

@@ -100,6 +100,10 @@ typedef struct {
 	//           than they'd normally be issued when SPU's XA buffer is not
 	//           full. This fixes droupouts in music/speech on slow devices.
 	boolean ForcedXAUpdates; 
+
+	// Options for performance monitor
+	boolean PerfmonConsoleOutput;
+	boolean PerfmonDetailedStats;
 } PcsxConfig;
 
 extern PcsxConfig Config;

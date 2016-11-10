@@ -6,6 +6,7 @@
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
+#include "plugin_lib/perfmon.h"  // FPS / CPU performance monitoring
 #include "profiler.h"
 #include <SDL.h>
 
@@ -14,7 +15,6 @@
 #include <limits.h>
 #endif
 
-//senquack
 #ifdef spu_pcsxrearmed
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
@@ -460,6 +460,7 @@ void pad_update(void)
 		sioSyncMcds();
 
 		emu_running = false;
+		pmonPause();   // Pause performance monitor
 		GameMenu();
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
@@ -475,6 +476,7 @@ void pad_update(void)
 		extern bool fb_dirty;
 		fb_dirty = true; // redraw screen
 #endif
+		pmonResume();   // Resume performance monitor
 	}
 #endif
 }
@@ -857,6 +859,13 @@ int main (int argc, char **argv)
 			Config.ForcedXAUpdates=0;
 		}
 
+		// Performance monitoring options
+		if (strcmp(argv[i],"-perfmon")==0) {
+			// Enable detailed stats and console output
+			Config.PerfmonConsoleOutput = true;
+			Config.PerfmonDetailedStats = true;
+		}
+
 		// GPU
 	#ifdef gpu_dfxvideo
 		if (strcmp(argv[i],"-showfps")==0) { dfx_show_fps=true; } // show FPS
@@ -1029,6 +1038,7 @@ int main (int argc, char **argv)
 	emu_running = true;
 
 	psxReset();
+	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
 
 	if (cdrfilename[0] != '\0') {
 		if (CheckCdrom() == -1) {

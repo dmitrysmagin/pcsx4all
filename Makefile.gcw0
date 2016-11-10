@@ -67,7 +67,8 @@ LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/interpreter obj/interpreter/$(INTERPRETER) \
 	  obj/recompiler obj/recompiler/$(RECOMPILER) \
-	  obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+	  obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE) \
+	  obj/plugin_lib
 
 all: maketree $(TARGET)
 
@@ -93,6 +94,7 @@ OBJS += obj/port/$(PORT)/port.o
 OBJS += obj/port/$(PORT)/frontend.o
 
 OBJS += obj/profiler.o obj/debug.o
+OBJS += obj/plugin_lib/perfmon.o
 
 #******************************************
 # senquack - spu_pcsxrearmed section BEGIN
