@@ -68,7 +68,13 @@ CFLAGS += -DGPU_UNAI_USE_INT_DIV_MULTINV
 
 LDFLAGS = -lm -lpthread
 
-OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) obj/interpreter obj/interpreter/$(INTERPRETER) obj/recompiler obj/recompiler/$(RECOMPILER) obj/zlib obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE)
+OBJDIRS = \
+	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
+	obj/interpreter obj/interpreter/$(INTERPRETER) \
+	obj/recompiler obj/recompiler/$(RECOMPILER) \
+	obj/zlib \
+	obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE) \
+	obj/plugin_lib
 
 all: maketree $(TARGET) pcsx4all_wiz.gpe
 
@@ -105,6 +111,7 @@ OBJS += obj/port/wiz/port.o obj/port/wiz/wiz_lib.o obj/port/wiz/uppermem.o obj/p
 	obj/port/wiz/div.o
 
 OBJS += obj/profiler.o obj/debug.o
+OBJS += obj/plugin_lib/perfmon.o
 
 CXXFLAGS := $(CFLAGS) -fno-rtti
 
