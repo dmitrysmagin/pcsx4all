@@ -12,11 +12,11 @@ SPU    = spu_pcsxrearmed
 #SPU    = spu_null
 #SPU   = spu_franxis
 
-#INTERPRETER = interpreter_pcsx
-INTERPRETER = interpreter_new
+INTERPRETER = interpreter_pcsx
+#INTERPRETER = interpreter_new
 RECOMPILER = mips
-#GTE   = gte_pcsx
-GTE    = gte_old
+GTE   = gte_pcsx
+#GTE    = gte_new
 
 RM     = rm -f
 MD     = mkdir
