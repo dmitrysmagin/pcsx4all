@@ -213,8 +213,8 @@ void rec##f() \
 
 //CP2_FUNC(MFC2, 2);
 //CP2_FUNC(MTC2, 2);
-CP2_FUNC(LWC2, 3);
-CP2_FUNC(SWC2, 4);
+//CP2_FUNC(LWC2, 3);
+//CP2_FUNC(SWC2, 4);
 CP2_FUNC(DCPL, 8);
 CP2_FUNC(RTPS, 15);
 CP2_FUNC(OP, 6);
@@ -398,6 +398,32 @@ static void recMTC2()
 	emitMTC2(rt, _Rd_);
 
 	regUnlock(rt);
+}
+
+static void recLWC2()
+{
+	if (autobias) cycles_pending += 3;
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+	JAL(psxMemRead32);
+	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
+
+	emitMTC2(MIPSREG_V0, _Rt_);
+
+	regUnlock(rs);
+}
+
+static void recSWC2()
+{
+	if (autobias) cycles_pending += 4;
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+	emitMFC2(MIPSREG_A1, _Rt_);
+
+	JAL(psxMemWrite32);
+	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
+
+	regUnlock(rs);
 }
 
 #endif
