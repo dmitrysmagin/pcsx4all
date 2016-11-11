@@ -26,15 +26,16 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Option Masks (CF template paramter)
-#define   L ((CF>>0)&1)  // Lighting
-#define   B ((CF>>1)&1)  // Blending
-#define   M ((CF>>2)&1)  // Mask bit check
-#define  BM ((CF>>3)&3)  // Blend mode   0..3
-#define  TM ((CF>>5)&3)  // Texture mode 1..3 (0: texturing disabled)
-#define   G ((CF>>7)&1)  // Gouraud shading
-#define  MB ((CF>>8)&1)  // Mask bit set
-#define  BI ((CF>>9)&1)  // Blit increment check (skip rendering pixels that
-                         //  wouldn't get displayed on low-resolution screen)
+#define  CF_LIGHT     ((CF>> 0)&1) // Lighting
+#define  CF_BLEND     ((CF>> 1)&1) // Blending
+#define  CF_MASKCHECK ((CF>> 2)&1) // Mask bit check
+#define  CF_BLENDMODE ((CF>> 3)&3) // Blend mode   0..3
+#define  CF_TEXTMODE  ((CF>> 5)&3) // Texture mode 1..3 (0: texturing disabled)
+#define  CF_GOURAUD   ((CF>> 7)&1) // Gouraud shading
+#define  CF_MASKSET   ((CF>> 8)&1) // Mask bit set
+#define  CF_BLITMASK  ((CF>> 9)&1) // blit_mask check (skip rendering pixels
+                                   //  that wouldn't end up displayed on
+                                   //  low-res screen using simple downscaler)
 
 #ifdef __arm__
 #ifndef ENABLE_GPU_ARMV7
@@ -113,7 +114,7 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 	u32 r, g, b;
 	s32 r_incr, g_incr, b_incr;
 
-	if (G) {
+	if (CF_GOURAUD) {
 		gcPtr = (GouraudColor*)data;
 		r = gcPtr->r;  r_incr = gcPtr->r_incr;
 		g = gcPtr->g;  g_incr = gcPtr->g_incr;
@@ -123,61 +124,61 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 	}
 
 	do {
-		if (!G)
+		if (!CF_GOURAUD)
 		{   // NO GOURAUD
-			if ((!M)&&(!B)) {
-				if (MB) { *(u16*)pDst = col | 0x8000; }
-				else    { *(u16*)pDst = col; }
-			} else if ((M)&&(!B)) {
+			if ((!CF_MASKCHECK)&&(!CF_BLEND)) {
+				if (CF_MASKSET) { *(u16*)pDst = col | 0x8000; }
+				else            { *(u16*)pDst = col;          }
+			} else if (CF_MASKCHECK && !CF_BLEND) {
 				if (!(*(u16*)pDst & 0x8000)) {
-					if (MB) { *(u16*)pDst = col | 0x8000; }
-					else    { *(u16*)pDst = col; }
+					if (CF_MASKSET) { *(u16*)pDst = col | 0x8000; }
+					else            { *(u16*)pDst = col;          }
 				}
 			} else {
 				u16 uDst = *(u16*)pDst;
-				if (M) { if (uDst & 0x8000) goto endpixel; }
+				if (CF_MASKCHECK) { if (uDst & 0x8000) goto endpixel; }
 				u16 uSrc = col;
-				u32 uMsk; if (BM==0) uMsk=0x7BDE;
-				if (BM==0) gpuBlending00(uSrc, uDst);
-				if (BM==1) gpuBlending01(uSrc, uDst);
-				if (BM==2) gpuBlending02(uSrc, uDst);
-				if (BM==3) gpuBlending03(uSrc, uDst);
+				u32 uMsk; if (CF_BLENDMODE==0) uMsk=0x7BDE;
+				if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+				if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+				if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+				if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 
-				if (MB) { *(u16*)pDst = uSrc | 0x8000; }
-				else    { *(u16*)pDst = uSrc; }
+				if (CF_MASKSET) { *(u16*)pDst = uSrc | 0x8000; }
+				else            { *(u16*)pDst = uSrc;          }
 			}
 
 		} else
 		{   // GOURAUD
 
-			if ((!M)&&(!B)) {
+			if (!CF_MASKCHECK && !CF_BLEND) {
 				col = gpuGouraudColor15bpp(r, g, b);
-				if (MB) { *(u16*)pDst = col | 0x8000; }
-				else    { *(u16*)pDst = col; }
-			} else if ((M)&&(!B)) {
+				if (CF_MASKSET) { *(u16*)pDst = col | 0x8000; }
+				else            { *(u16*)pDst = col;          }
+			} else if (CF_MASKCHECK && !CF_BLEND) {
 				col = gpuGouraudColor15bpp(r, g, b);
 				if (!(*(u16*)pDst & 0x8000)) {
-					if (MB) { *(u16*)pDst = col | 0x8000; }
-					else    { *(u16*)pDst = col; }
+					if (CF_MASKSET) { *(u16*)pDst = col | 0x8000; }
+					else            { *(u16*)pDst = col;          }
 				}
 			} else {
 				u16 uDst = *(u16*)pDst;
-				if (M) { if (uDst & 0x8000) goto endpixel; }
+				if (CF_MASKCHECK) { if (uDst & 0x8000) goto endpixel; }
 				col = gpuGouraudColor15bpp(r, g, b);
 				u16 uSrc = col;
-				u32 uMsk; if (BM==0) uMsk=0x7BDE;
-				if (BM==0) gpuBlending00(uSrc, uDst);
-				if (BM==1) gpuBlending01(uSrc, uDst);
-				if (BM==2) gpuBlending02(uSrc, uDst);
-				if (BM==3) gpuBlending03(uSrc, uDst);
+				u32 uMsk; if (CF_BLENDMODE==0) uMsk=0x7BDE;
+				if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+				if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+				if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+				if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 
-				if (MB) { *(u16*)pDst = uSrc | 0x8000; }
-				else    { *(u16*)pDst = uSrc; }
+				if (CF_MASKSET) { *(u16*)pDst = uSrc | 0x8000; }
+				else            { *(u16*)pDst = uSrc;          }
 			}
 		}
 
 endpixel:
-		if (G) {
+		if (CF_GOURAUD) {
 			r += r_incr;
 			g += g_incr;
 			b += b_incr;
@@ -192,7 +193,7 @@ endpixel:
 	//  If you change the loop structure above, be sure to compare the quality
 	//  of the generated code!!
 
-	if (G) {
+	if (CF_GOURAUD) {
 		gcPtr->r = r;
 		gcPtr->g = g;
 		gcPtr->b = b;
@@ -213,11 +214,11 @@ const PSD gpuPixelSpanDrivers[64] =
 { 
 	// Array index | 'CF' template field | Field value
 	// ------------+---------------------+----------------
-	// Bit 0       | (B)  Blending       | off (0), on (1)
-	// Bit 1       | (M)  Mask check     | off (0), on (1)
-	// Bit 3:2     | (BM) Blend mode     | 0..3
-	// Bit 4       | (MB) Mask set       | off (0), on (1)
-	// Bit 5       | (G)  Gouraud        | off (0), on (1)
+	// Bit 0       | CF_BLEND            | off (0), on (1)
+	// Bit 1       | CF_MASKCHECK        | off (0), on (1)
+	// Bit 3:2     | CF_BLENDMODE        | 0..3
+	// Bit 4       | CF_MASKSET          | off (0), on (1)
+	// Bit 5       | CF_GOURAUD          | off (0), on (1)
 	//
 	// NULL entries are ones for which blending is disabled and blend-mode
 	//  field is non-zero, which is obviously invalid.
@@ -228,19 +229,19 @@ const PSD gpuPixelSpanDrivers[64] =
 	PixelSpanNULL,                   gpuPixelSpanFn<0x09<<1>,         PixelSpanNULL,                   gpuPixelSpanFn<0x0B<<1>,
 	PixelSpanNULL,                   gpuPixelSpanFn<0x0D<<1>,         PixelSpanNULL,                   gpuPixelSpanFn<0x0F<<1>,
 
-	// Flat-shaded + PixelMSB (MB)
+	// Flat-shaded + PixelMSB (CF_MASKSET)
 	gpuPixelSpanFn<(0x00<<1)|0x100>, gpuPixelSpanFn<(0x01<<1)|0x100>, gpuPixelSpanFn<(0x02<<1)|0x100>, gpuPixelSpanFn<(0x03<<1)|0x100>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x100>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x100>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x0D<<1)|0x100>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0F<<1)|0x100>,
 
-	// Gouraud-shaded (G)
+	// Gouraud-shaded (CF_GOURAUD)
 	gpuPixelSpanFn<(0x00<<1)|0x80>,  gpuPixelSpanFn<(0x01<<1)|0x80>,  gpuPixelSpanFn<(0x02<<1)|0x80>,  gpuPixelSpanFn<(0x03<<1)|0x80>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x80>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x80>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x0D<<1)|0x80>,  PixelSpanNULL,                   gpuPixelSpanFn<(0x0F<<1)|0x80>,
 
-	// Gouraud-shaded (G) + PixelMSB (MB)
+	// Gouraud-shaded (CF_GOURAUD) + PixelMSB (CF_MASKSET)
 	gpuPixelSpanFn<(0x00<<1)|0x180>, gpuPixelSpanFn<(0x01<<1)|0x180>, gpuPixelSpanFn<(0x02<<1)|0x180>, gpuPixelSpanFn<(0x03<<1)|0x180>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x05<<1)|0x180>, PixelSpanNULL,                   gpuPixelSpanFn<(0x07<<1)|0x180>,
 	PixelSpanNULL,                   gpuPixelSpanFn<(0x09<<1)|0x180>, PixelSpanNULL,                   gpuPixelSpanFn<(0x0B<<1)|0x180>,
@@ -253,32 +254,32 @@ const PSD gpuPixelSpanDrivers[64] =
 template<const int CF>
 static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 {
-	if ((!M)&&(!B)) {
-		if (MB) { data = data | 0x8000; }
+	if (!CF_MASKCHECK && !CF_BLEND) {
+		if (CF_MASKSET) { data = data | 0x8000; }
 		do { *pDst++ = data; } while (--count);
-	} else if ((M)&&(!B)) {
-		if (MB) { data = data | 0x8000; }
+	} else if (CF_MASKCHECK && !CF_BLEND) {
+		if (CF_MASKSET) { data = data | 0x8000; }
 		do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
 	} else
 	{
 		u16 uSrc;
 		u16 uDst;
-		u32 uMsk; if (BM==0) uMsk=0x7BDE;
+		u32 uMsk; if (CF_BLENDMODE==0) uMsk=0x7BDE;
 		do
 		{
 			//  MASKING
 			uDst = *pDst;
-			if(M) { if (uDst&0x8000) goto endtile;  }
+			if (CF_MASKCHECK) { if (uDst&0x8000) goto endtile; }
 			uSrc = data;
 
 			//  BLEND
-			if (BM==0) gpuBlending00(uSrc, uDst);
-			if (BM==1) gpuBlending01(uSrc, uDst);
-			if (BM==2) gpuBlending02(uSrc, uDst);
-			if (BM==3) gpuBlending03(uSrc, uDst);
+			if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+			if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+			if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+			if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 
-			if (MB) { *pDst = uSrc | 0x8000; }
-			else    { *pDst = uSrc; }
+			if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
+			else            { *pDst = uSrc;          }
 
 			//senquack - Did not apply "Silent Hill" mask-bit fix to here.
 			// It is hard to tell from scarce documentation available and
@@ -319,15 +320,15 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 {
 	u16 uSrc, uDst;
 	u32 u0 = 0;
-	const u16 *CBA_; if(TM!=3) CBA_ = gpu_unai.CBA;
+	const u16 *CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
 	u32 lCol;
-	if (L) {
+	if (CF_LIGHT) {
 		lCol = ((u32)(gpu_unai.b4 <<  2)&(0x03ff))     |
 		       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
 		       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
 	}
-	u8 rgb; if (TM==1) rgb = pTxt[u0>>1];
-	u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
+	u8 rgb; if (CF_TEXTMODE==1) rgb = pTxt[u0>>1];
+	u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
 
 	//senquack - 'Silent Hill' white rectangles around characters fix:
 	// MSB of pixel from source texture was not preserved across calls to
@@ -339,53 +340,53 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 
 	do
 	{
-		//  MASKING
-		if(M)   { uDst = *pDst;   if (uDst&0x8000) { u0=(u0+1)&mask; goto endsprite; }  }
+		if (CF_MASKCHECK) {
+			uDst = *pDst;
+			if (uDst&0x8000) { u0=(u0+1)&mask; goto endsprite; }
+		}
 
-		//  TEXTURE MAPPING
-		if (TM==1) { if (!(u0&1)) rgb = pTxt[u0>>1]; uSrc = CBA_[(rgb>>((u0&1)<<2))&0xf]; u0=(u0+1)&mask; }
-		if (TM==2) { uSrc = CBA_[pTxt[u0]]; u0=(u0+1)&mask; }
-		if (TM==3) { uSrc = ((u16*)pTxt)[u0]; u0=(u0+1)&mask; }
+		if (CF_TEXTMODE==1) {  //  4bpp (CLUT)
+			if (!(u0&1)) rgb = pTxt[u0>>1];
+			uSrc = CBA_[(rgb>>((u0&1)<<2))&0xf];
+			u0=(u0+1)&mask;
+		}
+		if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
+			uSrc = CBA_[pTxt[u0]];
+			u0=(u0+1)&mask;
+		}
+		if (CF_TEXTMODE==3) {  // 16bpp
+			uSrc = ((u16*)pTxt)[u0];
+			u0=(u0+1)&mask;
+		}
 		if (!uSrc) goto endsprite;
 
 		//senquack - save source MSB, as blending or lighting macros will not
-		if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
+		if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) { srcMSB = uSrc & 0x8000; }
 		
-		//  BLEND
-		if(B)
+		if (CF_BLEND)
 		{
-			if(uSrc&0x8000)
-			{
-				//  LIGHTING CALCULATIONS
-				if(L)  { gpuLightingTXT(uSrc, lCol);   }
+			if (uSrc&0x8000) {
+				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 
-				if(!M)    { uDst = *pDst; }
-				if (BM==0) gpuBlending00(uSrc, uDst);
-				if (BM==1) gpuBlending01(uSrc, uDst);
-				if (BM==2) gpuBlending02(uSrc, uDst);
-				if (BM==3) gpuBlending03(uSrc, uDst);
+				if (!CF_MASKCHECK) uDst = *pDst;
+				if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+				if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+				if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+				if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
+			} else {
+				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 			}
-			else
-			{
-				//  LIGHTING CALCULATIONS
-				if(L)  { gpuLightingTXT(uSrc, lCol); }
-			}
-		}
-		else
-		{
-			//  LIGHTING CALCULATIONS
+		} else {
 			//senquack - While fixing Silent Hill white-rectangles bug, I
 			// noticed uSrc was being masked unnecessarily here:
-			//if(L)  { gpuLightingTXT(uSrc, lCol);   } else
-			//{ if(!MB) uSrc&= 0x7fff;               }
-			if(L)  { gpuLightingTXT(uSrc, lCol);   }
+			//if(CF_LIGHT)  { gpuLightingTXT(uSrc, lCol);   } else
+			//{ if(!CF_MASKSET) uSrc&= 0x7fff;               }
+			if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 		}
 
-		//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
-		// preserved across calls to lighting or blending macros
-		if (MB)          { *pDst = uSrc | 0x8000; }
-		else if (B || L) { *pDst = uSrc | srcMSB; }
-		else             { *pDst = uSrc;          }
+		if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
+		else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
+		else                           { *pDst = uSrc;          }
 
 		endsprite: pDst++;
 	}
@@ -446,17 +447,17 @@ const PS gpuSpriteSpanDrivers[256] =
 template<const int CF>
 static void gpuPolySpanFn(u16 *pDst, u32 count)
 {
-	if (!TM)
+	if (!CF_TEXTMODE)
 	{	
 		// NO TEXTURE
-		if (!G)
+		if (!CF_GOURAUD)
 		{
 			// NO GOURAUD
 			u16 data;
 
 			//NOTE: if no Gouraud shading is used, gpu_unai.{b4,g4,r4} contain
 			// integers, not fixed-point (this is behavior of original code)
-			if (L) {
+			if (CF_LIGHT) {
 				u32 lCol = ((u32)(gpu_unai.b4<< 2)&(0x03ff))     |
 				           ((u32)(gpu_unai.g4<<13)&(0x07ff<<10)) |
 				           ((u32)(gpu_unai.r4<<24)&(0x07ff<<21));
@@ -465,36 +466,34 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				data=gpu_unai.PixelData;
 			}
 
-			if ((!M)&&(!B)) {
-				if (MB) { data = data | 0x8000; }
+			if ((!CF_MASKCHECK)&&(!CF_BLEND)) {
+				if (CF_MASKSET) { data = data | 0x8000; }
 				do { *pDst++ = data; } while (--count);
-			} else if ((M)&&(!B)) {
-				if (MB) { data = data | 0x8000; }
+			} else if ((CF_MASKCHECK)&&(!CF_BLEND)) {
+				if (CF_MASKSET) { data = data | 0x8000; }
 				do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
 			} else {
 				u16 uSrc;
 				u16 uDst;
-				u32 uMsk; if (BM==0) uMsk=0x7BDE;
-				u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
+				u32 uMsk; if (CF_BLENDMODE==0) uMsk=0x7BDE;
+				u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 				do
 				{
-					// blit-mask
-					if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endtile; }
-					//  masking
-					uDst = *pDst;
-					if(M) { if (uDst&0x8000) goto endtile;  }
-					uSrc = data;
-					//  blend
-					if (BM==0) gpuBlending00(uSrc, uDst);
-					if (BM==1) gpuBlending01(uSrc, uDst);
-					if (BM==2) gpuBlending02(uSrc, uDst);
-					if (BM==3) gpuBlending03(uSrc, uDst);
+					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endtile; }
 
-					if (MB) { *pDst = uSrc | 0x8000; }
-					else    { *pDst = uSrc; }
+					uDst = *pDst;
+					if (CF_MASKCHECK) { if (uDst&0x8000) goto endtile;  }
+					uSrc = data;
+					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
+
+					if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
+					else            { *pDst = uSrc;          }
+
 					endtile: pDst++;
-				}
-				while (--count);
+				} while (--count);
 			}
 		}
 		else
@@ -510,30 +509,26 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			           ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
 			           ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
 
-			u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
-			u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
+			u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
+			u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 			do
 			{
-				// blit-mask
-				if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endgou; }
-				//  masking
-				if(M) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
-				//  blend
-				if(B) {
-					//  light
+				if (CF_BLITMASK) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endgou; }
+				if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
+
+				if (CF_BLEND) {
 					gpuLightingRGB(uSrc,lCol);
-					if(!M)    { uDst = *pDst; }
-					if (BM==0) gpuBlending00(uSrc, uDst);
-					if (BM==1) gpuBlending01(uSrc, uDst);
-					if (BM==2) gpuBlending02(uSrc, uDst);
-					if (BM==3) gpuBlending03(uSrc, uDst);
+					if (!CF_MASKCHECK) { uDst = *pDst; }
+					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 				} else {
-					//  light
 					gpuLightingRGB(uSrc,lCol);
 				}
 
-				if (MB) { *pDst = uSrc | 0x8000; }
-				else    { *pDst = uSrc; }
+				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
+				else            { *pDst = uSrc;          }
 
 				endgou: pDst++; lCol=(lCol+linc);
 			}
@@ -542,6 +537,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 	}
 	else
 	{
+		// TEXTURED
+
 		//senquack - 'Silent Hill' white rectangles around characters fix:
 		// MSB of pixel from source texture was not preserved across calls to
 		// gpuBlendingXX() macros.. we must save it if calling them:
@@ -550,7 +547,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 		// TEXTURE
 		u16 uDst;
 		u16 uSrc;
-		u32 linc; if (L&&G) linc=gpu_unai.lInc;
+		u32 linc; if (CF_LIGHT && CF_GOURAUD) linc=gpu_unai.lInc;
 
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
 		// one 32-bit unsigned int, but this proved to lose too much accuracy
@@ -561,7 +558,7 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 		u32 l_du4 = gpu_unai.du4;            u32 l_dv4 = gpu_unai.dv4;
 
 		const u16* TBA_ = gpu_unai.TBA;
-		const u16* CBA_; if (TM!=3) CBA_ = gpu_unai.CBA;
+		const u16* CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
 		u32 lCol;
 
 		//senquack - After adapting DrHell poly code to replace Unai's glitchy
@@ -570,82 +567,73 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 		// the top line expected gpu_unai.{b4,g4,r4} to be integers, as it is
 		// not using Gouraud shading, so it needed no adjustment. The bottom
 		// line needed no adjustment for fixed point changes.
-		if (L && !G) {
+		if (CF_LIGHT && !CF_GOURAUD) {
 			lCol = ((u32)(gpu_unai.b4 <<  2)&(0x03ff))     |
 			       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
 			       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
-		} else if (L && G) {
+		} else if (CF_LIGHT && CF_GOURAUD) {
 			lCol = ((u32)(gpu_unai.b4 >>  8)&(0x03ff))     |
 			       ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
 			       ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
 		}
 
-		u32 uMsk; if ((B)&&(BM==0)) uMsk=0x7BDE;
-		u32 bMsk; if (BI) bMsk=gpu_unai.blit_mask;
+		u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
+		u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 
 		do
 		{
-			// blit-mask
-			if (BI) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpoly; }
-			//  masking
-			if(M) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
+			if (CF_BLITMASK) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpoly; }
+			if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
 
 			//senquack - adapted to work with new 22.10 fixed point routines:
 			//           (UNAI originally used 16.16)
-			if (TM==1) { 
+			if (CF_TEXTMODE==1) {  //  4bpp (CLUT)
 				u32 tu=(l_u4>>10);
 				u32 tv=(l_v4<<1)&(0xff<<11);
 				u8 rgb=((u8*)TBA_)[tv+(tu>>1)];
 				uSrc=CBA_[(rgb>>((tu&1)<<2))&0xf];
 				if(!uSrc) goto endpoly;
 			}
-			if (TM==2) {
+			if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
 				uSrc = CBA_[(((u8*)TBA_)[(l_u4>>10)+((l_v4<<1)&(0xff<<11))])];
-				if(!uSrc)  goto endpoly;
+				if (!uSrc) goto endpoly;
 			}
-			if (TM==3) {
+			if (CF_TEXTMODE==3) {  // 16bpp
 				uSrc = TBA_[(l_u4>>10)+((l_v4)&(0xff<<10))];
-				if(!uSrc)  goto endpoly;
+				if (!uSrc) goto endpoly;
 			}
 
 			//senquack - save source MSB, as blending or lighting macros will not
-			if (!MB && (B || L)) { srcMSB = uSrc & 0x8000; }
+			if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) { srcMSB = uSrc & 0x8000; }
 
-			//  blend
-			if (B) {
+			if (CF_BLEND) {
 				if (uSrc&0x8000) {
-					//  light
-					if(L) gpuLightingTXT(uSrc, lCol);
-					if(!M)    { uDst = *pDst; }
-					if (BM==0) gpuBlending00(uSrc, uDst);
-					if (BM==1) gpuBlending01(uSrc, uDst);
-					if (BM==2) gpuBlending02(uSrc, uDst);
-					if (BM==3) gpuBlending03(uSrc, uDst);
+					if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
+					if (!CF_MASKCHECK) { uDst = *pDst; }
+					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 				} else {
-					// light
-					if(L) gpuLightingTXT(uSrc, lCol);
+					if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 				}
 			} else {
-				//  light
-
 				//senquack - While fixing Silent Hill white-rectangles bug, I
 				// noticed uSrc was being masked unnecessarily here:
-				//if(L)  { gpuLightingTXT(uSrc, lCol); } else if(!MB) { uSrc&= 0x7fff; }
-				if(L)  { gpuLightingTXT(uSrc, lCol); }
+				//if(CF_LIGHT)  { gpuLightingTXT(uSrc, lCol); } else if(!CF_MASKSET) { uSrc&= 0x7fff; }
+				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 			}
 
-			//senquack - 'Silent Hill' fix: MSB of pixel from source texture wasn't
-			// preserved across calls to lighting or blending macros
-			if (MB)          { *pDst = uSrc | 0x8000; }
-			else if (B || L) { *pDst = uSrc | srcMSB; }
-			else             { *pDst = uSrc;          }
+			if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
+			else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
+			else                           { *pDst = uSrc;          }
 
 			endpoly: pDst++;
 
 			l_u4 = (l_u4 + l_du4) & l_u4_msk;
 			l_v4 = (l_v4 + l_dv4) & l_v4_msk;
 
-			if (L&&G) lCol=(lCol+linc);
+			if (CF_LIGHT && CF_GOURAUD) lCol=(lCol+linc);
 		}
 		while (--count);
 	}
