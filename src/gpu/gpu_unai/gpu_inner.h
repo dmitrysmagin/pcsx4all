@@ -308,13 +308,12 @@ typedef void (*PT)(u16 *pDst, u32 count, u16 data);
 #define TI(cf) gpuTileSpanFn<(cf)>
 #define TN     TileNULL
 #define TIBLOCK(ub) \
-	TI((ub)|0x00), TN,            TI((ub)|0x02), TN,            TI((ub)|0x04), TN,            TI((ub)|0x06), TN, \
-	TN,            TN,            TI((ub)|0x0a), TN,            TN,            TN,            TI((ub)|0x0e), TN, \
-	TN,            TN,            TI((ub)|0x12), TN,            TN,            TN,            TI((ub)|0x16), TN, \
-	TN,            TN,            TI((ub)|0x1a), TN,            TN,            TN,            TI((ub)|0x1e), TN
+	TI((ub)|0x00), TI((ub)|0x02), TI((ub)|0x04), TI((ub)|0x06), \
+	TN,            TI((ub)|0x0a), TN,            TI((ub)|0x0e), \
+	TN,            TI((ub)|0x12), TN,            TI((ub)|0x16), \
+	TN,            TI((ub)|0x1a), TN,            TI((ub)|0x1e)
 
-const PT gpuTileSpanDrivers[64] = 
-{
+const PT gpuTileSpanDrivers[32] = {
 	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
 

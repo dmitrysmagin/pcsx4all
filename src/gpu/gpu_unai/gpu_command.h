@@ -386,7 +386,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
@@ -433,7 +433,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				gpu_unai.PacketBuffer.U4[2] = 0x00010001;
-				PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
@@ -448,7 +448,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				gpu_unai.PacketBuffer.U4[2] = 0x00080008;
-				PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));
@@ -486,7 +486,7 @@ void gpuSendPacketFunction(const int PRIM)
 			{
 				NULL_GPU();
 				gpu_unai.PacketBuffer.U4[2] = 0x00100010;
-				PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+				PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
 				gpuDrawT(packet, driver);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawT(0x%x)\n",PRIM));

@@ -387,7 +387,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x61:
       case 0x62:
       case 0x63: {          // Monochrome rectangle (variable size)
-        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         gpuDrawT(packet, driver);
       } break;
 
@@ -423,7 +423,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x6A:
       case 0x6B: {          // Monochrome rectangle (1x1 dot)
         gpu_unai.PacketBuffer.U4[2] = 0x00010001;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         gpuDrawT(packet, driver);
       } break;
 
@@ -432,7 +432,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x72:
       case 0x73: {          // Monochrome rectangle (8x8)
         gpu_unai.PacketBuffer.U4[2] = 0x00080008;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         gpuDrawT(packet, driver);
       } break;
 
@@ -458,7 +458,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x7A:
       case 0x7B: {          // Monochrome rectangle (16x16)
         gpu_unai.PacketBuffer.U4[2] = 0x00100010;
-        PT driver = gpuTileSpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)];
+        PT driver = gpuTileSpanDrivers[(Blending_Mode | gpu_unai.Masking | Blending | (gpu_unai.PixelMSB>>3)) >> 1];
         gpuDrawT(packet, driver);
       } break;
 
