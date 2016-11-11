@@ -803,8 +803,10 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 	#ifdef GPU_UNAI
-		// Use gpu_unai's default settings
-	#endif //GPU_UNAI
+		gpu_unai_config_ext.pixel_skip = 1;
+		gpu_unai_config_ext.lighting = 1;
+		gpu_unai_config_ext.blending = 1;
+	#endif
 
 	// Load config from file.
 	config_load();
@@ -891,7 +893,7 @@ int main (int argc, char **argv)
 
 			// Progressive interlace option - See gpu_unai/gpu.h
 			// Old option left in from when PCSX4ALL ran on very slow devices.
-			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = true; }
+			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = 1; }
 		#endif //!USE_GPULIB
 	#endif //GPU_UNAI
 

@@ -22,6 +22,8 @@
 #ifndef GPU_UNAI_GPU_UNAI_H
 #define GPU_UNAI_GPU_UNAI_H
 
+#include "gpu.h"
+
 // Header shared between both standalone gpu_unai (gpu.cpp) and new
 // gpulib-compatible gpu_unai (gpulib_if.cpp)
 // -> Anything here should be for gpu_unai's private use. <-
@@ -239,45 +241,7 @@ struct gpu_unai_t {
 
 	u16 PixelMSB;
 
-	struct {
-		bool pixel_skip:1;   // Option allows skipping rendering pixels that
-		                     //  would not be visible when a high horizontal
-		                     //  resolution PS1 video mode is set, but a simple
-		                     //  pixel-dropping framebuffer blitter is used.
-		                     //  Only applies to devices with low resolutions
-		                     //  like 320x240. Should not be used if a
-		                     //  down-scaling framebuffer blitter is in use.
-		                     //  Can cause gfx artifacts if game reads VRAM
-		                     //  to do framebuffer effects.
-
-		u8 ilace_force:3;    // Option to force skipping rendering of lines,
-		                     //  for very slow platforms. Value will be
-		                     //  assigned to 'ilace_mask' in gpu_unai struct.
-		                     //  Normally 0. Value '1' will skip rendering
-		                     //  odd lines.
-
-		bool lighting_disabled:1;
-		bool blending_disabled:1;
-
-		//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
-		// don't think it's necessary. It would require adding 'AH' flag to
-		// gpuSpriteSpanFn() increasing size of sprite span function array.
-		//u8 enableAbbeyHack:1;  // Abe's Odyssey hack
-
-	////////////////////////////////////////////////////////////////////////////
-	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
-#ifndef USE_GPULIB
-		bool prog_ilace:1;       // Progressive interlace option (old option)
-								 //  This option was somewhat oddly named:
-								 //  When in interlaced video mode, on a low-res
-								 //  320x240 device, only the even lines are
-								 //  rendered. This option will take that one
-								 //  step further and only render half the even
-								 //  even lines one frame, and then the other half.
-		u8  frameskip_count:3;   // Frame skip (0..7)
-#endif
-	} config;
-
+	gpu_unai_config_t config;
 };
 
 static gpu_unai_t gpu_unai;
@@ -288,15 +252,15 @@ static gpu_unai_t gpu_unai;
 gpu_unai_config_t gpu_unai_config_ext;
 
 ///////////////////////////////////////////////////////////////////////////////
-// Hooks to get option status
+// Internal inline funcs to get option status: (Allows flexibility)
 static inline bool LightingEnabled()
 {
-	return !gpu_unai.config.lighting_disabled;
+	return gpu_unai.config.lighting;
 }
 
 static inline bool BlendingEnabled()
 {
-	return !gpu_unai.config.blending_disabled;
+	return gpu_unai.config.blending;
 }
 
 static inline bool ProgressiveInterlaceEnabled()
@@ -308,6 +272,11 @@ static inline bool ProgressiveInterlaceEnabled()
 #else
 	return gpu_unai.config.prog_ilace;
 #endif
+}
+
+static inline bool PixelSkipEnabled()
+{
+	return gpu_unai.config.pixel_skip;
 }
 
 #endif // GPU_UNAI_GPU_UNAI_H

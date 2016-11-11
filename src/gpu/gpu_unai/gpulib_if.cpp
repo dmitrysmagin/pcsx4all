@@ -75,14 +75,12 @@ int renderer_init(void)
   gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
   // Configuration options
-  gpu_unai.ilace_mask = gpu_unai.config.ilace_force = gpu_unai_config_ext.ilace_force;
-  gpu_unai.config.lighting_disabled = gpu_unai_config_ext.lighting_disabled;
-  gpu_unai.config.blending_disabled = gpu_unai_config_ext.blending_disabled;
+  gpu_unai.config = gpu_unai_config_ext;
   //senquack - disabled, not sure this is needed and would require modifying
   // sprite-span functions, perhaps unnecessarily. No Abe Oddysey hack was
   // present in latest PCSX4ALL sources we were using.
   //gpu_unai.config.enableAbbeyHack = gpu_unai_config_ext.abe_hack;
-
+  gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 
 #ifdef GPU_UNAI_USE_INT_DIV_MULTINV
   // s_invTable
@@ -107,6 +105,19 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
+  if (PixelSkipEnabled()) {
+    // Set blit_mask for high horizontal resolutions. This allows skipping
+    //  rendering pixels that would never get displayed on low-resolution
+    //  platforms that use simple pixel-dropping scaler.
+    switch (gpu.screen.hres)
+    {
+      case 512: gpu_unai.blit_mask = 0xa4; break; // GPU_BlitWWSWWSWS
+      case 640: gpu_unai.blit_mask = 0xaa; break; // GPU_BlitWS
+      default:  gpu_unai.blit_mask = 0;    break;
+    }
+  } else {
+    gpu_unai.blit_mask = 0;
+  }
 }
 
 // Handles GP0 draw settings commands 0xE1...0xE6
@@ -218,7 +229,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x21:
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
         gpuDrawPolyF(packet, driver, false);
       } break;
 
@@ -228,7 +239,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x27: {          // Textured 3-pt poly
         gpuSetCLUT   (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+        u32 driver_idx = (gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
         if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
@@ -239,7 +250,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x29:
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
         gpuDrawPolyF(packet, driver, true); // is_quad = true
       } break;
 
@@ -249,7 +260,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x2F: {          // Textured 4-pt poly
         gpuSetCLUT   (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
-        u32 driver_idx = Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+        u32 driver_idx = (gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
         if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
           driver_idx |= Lighting;
         PP driver = gpuPolySpanDrivers[driver_idx];
@@ -260,7 +271,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x31:
       case 0x32:
       case 0x33: {          // Gouraud-shaded 3-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
         gpuDrawPolyG(packet, driver, false);
       } break;
 
@@ -270,7 +281,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x37: {          // Gouraud-shaded, textured 3-pt poly
         gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
         gpuDrawPolyGT(packet, driver, false);
       } break;
 
@@ -278,7 +289,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x39:
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
         gpuDrawPolyG(packet, driver, true); // is_quad = true
       } break;
 
@@ -288,7 +299,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x3F: {          // Gouraud-shaded, textured 4-pt poly
         gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
-        PP driver = gpuPolySpanDrivers[Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
+        PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
         gpuDrawPolyGT(packet, driver, true); // is_quad = true
       } break;
 

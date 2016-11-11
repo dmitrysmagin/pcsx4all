@@ -228,12 +228,11 @@ int main (int argc, char **argv)
 	*/
 	
 	// gpu_unai
-	/*
 	#ifdef GPU_UNAI
-	extern int skipCount; skipCount=0; // frame skip (0,1,2,3...)
-	extern int gpu_unai.lines_ilace_user; gpu_unai.lines_ilace_user=0; // interlace
+		gpu_unai_config_ext.pixel_skip = 1;
+		gpu_unai_config_ext.lighting = 1;
+		gpu_unai_config_ext.blending = 1;
 	#endif
-	*/
 	
 	//SetIsoFile("cotton.iso");
 	//SetIsoFile("ridge.bin");

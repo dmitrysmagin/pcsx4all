@@ -23,35 +23,40 @@
 #define GPU_UNAI_GPU_H
 
 struct gpu_unai_config_t {
-	bool pixel_skip;         // Option allows skipping rendering pixels that
-						     //  would not be visible when a high horizontal
-						     //  resolution PS1 video mode is set, but a simple
-						     //  pixel-dropping framebuffer blitter is used.
-						     //  Only applies to devices with low resolutions
-						     //  like 320x240. Should not be used if a
-						     //  down-scaling framebuffer blitter is in use.
-						     //  Can cause gfx artifacts if game reads VRAM
-						     //  to do framebuffer effects.
+	uint8_t pixel_skip:1;     // If 1, allows skipping rendering pixels that
+	                          //  would not be visible when a high horizontal
+	                          //  resolution PS1 video mode is set.
+	                          //  Only applies to devices with low resolutions
+	                          //  like 320x240. Should not be used if a
+	                          //  down-scaling framebuffer blitter is in use.
+	                          //  Can cause gfx artifacts if game reads VRAM
+	                          //  to do framebuffer effects.
 
-	uint8_t ilace_force;     // Option to force skipping rendering of lines,
-	                         //  for very slow platforms. Value will be
-	                         //  assigned to 'ilace_mask' in gpu_unai struct.
-	                         //  Normally 0. Value '1' will skip rendering
-	                         //  odd lines.
-	bool lighting_disabled;
-	bool blending_disabled;
+	uint8_t ilace_force:3;    // Option to force skipping rendering of lines,
+	                          //  for very slow platforms. Value will be
+	                          //  assigned to 'ilace_mask' in gpu_unai struct.
+	                          //  Normally 0. Value '1' will skip rendering
+	                          //  odd lines.
+
+	uint8_t lighting:1;
+	uint8_t blending:1;
+
+	//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
+	// don't think it's necessary. It would require adding 'AH' flag to
+	// gpuSpriteSpanFn() increasing size of sprite span function array.
+	//uint8_t enableAbbeyHack:1;  // Abe's Odyssey hack
 
 	////////////////////////////////////////////////////////////////////////////
 	// Variables used only by older standalone version of gpu_unai (gpu.cpp)
 #ifndef USE_GPULIB
-	bool prog_ilace;         // Progressive interlace option (old option)
-	                         //  This option was somewhat oddly named:
-	                         //  When in interlaced video mode, on a low-res
-	                         //  320x240 device, only the even lines are
-	                         //  rendered. This option will take that one
-	                         //  step further and only render half the even
-	                         //  even lines one frame, and then the other half.
-	int  frameskip_count;    // Frame skip (0,1,2,3...)
+	uint8_t prog_ilace:1;         // Progressive interlace option (old option)
+	                              //  This option was somewhat oddly named:
+	                              //  When in interlaced video mode, on a low-res
+	                              //  320x240 device, only the even lines are
+	                              //  rendered. This option will take that one
+	                              //  step further and only render half the even
+	                              //  even lines one frame, and then the other half.
+	uint8_t frameskip_count:3;    // Frame skip (0..7)
 #endif
 };
 

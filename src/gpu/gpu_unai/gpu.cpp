@@ -24,7 +24,6 @@
 #include "port.h"
 #include "profiler.h"
 #include "debug.h"
-#include "gpu.h"
 #include "gpu_unai.h"
 
 #define VIDEO_WIDTH 320
@@ -105,11 +104,9 @@ INLINE void gpuReset(void)
 	gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
 	// Configuration options
-	gpu_unai.ilace_mask = gpu_unai.config.ilace_force = gpu_unai_config_ext.ilace_force;
-	gpu_unai.config.prog_ilace = gpu_unai_config_ext.prog_ilace;
-	gpu_unai.frameskip.skipCount = gpu_unai_config_ext.frameskip_count;
-	gpu_unai.config.lighting_disabled = gpu_unai_config_ext.lighting_disabled;
-	gpu_unai.config.blending_disabled = gpu_unai_config_ext.blending_disabled;
+	gpu_unai.config = gpu_unai_config_ext;
+	gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+	gpu_unai.frameskip.skipCount = gpu_unai.config.frameskip_count;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -617,14 +614,18 @@ void  GPU_writeStatus(u32 data)
 			{
 				// Update width
 				gpu_unai.DisplayArea[2] = new_width;
-				switch (gpu_unai.DisplayArea[2])
-				{
-					case 256: gpu_unai.blit_mask=0x00; break;
-					case 320: gpu_unai.blit_mask=0x00; break;
-					case 368: gpu_unai.blit_mask=0x00; break;
-					case 384: gpu_unai.blit_mask=0x00; break;
-					case 512: gpu_unai.blit_mask=0xa4; break; // GPU_BlitWWSWWSWS
-					case 640: gpu_unai.blit_mask=0xaa; break; // GPU_BlitWS
+				if (PixelSkipEnabled()) {
+					// Set blit_mask for high horizontal resolutions. This allows skipping
+					//  rendering pixels that would never get displayed on low-resolution
+					//  platforms that use simple pixel-dropping scaler.
+					switch (gpu_unai.DisplayArea[2])
+					{
+						case 512: gpu_unai.blit_mask = 0xa4; break; // GPU_BlitWWSWWSWS
+						case 640: gpu_unai.blit_mask = 0xaa; break; // GPU_BlitWS
+						default:  gpu_unai.blit_mask = 0;    break;
+					}
+				} else {
+					gpu_unai.blit_mask = 0;
 				}
 				// Update height
 				gpu_unai.DisplayArea[3] = new_height;
