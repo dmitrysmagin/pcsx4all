@@ -110,6 +110,12 @@ do { \
 #define LW(rt, rn, imm) \
 	write32(0x8c000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
+#define LH(rt, rn, imm) \
+	write32(0x84000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define LHU(rt, rn, imm) \
+	write32(0x94000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
 #define SW(rd, rn, imm) \
 	write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
 
