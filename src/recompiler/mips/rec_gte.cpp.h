@@ -250,11 +250,39 @@ static void recCFC2()
 	regUnlock(rt);
 }
 
+static void emitCTC2(u32 rt, u32 reg)
+{
+	switch (reg) {
+	case 4: case 12: case 20: case 26: case 27: case 29: case 30:
+		SEH(TEMP_1, rt);
+		SW(TEMP_1, PERM_REG_1, offCP2C(reg));
+		break;
+
+	case 31:
+		//value = value & 0x7ffff000;
+		//if (value & 0x7f87e000) value |= 0x80000000;
+		LI32(TEMP_1, 0x7ffff000);
+		AND(TEMP_1, rt, TEMP_1);	// $t0 = rt & $t0
+		LI32(TEMP_2, 0x7f87e000);
+		AND(TEMP_2, TEMP_1, TEMP_2);	// $t1 = $t0 & $t2
+		LUI(TEMP_3, 0x8000);		// $t2 = 0x80000000
+		OR(TEMP_3, TEMP_1, TEMP_3);	// $t2 = $t0 | $t2
+		MOVN(TEMP_1, TEMP_3, TEMP_2);   // if ($t1) $t0 = $t2
+
+		SW(TEMP_1, PERM_REG_1, offCP2C(reg));
+		break;
+
+	default:
+		SW(rt, PERM_REG_1, offCP2C(reg));
+		break;
+	}
+}
+
 static void recCTC2()
 {
 	if (autobias) cycles_pending += 2;
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
-	SW(rt, PERM_REG_1, offCP2C(_Rd_));
+	emitCTC2(rt, _Rd_);
 	regUnlock(rt);
 }
 
