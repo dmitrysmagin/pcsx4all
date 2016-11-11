@@ -258,4 +258,22 @@ static void recCTC2()
 	regUnlock(rt);
 }
 
+/* Limit rt to [0 .. 0x1f] */
+static void emitLIM(u32 rt)
+{
+	u32 *patch;
+
+	SLT(1, rt, 0);			// $at = (rt < 0 ? 1 : 0)
+	patch = (u32 *)recMem;
+	BNE(1, 0, 0);			// if ($at != 0) goto end
+	MOVN(rt, 0, 1);			// <BD> if ($at != 0) rt = 0
+
+	LI16(MIPSREG_V0, 0x1f);		// $v0 = 0x1f
+	SLTI(1, rt, 0x20);		// $at = (rt < 0x20 ? 1 : 0)
+	MOVZ(rt, MIPSREG_V0, 1);	// if ($at == 0) rt = $v0
+
+	// end:
+	fixup_branch(patch);
+}
+
 #endif
