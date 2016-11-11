@@ -203,18 +203,11 @@ extern void gte##f(); \
 void rec##f() \
 { \
 	if (autobias) cycles_pending+=cycle; \
-	regClearJump(); \
-	LI32(TEMP_1, pc); \
-	SW(TEMP_1, PERM_REG_1, off(pc)); \
 	LI32(TEMP_1, psxRegs.code); \
 	JAL(gte##f); \
 	SW(TEMP_1, PERM_REG_1, off(code)); /* <BD> Branch delay slot of JAL() */ \
 } \
 
-//CP2_FUNC(MFC2, 2);
-//CP2_FUNC(MTC2, 2);
-//CP2_FUNC(LWC2, 3);
-//CP2_FUNC(SWC2, 4);
 CP2_FUNC(DCPL, 8);
 CP2_FUNC(RTPS, 15);
 CP2_FUNC(OP, 6);
