@@ -303,14 +303,25 @@ static void TileNULL(u16 *pDst, u32 count, u16 data)
 ///////////////////////////////////////////////////////////////////////////////
 //  Tiles innerloops driver
 typedef void (*PT)(u16 *pDst, u32 count, u16 data);
+
+// Template instantiation helper macros
+#define TI(cf) gpuTileSpanFn<(cf)>
+#define TN     TileNULL
+#define TIBLOCK(ub) \
+	TI((ub)|0x00), TN,            TI((ub)|0x02), TN,            TI((ub)|0x04), TN,            TI((ub)|0x06), TN, \
+	TN,            TN,            TI((ub)|0x0a), TN,            TN,            TN,            TI((ub)|0x0e), TN, \
+	TN,            TN,            TI((ub)|0x12), TN,            TN,            TN,            TI((ub)|0x16), TN, \
+	TN,            TN,            TI((ub)|0x1a), TN,            TN,            TN,            TI((ub)|0x1e), TN
+
 const PT gpuTileSpanDrivers[64] = 
 {
-	gpuTileSpanFn<0x00>,TileNULL,gpuTileSpanFn<0x02>,TileNULL,  gpuTileSpanFn<0x04>,TileNULL,gpuTileSpanFn<0x06>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x0A>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x0E>,TileNULL,
-	TileNULL,TileNULL,gpuTileSpanFn<0x12>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x16>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x1A>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x1E>,TileNULL,
-
-	gpuTileSpanFn<0x100>,TileNULL,gpuTileSpanFn<0x102>,TileNULL,  gpuTileSpanFn<0x104>,TileNULL,gpuTileSpanFn<0x106>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x10A>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x10E>,TileNULL,
-	TileNULL,TileNULL,gpuTileSpanFn<0x112>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x116>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x11A>,TileNULL,  TileNULL,TileNULL,gpuTileSpanFn<0x11E>,TileNULL,
+	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
+
+#undef TI
+#undef TN
+#undef TIBLOCK
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Sprites innerloops generator
@@ -405,26 +416,35 @@ static void SpriteNULL(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 ///////////////////////////////////////////////////////////////////////////////
 //  Sprite innerloops driver
 typedef void (*PS)(u16 *pDst, u32 count, u8* pTxt, const u32 mask);
-const PS gpuSpriteSpanDrivers[256] = 
-{
-	SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,
-	SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,
-	gpuSpriteSpanFn<0x20>,gpuSpriteSpanFn<0x21>,gpuSpriteSpanFn<0x22>,gpuSpriteSpanFn<0x23>,  gpuSpriteSpanFn<0x24>,gpuSpriteSpanFn<0x25>,gpuSpriteSpanFn<0x26>,gpuSpriteSpanFn<0x27>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x2A>,gpuSpriteSpanFn<0x2B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x2E>,gpuSpriteSpanFn<0x2F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x32>,gpuSpriteSpanFn<0x33>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x36>,gpuSpriteSpanFn<0x37>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x3A>,gpuSpriteSpanFn<0x3B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x3E>,gpuSpriteSpanFn<0x3F>,
-	gpuSpriteSpanFn<0x40>,gpuSpriteSpanFn<0x41>,gpuSpriteSpanFn<0x42>,gpuSpriteSpanFn<0x43>,  gpuSpriteSpanFn<0x44>,gpuSpriteSpanFn<0x45>,gpuSpriteSpanFn<0x46>,gpuSpriteSpanFn<0x47>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x4A>,gpuSpriteSpanFn<0x4B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x4E>,gpuSpriteSpanFn<0x4F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x52>,gpuSpriteSpanFn<0x53>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x56>,gpuSpriteSpanFn<0x57>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x5A>,gpuSpriteSpanFn<0x5B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x5E>,gpuSpriteSpanFn<0x5F>,
-	gpuSpriteSpanFn<0x60>,gpuSpriteSpanFn<0x61>,gpuSpriteSpanFn<0x62>,gpuSpriteSpanFn<0x63>,  gpuSpriteSpanFn<0x64>,gpuSpriteSpanFn<0x65>,gpuSpriteSpanFn<0x66>,gpuSpriteSpanFn<0x67>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x6A>,gpuSpriteSpanFn<0x6B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x6E>,gpuSpriteSpanFn<0x6F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x72>,gpuSpriteSpanFn<0x73>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x76>,gpuSpriteSpanFn<0x77>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x7A>,gpuSpriteSpanFn<0x7B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x7E>,gpuSpriteSpanFn<0x7F>,
 
-	SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,
-	SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,SpriteNULL,
-	gpuSpriteSpanFn<0x120>,gpuSpriteSpanFn<0x121>,gpuSpriteSpanFn<0x122>,gpuSpriteSpanFn<0x123>,  gpuSpriteSpanFn<0x124>,gpuSpriteSpanFn<0x125>,gpuSpriteSpanFn<0x126>,gpuSpriteSpanFn<0x127>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x12A>,gpuSpriteSpanFn<0x12B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x12E>,gpuSpriteSpanFn<0x12F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x132>,gpuSpriteSpanFn<0x133>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x136>,gpuSpriteSpanFn<0x137>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x13A>,gpuSpriteSpanFn<0x13B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x13E>,gpuSpriteSpanFn<0x13F>,
-	gpuSpriteSpanFn<0x140>,gpuSpriteSpanFn<0x141>,gpuSpriteSpanFn<0x142>,gpuSpriteSpanFn<0x143>,  gpuSpriteSpanFn<0x144>,gpuSpriteSpanFn<0x145>,gpuSpriteSpanFn<0x146>,gpuSpriteSpanFn<0x147>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x14A>,gpuSpriteSpanFn<0x14B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x14E>,gpuSpriteSpanFn<0x14F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x152>,gpuSpriteSpanFn<0x153>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x156>,gpuSpriteSpanFn<0x157>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x15A>,gpuSpriteSpanFn<0x15B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x15E>,gpuSpriteSpanFn<0x15F>,
-	gpuSpriteSpanFn<0x160>,gpuSpriteSpanFn<0x161>,gpuSpriteSpanFn<0x162>,gpuSpriteSpanFn<0x163>,  gpuSpriteSpanFn<0x164>,gpuSpriteSpanFn<0x165>,gpuSpriteSpanFn<0x166>,gpuSpriteSpanFn<0x167>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x16A>,gpuSpriteSpanFn<0x16B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x16E>,gpuSpriteSpanFn<0x16F>,
-	SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x172>,gpuSpriteSpanFn<0x173>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x176>,gpuSpriteSpanFn<0x177>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x17A>,gpuSpriteSpanFn<0x17B>,  SpriteNULL,SpriteNULL,gpuSpriteSpanFn<0x17E>,gpuSpriteSpanFn<0x17F>
+// Template instantiation helper macros
+#define TI(cf) gpuSpriteSpanFn<(cf)>
+#define TN     SpriteNULL
+#define TIBLOCK(ub) \
+	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TN,            TN,            TN,            TN,            TN,            TN,            TN,            TN,            \
+	TI((ub)|0x20), TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
+	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
+	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
+	TI((ub)|0x40), TI((ub)|0x41), TI((ub)|0x42), TI((ub)|0x43), TI((ub)|0x44), TI((ub)|0x45), TI((ub)|0x46), TI((ub)|0x47), \
+	TN,            TN,            TI((ub)|0x4a), TI((ub)|0x4b), TN,            TN,            TI((ub)|0x4e), TI((ub)|0x4f), \
+	TN,            TN,            TI((ub)|0x52), TI((ub)|0x53), TN,            TN,            TI((ub)|0x56), TI((ub)|0x57), \
+	TN,            TN,            TI((ub)|0x5a), TI((ub)|0x5b), TN,            TN,            TI((ub)|0x5e), TI((ub)|0x5f), \
+	TI((ub)|0x60), TI((ub)|0x61), TI((ub)|0x62), TI((ub)|0x63), TI((ub)|0x64), TI((ub)|0x65), TI((ub)|0x66), TI((ub)|0x67), \
+	TN,            TN,            TI((ub)|0x6a), TI((ub)|0x6b), TN,            TN,            TI((ub)|0x6e), TI((ub)|0x6f), \
+	TN,            TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
+	TN,            TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f)
+
+const PS gpuSpriteSpanDrivers[256] = {
+	TIBLOCK(0<<8), TIBLOCK(1<<8)
 };
+
+#undef TI
+#undef TN
+#undef TIBLOCK
 
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU Polygon innerloops generator
@@ -651,77 +671,48 @@ static void PolyNULL(u16 *pDst, u32 count)
 ///////////////////////////////////////////////////////////////////////////////
 //  Polygon innerloops driver
 typedef void (*PP)(u16 *pDst, u32 count);
-const PP gpuPolySpanDrivers[1024] =
-{
-	gpuPolySpanFn<0x00>,gpuPolySpanFn<0x01>,gpuPolySpanFn<0x02>,gpuPolySpanFn<0x03>,  gpuPolySpanFn<0x04>,gpuPolySpanFn<0x05>,gpuPolySpanFn<0x06>,gpuPolySpanFn<0x07>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x0A>,gpuPolySpanFn<0x0B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x0E>,gpuPolySpanFn<0x0F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x12>,gpuPolySpanFn<0x13>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x16>,gpuPolySpanFn<0x17>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x1A>,gpuPolySpanFn<0x1B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x1E>,gpuPolySpanFn<0x1F>,
-	gpuPolySpanFn<0x20>,gpuPolySpanFn<0x21>,gpuPolySpanFn<0x22>,gpuPolySpanFn<0x23>,  gpuPolySpanFn<0x24>,gpuPolySpanFn<0x25>,gpuPolySpanFn<0x26>,gpuPolySpanFn<0x27>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x2A>,gpuPolySpanFn<0x2B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x2E>,gpuPolySpanFn<0x2F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x32>,gpuPolySpanFn<0x33>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x36>,gpuPolySpanFn<0x37>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x3A>,gpuPolySpanFn<0x3B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x3E>,gpuPolySpanFn<0x3F>,
-	gpuPolySpanFn<0x40>,gpuPolySpanFn<0x41>,gpuPolySpanFn<0x42>,gpuPolySpanFn<0x43>,  gpuPolySpanFn<0x44>,gpuPolySpanFn<0x45>,gpuPolySpanFn<0x46>,gpuPolySpanFn<0x47>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x4A>,gpuPolySpanFn<0x4B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x4E>,gpuPolySpanFn<0x4F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x52>,gpuPolySpanFn<0x53>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x56>,gpuPolySpanFn<0x57>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x5A>,gpuPolySpanFn<0x5B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x5E>,gpuPolySpanFn<0x5F>,
-	gpuPolySpanFn<0x60>,gpuPolySpanFn<0x61>,gpuPolySpanFn<0x62>,gpuPolySpanFn<0x63>,  gpuPolySpanFn<0x64>,gpuPolySpanFn<0x65>,gpuPolySpanFn<0x66>,gpuPolySpanFn<0x67>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x6A>,gpuPolySpanFn<0x6B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x6E>,gpuPolySpanFn<0x6F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x72>,gpuPolySpanFn<0x73>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x76>,gpuPolySpanFn<0x77>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x7A>,gpuPolySpanFn<0x7B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x7E>,gpuPolySpanFn<0x7F>,
 
-	PolyNULL,gpuPolySpanFn<0x81>,PolyNULL,gpuPolySpanFn<0x83>,  PolyNULL,gpuPolySpanFn<0x85>,PolyNULL,gpuPolySpanFn<0x87>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x8B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x8F>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x93>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x97>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x9B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x9F>,
-	PolyNULL,gpuPolySpanFn<0xa1>,PolyNULL,gpuPolySpanFn<0xa3>,  PolyNULL,gpuPolySpanFn<0xa5>,PolyNULL,gpuPolySpanFn<0xa7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xaB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xaF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xb3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xb7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xbB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xbF>,
-	PolyNULL,gpuPolySpanFn<0xc1>,PolyNULL,gpuPolySpanFn<0xc3>,  PolyNULL,gpuPolySpanFn<0xc5>,PolyNULL,gpuPolySpanFn<0xc7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xcB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xcF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xd3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xd7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xdB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xdF>,
-	PolyNULL,gpuPolySpanFn<0xe1>,PolyNULL,gpuPolySpanFn<0xe3>,  PolyNULL,gpuPolySpanFn<0xe5>,PolyNULL,gpuPolySpanFn<0xe7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xeB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xeF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xf3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xf7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xfB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0xfF>,
+// Template instantiation helper macros
+#define TI(cf) gpuPolySpanFn<(cf)>
+#define TN     PolyNULL
+#define TIBLOCK(ub) \
+	TI((ub)|0x00), TI((ub)|0x01), TI((ub)|0x02), TI((ub)|0x03), TI((ub)|0x04), TI((ub)|0x05), TI((ub)|0x06), TI((ub)|0x07), \
+	TN,            TN,            TI((ub)|0x0a), TI((ub)|0x0b), TN,            TN,            TI((ub)|0x0e), TI((ub)|0x0f), \
+	TN,            TN,            TI((ub)|0x12), TI((ub)|0x13), TN,            TN,            TI((ub)|0x16), TI((ub)|0x17), \
+	TN,            TN,            TI((ub)|0x1a), TI((ub)|0x1b), TN,            TN,            TI((ub)|0x1e), TI((ub)|0x1f), \
+	TI((ub)|0x20), TI((ub)|0x21), TI((ub)|0x22), TI((ub)|0x23), TI((ub)|0x24), TI((ub)|0x25), TI((ub)|0x26), TI((ub)|0x27), \
+	TN,            TN,            TI((ub)|0x2a), TI((ub)|0x2b), TN,            TN,            TI((ub)|0x2e), TI((ub)|0x2f), \
+	TN,            TN,            TI((ub)|0x32), TI((ub)|0x33), TN,            TN,            TI((ub)|0x36), TI((ub)|0x37), \
+	TN,            TN,            TI((ub)|0x3a), TI((ub)|0x3b), TN,            TN,            TI((ub)|0x3e), TI((ub)|0x3f), \
+	TI((ub)|0x40), TI((ub)|0x41), TI((ub)|0x42), TI((ub)|0x43), TI((ub)|0x44), TI((ub)|0x45), TI((ub)|0x46), TI((ub)|0x47), \
+	TN,            TN,            TI((ub)|0x4a), TI((ub)|0x4b), TN,            TN,            TI((ub)|0x4e), TI((ub)|0x4f), \
+	TN,            TN,            TI((ub)|0x52), TI((ub)|0x53), TN,            TN,            TI((ub)|0x56), TI((ub)|0x57), \
+	TN,            TN,            TI((ub)|0x5a), TI((ub)|0x5b), TN,            TN,            TI((ub)|0x5e), TI((ub)|0x5f), \
+	TI((ub)|0x60), TI((ub)|0x61), TI((ub)|0x62), TI((ub)|0x63), TI((ub)|0x64), TI((ub)|0x65), TI((ub)|0x66), TI((ub)|0x67), \
+	TN,            TN,            TI((ub)|0x6a), TI((ub)|0x6b), TN,            TN,            TI((ub)|0x6e), TI((ub)|0x6f), \
+	TN,            TN,            TI((ub)|0x72), TI((ub)|0x73), TN,            TN,            TI((ub)|0x76), TI((ub)|0x77), \
+	TN,            TN,            TI((ub)|0x7a), TI((ub)|0x7b), TN,            TN,            TI((ub)|0x7e), TI((ub)|0x7f), \
+	TN,            TI((ub)|0x81), TN,            TI((ub)|0x83), TN,            TI((ub)|0x85), TN,            TI((ub)|0x87), \
+	TN,            TN,            TN,            TI((ub)|0x8b), TN,            TN,            TN,            TI((ub)|0x8f), \
+	TN,            TN,            TN,            TI((ub)|0x93), TN,            TN,            TN,            TI((ub)|0x97), \
+	TN,            TN,            TN,            TI((ub)|0x9b), TN,            TN,            TN,            TI((ub)|0x9f), \
+	TN,            TI((ub)|0xa1), TN,            TI((ub)|0xa3), TN,            TI((ub)|0xa5), TN,            TI((ub)|0xa7), \
+	TN,            TN,            TN,            TI((ub)|0xab), TN,            TN,            TN,            TI((ub)|0xaf), \
+	TN,            TN,            TN,            TI((ub)|0xb3), TN,            TN,            TN,            TI((ub)|0xb7), \
+	TN,            TN,            TN,            TI((ub)|0xbb), TN,            TN,            TN,            TI((ub)|0xbf), \
+	TN,            TI((ub)|0xc1), TN,            TI((ub)|0xc3), TN,            TI((ub)|0xc5), TN,            TI((ub)|0xc7), \
+	TN,            TN,            TN,            TI((ub)|0xcb), TN,            TN,            TN,            TI((ub)|0xcf), \
+	TN,            TN,            TN,            TI((ub)|0xd3), TN,            TN,            TN,            TI((ub)|0xd7), \
+	TN,            TN,            TN,            TI((ub)|0xdb), TN,            TN,            TN,            TI((ub)|0xdf), \
+	TN,            TI((ub)|0xe1), TN,            TI((ub)|0xe3), TN,            TI((ub)|0xe5), TN,            TI((ub)|0xe7), \
+	TN,            TN,            TN,            TI((ub)|0xeb), TN,            TN,            TN,            TI((ub)|0xef), \
+	TN,            TN,            TN,            TI((ub)|0xf3), TN,            TN,            TN,            TI((ub)|0xf7), \
+	TN,            TN,            TN,            TI((ub)|0xfb), TN,            TN,            TN,            TI((ub)|0xff)
 
-	gpuPolySpanFn<0x100>,gpuPolySpanFn<0x101>,gpuPolySpanFn<0x102>,gpuPolySpanFn<0x103>,  gpuPolySpanFn<0x104>,gpuPolySpanFn<0x105>,gpuPolySpanFn<0x106>,gpuPolySpanFn<0x107>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x10A>,gpuPolySpanFn<0x10B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x10E>,gpuPolySpanFn<0x10F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x112>,gpuPolySpanFn<0x113>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x116>,gpuPolySpanFn<0x117>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x11A>,gpuPolySpanFn<0x11B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x11E>,gpuPolySpanFn<0x11F>,
-	gpuPolySpanFn<0x120>,gpuPolySpanFn<0x121>,gpuPolySpanFn<0x122>,gpuPolySpanFn<0x123>,  gpuPolySpanFn<0x124>,gpuPolySpanFn<0x125>,gpuPolySpanFn<0x126>,gpuPolySpanFn<0x127>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x12A>,gpuPolySpanFn<0x12B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x12E>,gpuPolySpanFn<0x12F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x132>,gpuPolySpanFn<0x133>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x136>,gpuPolySpanFn<0x137>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x13A>,gpuPolySpanFn<0x13B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x13E>,gpuPolySpanFn<0x13F>,
-	gpuPolySpanFn<0x140>,gpuPolySpanFn<0x141>,gpuPolySpanFn<0x142>,gpuPolySpanFn<0x143>,  gpuPolySpanFn<0x144>,gpuPolySpanFn<0x145>,gpuPolySpanFn<0x146>,gpuPolySpanFn<0x147>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x14A>,gpuPolySpanFn<0x14B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x14E>,gpuPolySpanFn<0x14F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x152>,gpuPolySpanFn<0x153>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x156>,gpuPolySpanFn<0x157>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x15A>,gpuPolySpanFn<0x15B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x15E>,gpuPolySpanFn<0x15F>,
-	gpuPolySpanFn<0x160>,gpuPolySpanFn<0x161>,gpuPolySpanFn<0x162>,gpuPolySpanFn<0x163>,  gpuPolySpanFn<0x164>,gpuPolySpanFn<0x165>,gpuPolySpanFn<0x166>,gpuPolySpanFn<0x167>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x16A>,gpuPolySpanFn<0x16B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x16E>,gpuPolySpanFn<0x16F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<0x172>,gpuPolySpanFn<0x173>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x176>,gpuPolySpanFn<0x177>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x17A>,gpuPolySpanFn<0x17B>,  PolyNULL,PolyNULL,gpuPolySpanFn<0x17E>,gpuPolySpanFn<0x17F>,
-                                                                                                                                                                                                                                                                                                                                                                                      
-	PolyNULL,gpuPolySpanFn<0x181>,PolyNULL,gpuPolySpanFn<0x183>,  PolyNULL,gpuPolySpanFn<0x185>,PolyNULL,gpuPolySpanFn<0x187>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x18B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x18F>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x193>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x197>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x19B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x19F>,
-	PolyNULL,gpuPolySpanFn<0x1a1>,PolyNULL,gpuPolySpanFn<0x1a3>,  PolyNULL,gpuPolySpanFn<0x1a5>,PolyNULL,gpuPolySpanFn<0x1a7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1aB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1aF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1b3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1b7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1bB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1bF>,
-	PolyNULL,gpuPolySpanFn<0x1c1>,PolyNULL,gpuPolySpanFn<0x1c3>,  PolyNULL,gpuPolySpanFn<0x1c5>,PolyNULL,gpuPolySpanFn<0x1c7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1cB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1cF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1d3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1d7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1dB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1dF>,
-	PolyNULL,gpuPolySpanFn<0x1e1>,PolyNULL,gpuPolySpanFn<0x1e3>,  PolyNULL,gpuPolySpanFn<0x1e5>,PolyNULL,gpuPolySpanFn<0x1e7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1eB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1eF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1f3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1f7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1fB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<0x1fF>,
-
-	gpuPolySpanFn<512|0x00>,gpuPolySpanFn<512|0x01>,gpuPolySpanFn<512|0x02>,gpuPolySpanFn<512|0x03>,  gpuPolySpanFn<512|0x04>,gpuPolySpanFn<512|0x05>,gpuPolySpanFn<512|0x06>,gpuPolySpanFn<512|0x07>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x0A>,gpuPolySpanFn<512|0x0B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x0E>,gpuPolySpanFn<512|0x0F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x12>,gpuPolySpanFn<512|0x13>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x16>,gpuPolySpanFn<512|0x17>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1A>,gpuPolySpanFn<512|0x1B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1E>,gpuPolySpanFn<512|0x1F>,
-	gpuPolySpanFn<512|0x20>,gpuPolySpanFn<512|0x21>,gpuPolySpanFn<512|0x22>,gpuPolySpanFn<512|0x23>,  gpuPolySpanFn<512|0x24>,gpuPolySpanFn<512|0x25>,gpuPolySpanFn<512|0x26>,gpuPolySpanFn<512|0x27>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x2A>,gpuPolySpanFn<512|0x2B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x2E>,gpuPolySpanFn<512|0x2F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x32>,gpuPolySpanFn<512|0x33>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x36>,gpuPolySpanFn<512|0x37>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x3A>,gpuPolySpanFn<512|0x3B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x3E>,gpuPolySpanFn<512|0x3F>,
-	gpuPolySpanFn<512|0x40>,gpuPolySpanFn<512|0x41>,gpuPolySpanFn<512|0x42>,gpuPolySpanFn<512|0x43>,  gpuPolySpanFn<512|0x44>,gpuPolySpanFn<512|0x45>,gpuPolySpanFn<512|0x46>,gpuPolySpanFn<512|0x47>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x4A>,gpuPolySpanFn<512|0x4B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x4E>,gpuPolySpanFn<512|0x4F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x52>,gpuPolySpanFn<512|0x53>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x56>,gpuPolySpanFn<512|0x57>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x5A>,gpuPolySpanFn<512|0x5B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x5E>,gpuPolySpanFn<512|0x5F>,
-	gpuPolySpanFn<512|0x60>,gpuPolySpanFn<512|0x61>,gpuPolySpanFn<512|0x62>,gpuPolySpanFn<512|0x63>,  gpuPolySpanFn<512|0x64>,gpuPolySpanFn<512|0x65>,gpuPolySpanFn<512|0x66>,gpuPolySpanFn<512|0x67>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x6A>,gpuPolySpanFn<512|0x6B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x6E>,gpuPolySpanFn<512|0x6F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x72>,gpuPolySpanFn<512|0x73>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x76>,gpuPolySpanFn<512|0x77>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x7A>,gpuPolySpanFn<512|0x7B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x7E>,gpuPolySpanFn<512|0x7F>,
-
-	PolyNULL,gpuPolySpanFn<512|0x81>,PolyNULL,gpuPolySpanFn<512|0x83>,  PolyNULL,gpuPolySpanFn<512|0x85>,PolyNULL,gpuPolySpanFn<512|0x87>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x8B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x8F>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x93>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x97>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x9B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x9F>,
-	PolyNULL,gpuPolySpanFn<512|0xa1>,PolyNULL,gpuPolySpanFn<512|0xa3>,  PolyNULL,gpuPolySpanFn<512|0xa5>,PolyNULL,gpuPolySpanFn<512|0xa7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xaB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xaF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xb3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xb7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xbB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xbF>,
-	PolyNULL,gpuPolySpanFn<512|0xc1>,PolyNULL,gpuPolySpanFn<512|0xc3>,  PolyNULL,gpuPolySpanFn<512|0xc5>,PolyNULL,gpuPolySpanFn<512|0xc7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xcB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xcF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xd3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xd7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xdB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xdF>,
-	PolyNULL,gpuPolySpanFn<512|0xe1>,PolyNULL,gpuPolySpanFn<512|0xe3>,  PolyNULL,gpuPolySpanFn<512|0xe5>,PolyNULL,gpuPolySpanFn<512|0xe7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xeB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xeF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xf3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xf7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xfB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0xfF>,
-
-	gpuPolySpanFn<512|0x100>,gpuPolySpanFn<512|0x101>,gpuPolySpanFn<512|0x102>,gpuPolySpanFn<512|0x103>,  gpuPolySpanFn<512|0x104>,gpuPolySpanFn<512|0x105>,gpuPolySpanFn<512|0x106>,gpuPolySpanFn<512|0x107>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x10A>,gpuPolySpanFn<512|0x10B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x10E>,gpuPolySpanFn<512|0x10F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x112>,gpuPolySpanFn<512|0x113>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x116>,gpuPolySpanFn<512|0x117>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x11A>,gpuPolySpanFn<512|0x11B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x11E>,gpuPolySpanFn<512|0x11F>,
-	gpuPolySpanFn<512|0x120>,gpuPolySpanFn<512|0x121>,gpuPolySpanFn<512|0x122>,gpuPolySpanFn<512|0x123>,  gpuPolySpanFn<512|0x124>,gpuPolySpanFn<512|0x125>,gpuPolySpanFn<512|0x126>,gpuPolySpanFn<512|0x127>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x12A>,gpuPolySpanFn<512|0x12B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x12E>,gpuPolySpanFn<512|0x12F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x132>,gpuPolySpanFn<512|0x133>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x136>,gpuPolySpanFn<512|0x137>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x13A>,gpuPolySpanFn<512|0x13B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x13E>,gpuPolySpanFn<512|0x13F>,
-	gpuPolySpanFn<512|0x140>,gpuPolySpanFn<512|0x141>,gpuPolySpanFn<512|0x142>,gpuPolySpanFn<512|0x143>,  gpuPolySpanFn<512|0x144>,gpuPolySpanFn<512|0x145>,gpuPolySpanFn<512|0x146>,gpuPolySpanFn<512|0x147>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x14A>,gpuPolySpanFn<512|0x14B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x14E>,gpuPolySpanFn<512|0x14F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x152>,gpuPolySpanFn<512|0x153>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x156>,gpuPolySpanFn<512|0x157>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x15A>,gpuPolySpanFn<512|0x15B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x15E>,gpuPolySpanFn<512|0x15F>,
-	gpuPolySpanFn<512|0x160>,gpuPolySpanFn<512|0x161>,gpuPolySpanFn<512|0x162>,gpuPolySpanFn<512|0x163>,  gpuPolySpanFn<512|0x164>,gpuPolySpanFn<512|0x165>,gpuPolySpanFn<512|0x166>,gpuPolySpanFn<512|0x167>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x16A>,gpuPolySpanFn<512|0x16B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x16E>,gpuPolySpanFn<512|0x16F>,
-	PolyNULL,PolyNULL,gpuPolySpanFn<512|0x172>,gpuPolySpanFn<512|0x173>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x176>,gpuPolySpanFn<512|0x177>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x17A>,gpuPolySpanFn<512|0x17B>,  PolyNULL,PolyNULL,gpuPolySpanFn<512|0x17E>,gpuPolySpanFn<512|0x17F>,
-                                                                                                                                                                                                                                                                                                                                                                                      
-	PolyNULL,gpuPolySpanFn<512|0x181>,PolyNULL,gpuPolySpanFn<512|0x183>,  PolyNULL,gpuPolySpanFn<512|0x185>,PolyNULL,gpuPolySpanFn<512|0x187>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x18B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x18F>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x193>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x197>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x19B>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x19F>,
-	PolyNULL,gpuPolySpanFn<512|0x1a1>,PolyNULL,gpuPolySpanFn<512|0x1a3>,  PolyNULL,gpuPolySpanFn<512|0x1a5>,PolyNULL,gpuPolySpanFn<512|0x1a7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1aB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1aF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1b3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1b7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1bB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1bF>,
-	PolyNULL,gpuPolySpanFn<512|0x1c1>,PolyNULL,gpuPolySpanFn<512|0x1c3>,  PolyNULL,gpuPolySpanFn<512|0x1c5>,PolyNULL,gpuPolySpanFn<512|0x1c7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1cB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1cF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1d3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1d7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1dB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1dF>,
-	PolyNULL,gpuPolySpanFn<512|0x1e1>,PolyNULL,gpuPolySpanFn<512|0x1e3>,  PolyNULL,gpuPolySpanFn<512|0x1e5>,PolyNULL,gpuPolySpanFn<512|0x1e7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1eB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1eF>,
-	PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1f3>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1f7>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1fB>,  PolyNULL,PolyNULL,PolyNULL,gpuPolySpanFn<512|0x1fF>
+const PP gpuPolySpanDrivers[1024] = {
+	TIBLOCK(0<<8), TIBLOCK(1<<8), TIBLOCK(2<<8), TIBLOCK(3<<8)
 };
+
+#undef TI
+#undef TN
+#undef TIBLOCK
