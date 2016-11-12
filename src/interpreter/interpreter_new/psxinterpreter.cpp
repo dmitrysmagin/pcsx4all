@@ -331,11 +331,6 @@ INLINE void INSTRUCTION(u32 *regs, unsigned int code)
 						case 2: _gteCFC2((psxRegisters *)regs); break;
 						case 4: _gteMTC2((psxRegisters *)regs); break;
 						case 6: _gteCTC2((psxRegisters *)regs); break;
-#elif defined (gte_old)
-						case 0: gteMFC2(code); break;
-						case 2: gteCFC2(code); break;
-						case 4: gteMTC2(code); break;
-						case 6: gteCTC2(code); break;
 #else
 						case 0: gteMFC2(); break;
 						case 2: gteCFC2(); break;
@@ -369,29 +364,6 @@ INLINE void INSTRUCTION(u32 *regs, unsigned int code)
 				case 61: _gteGPF((psxRegisters *)regs); psxRegs.cycle +=autobias_SQR; break;
 				case 62: _gteGPL((psxRegisters *)regs); psxRegs.cycle +=autobias_SQR; break;
 				case 63: _gteNCCT((psxRegisters *)regs); psxRegs.cycle +=autobias_NCCT; break;
-#elif defined (gte_old)
-				case  1: gteRTPS(); psxRegs.cycle +=autobias_RTPS; break;
-				case  6: gteNCLIP(); psxRegs.cycle +=autobias_NCLIP; break;
-				case 12: gteOP(code); psxRegs.cycle +=autobias_OP; break;
-				case 16: gteDPCS(); psxRegs.cycle +=autobias_NCLIP; break;
-				case 17: gteINTPL(); psxRegs.cycle +=autobias_NCLIP; break;
-				case 18: gteMVMVA(code); psxRegs.cycle +=autobias_NCLIP; break;
-				case 19: gteNCDS(); psxRegs.cycle +=autobias_NCDS; break;
-				case 20: gteCDP(); psxRegs.cycle +=autobias_CDP; break;
-				case 22: gteNCDT(); psxRegs.cycle +=autobias_NCDT; break;
-				case 27: gteNCCS(); psxRegs.cycle +=autobias_NCCS; break;
-				case 28: gteCC(); psxRegs.cycle +=autobias_mul; break;
-				case 30: gteNCS(); psxRegs.cycle +=autobias_NCS; break;
-				case 32: gteNCT(); psxRegs.cycle +=autobias_NCT; break;
-				case 40: gteSQR(code); psxRegs.cycle +=autobias_SQR; break;
-				case 41: gteDCPL(); psxRegs.cycle +=autobias_NCLIP; break;
-				case 42: gteDPCT(); psxRegs.cycle +=autobias_NCCS; break;
-				case 45: gteAVSZ3(); psxRegs.cycle +=autobias_SQR; break;
-				case 46: gteAVSZ4(); psxRegs.cycle +=autobias_OP; break;
-				case 48: gteRTPT(); psxRegs.cycle +=autobias_RTPT; break;
-				case 61: gteGPF(code); psxRegs.cycle +=autobias_SQR; break;
-				case 62: gteGPL(code); psxRegs.cycle +=autobias_SQR; break;
-				case 63: gteNCCT(); psxRegs.cycle +=autobias_NCCT; break;
 #else
 				case  1: gteRTPS(); psxRegs.cycle +=autobias_RTPS; break;
 				case  6: gteNCLIP(); psxRegs.cycle +=autobias_NCLIP; break;
@@ -438,9 +410,6 @@ INLINE void INSTRUCTION(u32 *regs, unsigned int code)
 #ifdef gte_new
 		case 50: psxRegs.code = code; _gteLWC2((psxRegisters *)regs); psxRegs.cycle +=autobias_read+autobias_read; break;
 		case 58: psxRegs.code = code; _gteSWC2((psxRegisters *)regs); psxRegs.cycle +=autobias_read+autobias_write; break;
-#elif defined (gte_old)
-		case 50: psxRegs.code = code; gteLWC2(code, psxRegs.pc); psxRegs.cycle +=autobias_read+autobias_read; break;
-		case 58: psxRegs.code = code; gteSWC2(code, psxRegs.pc); psxRegs.cycle +=autobias_read+autobias_write; break;
 #else
 		case 50: psxRegs.code = code; gteLWC2(); psxRegs.cycle +=autobias_read+autobias_read; break;
 		case 58: psxRegs.code = code; gteSWC2(); psxRegs.cycle +=autobias_read+autobias_write; break;
