@@ -40,6 +40,7 @@ struct gpu_unai_config_t {
 
 	uint8_t lighting:1;
 	uint8_t blending:1;
+	uint8_t dithering:1;
 
 	//senquack Only PCSX Rearmed's version of gpu_unai had this, and I
 	// don't think it's necessary. It would require adding 'AH' flag to

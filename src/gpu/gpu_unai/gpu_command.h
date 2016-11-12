@@ -66,6 +66,10 @@ INLINE void gpuSetCLUT(u16 clut)
 #define Blending      (((PRIM&0x2) && BlendingEnabled()) ? (PRIM&0x2) : 0)
 #define Blending_Mode (((PRIM&0x2) && BlendingEnabled()) ? gpu_unai.BLEND_MODE : 0)
 #define Lighting      (((~PRIM)&0x1) && LightingEnabled())
+// Dithering applies only to Gouraud-shaded polys or texture-blended polys:
+#define Dithering     (((((~PRIM)&0x1) || (PRIM&0x10)) && DitheringEnabled()) ?            \
+                       (ForcedDitheringEnabled() ? (1<<9) : (gpu_unai.GPU_GP1 & (1 << 9))) \
+                       : 0)
 
 ///////////////////////////////////////////////////////////////////////////////
 //Now handled by Rearmed's gpulib and gpu_unai/gpulib_if.cpp:
@@ -168,7 +172,11 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Blending_Mode |
+					gpu_unai.Masking | Blending | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyF(packet, driver, false);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyF(0x%x)\n",PRIM));
@@ -184,9 +192,15 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (gpu_unai.PacketBuffer.U4[4] >> 16);
-				u32 driver_idx = (gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+
+				u32 driver_idx =
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode | gpu_unai.TEXT_MODE |
+					gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
 				if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
 					driver_idx |= Lighting;
+
 				PP driver = gpuPolySpanDrivers[driver_idx];
 				gpuDrawPolyFT(packet, driver, false);
 				gpu_unai.fb_dirty = true;
@@ -201,7 +215,11 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Blending_Mode |
+					gpu_unai.Masking | Blending | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyF(packet, driver, true); // is_quad = true
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyF(0x%x) (4-pt QUAD)\n",PRIM));
@@ -217,9 +235,15 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (gpu_unai.PacketBuffer.U4[4] >> 16);
-				u32 driver_idx = (gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
+
+				u32 driver_idx =
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode | gpu_unai.TEXT_MODE |
+					gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
 				if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
 					driver_idx |= Lighting;
+
 				PP driver = gpuPolySpanDrivers[driver_idx];
 				gpuDrawPolyFT(packet, driver, true); // is_quad = true
 				gpu_unai.fb_dirty = true;
@@ -234,7 +258,12 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode |
+					gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyG(packet, driver, false);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyG(0x%x)\n",PRIM));
@@ -250,7 +279,12 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode | gpu_unai.TEXT_MODE |
+					gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyGT(packet, driver, false);
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyGT(0x%x)\n",PRIM));
@@ -264,7 +298,12 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode |
+					gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyG(packet, driver, true); // is_quad = true
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyG(0x%x) (4-pt QUAD)\n",PRIM));
@@ -280,7 +319,12 @@ void gpuSendPacketFunction(const int PRIM)
 				NULL_GPU();
 				gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
 				gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
-				PP driver = gpuPolySpanDrivers[(gpu_unai.blit_mask?512:0) | Blending_Mode | gpu_unai.TEXT_MODE | gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB];
+				PP driver = gpuPolySpanDrivers[
+					(gpu_unai.blit_mask?1024:0) |
+					Dithering |
+					Blending_Mode | gpu_unai.TEXT_MODE |
+					gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
+				];
 				gpuDrawPolyGT(packet, driver, true); // is_quad = true
 				gpu_unai.fb_dirty = true;
 				DO_LOG(("gpuDrawPolyGT(0x%x) (4-pt QUAD)\n",PRIM));

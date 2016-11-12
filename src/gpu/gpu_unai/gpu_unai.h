@@ -263,6 +263,20 @@ static inline bool BlendingEnabled()
 	return gpu_unai.config.blending;
 }
 
+static inline bool DitheringEnabled()
+{
+	return gpu_unai.config.dithering;
+}
+
+// For now, this is just for development/experimentation purposes..
+// If modified to return true, it will allow ignoring the status register
+//  bit 9 setting (dither enable). It will still restrict dithering only
+//  to Gouraud-shaded or texture-blended polys.
+static inline bool ForcedDitheringEnabled()
+{
+	return false;
+}
+
 static inline bool ProgressiveInterlaceEnabled()
 {
 #ifdef USE_GPULIB

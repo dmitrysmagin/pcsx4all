@@ -806,6 +806,7 @@ int main (int argc, char **argv)
 		gpu_unai_config_ext.pixel_skip = 1;
 		gpu_unai_config_ext.lighting = 1;
 		gpu_unai_config_ext.blending = 1;
+		gpu_unai_config_ext.dithering = 1;
 	#endif
 
 	// Load config from file.
@@ -894,6 +895,10 @@ int main (int argc, char **argv)
 			// Progressive interlace option - See gpu_unai/gpu.h
 			// Old option left in from when PCSX4ALL ran on very slow devices.
 			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = 1; }
+
+			if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
+			if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
+			if (strcmp(argv[i],"-nodither")==0) { gpu_unai_config_ext.dithering = 0; }
 		#endif //!USE_GPULIB
 	#endif //GPU_UNAI
 

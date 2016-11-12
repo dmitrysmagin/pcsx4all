@@ -33,7 +33,8 @@
 #define  CF_TEXTMODE  ((CF>> 5)&3) // Texture mode 1..3 (0: texturing disabled)
 #define  CF_GOURAUD   ((CF>> 7)&1) // Gouraud shading
 #define  CF_MASKSET   ((CF>> 8)&1) // Mask bit set
-#define  CF_BLITMASK  ((CF>> 9)&1) // blit_mask check (skip rendering pixels
+#define  CF_DITHER    ((CF>> 9)&1) // Dithering
+#define  CF_BLITMASK  ((CF>>10)&1) // blit_mask check (skip rendering pixels
                                    //  that wouldn't end up displayed on
                                    //  low-res screen using simple downscaler)
 
@@ -708,8 +709,9 @@ typedef void (*PP)(u16 *pDst, u32 count);
 	TN,            TN,            TN,            TI((ub)|0xf3), TN,            TN,            TN,            TI((ub)|0xf7), \
 	TN,            TN,            TN,            TI((ub)|0xfb), TN,            TN,            TN,            TI((ub)|0xff)
 
-const PP gpuPolySpanDrivers[1024] = {
-	TIBLOCK(0<<8), TIBLOCK(1<<8), TIBLOCK(2<<8), TIBLOCK(3<<8)
+const PP gpuPolySpanDrivers[2048] = {
+	TIBLOCK(0<<8), TIBLOCK(1<<8), TIBLOCK(2<<8), TIBLOCK(3<<8),
+	TIBLOCK(4<<8), TIBLOCK(5<<8), TIBLOCK(6<<8), TIBLOCK(7<<8)
 };
 
 #undef TI
