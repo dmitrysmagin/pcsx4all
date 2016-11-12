@@ -127,7 +127,7 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 	do {
 		if (!CF_GOURAUD)
 		{   // NO GOURAUD
-			if ((!CF_MASKCHECK)&&(!CF_BLEND)) {
+			if (!CF_MASKCHECK && !CF_BLEND) {
 				if (CF_MASKSET) { *(u16*)pDst = col | 0x8000; }
 				else            { *(u16*)pDst = col;          }
 			} else if (CF_MASKCHECK && !CF_BLEND) {
@@ -287,8 +287,8 @@ static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 			//  lack of comments in code, but I believe the tile-span
 			//  functions here should not bother to preserve any source MSB,
 			//  as they are not drawing from a texture.
-
-			endtile: pDst++;
+endtile:
+			pDst++;
 		}
 		while (--count);
 	}
@@ -399,7 +399,8 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 		else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
 		else                           { *pDst = uSrc;          }
 
-		endsprite: pDst++;
+endsprite:
+		pDst++;
 	}
 	while (--count);
 }
@@ -486,10 +487,10 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				data=gpu_unai.PixelData;
 			}
 
-			if ((!CF_MASKCHECK)&&(!CF_BLEND)) {
+			if (!CF_MASKCHECK && !CF_BLEND) {
 				if (CF_MASKSET) { data = data | 0x8000; }
 				do { *pDst++ = data; } while (--count);
-			} else if ((CF_MASKCHECK)&&(!CF_BLEND)) {
+			} else if (CF_MASKCHECK && !CF_BLEND) {
 				if (CF_MASKSET) { data = data | 0x8000; }
 				do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
 			} else {
@@ -499,10 +500,10 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 				do
 				{
-					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endtile; }
+					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotext; }
 
 					uDst = *pDst;
-					if (CF_MASKCHECK) { if (uDst&0x8000) goto endtile;  }
+					if (CF_MASKCHECK) { if (uDst&0x8000) goto endpolynotext;  }
 					uSrc = data;
 					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
 					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
@@ -511,8 +512,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 
 					if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
 					else            { *pDst = uSrc;          }
-
-					endtile: pDst++;
+endpolynotext:
+					pDst++;
 				} while (--count);
 			}
 		}
@@ -533,8 +534,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 			do
 			{
-				if (CF_BLITMASK) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endgou; }
-				if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endgou;  }
+				if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotextgou; }
+				if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpolynotextgou;  }
 
 				if (CF_BLEND) {
 					gpuLightingRGB(uSrc,lCol);
@@ -549,8 +550,9 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 
 				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
 				else            { *pDst = uSrc;          }
-
-				endgou: pDst++; lCol=(lCol+linc);
+endpolynotextgou:
+				pDst++;
+				lCol=(lCol+linc);
 			}
 			while (--count);
 		}
@@ -602,8 +604,8 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 
 		do
 		{
-			if (CF_BLITMASK) { if((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpoly; }
-			if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpoly;  }
+			if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolytext; }
+			if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpolytext;  }
 
 			//senquack - adapted to work with new 22.10 fixed point routines:
 			//           (UNAI originally used 16.16)
@@ -612,15 +614,15 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				u32 tv=(l_v4<<1)&(0xff<<11);
 				u8 rgb=((u8*)TBA_)[tv+(tu>>1)];
 				uSrc=CBA_[(rgb>>((tu&1)<<2))&0xf];
-				if(!uSrc) goto endpoly;
+				if(!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
 				uSrc = CBA_[(((u8*)TBA_)[(l_u4>>10)+((l_v4<<1)&(0xff<<11))])];
-				if (!uSrc) goto endpoly;
+				if (!uSrc) goto endpolytext;
 			}
 			if (CF_TEXTMODE==3) {  // 16bpp
 				uSrc = TBA_[(l_u4>>10)+((l_v4)&(0xff<<10))];
-				if (!uSrc) goto endpoly;
+				if (!uSrc) goto endpolytext;
 			}
 
 			//senquack - save source MSB, as blending or lighting macros will not
@@ -647,12 +649,10 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 			if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
 			else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
 			else                           { *pDst = uSrc;          }
-
-			endpoly: pDst++;
-
+endpolytext:
+			pDst++;
 			l_u4 = (l_u4 + l_du4) & l_u4_msk;
 			l_v4 = (l_v4 + l_dv4) & l_v4_msk;
-
 			if (CF_LIGHT && CF_GOURAUD) lCol=(lCol+linc);
 		}
 		while (--count);
