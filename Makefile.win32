@@ -15,8 +15,9 @@ SPU    = spu_pcsxrearmed
 INTERPRETER = interpreter_pcsx
 #INTERPRETER = interpreter_new
 
-#GTE   = gte_pcsx
-GTE    = gte_new
+# Note: 'gte_new' causes lighting problems in dark areas of Silent Hill
+GTE   = gte_pcsx
+#GTE    = gte_new
 
 RM     = rm -f
 MD     = mkdir
