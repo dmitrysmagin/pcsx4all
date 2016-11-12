@@ -803,8 +803,9 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 	#ifdef GPU_UNAI
-		gpu_unai_config_ext.pixel_skip = 1;
+		gpu_unai_config_ext.pixel_skip = 0;
 		gpu_unai_config_ext.lighting = 1;
+		gpu_unai_config_ext.fast_lighting = 0;
 		gpu_unai_config_ext.blending = 1;
 		gpu_unai_config_ext.dithering = 1;
 	#endif
@@ -872,6 +873,15 @@ int main (int argc, char **argv)
 		// Render only every other line (looks ugly but faster)
 		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; }
 
+		if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
+		if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
+		if (strcmp(argv[i],"-nodither")==0) { gpu_unai_config_ext.dithering = 0; }
+		if (strcmp(argv[i],"-fastlight")==0) { gpu_unai_config_ext.fast_lighting = 1; }
+		// Skips rendering pixels in hi-res 512,640 PSX modes, when those
+		//  pixels would never appear on 320x240 screen (when using pixel-dropping
+		//  downscaler). WARNING: Can cause visual artifacts.
+		if (strcmp(argv[i],"-pixelskip")==0) { gpu_unai_config_ext.pixel_skip = 1; }
+
 		// Settings specific to older, non-gpulib standalone gpu_unai:
 		#ifndef USE_GPULIB
 			if (strcmp(argv[i],"-skip")==0) {
@@ -896,9 +906,6 @@ int main (int argc, char **argv)
 			// Old option left in from when PCSX4ALL ran on very slow devices.
 			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = 1; }
 
-			if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
-			if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
-			if (strcmp(argv[i],"-nodither")==0) { gpu_unai_config_ext.dithering = 0; }
 		#endif //!USE_GPULIB
 	#endif //GPU_UNAI
 

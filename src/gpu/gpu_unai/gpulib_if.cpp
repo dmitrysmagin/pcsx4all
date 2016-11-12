@@ -249,8 +249,13 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
-        if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
+
+        if (!FastLightingEnabled()) {
           driver_idx |= Lighting;
+        } else {
+          if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
+            driver_idx |= Lighting;
+        }
 
         PP driver = gpuPolySpanDrivers[driver_idx];
         gpuDrawPolyFT(packet, driver, false);
@@ -280,8 +285,13 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
-        if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
+
+        if (!FastLightingEnabled()) {
           driver_idx |= Lighting;
+        } else {
+          if (!((gpu_unai.PacketBuffer.U1[0]>0x5F) && (gpu_unai.PacketBuffer.U1[1]>0x5F) && (gpu_unai.PacketBuffer.U1[2]>0x5F)))
+            driver_idx |= Lighting;
+        }
 
         PP driver = gpuPolySpanDrivers[driver_idx];
         gpuDrawPolyFT(packet, driver, true); // is_quad = true

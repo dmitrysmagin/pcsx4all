@@ -39,6 +39,7 @@ struct gpu_unai_config_t {
 	                          //  odd lines.
 
 	uint8_t lighting:1;
+	uint8_t fast_lighting:1;
 	uint8_t blending:1;
 	uint8_t dithering:1;
 

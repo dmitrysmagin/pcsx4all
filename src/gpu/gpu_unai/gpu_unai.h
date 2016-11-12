@@ -258,6 +258,11 @@ static inline bool LightingEnabled()
 	return gpu_unai.config.lighting;
 }
 
+static inline bool FastLightingEnabled()
+{
+	return gpu_unai.config.fast_lighting;
+}
+
 static inline bool BlendingEnabled()
 {
 	return gpu_unai.config.blending;
