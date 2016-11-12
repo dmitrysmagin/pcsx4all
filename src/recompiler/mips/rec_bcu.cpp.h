@@ -190,14 +190,7 @@ static void SetBranch()
 
 static void iJumpNormal(u32 branchPC)
 {
-	branch = 1;
-	psxRegs.code = *(u32 *)((char *)PSXM(pc));
-	DISASM_PSX(pc);
-	pc+=4;
-
-	recBSC[psxRegs.code>>26]();
-
-	branch = 0;
+	SetBranch();
 
 	rec_recompile_end_part1();
 	regClearJump();
@@ -211,14 +204,7 @@ static void iJumpNormal(u32 branchPC)
 
 static void iJumpAL(u32 branchPC, u32 linkpc)
 {
-	branch = 1;
-	psxRegs.code = *(u32 *)((char *)PSXM(pc));
-	DISASM_PSX(pc);
-	pc+=4;
-
-	recBSC[psxRegs.code>>26]();
-
-	branch = 0;
+	SetBranch();
 
 	rec_recompile_end_part1();
 	regClearJump();
