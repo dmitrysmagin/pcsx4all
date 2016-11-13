@@ -22,7 +22,48 @@ static void recMTC0()
 // Cop0->Rd = Rt
 
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
-	SW(rt, PERM_REG_1, offCP0(_Rd_));
+
+	switch (_Rd_) {
+		case 12: // Status
+			// Reset psxRegs.io_cycle_counter, so psxBranchTest() gets called as
+			//  soon as possible to handle pending interrupts/events/exceptions
+			SW(0, PERM_REG_1, off(io_cycle_counter));
+
+			SW(rt, PERM_REG_1, offCP0(_Rd_));
+			break;
+
+		case 13: // Cause
+			// Only bits 8,9 are writable
+			// ---- Equivalent C code: ----
+			// u32 val = _Rt_;
+			// psxRegs.CP0.n.Cause &= ~0x300;
+			// psxRegs.CP0.n.Cause |= val & 0x300;
+
+			LW(TEMP_1, PERM_REG_1, offCP0(_Rd_)); // temp_1 = psxRegs.CP0.n.Cause
+
+			// Reset psxRegs.io_cycle_counter, so psxBranchTest() gets called as
+			//  soon as possible to handle pending interrupts/events/exceptions
+			SW(0, PERM_REG_1, off(io_cycle_counter));
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+			EXT(TEMP_2, rt, 8, 2);        // Copy bits 9:8 of _Rt_ to 1:0 of TEMP_2
+			INS(TEMP_1, TEMP_2, 8, 2);    // Copy those bits back to 9:8 of TEMP_1
+#else
+			LI16(TEMP_2, 0x300);          // temp_2 = 0x300
+			AND(TEMP_3, rt, TEMP_2);      // temp_3 = _Rt_ & 0x300
+			NOR(TEMP_2, 0, TEMP_2);       // temp_2 = ~temp_2
+			AND(TEMP_1, TEMP_1, TEMP_2);  // temp_1 = psxRegs.CP0.n.Cause & ~0x300
+			OR(TEMP_1, TEMP_1, TEMP_3);   // temp_1 |= (_Rt_ & 0x300)
+#endif
+
+			SW(TEMP_1, PERM_REG_1, offCP0(_Rd_));
+			break;
+
+		default:
+			SW(rt, PERM_REG_1, offCP0(_Rd_));
+			break;
+	}
+
 	regUnlock(rt);
 }
 
