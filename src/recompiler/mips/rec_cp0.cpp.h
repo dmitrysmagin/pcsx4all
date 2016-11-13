@@ -2,6 +2,7 @@ static void recMFC0()
 {
 // Rt = Cop0->Rd
 	if (!_Rt_) return;
+	SetUndef(_Rt_);
 	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	LW(rt, PERM_REG_1, offCP0(_Rd_));
