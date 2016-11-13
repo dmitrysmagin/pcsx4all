@@ -36,6 +36,7 @@ static void recCFC2()
 	if (autobias) cycles_pending += 2;
 	if (!_Rt_) return;
 
+	SetUndef(_Rt_);
 	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	LW(rt, PERM_REG_1, offCP2C(_Rd_));
@@ -203,6 +204,7 @@ static void recMFC2()
 	if (autobias) cycles_pending += 2;
 	if (!_Rt_) return;
 
+	SetUndef(_Rt_);
 	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
 	emitMFC2(rt, _Rd_);
