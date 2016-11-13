@@ -188,6 +188,36 @@ static void SetBranch()
 	branch = 0;
 }
 
+/* Used for BLTZ, BGTZ, BLTZAL, BGEZAL, BLEZ, BGEZ */
+#define EMIT_BxxZ_COMMON(INVCOND, ANDLINK) \
+do { \
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
+	SetBranch(); \
+	u32 *backpatch = (u32*)recMem; \
+	INVCOND(br1, 0); \
+	LUI(TEMP_1, (bpc >> 16)); /* <BD> */ \
+	\
+	rec_recompile_end_part1(); \
+	regClearBranch(); \
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); \
+	\
+	if (ANDLINK) { \
+		LI32(TEMP_2, nbpc); \
+		SW(TEMP_2, PERM_REG_1, offGPR(31)); \
+	} \
+	\
+	rec_recompile_end_part2(); \
+	\
+	cycles_pending = 0; \
+	\
+	fixup_branch(backpatch); \
+	regUnlock(br1); \
+	\
+} while (0)
+
+#define EMIT_BxxZ(A)	EMIT_BxxZ_COMMON(A, 0)
+#define EMIT_BxxZAL(A)	EMIT_BxxZ_COMMON(A, 1)
+
 static void iJumpNormal(u32 branchPC)
 {
 	SetBranch();
@@ -233,22 +263,7 @@ static void recBLTZ()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BGEZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZ(BGEZ);
 }
 
 static void recBGTZ()
@@ -266,22 +281,7 @@ static void recBGTZ()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BLEZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZ(BLEZ);
 }
 
 static void recBLTZAL()
@@ -299,24 +299,7 @@ static void recBLTZAL()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BGEZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	LI32(TEMP_2, nbpc);
-	SW(TEMP_2, PERM_REG_1, offGPR(31));
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZAL(BGEZ);
 }
 
 static void recBGEZAL()
@@ -334,24 +317,7 @@ static void recBGEZAL()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BLTZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	LI32(TEMP_2, nbpc);
-	SW(TEMP_2, PERM_REG_1, offGPR(31));
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZAL(BLTZ);
 }
 
 static void recJ()
@@ -489,22 +455,7 @@ static void recBLEZ()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BGTZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZ(BGTZ);
 }
 
 static void recBGEZ()
@@ -522,22 +473,7 @@ static void recBGEZ()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BLTZ(br1, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
+	EMIT_BxxZ(BLTZ);
 }
 
 static void recBREAK() { }
