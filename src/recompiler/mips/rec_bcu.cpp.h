@@ -176,6 +176,74 @@ static void recSYSCALL()
 	end_block = 1;
 }
 
+/* Check if an opcode has a delayed read if in delay slot */
+static int iLoadTest(u32 code)
+{
+	// check for load delay
+	u32 op = _fOp_(code);
+	switch (op) {
+	case 0x10: // COP0
+		switch (_fRs_(code)) {
+		case 0x00: // MFC0
+		case 0x02: // CFC0
+			return 1;
+		}
+		break;
+	case 0x12: // COP2
+		switch (_fFunct_(code)) {
+		case 0x00:
+			switch (_fRs_(code)) {
+			case 0x00: // MFC2
+			case 0x02: // CFC2
+				return 1;
+			}
+			break;
+		}
+		break;
+	case 0x32: // LWC2
+		return 1;
+	default:
+		// LB/LH/LWL/LW/LBU/LHU/LWR
+		if (op >= 0x20 && op <= 0x26) {
+			return 1;
+		}
+		break;
+	}
+	return 0;
+}
+
+static int DelayTest(u32 pc, u32 bpc)
+{
+	u32 code1 = *(u32 *)((char *)PSXM(pc));
+	u32 code2 = *(u32 *)((char *)PSXM(bpc));
+	u32 reg = _fRt_(code1);
+
+	if (iLoadTest(code1)) {
+		return psxTestLoadDelay(reg, code2);
+		// 1: delayReadWrite	// the branch delay load is skipped
+		// 2: delayRead		// branch delay load
+		// 3: delayWrite	// no changes from normal behavior
+	}
+
+	return 0;
+}
+
+/* Revert execution order of opcodes at branch target address and in delay slot
+   This emulates the effect of delayed read from COP2 happening in delay slot
+   when the branch is taken. This fixes Tekken 2 (broken models). */
+static void recRevDelaySlot(u32 pc, u32 bpc)
+{
+	branch = 1;
+
+	psxRegs.code = *(u32 *)((char *)PSXM(bpc));
+	recBSC[psxRegs.code>>26]();
+
+	psxRegs.code = *(u32 *)((char *)PSXM(pc));
+	recBSC[psxRegs.code>>26]();
+
+	branch = 0;
+}
+
 /* Recompile opcode in delay slot */
 static void recDelaySlot()
 {
@@ -193,7 +261,14 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 {
 	u32 code = psxRegs.code;
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	recDelaySlot();
+
+	int dt = DelayTest(pc, bpc);
+	if (dt == 2) {
+		regClearJump();
+	} else {
+		recDelaySlot();
+	}
+
 	u32 *backpatch = (u32 *)recMem;
 
 	// Check opcode and emit branch with REVERSED logic!
@@ -207,6 +282,12 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	default:
 		printf("Error opcode=%08x\n", code);
 		exit(1);
+	}
+
+	if (dt == 2) {
+		NOP(); /* <BD> */
+		recRevDelaySlot(pc, bpc);
+		bpc += 4;
 	}
 
 	LUI(TEMP_1, (bpc >> 16)); /* <BD> */
@@ -226,6 +307,11 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 
 	fixup_branch(backpatch);
 	regUnlock(br1);
+
+	if (dt == 2) {
+		regReset(); // FIXME: Maybe not needed
+		recDelaySlot();
+	}
 }
 
 /* Used for BEQ and BNE */
