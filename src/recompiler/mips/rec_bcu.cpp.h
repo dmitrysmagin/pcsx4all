@@ -218,6 +218,27 @@ do { \
 #define EMIT_BxxZ(A)	EMIT_BxxZ_COMMON(A, 0)
 #define EMIT_BxxZAL(A)	EMIT_BxxZ_COMMON(A, 1)
 
+#define EMIT_Bxx(INVCOND) \
+do { \
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
+	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
+	SetBranch(); \
+	u32 *backpatch = (u32*)recMem; \
+	INVCOND(br1, br2, 0); \
+	LUI(TEMP_1, (bpc >> 16)); /* <BD> */ \
+	\
+	rec_recompile_end_part1(); \
+	regClearBranch(); \
+	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); \
+	rec_recompile_end_part2(); \
+	\
+	cycles_pending = 0; \
+	\
+	fixup_branch(backpatch); \
+	regUnlock(br1); \
+	regUnlock(br2); \
+} while (0)
+
 static void iJumpNormal(u32 branchPC)
 {
 	SetBranch();
@@ -386,24 +407,7 @@ static void recBEQ()
 		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32 *backpatch = (u32*)recMem;
-	BNE(br1, br2, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
-	regUnlock(br2);
+	EMIT_Bxx(BNE);
 }
 
 static void recBNE()
@@ -417,27 +421,11 @@ static void recBNE()
 	}
 
 	if (!(_Rs_) && !(_Rt_)) {
-		SetBranch(); return;
+		SetBranch();
+		return;
 	}
 
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
-	u32* backpatch = (u32*)recMem;
-	BEQ(br1, br2, 0);
-	// Use BD slot of branch above to load upper part of branch-taken PC val
-	LUI(TEMP_1, (bpc >> 16)); // <BD>
-
-	rec_recompile_end_part1();
-	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	rec_recompile_end_part2();
-
-	cycles_pending = 0;
-
-	fixup_branch(backpatch);
-	regUnlock(br1);
-	regUnlock(br2);
+	EMIT_Bxx(BEQ);
 }
 
 static void recBLEZ()
