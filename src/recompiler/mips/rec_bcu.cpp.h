@@ -176,8 +176,8 @@ static void recSYSCALL()
 	end_block = 1;
 }
 
-/* Set a pending branch */
-static void SetBranch()
+/* Recompile opcode in delay slot */
+static void recDelaySlot()
 {
 	branch = 1;
 	psxRegs.code = *(u32 *)((char *)PSXM(pc));
@@ -192,7 +192,7 @@ static void SetBranch()
 #define EMIT_BxxZ_COMMON(INVCOND, ANDLINK) \
 do { \
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
-	SetBranch(); \
+	recDelaySlot(); \
 	u32 *backpatch = (u32*)recMem; \
 	INVCOND(br1, 0); \
 	LUI(TEMP_1, (bpc >> 16)); /* <BD> */ \
@@ -222,7 +222,7 @@ do { \
 do { \
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH); \
-	SetBranch(); \
+	recDelaySlot(); \
 	u32 *backpatch = (u32*)recMem; \
 	INVCOND(br1, br2, 0); \
 	LUI(TEMP_1, (bpc >> 16)); /* <BD> */ \
@@ -241,7 +241,7 @@ do { \
 
 static void iJumpNormal(u32 branchPC)
 {
-	SetBranch();
+	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
@@ -255,7 +255,7 @@ static void iJumpNormal(u32 branchPC)
 
 static void iJumpAL(u32 branchPC, u32 linkpc)
 {
-	SetBranch();
+	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
@@ -280,7 +280,7 @@ static void recBLTZ()
 	}
 
 	if (!(_Rs_)) {
-		SetBranch();
+		recDelaySlot();
 		return;
 	}
 
@@ -298,7 +298,7 @@ static void recBGTZ()
 	}
 
 	if (!(_Rs_)) {
-		SetBranch();
+		recDelaySlot();
 		return;
 	}
 
@@ -316,7 +316,7 @@ static void recBLTZAL()
 	}
 
 	if (!(_Rs_)) {
-		SetBranch();
+		recDelaySlot();
 		return;
 	}
 
@@ -359,7 +359,7 @@ static void recJR()
 {
 // jr Rs
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	SetBranch();
+	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
@@ -379,7 +379,7 @@ static void recJALR()
 	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 	LI32(rd, pc + 4);
 	regMipsChanged(_Rd_);
-	SetBranch();
+	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
@@ -421,7 +421,7 @@ static void recBNE()
 	}
 
 	if (!(_Rs_) && !(_Rt_)) {
-		SetBranch();
+		recDelaySlot();
 		return;
 	}
 
