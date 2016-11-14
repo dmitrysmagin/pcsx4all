@@ -261,13 +261,13 @@ static void emitBxx(u32 bpc)
 	regUnlock(br2);
 }
 
-static void iJumpNormal(u32 branchPC)
+static void iJumpNormal(u32 bpc)
 {
 	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
+	LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
 	rec_recompile_end_part2();
 
 	cycles_pending = 0;
@@ -275,14 +275,14 @@ static void iJumpNormal(u32 branchPC)
 	end_block = 1;
 }
 
-static void iJumpAL(u32 branchPC, u32 linkpc)
+static void iJumpAL(u32 bpc, u32 nbpc)
 {
 	recDelaySlot();
 
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
-	LI32(TEMP_1, linkpc);
+	LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
+	LI32(TEMP_1, nbpc);
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 
