@@ -222,8 +222,16 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
-	LI32(TEMP_1, linkpc);
+	if ((branchPC >> 16) == (linkpc >> 16)) {
+		// Both PCs share an upper half, can save an instruction:
+		LUI(MIPSREG_V0, (branchPC >> 16));
+		ORI(TEMP_1, MIPSREG_V0, (linkpc & 0xffff));
+		ORI(MIPSREG_V0, MIPSREG_V0, (branchPC & 0xffff)); // Block retval $v0 = new PC val
+	} else {
+		LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
+		LI32(TEMP_1, linkpc);
+	}
+
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 
