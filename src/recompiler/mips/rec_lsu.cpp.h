@@ -645,6 +645,7 @@ static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
+	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
@@ -653,18 +654,28 @@ static void gen_LWL_LWR(int count)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
 	// Is address in lower 8MB region? (2MB mirrored x4)
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	LUI(TEMP_2, 0x80);
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	//  We check only the effective address of first load in the series,
+	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+	// See comments in StoreToAddr() for explanation of check.
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp reg)
+	// of the branch-not-taken section below (writing to temp reg)
 
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
@@ -676,7 +687,7 @@ static void gen_LWL_LWR(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
-	int icount = count;
+	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -708,6 +719,7 @@ static void gen_LWL_LWR(int count)
 	fixup_branch(backpatch_label_hle_1);
 #endif // USE_DIRECT_MEM_ACCESS
 
+	icount = count;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
@@ -715,7 +727,11 @@ static void gen_LWL_LWR(int count)
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
 		JAL(psxMemRead32);          // result in MIPSREG_V0
 		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
 
@@ -752,7 +768,7 @@ static void gen_LWL_LWR(int count)
 		regUnlock(r2);
 
 		PC += 4;
-	} while (--count);
+	} while (--icount);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
