@@ -1,3 +1,6 @@
+//TODO: Adapt all code here to use guard 'HAVE_MIPS32R2_EXT_INS',
+//      with fallbacks to pre-R2 instructions. Only some has been.
+
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
@@ -270,6 +273,7 @@ static void LoadFromAddr(int count)
 
 static void StoreToAddr(int count)
 {
+	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
@@ -281,21 +285,40 @@ static void StoreToAddr(int count)
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
-	/* Check if memory is writable and also check if address is in lower 8MB */
-	// /* pseudocode: */
-	// if (!(writeok && (((r1+imm_min) & 0x1fffffff) < 0x800000)))
-	//    goto label_hle;
+	// Check if memory is writable and also check if address is in lower 8MB:
+	//
+	//   This is just slightly tricky. All addresses in lower 8MB of RAM will
+	//  have bits 27:24 unset, and all other valid addresses have them set.
+	//  The check below only passes when 'writeok' is 1 and bits 27:24 are 0.
+	//   It is not possible for a series of stores sharing a base register to
+	//  write both inside and outside of lower-8MB RAM region: signed 16bit imm
+	//  offset is not large enough to reach a valid mapped address in both.
+	//   Writes to 0xFFFF_xxxx and 0x8000_xxxx regions would cause an exception
+	//  on a real PS1, so no need to worry about imm offsets reaching them.
+	//  Base addresses with offsets wrapping to next/prior mirror region are
+	//  handled either with masking further below, or by emulation of mirrors
+	//  using mmap'd virtual mem (SKIP_SAME_2MB_REGION_CHECK, see psxmem.cpp).
+	//    MIPSREG_A0 is left set to the eff address of first store in series,
+	//  saving emitting an instruction in first loop iterations further below.
+	// ---- Equivalent C code: ----
+	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+	//    goto label_hle_1;
 
-	// There's a 4-cycle load stall if we check writeok first.. it's faster
-	//  to do the address check while it loads and branch on combined result:
 	LW(TEMP_1, PERM_REG_1, off(writeok));
-	LUI(TEMP_3, 0x80);
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_2, MIPSREG_A0, 0, 0x1d); // TEMP_2 = (r1 + imm_min) & 0x1fffffff
-	SLTU(TEMP_2, TEMP_2, TEMP_3);     // TEMP_2 = address is in lower 8MB ?
-	AND(TEMP_1, TEMP_1, TEMP_2);      // TEMP_1 = writeok && address-is-in-lower-8mb
+
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
+	SLTU(TEMP_2, TEMP_2, TEMP_1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_1, 0);                  // goto label_hle if either condition is false
+	BEQZ(TEMP_2, 0);
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp var)
 
@@ -319,7 +342,7 @@ static void StoreToAddr(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
-	int icount = count;
+	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
 	LW(TEMP_3, PERM_REG_1, off(reserved));
 	do {
@@ -331,7 +354,11 @@ static void StoreToAddr(int count)
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 		/* Invalidate recRAM[addr+imm16] pointer */
-		ADDIU(MIPSREG_A0, r1, imm);
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
 		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
@@ -363,13 +390,23 @@ static void StoreToAddr(int count)
 
 #endif // USE_DIRECT_MEM_ACCESS
 
+	icount = count;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 rt = _fRt_(opcode);
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm);
+#ifdef USE_DIRECT_MEM_ACCESS
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
+#else
+			ADDIU(MIPSREG_A0, r1, imm);
+#endif
+
 		switch (opcode & 0xfc000000) {
 		case 0xa0000000:
 			JAL(psxMemWrite8);
@@ -389,7 +426,7 @@ static void StoreToAddr(int count)
 		PC += 4;
 
 		regUnlock(r2);
-	} while (--count);
+	} while (--icount);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
