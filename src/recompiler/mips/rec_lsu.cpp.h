@@ -155,12 +155,22 @@ static void LoadFromAddr(int count)
 	regPushState();
 
 	// Is address in lower 8MB region? (2MB mirrored x4)
-	LUI(TEMP_2, 0x80);
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	//  We check only the effective address of first load in the series,
+	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+	// See comments in StoreToAddr().
+
+	// Get the effective address of first load in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to TEMP_2)
 
