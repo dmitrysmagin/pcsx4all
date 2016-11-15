@@ -96,6 +96,8 @@ int renderer_init(void)
   }
 #endif
 
+  SetupDitheringConstants();
+
   return 0;
 }
 

@@ -22,39 +22,30 @@
 #define _OP_LIGHT_H_
 
 //  GPU color operations for lighting calculations
+INLINE void gpuLightingRGB(u16 &uSrc, u32 &lCol)
+{
+	uSrc = ((lCol<< 5)&0x7C00)
+	     | ((lCol>>11)&0x03E0)
+	     |  (lCol>>27);
+}
 
-#ifdef __arm__
-#ifndef ENABLE_GPU_ARMV7
-/* ARMv5 */
-#define gpuLightingRGB(uSrc,lCol) \
-{ \
-	u32 cb,cg; \
-	asm ("and %[cb],  %[lCol], #0x7C00/32       " : [cb]   "=r" (cb)   : [lCol] "r" (lCol) ); \
-	asm ("and %[cg],  %[lCol], #0x03E0*2048     " : [cg]   "=r" (cg)   : [lCol] "r" (lCol) ); \
-	asm ("mov %[res], %[lCol],          lsr #27 " : [res]  "=r" (uSrc)  : [lCol] "r" (lCol) ); \
-	asm ("orr %[res], %[res], %[cb],    lsl #5  " : [res]  "=r" (uSrc)  : "0" (uSrc), [cb] "r" (cb) ); \
-	asm ("orr %[res], %[res], %[cg],    lsr #11 " : [res]  "=r" (uSrc)  : "0" (uSrc), [cg] "r" (cg) ); \
+INLINE void getLightNoGouraud(u32 &lCol)
+{
+	lCol = ((u32)(gpu_unai.b4<< 2)&(0x03ff    ))
+	     | ((u32)(gpu_unai.g4<<13)&(0x07ff<<10))
+	     | ((u32)(gpu_unai.r4<<24)&(0x07ff<<21));
 }
-#else
-/* ARMv7 optimized */
-#define gpuLightingRGB(uSrc,lCol) \
-{ \
-	u32 cb,cg; \
-	asm ("and %[cb],  %[lCol], #0x7C00/32      \n" \
-	     "and %[cg],  %[lCol], #0x03E0*2048    \n" \
-	     "mov %[res], %[lCol],          lsr #27\n" \
-	     "orr %[res], %[res], %[cb],    lsl #5 \n" \
-	     "orr %[res], %[res], %[cg],    lsr #11\n" \
-	 : [res] "=&r" (uSrc), [cb] "=&r" (cb), [cg] "=&r" (cg) \
-	 : [lCol] "r" (lCol)); \
+
+INLINE void getLightGouraud(u32 &lCol)
+{
+	lCol = ((u32)(gpu_unai.b4>> 8)&(0x03ff    ))
+	     | ((u32)(gpu_unai.g4<< 3)&(0x07ff<<10))
+	     | ((u32)(gpu_unai.r4<<14)&(0x07ff<<21));
 }
-#endif
-#else
-#define gpuLightingRGB(uSrc,lCol) uSrc=((lCol<<5)&0x7C00) | ((lCol>>11)&0x3E0) | (lCol>>27)
-#endif
 
 INLINE void gpuLightingTXT(u16 &uSrc, u32 &lCol)
 {
+
 	//  Pixelops Table
 	static const u8 _gpuLitT[32*32] = {
 		 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -90,7 +81,36 @@ INLINE void gpuLightingTXT(u16 &uSrc, u32 &lCol)
 		 0, 1, 3, 5, 7, 9,11,13,15,16,18,20,22,24,26,28,30,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,
 		 0, 1, 3, 5, 7, 9,11,13,15,17,19,21,23,25,27,29,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31,31
 	};
-	uSrc  = (_gpuLitT[((uSrc&0x7C00)>>5)|((lCol>>5)&0x1f)]<<10)|(_gpuLitT[(uSrc&0x03E0)|((lCol>>16)&0x1f)]<<5)|(_gpuLitT[((uSrc&0x001F)<<5)|(lCol>>27)]);
+
+	uSrc = (_gpuLitT[((uSrc&0x7C00)>>5) | ((lCol>> 5)&0x1f)]<<10)
+	     | (_gpuLitT[ (uSrc&0x03E0)     | ((lCol>>16)&0x1f)]<< 5)
+	     | (_gpuLitT[((uSrc&0x001F)<<5) |  (lCol>>27)      ]    );
+}
+
+INLINE void gpuLightingTXT24(u32 &uSrc, u32 &lCol)
+{
+	u16 r1 = uSrc&0x7C00;
+	u16 g1 = uSrc&0x03E0;
+	u16 b1 = uSrc&0x001F;
+
+	u16 r2 = (lCol>> 2) & 0xFF;
+	u16 g2 = (lCol>>13) & 0xFF;
+	u16 b2 = (lCol>>24) & 0xFF;
+
+	u32 r3 = r1 * r2; if (r3 & 0xFFC00000) r3 = ~0xFFC00000;
+	u32 g3 = g1 * g2; if (g3 & 0xFFFE0000) g3 = ~0xFFFE0000;
+	u32 b3 = b1 * b2; if (b3 & 0xFFFFF000) b3 = ~0xFFFFF000;
+
+	uSrc = ((r3>>13)<<20)
+	     | ((g3>> 8)<<10)
+		 | ((b3>> 3)    );
+}
+
+INLINE void gpuLightingRGB24(u32 &uSrc, u32 &lCol)
+{
+	uSrc = ((lCol<<19) & (0x1FF<<20))
+	     | ((lCol>> 2) & (0x1FF<<10))
+	     | ((lCol>>23) & (0x1FF    ));
 }
 
 #endif  //_OP_LIGHT_H_

@@ -242,6 +242,8 @@ struct gpu_unai_t {
 	u16 PixelMSB;
 
 	gpu_unai_config_t config;
+
+	u32 DitherMatrix[64];   // Matrix of dither coefficients
 };
 
 static gpu_unai_t gpu_unai;

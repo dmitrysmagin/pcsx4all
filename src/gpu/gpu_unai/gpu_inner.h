@@ -50,6 +50,7 @@
 #include "gpu_inner_blend.h"
 #endif
 
+#include "gpu_inner_quantization.h"
 #include "gpu_inner_light.h"
 
 // If defined, Gouraud colors are fixed-point 5.11, otherwise they are 8.16
@@ -468,88 +469,93 @@ const PS gpuSpriteSpanDrivers[256] = {
 template<const int CF>
 static void gpuPolySpanFn(u16 *pDst, u32 count)
 {
+	static const u16 uMsk = 0x7BDE;
+
 	if (!CF_TEXTMODE)
 	{	
 		// NO TEXTURE
 		if (!CF_GOURAUD)
 		{
-			// NO GOURAUD
-			u16 data;
+			u32 lCol;
+			u32 uSrc;
+			u16 uDst;
 
-			//NOTE: if no Gouraud shading is used, gpu_unai.{b4,g4,r4} contain
-			// integers, not fixed-point (this is behavior of original code)
-			if (CF_LIGHT) {
-				u32 lCol = ((u32)(gpu_unai.b4<< 2)&(0x03ff))     |
-				           ((u32)(gpu_unai.g4<<13)&(0x07ff<<10)) |
-				           ((u32)(gpu_unai.r4<<24)&(0x07ff<<21));
-				gpuLightingRGB(data,lCol);
-			} else {
-				data=gpu_unai.PixelData;
-			}
+			if (!CF_LIGHT)
+			{
+				do {
+					uSrc = gpu_unai.PixelData;
 
-			if (!CF_MASKCHECK && !CF_BLEND) {
-				if (CF_MASKSET) { data = data | 0x8000; }
-				do { *pDst++ = data; } while (--count);
-			} else if (CF_MASKCHECK && !CF_BLEND) {
-				if (CF_MASKSET) { data = data | 0x8000; }
-				do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
-			} else {
-				u16 uSrc;
-				u16 uDst;
-				u32 uMsk; if (CF_BLENDMODE==0) uMsk=0x7BDE;
-				u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
-				do
-				{
-					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotext; }
+					if (CF_BLEND || CF_MASKCHECK) uDst = *pDst;
+					if (CF_MASKCHECK) { if (uDst&0x8000) { goto endpolynotextnogou; } }
 
-					uDst = *pDst;
-					if (CF_MASKCHECK) { if (uDst&0x8000) goto endpolynotext;  }
-					uSrc = data;
-					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
-					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
-					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
-					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
+					if (CF_BLEND) {
+						if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
+						if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
+						if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
+						if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
+					}
 
-					if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
-					else            { *pDst = uSrc;          }
-endpolynotext:
+					if (CF_MASKSET) { uSrc = uSrc | 0x8000; }
+					*pDst = uSrc;
+endpolynotextnogou:
 					pDst++;
-				} while (--count);
+
+				} while(--count);
+			}
+			else
+			{
+				u32 sSrc;
+				getLightNoGouraud(lCol);
+				gpuLightingRGB24(sSrc, lCol);
+
+				do {
+					uSrc = sSrc;
+
+					if (CF_BLEND) {
+						uDst = *pDst;
+						if (CF_MASKCHECK) { if (uDst&0x8000) { pDst++; continue; } }
+
+						doGpuPolyBlend<CF_BLENDMODE>(uSrc, uDst);
+					}
+
+					gpuColorQuantization<CF_DITHER>(uSrc, pDst);
+
+					if (CF_MASKSET) { *pDst++ = ((u16)uSrc) | 0x8000; }
+					else            { *pDst++ = ((u16)uSrc);          }
+
+				} while(--count);
 			}
 		}
 		else
 		{
 			// GOURAUD
 			u16 uDst;
-			u16 uSrc;
+			u32 uSrc;
 			u32 linc=gpu_unai.lInc;
 
 			//senquack - DRHELL poly code uses 22.10 fixed point, while UNAI used 16.16:
 			//u32 lCol=((u32)(gpu_unai.b4>>14)&(0x03ff)) | ((u32)(gpu_unai.g4>>3)&(0x07ff<<10)) | ((u32)(gpu_unai.r4<<8)&(0x07ff<<21));
-			u32 lCol = ((u32)(gpu_unai.b4 >>  8)&(0x03ff))     |
-			           ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
-			           ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
+			u32 lCol; getLightGouraud(lCol);
 
-			u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
 			u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 			do
 			{
+				uDst = *pDst;
+
 				if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotextgou; }
-				if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpolynotextgou;  }
+				if (CF_MASKCHECK) { if (uDst&0x8000) goto endpolynotextgou; }
+
+				gpuLightingRGB24(uSrc,lCol);
 
 				if (CF_BLEND) {
-					gpuLightingRGB(uSrc,lCol);
-					if (!CF_MASKCHECK) { uDst = *pDst; }
-					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
-					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
-					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
-					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
-				} else {
-					gpuLightingRGB(uSrc,lCol);
+					doGpuPolyBlend<CF_BLENDMODE>(uSrc, uDst);
 				}
 
-				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
-				else            { *pDst = uSrc;          }
+				gpuColorQuantization<CF_DITHER>(uSrc, pDst);
+
+				if (CF_MASKSET) { *pDst = ((u16)uSrc) | 0x8000; }
+				else            { *pDst = ((u16)uSrc);          }
+
 endpolynotextgou:
 				pDst++;
 				lCol=(lCol+linc);
@@ -568,7 +574,7 @@ endpolynotextgou:
 
 		// TEXTURE
 		u16 uDst;
-		u16 uSrc;
+		u32 uSrc;
 		u32 linc; if (CF_LIGHT && CF_GOURAUD) linc=gpu_unai.lInc;
 
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
@@ -589,23 +595,16 @@ endpolynotextgou:
 		// the top line expected gpu_unai.{b4,g4,r4} to be integers, as it is
 		// not using Gouraud shading, so it needed no adjustment. The bottom
 		// line needed no adjustment for fixed point changes.
-		if (CF_LIGHT && !CF_GOURAUD) {
-			lCol = ((u32)(gpu_unai.b4 <<  2)&(0x03ff))     |
-			       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
-			       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
-		} else if (CF_LIGHT && CF_GOURAUD) {
-			lCol = ((u32)(gpu_unai.b4 >>  8)&(0x03ff))     |
-			       ((u32)(gpu_unai.g4 <<  3)&(0x07ff<<10)) |
-			       ((u32)(gpu_unai.r4 << 14)&(0x07ff<<21));
-		}
+		if (CF_LIGHT && !CF_GOURAUD) getLightNoGouraud(lCol);
+		if (CF_LIGHT &&  CF_GOURAUD) getLightGouraud(lCol);
 
-		u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
 		u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 
 		do
 		{
 			if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolytext; }
-			if (CF_MASKCHECK) { uDst = *pDst;  if (uDst&0x8000) goto endpolytext;  }
+			if (CF_MASKCHECK || CF_BLEND) { uDst = *pDst; }
+			if (CF_MASKCHECK) if (uDst&0x8000) goto endpolytext;
 
 			//senquack - adapted to work with new 22.10 fixed point routines:
 			//           (UNAI originally used 16.16)
@@ -626,24 +625,30 @@ endpolynotextgou:
 			}
 
 			//senquack - save source MSB, as blending or lighting macros will not
-			if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) { srcMSB = uSrc & 0x8000; }
+			srcMSB = uSrc & 0x8000;
 
-			if (CF_BLEND) {
-				if (uSrc&0x8000) {
-					if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
-					if (!CF_MASKCHECK) { uDst = *pDst; }
+			// LIGHT &&  BLEND => dither
+			// LIGHT && !BLEND => dither
+			//!LIGHT &&  BLEND => no dither
+			//!LIGHT && !BLEND => no dither
+
+			if (CF_LIGHT)
+			{
+				if (!CF_BLEND || uSrc&0x8000)
+				{
+					gpuLightingTXT24(uSrc, lCol);
+					if (CF_BLEND) doGpuPolyBlend<CF_BLENDMODE>(uSrc, uDst);
+					gpuColorQuantization<CF_DITHER>(uSrc, pDst);
+				}
+			}
+			else
+			{
+				if (CF_BLEND && (srcMSB&0x8000)) {
 					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
 					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
 					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
 					if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
-				} else {
-					if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 				}
-			} else {
-				//senquack - While fixing Silent Hill white-rectangles bug, I
-				// noticed uSrc was being masked unnecessarily here:
-				//if(CF_LIGHT)  { gpuLightingTXT(uSrc, lCol); } else if(!CF_MASKSET) { uSrc&= 0x7fff; }
-				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 			}
 
 			if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
