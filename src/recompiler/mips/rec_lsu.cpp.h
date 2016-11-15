@@ -843,7 +843,7 @@ static void gen_SWL_SWR(int count)
 	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
 
-	LW(TEMP_3, PERM_REG_1, off(reserved)); // load addr of code block ptr array
+	LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
@@ -869,7 +869,7 @@ static void gen_SWL_SWR(int count)
 			// NOTE: Branch delay slot will contain the instruction below
 		}
 		// Important: this should be the last instruction in the loop (is BD slot of exit branch)
-		SW(0, TEMP_1, 0);  // set code block ptr to NULL
+		SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
 
 		PC += 4;
 
