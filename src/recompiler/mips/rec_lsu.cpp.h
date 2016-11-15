@@ -370,7 +370,10 @@ static void StoreToAddr(int count)
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
-		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+		if ((opcode & 0xfc000000) != 0xac000000) {
+			// Not a SW, clear lower 2 bits to ensure addr is aligned:
+			INS(TEMP_1, 0, 0, 2);
+		}
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 		backpatch_label_exit_1 = 0;

@@ -68,9 +68,9 @@ static u32 psxRecLUT[0x010000];
 #define REC_MAX_OPCODES		80
 
 static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
-static u32 *recMem;				/* the recompiled blocks will be here */
-static s8 recRAM[0x200000];			/* and the ptr to the blocks here */
-static s8 recROM[0x080000];			/* and here */
+static u32 *recMem; /* the recompiled blocks will be here */
+static s8 recRAM[0x200000] __attribute__((aligned(4))); /* and the ptr to the blocks here */
+static s8 recROM[0x080000] __attribute__((aligned(4))); /* and here */
 static u32 pc;					/* recompiler pc */
 static u32 oldpc;
 static u32 branch = 0;
@@ -191,8 +191,6 @@ void clear_insn_cache(void *start, void *end, int flags)
 
 static void recRecompile()
 {
-	psxRegs.reserved = (void *)recRAM;
-
 	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
 		recReset();
 
