@@ -123,6 +123,12 @@ do { \
 #define LW(rt, rn, imm) \
 	write32(0x8c000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
+#define LB(rt, rn, imm) \
+	write32(0x80000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define LBU(rt, rn, imm) \
+	write32(0x90000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
 #define LH(rt, rn, imm) \
 	write32(0x84000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
