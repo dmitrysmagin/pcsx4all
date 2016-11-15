@@ -59,4 +59,57 @@
 	uSrc = bb; \
 }
 
+INLINE void gpuGetRGB24(u32 &uDst, u16 &uSrc)
+{
+	uDst = ((uSrc & 0x7C00)<<14)
+	     | ((uSrc & 0x03E0)<< 9)
+	     | ((uSrc & 0x001F)<< 4);
+}
+
+template <const int BLENDMODE>
+INLINE void doGpuPolyBlend(u32 &uSrc, u16 &uDst)
+{
+	static const u32 uMsk = 0x1FE7F9FE;
+
+	u32 nDst; gpuGetRGB24(nDst, uDst);
+
+	//	0.5 x Back + 0.5 x Forward
+	if (BLENDMODE==0) {
+		uSrc = (((nDst & uMsk) + (uSrc & uMsk)) >> 1);
+	}
+
+	//	1.0 x Back + 1.0 x Forward
+	if (BLENDMODE==1) {
+		uSrc = nDst + uSrc;
+
+		//clamp to 1FFh
+		if (uSrc & (1<< 9)) uSrc |= (0x1FF    );
+		if (uSrc & (1<<19)) uSrc |= (0x1FF<<10);
+		if (uSrc & (1<<29)) uSrc |= (0x1FF<<20);
+	}
+
+	//	1.0 x Back - 1.0 x Forward	*/
+	if (BLENDMODE==2) {
+		//((color^mask)+mask_one) = -color
+		u32 mix = (nDst + ((uSrc ^ (0x1FF7FDFF)) + 0x100401));
+
+		//clamp to 0h
+		if ((mix & (0x1FF    )) > (nDst & (0x1FF    ))) mix &= ~(0x3FF);
+		if ((mix & (0x1FF<<10)) > (nDst & (0x1FF<<10))) mix &= ~(0x3FF << 10);
+		if ((mix & (0x1FF<<20)) > (nDst & (0x1FF<<20))) mix &= ~(0x3FF << 20);
+
+		uSrc = mix;
+	}
+
+	//	1.0 x Back + 0.25 x Forward	*/
+	if (BLENDMODE==3) {
+		uSrc = (nDst + ((uSrc & 0x1FC7F1FC) >> 2));
+
+		//clamp to 1FFh
+		if (uSrc & (1 << 9)) uSrc |= (0x1FF      );
+		if (uSrc & (1 <<19)) uSrc |= (0x1FF << 10);
+		if (uSrc & (1 <<29)) uSrc |= (0x1FF << 20);
+	}
+}
+
 #endif  //_OP_BLEND_H_
