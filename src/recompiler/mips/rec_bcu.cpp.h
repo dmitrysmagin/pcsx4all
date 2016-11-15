@@ -222,8 +222,16 @@ static void iJumpAL(u32 branchPC, u32 linkpc)
 
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
-	LI32(TEMP_1, linkpc);
+	if ((branchPC >> 16) == (linkpc >> 16)) {
+		// Both PCs share an upper half, can save an instruction:
+		LUI(MIPSREG_V0, (branchPC >> 16));
+		ORI(TEMP_1, MIPSREG_V0, (linkpc & 0xffff));
+		ORI(MIPSREG_V0, MIPSREG_V0, (branchPC & 0xffff)); // Block retval $v0 = new PC val
+	} else {
+		LI32(MIPSREG_V0, branchPC); // Block retval $v0 = new PC val
+		LI32(TEMP_1, linkpc);
+	}
+
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 
@@ -322,8 +330,16 @@ static void recBLTZAL()
 
 	rec_recompile_end_part1();
 	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	LI32(TEMP_2, nbpc);
+
+	if ((bpc >> 16) == (nbpc >> 16)) {
+		// Both PCs share an upper half, can save an instruction:
+		ORI(TEMP_2, TEMP_1, (nbpc & 0xffff));
+		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	} else {
+		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+		LI32(TEMP_2, nbpc);
+	}
+
 	SW(TEMP_2, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 
@@ -357,8 +373,16 @@ static void recBGEZAL()
 
 	rec_recompile_end_part1();
 	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
-	LI32(TEMP_2, nbpc);
+
+	if ((bpc >> 16) == (nbpc >> 16)) {
+		// Both PCs share an upper half, can save an instruction:
+		ORI(TEMP_2, TEMP_1, (nbpc & 0xffff));
+		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+	} else {
+		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff)); // Block retval $v0 = branch-taken PC val
+		LI32(TEMP_2, nbpc);
+	}
+
 	SW(TEMP_2, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 
