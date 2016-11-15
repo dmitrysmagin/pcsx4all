@@ -638,10 +638,10 @@ static void recSW()
 	StoreToAddr(count);
 }
 
-static u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
-static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
-static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
-static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
+static u32 LWL_MASKSHIFT[8] = { 0xffffff, 0xffff, 0xff, 0,
+                                24, 16, 8, 0 };
+static u32 LWR_MASKSHIFT[8] = { 0, 0xff000000, 0xffff0000, 0xffffff00,
+                                0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
@@ -673,7 +673,7 @@ static void gen_LWL_LWR(int count)
 	AND(TEMP_2, TEMP_2, MIPSREG_A0);
 #endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
+	BGTZ(TEMP_2, 0);
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to temp reg)
 
@@ -728,38 +728,45 @@ static void gen_LWL_LWR(int count)
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
 		if (icount != count) {
-			// No need to do this for the first store of the series,
-			//  as it was already done for us during initial checks.
+			// No need to do this for the first load of the series, as value
+			//  is already in $a0 from earlier direct-mem address range check.
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
 		JAL(psxMemRead32);          // result in MIPSREG_V0
 		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
 
-		ADDIU(TEMP_1, r1, imm);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm);
 
 		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_MASK);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_MASK);
+			LUI(TEMP_2, ADR_HI(LWL_MASKSHIFT));
+		else                    // LWR
+			LUI(TEMP_2, ADR_HI(LWR_MASKSHIFT));
 
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(r2, r2, TEMP_2);
+		// Lower 2 bits of dst addr are index into u32 mask/shift arrays:
+#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(TEMP_2, MIPSREG_A0, 2, 2);
+#else
+		ANDI(TEMP_1, MIPSREG_A0, 3);    // temp_1 = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);         // temp_1 *= 4
+		OR(TEMP_2, TEMP_2, TEMP_1);
+#endif
+
+		ADDIU(TEMP_3, TEMP_2, 16);      // array entry of shift amount is
+		                                // 16 bytes past mask entry
+		if (insn == 0x88000000) { // LWL
+			LW(TEMP_2, TEMP_2, ADR_LO(LWL_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(LWL_MASKSHIFT)); // temp_3 = shift
+		} else {                  // LWR
+			LW(TEMP_2, TEMP_2, ADR_LO(LWR_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(LWR_MASKSHIFT)); // temp_3 = shift
+		}
+
+		AND(r2, r2, TEMP_2);            // mask pre-existing contents of r2
 
 		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_SHIFT);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0x88000000) // LWL
-			SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
-		else			// LWR
-			SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+			SLLV(TEMP_3, MIPSREG_V0, TEMP_3);   // temp_3 = data_read << shift
+		else                    // LWR
+			SRLV(TEMP_3, MIPSREG_V0, TEMP_3);   // temp_3 = data_read >> shift
 
 		OR(r2, r2, TEMP_3);
 
