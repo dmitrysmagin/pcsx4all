@@ -1,3 +1,6 @@
+//TODO: Adapt all code here to use guard 'HAVE_MIPS32R2_EXT_INS',
+//      with fallbacks to pre-R2 instructions. Only some has been.
+
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
@@ -152,12 +155,22 @@ static void LoadFromAddr(int count)
 	regPushState();
 
 	// Is address in lower 8MB region? (2MB mirrored x4)
-	LUI(TEMP_2, 0x80);
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	//  We check only the effective address of first load in the series,
+	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+	// See comments in StoreToAddr().
+
+	// Get the effective address of first load in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to TEMP_2)
 
@@ -270,6 +283,7 @@ static void LoadFromAddr(int count)
 
 static void StoreToAddr(int count)
 {
+	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
@@ -281,21 +295,40 @@ static void StoreToAddr(int count)
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
-	/* Check if memory is writable and also check if address is in lower 8MB */
-	// /* pseudocode: */
-	// if (!(writeok && (((r1+imm_min) & 0x1fffffff) < 0x800000)))
-	//    goto label_hle;
+	// Check if memory is writable and also check if address is in lower 8MB:
+	//
+	//   This is just slightly tricky. All addresses in lower 8MB of RAM will
+	//  have bits 27:24 unset, and all other valid addresses have them set.
+	//  The check below only passes when 'writeok' is 1 and bits 27:24 are 0.
+	//   It is not possible for a series of stores sharing a base register to
+	//  write both inside and outside of lower-8MB RAM region: signed 16bit imm
+	//  offset is not large enough to reach a valid mapped address in both.
+	//   Writes to 0xFFFF_xxxx and 0x8000_xxxx regions would cause an exception
+	//  on a real PS1, so no need to worry about imm offsets reaching them.
+	//  Base addresses with offsets wrapping to next/prior mirror region are
+	//  handled either with masking further below, or by emulation of mirrors
+	//  using mmap'd virtual mem (SKIP_SAME_2MB_REGION_CHECK, see psxmem.cpp).
+	//    MIPSREG_A0 is left set to the eff address of first store in series,
+	//  saving emitting an instruction in first loop iterations further below.
+	// ---- Equivalent C code: ----
+	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+	//    goto label_hle_1;
 
-	// There's a 4-cycle load stall if we check writeok first.. it's faster
-	//  to do the address check while it loads and branch on combined result:
 	LW(TEMP_1, PERM_REG_1, off(writeok));
-	LUI(TEMP_3, 0x80);
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_2, MIPSREG_A0, 0, 0x1d); // TEMP_2 = (r1 + imm_min) & 0x1fffffff
-	SLTU(TEMP_2, TEMP_2, TEMP_3);     // TEMP_2 = address is in lower 8MB ?
-	AND(TEMP_1, TEMP_1, TEMP_2);      // TEMP_1 = writeok && address-is-in-lower-8mb
+
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
+	SLTU(TEMP_2, TEMP_2, TEMP_1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_1, 0);                  // goto label_hle if either condition is false
+	BEQZ(TEMP_2, 0);
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp var)
 
@@ -319,9 +352,9 @@ static void StoreToAddr(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
-	int icount = count;
+	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
-	LW(TEMP_3, PERM_REG_1, off(reserved));
+	LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
@@ -331,9 +364,16 @@ static void StoreToAddr(int count)
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 		/* Invalidate recRAM[addr+imm16] pointer */
-		ADDIU(MIPSREG_A0, r1, imm);
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
-		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+		if ((opcode & 0xfc000000) != 0xac000000) {
+			// Not a SW, clear lower 2 bits to ensure addr is aligned:
+			INS(TEMP_1, 0, 0, 2);
+		}
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 		backpatch_label_exit_1 = 0;
@@ -344,7 +384,7 @@ static void StoreToAddr(int count)
 			// NOTE: Branch delay slot will contain the instruction below
 		}
 		// Important: this should be the last opcode in the loop (see note above)
-		SW(0, TEMP_1, 0);
+		SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
 
 		PC += 4;
 
@@ -363,13 +403,23 @@ static void StoreToAddr(int count)
 
 #endif // USE_DIRECT_MEM_ACCESS
 
+	icount = count;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 rt = _fRt_(opcode);
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm);
+#ifdef USE_DIRECT_MEM_ACCESS
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
+#else
+			ADDIU(MIPSREG_A0, r1, imm);
+#endif
+
 		switch (opcode & 0xfc000000) {
 		case 0xa0000000:
 			JAL(psxMemWrite8);
@@ -389,7 +439,7 @@ static void StoreToAddr(int count)
 		PC += 4;
 
 		regUnlock(r2);
-	} while (--count);
+	} while (--icount);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
@@ -591,13 +641,14 @@ static void recSW()
 	StoreToAddr(count);
 }
 
-static u32 LWL_MASK[4] = { 0xffffff, 0xffff, 0xff, 0 };
-static u32 LWL_SHIFT[4] = { 24, 16, 8, 0 };
-static u32 LWR_MASK[4] = { 0, 0xff000000, 0xffff0000, 0xffffff00 };
-static u32 LWR_SHIFT[4] = { 0, 8, 16, 24 };
+static u32 LWL_MASKSHIFT[8] = { 0xffffff, 0xffff, 0xff, 0,
+                                24, 16, 8, 0 };
+static u32 LWR_MASKSHIFT[8] = { 0, 0xff000000, 0xffff0000, 0xffffff00,
+                                0, 8, 16, 24 };
 
 static void gen_LWL_LWR(int count)
 {
+	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
@@ -606,18 +657,28 @@ static void gen_LWL_LWR(int count)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
 	// Is address in lower 8MB region? (2MB mirrored x4)
-	ADDIU(MIPSREG_A0, r1, imm_min);
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	LUI(TEMP_2, 0x80);
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
+	//  We check only the effective address of first load in the series,
+	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+	// See comments in StoreToAddr() for explanation of check.
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	BGTZ(TEMP_2, 0);
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp reg)
+	// of the branch-not-taken section below (writing to temp reg)
 
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
@@ -629,7 +690,7 @@ static void gen_LWL_LWR(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
-	int icount = count;
+	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -661,6 +722,7 @@ static void gen_LWL_LWR(int count)
 	fixup_branch(backpatch_label_hle_1);
 #endif // USE_DIRECT_MEM_ACCESS
 
+	icount = count;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
@@ -668,35 +730,46 @@ static void gen_LWL_LWR(int count)
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
+		if (icount != count) {
+			// No need to do this for the first load of the series, as value
+			//  is already in $a0 from earlier direct-mem address range check.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
 		JAL(psxMemRead32);          // result in MIPSREG_V0
 		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
 
-		ADDIU(TEMP_1, r1, imm);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm);
 
 		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_MASK);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_MASK);
+			LUI(TEMP_2, ADR_HI(LWL_MASKSHIFT));
+		else                    // LWR
+			LUI(TEMP_2, ADR_HI(LWR_MASKSHIFT));
 
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(r2, r2, TEMP_2);
+		// Lower 2 bits of dst addr are index into u32 mask/shift arrays:
+#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(TEMP_2, MIPSREG_A0, 2, 2);
+#else
+		ANDI(TEMP_1, MIPSREG_A0, 3);    // temp_1 = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);         // temp_1 *= 4
+		OR(TEMP_2, TEMP_2, TEMP_1);
+#endif
+
+		ADDIU(TEMP_3, TEMP_2, 16);      // array entry of shift amount is
+		                                // 16 bytes past mask entry
+		if (insn == 0x88000000) { // LWL
+			LW(TEMP_2, TEMP_2, ADR_LO(LWL_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(LWL_MASKSHIFT)); // temp_3 = shift
+		} else {                  // LWR
+			LW(TEMP_2, TEMP_2, ADR_LO(LWR_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(LWR_MASKSHIFT)); // temp_3 = shift
+		}
+
+		AND(r2, r2, TEMP_2);            // mask pre-existing contents of r2
 
 		if (insn == 0x88000000) // LWL
-			LI32(TEMP_2, (u32)LWL_SHIFT);
-		else			// LWR
-			LI32(TEMP_2, (u32)LWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0x88000000) // LWL
-			SLLV(TEMP_3, MIPSREG_V0, TEMP_2);
-		else			// LWR
-			SRLV(TEMP_3, MIPSREG_V0, TEMP_2);
+			SLLV(TEMP_3, MIPSREG_V0, TEMP_3);   // temp_3 = data_read << shift
+		else                    // LWR
+			SRLV(TEMP_3, MIPSREG_V0, TEMP_3);   // temp_3 = data_read >> shift
 
 		OR(r2, r2, TEMP_3);
 
@@ -705,7 +778,7 @@ static void gen_LWL_LWR(int count)
 		regUnlock(r2);
 
 		PC += 4;
-	} while (--count);
+	} while (--icount);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
@@ -717,13 +790,14 @@ static void gen_LWL_LWR(int count)
 	regUnlock(r1);
 }
 
-static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
-static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
-static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
-static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
+static u32 SWL_MASKSHIFT[8] = { 0xffffff00, 0xffff0000, 0xff000000, 0,
+                                24, 16, 8, 0 };
+static u32 SWR_MASKSHIFT[8] = { 0, 0xff, 0xffff, 0xffffff,
+                                0, 8, 16, 24 };
 
 static void gen_SWL_SWR(int count)
 {
+	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
@@ -735,20 +809,27 @@ static void gen_SWL_SWR(int count)
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
-	/* First check if memory is writable atm */
-	LW(TEMP_1, PERM_REG_1, off(writeok));
-	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_1, 0); // beqz temp_1, label_hle
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to MIPSREG_A0)
+	// Check if memory is writable and also check if address is in lower 8MB:
+	// See comments in StoreToAddr() for explanation of check.
+	// ---- Equivalent C code: ----
+	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+	//    goto label_hle_1;
 
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	ADDIU(MIPSREG_A0, r1, imm_min); // <BD slot>
-	EXT(TEMP_1, MIPSREG_A0, 0, 0x1d); // and 0x1fffffff
-	LUI(TEMP_2, 0x80);
-	SLTU(TEMP_3, TEMP_1, TEMP_2);
-	u32 *backpatch_label_hle_2 = (u32 *)recMem;
-	BEQZ(TEMP_3, 0); // beqz temp_2, label_hle
+	LW(TEMP_1, PERM_REG_1, off(writeok));
+
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+#else
+	LUI(TEMP_2, 0x0f00);
+	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+#endif
+	SLTU(TEMP_2, TEMP_2, TEMP_1);
+	u32 *backpatch_label_hle_1 = (u32 *)recMem;
+	BEQZ(TEMP_2, 0);
 	//NOTE: Delay slot of branch is harmlessly occupied by the first op
 	// of the branch-not-taken section below (writing to a temp reg)
 
@@ -762,13 +843,27 @@ static void gen_SWL_SWR(int count)
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
 	}
 
-	int icount = count;
+	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
+
+	LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
 		u32 rt = _fRt_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+		/* Invalidate recRAM[addr+imm16] pointer */
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
+		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 		if (icount == 1) {
 			// This is the end of the loop
@@ -777,7 +872,7 @@ static void gen_SWL_SWR(int count)
 			// NOTE: Branch delay slot will contain the instruction below
 		}
 		// Important: this should be the last instruction in the loop (is BD slot of exit branch)
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+		SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
 
 		PC += 4;
 
@@ -790,9 +885,9 @@ static void gen_SWL_SWR(int count)
 
 	// label_hle:
 	fixup_branch(backpatch_label_hle_1);
-	fixup_branch(backpatch_label_hle_2);
 #endif // USE_DIRECT_MEM_ACCESS
 
+	icount = count;
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 insn = opcode & 0xfc000000;
@@ -800,46 +895,70 @@ static void gen_SWL_SWR(int count)
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
-		JAL(psxMemRead32);          // result in MIPSREG_V0
-		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using BD slot)
+#ifdef USE_DIRECT_MEM_ACCESS
+		if (icount != count) {
+			// No need to do this for the first store of the series, as value
+			//  is already in $a0 from earlier direct-mem address range check.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
+#else
+			ADDIU(MIPSREG_A0, r1, imm);
+#endif
 
-		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
-		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
+#ifdef HAVE_MIPS32R2_EXT_INS
+		JAL(psxMemRead32);              // result in MIPSREG_V0
+		INS(MIPSREG_A0, 0, 0, 2);       // <BD> clear 2 lower bits of $a0
+#else
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		JAL(psxMemRead32);              // result in MIPSREG_V0
+		SLL(MIPSREG_A0, MIPSREG_A0, 2); // <BD> clear lower 2 bits of $a0
+#endif
 
-		ADDIU(TEMP_1, r1, imm);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm);
+
+		if (insn == 0xa8000000)   // SWL
+			LUI(TEMP_2, ADR_HI(SWL_MASKSHIFT));
+		else                      // SWR
+			LUI(TEMP_2, ADR_HI(SWR_MASKSHIFT));
+
+		// Lower 2 bits of dst addr are index into u32 mask/shift arrays:
+#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(TEMP_2, MIPSREG_A0, 2, 2);
+		INS(MIPSREG_A0, 0, 0, 2);       // clear 2 lower bits of addr
+#else
+		ANDI(TEMP_1, MIPSREG_A0, 3);    // temp_1 = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);         // temp_1 *= 4
+		OR(TEMP_2, TEMP_2, TEMP_1);
+
+		SRL(MIPSREG_A0, MIPSREG_A0, 2); // clear 2 lower bits of addr
+		SLL(MIPSREG_A0, MIPSREG_A0, 2);
+#endif
+
+		ADDIU(TEMP_3, TEMP_2, 16);      // array entry of shift amount is
+		                                // 16 bytes past mask entry
+
+		if (insn == 0xa8000000) { // SWL
+			LW(TEMP_2, TEMP_2, ADR_LO(SWL_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(SWL_MASKSHIFT)); // temp_3 = shift
+		} else {                  // SWR
+			LW(TEMP_2, TEMP_2, ADR_LO(SWR_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(SWR_MASKSHIFT)); // temp_3 = shift
+		}
+
+		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2); // $a1 = mem_val & mask
 
 		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_MASK);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_MASK);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
-
-		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_SHIFT);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0xa8000000) // SWL
-			SRLV(TEMP_3, r2, TEMP_2);
-		else			// SWR
-			SLLV(TEMP_3, r2, TEMP_2);
+			SRLV(TEMP_1, r2, TEMP_3);        // temp_1 = new_data >> shift
+		else                    // SWR
+			SLLV(TEMP_1, r2, TEMP_3);        // temp_1 = new_data << shift
 
 		JAL(psxMemWrite32);
-		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3); // <BD> Branch delay slot
+		OR(MIPSREG_A1, MIPSREG_A1, TEMP_1);  // <BD> $a1 |= temp_1
 
 		PC += 4;
 
 		regUnlock(r2);
-	} while (--count);
+	} while (--icount);
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:

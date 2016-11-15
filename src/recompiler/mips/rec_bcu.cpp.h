@@ -297,7 +297,12 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
 	if (andlink) {
-		LI32(TEMP_2, nbpc);
+		if ((bpc >> 16) == (nbpc >> 16)) {
+			// Both PCs share an upper half, can save an instruction:
+			ORI(TEMP_2, TEMP_1, (nbpc & 0xffff));
+		} else {
+			LI32(TEMP_2, nbpc);
+		}
 		SW(TEMP_2, PERM_REG_1, offGPR(31));
 	}
 
@@ -367,8 +372,17 @@ static void iJumpAL(u32 bpc, u32 nbpc)
 
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
-	LI32(TEMP_1, nbpc);
+
+	if ((bpc >> 16) == (nbpc >> 16)) {
+		// Both PCs share an upper half, can save an instruction:
+		LUI(MIPSREG_V0, (bpc >> 16));
+		ORI(TEMP_1, MIPSREG_V0, (nbpc & 0xffff));
+		ORI(MIPSREG_V0, MIPSREG_V0, (bpc & 0xffff)); // Block retval $v0 = new PC val
+	} else {
+		LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
+		LI32(TEMP_1, nbpc);
+	}
+
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
 

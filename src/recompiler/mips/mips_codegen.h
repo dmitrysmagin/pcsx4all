@@ -92,6 +92,19 @@ typedef enum {
 
 #define off(field)	offsetof(psxRegisters, field)
 
+
+/* ADR_HI, ADR_LO are the equivalents of MIPS GAS %hi(), %lo()
+ * They are always used as a pair, and allow converting an address to an
+ * upper/lower pair, with lower half interpreted as a signed offset.
+ * The upper half is adjusted when lower half of orig addr is > 0x7fff.
+ */
+#define ADR_HI(adr) \
+	(((uptr)(adr) & 0x8000) ? (((uptr)(adr) + 0x10000) >> 16) : ((uptr)(adr) >> 16))
+
+#define ADR_LO(adr) \
+	((uptr)(adr) & 0xffff)
+
+
 #define write32(i) \
 	do { *recMem++ = (u32)(i); } while (0)
 
@@ -109,6 +122,12 @@ do { \
 
 #define LW(rt, rn, imm) \
 	write32(0x8c000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define LB(rt, rn, imm) \
+	write32(0x80000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#define LBU(rt, rn, imm) \
+	write32(0x90000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
 #define LH(rt, rn, imm) \
 	write32(0x84000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
