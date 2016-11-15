@@ -100,12 +100,13 @@ void pmonReset()
 {
 	pmon.frame_ctr = 0;
 	pmon.fps_cur = 0;
-	pmon.tv_last.tv_sec = pmon.tv_last.tv_usec = 0;
 	memset(&pmon.buf, 0, sizeof(pmon.buf));
+
 #ifdef PERFMON_CPU_STATS
 	pmon.cpu_cur = 0;
 	pmonInitCpuUsage();
 #endif
+	gettimeofday(&pmon.tv_last, 0);
 }
 
 bool pmonUpdate()
@@ -118,7 +119,7 @@ bool pmonUpdate()
 
 	if (diff >= 1000000) {
 		ret = true;
-		pmon.fps_cur = (float)(1000000 * pmon.frame_ctr) / (float)diff;
+		pmon.fps_cur = 1000000.0f * (float)pmon.frame_ctr / (float)diff;
 #ifdef PERFMON_CPU_STATS
 		pmon.cpu_cur = pmonGetCpuUsage(diff);
 #endif
