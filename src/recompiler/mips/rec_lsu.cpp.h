@@ -780,10 +780,10 @@ static void gen_LWL_LWR(int count)
 	regUnlock(r1);
 }
 
-static u32 SWL_MASK[4] = { 0xffffff00, 0xffff0000, 0xff000000, 0 };
-static u32 SWL_SHIFT[4] = { 24, 16, 8, 0 };
-static u32 SWR_MASK[4] = { 0, 0xff, 0xffff, 0xffffff };
-static u32 SWR_SHIFT[4] = { 0, 8, 16, 24 };
+static u32 SWL_MASKSHIFT[8] = { 0xffffff00, 0xffff0000, 0xff000000, 0,
+                                24, 16, 8, 0 };
+static u32 SWR_MASKSHIFT[8] = { 0, 0xff, 0xffff, 0xffffff,
+                                0, 8, 16, 24 };
 
 static void gen_SWL_SWR(int count)
 {
@@ -881,37 +881,55 @@ static void gen_SWL_SWR(int count)
 			ADDIU(MIPSREG_A0, r1, imm);
 #endif
 
-		ADDIU(MIPSREG_A0, r1, imm); // a0 = r1 & ~3
-		INS(MIPSREG_A0, 0, 0, 2); // clear 2 lower bits
+#ifdef HAVE_MIPS32R2_EXT_INS
+		JAL(psxMemRead32);              // result in MIPSREG_V0
+		INS(MIPSREG_A0, 0, 0, 2);       // <BD> clear 2 lower bits of $a0
+#else
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		JAL(psxMemRead32);              // result in MIPSREG_V0
+		SLL(MIPSREG_A0, MIPSREG_A0, 2); // <BD> clear lower 2 bits of $a0
+#endif
 
-		ADDIU(TEMP_1, r1, imm);
-		ANDI(TEMP_1, TEMP_1, 3); // shift = addr & 3
-		SLL(TEMP_1, TEMP_1, 2);
+		ADDIU(MIPSREG_A0, r1, imm);
+
+		if (insn == 0xa8000000)   // SWL
+			LUI(TEMP_2, ADR_HI(SWL_MASKSHIFT));
+		else                      // SWR
+			LUI(TEMP_2, ADR_HI(SWR_MASKSHIFT));
+
+		// Lower 2 bits of dst addr are index into u32 mask/shift arrays:
+#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(TEMP_2, MIPSREG_A0, 2, 2);
+		INS(MIPSREG_A0, 0, 0, 2);       // clear 2 lower bits of addr
+#else
+		ANDI(TEMP_1, MIPSREG_A0, 3);    // temp_1 = addr & 3
+		SLL(TEMP_1, TEMP_1, 2);         // temp_1 *= 4
+		OR(TEMP_2, TEMP_2, TEMP_1);
+
+		SRL(MIPSREG_A0, MIPSREG_A0, 2); // clear 2 lower bits of addr
+		SLL(MIPSREG_A0, MIPSREG_A0, 2);
+#endif
+
+		ADDIU(TEMP_3, TEMP_2, 16);      // array entry of shift amount is
+		                                // 16 bytes past mask entry
+
+		if (insn == 0xa8000000) { // SWL
+			LW(TEMP_2, TEMP_2, ADR_LO(SWL_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(SWL_MASKSHIFT)); // temp_3 = shift
+		} else {                  // SWR
+			LW(TEMP_2, TEMP_2, ADR_LO(SWR_MASKSHIFT)); // temp_2 = mask
+			LW(TEMP_3, TEMP_3, ADR_LO(SWR_MASKSHIFT)); // temp_3 = shift
+		}
+
+		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2); // $a1 = mem_val & mask
 
 		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_MASK);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_MASK);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-		AND(MIPSREG_A1, MIPSREG_V0, TEMP_2);
-
-		if (insn == 0xa8000000) // SWL
-			LI32(TEMP_2, (u32)SWL_SHIFT);
-		else			// SWR
-			LI32(TEMP_2, (u32)SWR_SHIFT);
-
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-		LW(TEMP_2, TEMP_2, 0);
-
-		if (insn == 0xa8000000) // SWL
-			SRLV(TEMP_3, r2, TEMP_2);
-		else			// SWR
-			SLLV(TEMP_3, r2, TEMP_2);
+			SRLV(TEMP_1, r2, TEMP_3);        // temp_1 = new_data >> shift
+		else                    // SWR
+			SLLV(TEMP_1, r2, TEMP_3);        // temp_1 = new_data << shift
 
 		JAL(psxMemWrite32);
-		OR(MIPSREG_A1, MIPSREG_A1, TEMP_3); // <BD> Branch delay slot
+		OR(MIPSREG_A1, MIPSREG_A1, TEMP_1);  // <BD> $a1 |= temp_1
 
 		PC += 4;
 
