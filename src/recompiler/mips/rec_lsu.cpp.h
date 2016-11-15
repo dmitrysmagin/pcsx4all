@@ -842,11 +842,25 @@ static void gen_SWL_SWR(int count)
 
 	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
+
+	LW(TEMP_3, PERM_REG_1, off(reserved)); // load addr of code block ptr array
 	do {
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		s32 imm = _fImm_(opcode);
 		u32 rt = _fRt_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+		/* Invalidate recRAM[addr+imm16] pointer */
+		if (icount != count) {
+			// No need to do this for the first store of the series,
+			//  as it was already done for us during initial checks.
+			ADDIU(MIPSREG_A0, r1, imm);
+		}
+		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 		if (icount == 1) {
 			// This is the end of the loop
@@ -855,7 +869,7 @@ static void gen_SWL_SWR(int count)
 			// NOTE: Branch delay slot will contain the instruction below
 		}
 		// Important: this should be the last instruction in the loop (is BD slot of exit branch)
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+		SW(0, TEMP_1, 0);  // set code block ptr to NULL
 
 		PC += 4;
 
