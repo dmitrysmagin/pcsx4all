@@ -661,6 +661,9 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 					gpu_unai.v4 += (gpu_unai.dv4 * itmp) >> FIXED_BITS;
 				}
 
+				gpu_unai.u4 += fixed_HALF;
+				gpu_unai.v4 += fixed_HALF;
+
 				if ((xmin - xa) > 0) {
 					gpu_unai.u4 += gpu_unai.du4 * (xmin - xa);
 					gpu_unai.v4 += gpu_unai.dv4 * (xmin - xa);
@@ -999,6 +1002,10 @@ void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 					gpu_unai.g4 += (gpu_unai.dg4 * itmp) >> FIXED_BITS;
 					gpu_unai.b4 += (gpu_unai.db4 * itmp) >> FIXED_BITS;
 				}
+
+				gpu_unai.r4 += fixed_HALF;
+				gpu_unai.g4 += fixed_HALF;
+				gpu_unai.b4 += fixed_HALF;
 
 				if ((xmin - xa) > 0) {
 					gpu_unai.r4 += (gpu_unai.dr4 * (xmin - xa));
@@ -1388,6 +1395,12 @@ void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 					gpu_unai.g4 += (gpu_unai.dg4 * itmp) >> FIXED_BITS;
 					gpu_unai.b4 += (gpu_unai.db4 * itmp) >> FIXED_BITS;
 				}
+
+				gpu_unai.u4 += fixed_HALF;
+				gpu_unai.v4 += fixed_HALF;
+				gpu_unai.r4 += fixed_HALF;
+				gpu_unai.g4 += fixed_HALF;
+				gpu_unai.b4 += fixed_HALF;
 
 				if ((xmin - xa) > 0) {
 					gpu_unai.u4 += gpu_unai.du4 * (xmin - xa);
