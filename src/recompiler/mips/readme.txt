@@ -32,15 +32,16 @@ What's already done:
 
  TODO list
 
-* games to fix (they work with interpreter_pcsx):
-  - Next Tetris (hangs after intro)
-  - Skullmonkeys (crashes)
-  - Jackie Chan Stuntmaster (hangs after logo)
-
 * recompiler:
+  - Implement branches in branch delay slots:
+     # Next Tetris (hangs after intro)
+     # Jackie Chan Stuntmaster (hangs after logo)
+     # Contra - Legacy Wars (broken gfx in menu, otherwise playable)
+  - Implement load delay in delay slots for JR/JALR:
+     # Skullmonkeys (crashes)
+  - Test more games from this list:
+     https://github.com/libretro-mirrors/mednafen-git/blob/master/src/psx/notes/PROBLEMATIC-GAMES
   - Implement more GTE code generation (if reasonable)
-  - Implement branches in branch delay slots, more here:
-    https://github.com/libretro-mirrors/mednafen-git/blob/master/src/psx/notes/PROBLEMATIC-GAMES
 
 * constants caching
   For now it's very limited, used by ADDIU, ORI, LUI and memory operations
