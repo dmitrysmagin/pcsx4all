@@ -566,9 +566,44 @@ static void recJR()
 	end_block = 1;
 }
 
+static void recJALR_load_delay()
+{
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
+	LI32(rd, pc + 4);
+	regMipsChanged(_Rd_);
+
+	regClearJump();
+
+	LI32(MIPSREG_A0, pc);
+	JAL(execBranchLoadDelay);
+	MOV(MIPSREG_A1, br1); // <BD>
+
+	// $v0 here contains jump address returned from execBranchLoadDelay()
+
+	rec_recompile_end_part1();
+	pc += 4;
+	regUnlock(br1);
+	rec_recompile_end_part2();
+
+	cycles_pending = 0;
+
+	end_block = 1;
+
+}
+
 static void recJALR()
 {
 // jalr Rs
+	u32 code = *(u32 *)((char *)PSXM(pc)); // opcode in branch delay
+
+	// if possible read delay in branch delay slot
+	if (iLoadTest(code)) {
+		recJALR_load_delay();
+
+		return;
+	}
+
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 	LI32(rd, pc + 4);
