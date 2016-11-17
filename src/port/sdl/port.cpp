@@ -803,11 +803,11 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 	#ifdef GPU_UNAI
-		gpu_unai_config_ext.pixel_skip = 0;
+		gpu_unai_config_ext.pixel_skip = 1;
 		gpu_unai_config_ext.lighting = 1;
-		gpu_unai_config_ext.fast_lighting = 0;
+		gpu_unai_config_ext.fast_lighting = 1;
 		gpu_unai_config_ext.blending = 1;
-		gpu_unai_config_ext.dithering = 1;
+		gpu_unai_config_ext.dithering = 0;
 	#endif
 
 	// Load config from file.
@@ -873,14 +873,21 @@ int main (int argc, char **argv)
 		// Render only every other line (looks ugly but faster)
 		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; }
 
+		// Allow 24bpp->15bpp dithering (only polys, only if PS1 game uses it)
+		if (strcmp(argv[i],"-dither")==0) { gpu_unai_config_ext.dithering = 1; }
+
 		if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
 		if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
-		if (strcmp(argv[i],"-nodither")==0) { gpu_unai_config_ext.dithering = 0; }
-		if (strcmp(argv[i],"-fastlight")==0) { gpu_unai_config_ext.fast_lighting = 1; }
-		// Skips rendering pixels in hi-res 512,640 PSX modes, when those
-		//  pixels would never appear on 320x240 screen (when using pixel-dropping
-		//  downscaler). WARNING: Can cause visual artifacts.
-		if (strcmp(argv[i],"-pixelskip")==0) { gpu_unai_config_ext.pixel_skip = 1; }
+
+		// Apply lighting to all primitives. Default is to only light primitives
+		//  with light values below a certain threshold (for speed).
+		if (strcmp(argv[i],"-nofastlight")==0) { gpu_unai_config_ext.fast_lighting = 0; }
+
+		// Render all pixels on a horizontal line, even when in hi-res 512,640
+		//  PSX vid modes and those pixels would never appear on 320x240 screen.
+		//  (when using pixel-dropping downscaler).
+		//  Can cause visual artifacts, default is on for now (for speed)
+		if (strcmp(argv[i],"-nopixelskip")==0) { gpu_unai_config_ext.pixel_skip = 0; }
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
 		#ifndef USE_GPULIB
