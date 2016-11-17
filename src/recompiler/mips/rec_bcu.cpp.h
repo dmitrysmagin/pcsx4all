@@ -480,7 +480,7 @@ static void recJAL()
 extern void (*psxBSC[64])(void);
 
 /* HACK: Execute load delay in branch delay via interpreter */
-static u32 execLoadDelayJR(u32 pc, u32 bpc)
+static u32 execBranchLoadDelay(u32 pc, u32 bpc)
 {
 	u32 code1 = *(u32 *)((char *)PSXM(pc));
 	u32 code2 = *(u32 *)((char *)PSXM(bpc));
@@ -519,16 +519,16 @@ static u32 execLoadDelayJR(u32 pc, u32 bpc)
 	return bpc + 4;
 }
 
-static void recJR_read_delay()
+static void recJR_load_delay()
 {
 	regClearJump();
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 
 	LI32(MIPSREG_A0, pc);
-	JAL(execLoadDelayJR);
+	JAL(execBranchLoadDelay);
 	MOV(MIPSREG_A1, br1); // <BD>
 
-	// $v0 here contains jump address returned from execLoadDelayJR()
+	// $v0 here contains jump address returned from execBranchLoadDelay()
 
 	rec_recompile_end_part1();
 	pc += 4;
@@ -547,7 +547,7 @@ static void recJR()
 
 	// if possible read delay in branch delay slot
 	if (iLoadTest(code)) {
-		recJR_read_delay();
+		recJR_load_delay();
 
 		return;
 	}
