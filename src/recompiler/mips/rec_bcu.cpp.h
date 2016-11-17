@@ -477,9 +477,81 @@ static void recJAL()
 	iJumpAL(_Target_ * 4 + (pc & 0xf0000000), (pc + 4));
 }
 
+extern void (*psxBSC[64])(void);
+
+/* HACK: Execute load delay in branch delay via interpreter */
+static u32 execLoadDelayJR(u32 pc, u32 bpc)
+{
+	u32 code1 = *(u32 *)((char *)PSXM(pc));
+	u32 code2 = *(u32 *)((char *)PSXM(bpc));
+	u32 reg, rold, rnew;
+
+	branch = 1;
+
+	psxRegs.code = code1;
+	reg = _fRt_(code1);
+
+	switch (psxTestLoadDelay(reg, code2)) {
+	case 1:		// No branch delay
+		branch = 0;
+		return bpc;
+	case 0:
+	case 3:		// Simple branch delay
+		psxBSC[code1 >> 26](); // branch delay load
+		branch = 0;
+		return bpc;
+	case 2:		// branch delay + load delay
+		break;
+	}
+
+	rold = psxRegs.GPR.r[reg];
+	psxBSC[code1 >> 26](); // branch delay load
+	rnew = psxRegs.GPR.r[reg];
+
+	psxRegs.code = code2;
+
+	psxRegs.GPR.r[reg] = rold;
+	psxBSC[code2 >> 26](); // first branch opcode
+	psxRegs.GPR.r[reg] = rnew;
+
+	branch = 0;
+
+	return bpc + 4;
+}
+
+static void recJR_read_delay()
+{
+	regClearJump();
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+
+	LI32(MIPSREG_A0, pc);
+	JAL(execLoadDelayJR);
+	MOV(MIPSREG_A1, br1); // <BD>
+
+	// $v0 here contains jump address returned from execLoadDelayJR()
+
+	rec_recompile_end_part1();
+	pc += 4;
+	regUnlock(br1);
+	rec_recompile_end_part2();
+
+	cycles_pending = 0;
+
+	end_block = 1;
+}
+
 static void recJR()
 {
 // jr Rs
+	u32 code = *(u32 *)((char *)PSXM(pc)); // opcode in branch delay
+
+	// if possible read delay in branch delay slot
+	if (iLoadTest(code)) {
+		recJR_read_delay();
+
+		return;
+	}
+
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	recDelaySlot();
 
