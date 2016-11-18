@@ -265,7 +265,7 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	int dt = DelayTest(pc, bpc);
 	if (dt == 2) {
 		regClearJump();
-	} else {
+	} else if (dt == 3 || dt == 0) {
 		recDelaySlot();
 	}
 
@@ -315,6 +315,8 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 
 	if (dt == 2) {
 		regReset(); // FIXME: Maybe not needed
+		recDelaySlot();
+	} else if (dt == 1) {
 		recDelaySlot();
 	}
 }
