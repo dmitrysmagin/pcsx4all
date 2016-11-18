@@ -218,6 +218,24 @@ static int DelayTest(u32 pc, u32 bpc)
 	u32 code2 = *(u32 *)((char *)PSXM(bpc));
 	u32 reg = _fRt_(code1);
 
+//#define LOG_BRANCHLOADDELAYS
+#ifdef LOG_BRANCHLOADDELAYS
+	if (iLoadTest(code1)) {
+		int i = psxTestLoadDelay(reg, code2);
+		if (i == 1 || i == 2) {
+			char buffer[512];
+			printf("Case %d at %08x\n", i, pc);
+			u32 jcode = *(u32 *)((char *)PSXM(pc - 4));
+			disasm_mips_instruction(jcode, buffer, pc - 4, 0, 0);
+			printf("%08x: %s\n", pc - 4, buffer);
+			disasm_mips_instruction(code1, buffer, pc, 0, 0);
+			printf("%08x: %s\n", pc, buffer);
+			disasm_mips_instruction(code2, buffer, bpc, 0, 0);
+			printf("%08x: %s\n\n", bpc, buffer);
+		}
+	}
+#endif
+
 	if (iLoadTest(code1)) {
 		return psxTestLoadDelay(reg, code2);
 		// 1: delayReadWrite	// the branch delay load is skipped
@@ -324,11 +342,16 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 /* Used for BEQ and BNE */
 static void emitBxx(u32 bpc)
 {
+#ifdef LOG_BRANCHLOADDELAYS
+	u32 dt = DelayTest(pc, bpc);
+#endif
+
 	u32 code = psxRegs.code;
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	recDelaySlot();
 	u32 *backpatch = (u32 *)recMem;
+
 
 	// Check opcode and emit branch with REVERSED logic!
 	switch (code & 0xfc000000) {
@@ -356,6 +379,10 @@ static void emitBxx(u32 bpc)
 
 static void iJumpNormal(u32 bpc)
 {
+#ifdef LOG_BRANCHLOADDELAYS
+	u32 dt = DelayTest(pc, bpc);
+#endif
+
 	recDelaySlot();
 
 	rec_recompile_end_part1();
@@ -370,6 +397,10 @@ static void iJumpNormal(u32 bpc)
 
 static void iJumpAL(u32 bpc, u32 nbpc)
 {
+#ifdef LOG_BRANCHLOADDELAYS
+	u32 dt = DelayTest(pc, bpc);
+#endif
+
 	recDelaySlot();
 
 	rec_recompile_end_part1();
@@ -488,6 +519,21 @@ static u32 execBranchLoadDelay(u32 pc, u32 bpc)
 	u32 code2 = *(u32 *)((char *)PSXM(bpc));
 
 	branch = 1;
+
+#ifdef LOG_BRANCHLOADDELAYS
+	int i = psxTestLoadDelay(_fRt_(code1), code2);
+	if (i == 1 || i == 2) {
+		char buffer[512];
+		printf("Case %d at %08x\n", i, pc);
+		u32 jcode = *(u32 *)((char *)PSXM(pc - 4));
+		disasm_mips_instruction(jcode, buffer, pc - 4, 0, 0);
+		printf("%08x: %s\n", pc - 4, buffer);
+		disasm_mips_instruction(code1, buffer, pc, 0, 0);
+		printf("%08x: %s\n", pc, buffer);
+		disasm_mips_instruction(code2, buffer, bpc, 0, 0);
+		printf("%08x: %s\n\n", bpc, buffer);
+	}
+#endif
 
 	switch (psxTestLoadDelay(_fRt_(code1), code2)) {
 	case 2:		// branch delay + load delay
