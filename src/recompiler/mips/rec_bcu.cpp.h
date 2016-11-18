@@ -484,39 +484,29 @@ static u32 execBranchLoadDelay(u32 pc, u32 bpc)
 {
 	u32 code1 = *(u32 *)((char *)PSXM(pc));
 	u32 code2 = *(u32 *)((char *)PSXM(bpc));
-	u32 reg, rold, rnew;
 
 	branch = 1;
 
-	psxRegs.code = code1;
-	reg = _fRt_(code1);
+	switch (psxTestLoadDelay(_fRt_(code1), code2)) {
+	case 2:		// branch delay + load delay
+		psxRegs.code = code2;
+		psxBSC[code2 >> 26](); // first branch opcode
 
-	switch (psxTestLoadDelay(reg, code2)) {
-	case 1:		// No branch delay
-		branch = 0;
-		return bpc;
+		bpc += 4;
+		// intentional fallthrough here!
 	case 0:
 	case 3:		// Simple branch delay
+		psxRegs.code = code1;
 		psxBSC[code1 >> 26](); // branch delay load
-		branch = 0;
-		return bpc;
-	case 2:		// branch delay + load delay
+
+		// again intentional fallthrough here!
+	case 1:		// No branch delay
 		break;
 	}
 
-	rold = psxRegs.GPR.r[reg];
-	psxBSC[code1 >> 26](); // branch delay load
-	rnew = psxRegs.GPR.r[reg];
-
-	psxRegs.code = code2;
-
-	psxRegs.GPR.r[reg] = rold;
-	psxBSC[code2 >> 26](); // first branch opcode
-	psxRegs.GPR.r[reg] = rnew;
-
 	branch = 0;
 
-	return bpc + 4;
+	return bpc;
 }
 
 static void recJR_load_delay()
