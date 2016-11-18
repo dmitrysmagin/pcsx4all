@@ -25,11 +25,18 @@
 void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 {
 	s32 x0, x1, y0, y1;
-	s32 u0, v0;
-	x1 = x0 = GPU_EXPANDSIGN(packet.S2[2]) + gpu_unai.DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN(packet.S2[3]) + gpu_unai.DrawingOffset[1];
-	x1 += (packet.U2[6] & 0x3ff); // Max width is 1023
-	y1 += (packet.U2[7] & 0x1ff); // Max height is 511
+	u32 u0, v0;
+
+	//NOTE: Must 11-bit sign-extend the whole sum here, not just packet X/Y,
+	// or sprites in 1st level of SkullMonkeys disappear when walking right.
+	// This now matches behavior of Mednafen and PCSX Rearmed's gpu_neon:
+	x0 = GPU_EXPANDSIGN(packet.S2[2] + gpu_unai.DrawingOffset[0]);
+	y0 = GPU_EXPANDSIGN(packet.S2[3] + gpu_unai.DrawingOffset[1]);
+
+	u32 w = packet.U2[6] & 0x3ff; // Max width is 1023
+	u32 h = packet.U2[7] & 0x1ff; // Max height is 511
+	x1 = x0 + w;
+	y1 = y0 + h;
 
 	s32 xmin, xmax, ymin, ymax;
 	xmin = gpu_unai.DrawingArea[0];	xmax = gpu_unai.DrawingArea[2];
@@ -38,9 +45,9 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 	u0 = packet.U1[8];
 	v0 = packet.U1[9];
 
-	gpu_unai.r4 = s32(packet.U1[0]);
-	gpu_unai.g4 = s32(packet.U1[1]);
-	gpu_unai.b4 = s32(packet.U1[2]);
+	gpu_unai.r4 = packet.U1[0];
+	gpu_unai.g4 = packet.U1[1];
+	gpu_unai.b4 = packet.U1[2];
 
 	s32 temp;
 	temp = ymin - y0;
@@ -105,8 +112,11 @@ void gpuDrawS16(PtrUnion packet)
 	s32 ymin, ymax;
 	u32 h = 16;
 
-	x0 = GPU_EXPANDSIGN(packet.S2[2]) + gpu_unai.DrawingOffset[0];
-	y0 = GPU_EXPANDSIGN(packet.S2[3]) + gpu_unai.DrawingOffset[1];
+	//NOTE: Must 11-bit sign-extend the whole sum here, not just packet X/Y,
+	// or sprites in 1st level of SkullMonkeys disappear when walking right.
+	// This now matches behavior of Mednafen and PCSX Rearmed's gpu_neon:
+	x0 = GPU_EXPANDSIGN(packet.S2[2] + gpu_unai.DrawingOffset[0]);
+	y0 = GPU_EXPANDSIGN(packet.S2[3] + gpu_unai.DrawingOffset[1]);
 
 	xmin = gpu_unai.DrawingArea[0];	xmax = gpu_unai.DrawingArea[2];
 	ymin = gpu_unai.DrawingArea[1];	ymax = gpu_unai.DrawingArea[3];
@@ -139,10 +149,15 @@ void gpuDrawS16(PtrUnion packet)
 void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
 {
 	s32 x0, x1, y0, y1;
-	x1 = x0 = GPU_EXPANDSIGN(packet.S2[2]) + gpu_unai.DrawingOffset[0];
-	y1 = y0 = GPU_EXPANDSIGN(packet.S2[3]) + gpu_unai.DrawingOffset[1];
-	x1 += (packet.U2[4] & 0x3ff); // Max width is 1023
-	y1 += (packet.U2[5] & 0x1ff); // Max height is 511
+
+	// This now matches behavior of Mednafen and PCSX Rearmed's gpu_neon:
+	x0 = GPU_EXPANDSIGN(packet.S2[2] + gpu_unai.DrawingOffset[0]);
+	y0 = GPU_EXPANDSIGN(packet.S2[3] + gpu_unai.DrawingOffset[1]);
+
+	u32 w = packet.U2[4] & 0x3ff; // Max width is 1023
+	u32 h = packet.U2[5] & 0x1ff; // Max height is 511
+	x1 = x0 + w;
+	y1 = y0 + h;
 
 	s32 xmin, xmax, ymin, ymax;
 	xmin = gpu_unai.DrawingArea[0];	xmax = gpu_unai.DrawingArea[2];
