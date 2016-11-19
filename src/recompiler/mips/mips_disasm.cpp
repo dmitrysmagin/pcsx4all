@@ -68,6 +68,15 @@ const char *mips_function_regimm_names[] =
   "???",    "???",    "???",     "???",     "???", "???", "???", "???",
 };
 
+const char *mips_cop2_rs_names[] =
+{
+  // 0     1      2       3      4       5      6       7
+  "mfc2", "???", "cfc2", "???", "mtc2", "???", "ctc2", "???",
+  // 8     9      a       b      c       d      e      f
+  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+};
 
 typedef enum
 {
@@ -82,6 +91,7 @@ typedef enum
   MIPS_OPCODE_SPECIAL2,
   MIPS_OPCODE_SPECIAL3,
   MIPS_OPCODE_MEM,
+  MIPS_OPCODE_CP2,
   MIPS_OPCODE_UNKNOWN
 } mips_opcode_type;
 
@@ -119,7 +129,7 @@ mips_opcode_type mips_opcode_types[] =
   MIPS_OPCODE_ALU_IMMU, MIPS_OPCODE_ALU2_IMMU,
 
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
+  MIPS_OPCODE_CP2,      MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
 
@@ -498,6 +508,21 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
          (int)offset);
       }
       break;
+    }
+
+    case MIPS_OPCODE_CP2:
+    {
+        // check func field
+        if (op_bits(0, 0x3f) == 0) {
+            sprintf(buffer, "%s %s, reg(%d)",
+                 mips_cop2_rs_names[op_bits(reg_rs, 0x1f)],
+                 reg_op(reg_rt),
+                 op_bits(reg_rd, 0x1f)
+		);
+        } else {
+            sprintf(buffer, "unknown");
+        }
+        break;
     }
 
     default:
