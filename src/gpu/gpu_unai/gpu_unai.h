@@ -220,10 +220,10 @@ struct gpu_unai_t {
 	//u32   tInc, tMsk;
 	u32   u4_msk, v4_msk;
 
-	u32 blit_mask;          // Determines what pixels to skip when rendering.
+	u8 blit_mask;           // Determines what pixels to skip when rendering.
 	                        //  Only useful on low-resolution devices using
 	                        //  a simple pixel-dropping downscaler for PS1
-                            //  high-res modes. See 'pixel_skip' option.
+	                        //  high-res modes. See 'pixel_skip' option.
 
 	u8 ilace_mask;          // Determines what lines to skip when rendering.
 	                        //  Normally 0 when PS1 240 vertical res is in

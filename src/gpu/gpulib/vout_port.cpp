@@ -422,7 +422,7 @@ void vout_update(void)
 	}
 #endif
 
-	int x0 = gpu.screen.x & ~1; // alignment needed by blitter
+	int x0 = gpu.screen.x;
 	int y0 = gpu.screen.y;
 	int w0 = gpu.screen.hres;
 	int h0 = gpu.screen.vres;

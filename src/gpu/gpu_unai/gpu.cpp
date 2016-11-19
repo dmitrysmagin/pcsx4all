@@ -48,11 +48,14 @@ typedef struct {
 //senquack - Original 512KB of guard space seems not to be enough, as Xenogears
 // accesses outside this range and crashes in town intro fight sequence.
 // Increased to 2MB total (double PSX VRAM) and Xenogears no longer
-// crashes, but some textures are still messed up. Also note that alignment
-// is increased to 2048 (Rearmed behavior) which should give some more guard room.
-// TODO: Determine cause of out-of-bounds write/reads.
+// crashes, but some textures are still messed up. Also note that alignment min
+// is 16 bytes, needed for pixel-skipping rendering/blitting in high horiz res.
+// Extra 4KB is for guard room at beginning.
+// TODO: Determine cause of out-of-bounds write/reads. <-- Note: this is largely
+//  solved by adoption of PCSX Rearmed's 'gpulib' in gpulib_if.cpp, which
+//  replaces this file (gpu.cpp)
 //u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(32)));
-static u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2)/2] __attribute__((aligned(2048)));
+static u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2 + 4096)/2] __attribute__((aligned(32)));
 
 ///////////////////////////////////////////////////////////////////////////////
 // GPU fixed point math
@@ -86,7 +89,7 @@ static u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2)/2] __attribute__((aligned(2048)
 static void gpuReset(void)
 {
 	memset((void*)&gpu_unai, 0, sizeof(gpu_unai));
-	gpu_unai.vram = (u16*)GPU_FrameBuffer;
+	gpu_unai.vram = (u16*)GPU_FrameBuffer + (4096/2); //4kb guard room in front
 	gpu_unai.GPU_GP1 = 0x14802000;
 	gpu_unai.DrawingArea[2] = 256;
 	gpu_unai.DrawingArea[3] = 240;

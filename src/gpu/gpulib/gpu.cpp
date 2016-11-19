@@ -144,16 +144,31 @@ static noinline void get_gpu_info(uint32_t data)
   }
 }
 
-// double, for overdraw guard
-#define VRAM_SIZE (1024 * 512 * 2 * 2)
+// double, for overdraw guard, plus 4kb front guard,
+#define VRAM_SIZE ((1024 * 512 * 2 * 2) + 4096)
+
+//  Minimum 16-byte VRAM alignment needed by gpu_unai's pixel-skipping
+//  renderer/downscaler it uses in high res modes:
+#ifdef GCW_ZERO
+	// On GCW platform (MIPS), align to 8192 bytes (1 TLB entry) to reduce # of
+	// fills. (Will change this value if it ever gets large page support)
+	#define VRAM_ALIGN 8192
+#else
+	#define VRAM_ALIGN 16
+#endif
+
+// vram ptr received from mmap/malloc/alloc (will deallocate using this)
+static uint16_t *vram_ptr_orig = NULL;
 
 #ifdef GPULIB_USE_MMAP
 static int map_vram(void)
 {
-  // 2048-byte guard in front
-  gpu.vram = gpu.mmap(VRAM_SIZE + 4096/2);
+  gpu.vram = vram_ptr_orig = gpu.mmap(VRAM_SIZE + (VRAM_ALIGN-1));
   if (gpu.vram != NULL) {
-    gpu.vram += 4096 / 2;
+	// 4kb guard in front
+    gpu.vram += (4096 / 2);
+	// Align
+	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
     return 0;
   }
   else {
@@ -164,10 +179,12 @@ static int map_vram(void)
 #else
 static int allocate_vram(void)
 {
-  // 2048-byte guard in front
-  gpu.vram = (uint16_t*)calloc(VRAM_SIZE + 4096/2, 1);
+  gpu.vram = vram_ptr_orig = (uint16_t*)calloc(VRAM_SIZE + (VRAM_ALIGN-1), 1);
   if (gpu.vram != NULL) {
-    gpu.vram += 4096 / 2;
+	// 4kb guard in front
+    gpu.vram += (4096 / 2);
+	// Align
+	gpu.vram = (uint16_t*)(((uintptr_t)gpu.vram + (VRAM_ALIGN-1)) & ~(VRAM_ALIGN-1));
     return 0;
   } else {
     fprintf(stderr, "could not allocate vram, expect crashes\n");
@@ -208,15 +225,14 @@ long GPU_shutdown(void)
   renderer_finish();
   long ret = vout_finish();
 
-  if (gpu.vram != NULL) {
-    gpu.vram -= 4096 / 2;
+  if (vram_ptr_orig != NULL) {
 #ifdef GPULIB_USE_MMAP
-    gpu.munmap(gpu.vram, VRAM_SIZE);
+    gpu.munmap(vram_ptr_orig, VRAM_SIZE);
 #else
-    free(gpu.vram);
+    free(vram_ptr_orig);
 #endif
   }
-  gpu.vram = NULL;
+  vram_ptr_orig = gpu.vram = NULL;
 
   return ret;
 }
