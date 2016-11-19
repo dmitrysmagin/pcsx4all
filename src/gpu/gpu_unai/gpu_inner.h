@@ -465,14 +465,18 @@ const PS gpuSpriteSpanDrivers[256] = {
 //             through a function pointer.
 //           * Function now ensures the mask bit of source texture is preserved
 //             across calls to blending functions (Silent Hill rectangles fix)
+//           * November 2016: Large refactoring of blending/lighting when
+//             JohnnyF added dithering. See gpu_inner_quantization.h and
+//             relevant blend/light headers.
 // (see README_senquack.txt)
 template<const int CF>
 static void gpuPolySpanFn(u16 *pDst, u32 count)
 {
 	static const u16 uMsk = 0x7BDE;
+	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
 
 	if (!CF_TEXTMODE)
-	{	
+	{
 		// NO TEXTURE
 		if (!CF_GOURAUD)
 		{
@@ -485,8 +489,9 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 				do {
 					uSrc = gpu_unai.PixelData;
 
+					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) { pDst++; continue; } }
 					if (CF_BLEND || CF_MASKCHECK) uDst = *pDst;
-					if (CF_MASKCHECK) { if (uDst&0x8000) { goto endpolynotextnogou; } }
+					if (CF_MASKCHECK) { if (uDst&0x8000) { pDst++; continue; } }
 
 					if (CF_BLEND) {
 						if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
@@ -495,10 +500,9 @@ static void gpuPolySpanFn(u16 *pDst, u32 count)
 						if (CF_BLENDMODE==3) gpuBlending03(uSrc, uDst);
 					}
 
-					if (CF_MASKSET) { uSrc = uSrc | 0x8000; }
-					*pDst = uSrc;
-endpolynotextnogou:
-					pDst++;
+					if (CF_MASKSET) { *pDst++ = uSrc | 0x8000; }
+					else            { *pDst++ = uSrc;          }
+
 
 				} while(--count);
 			}
@@ -511,17 +515,18 @@ endpolynotextnogou:
 				do {
 					uSrc = sSrc;
 
-					if (CF_BLEND) {
-						uDst = *pDst;
-						if (CF_MASKCHECK) { if (uDst&0x8000) { pDst++; continue; } }
+					if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) { pDst++; continue; } }
+					if (CF_BLEND || CF_MASKCHECK) uDst = *pDst;
+					if (CF_MASKCHECK) { if (uDst&0x8000) { pDst++; continue; } }
 
+					if (CF_BLEND) {
 						doGpuPolyBlend<CF_BLENDMODE>(uSrc, uDst);
 					}
 
 					gpuColorQuantization<CF_DITHER>(uSrc, pDst);
 
-					if (CF_MASKSET) { *pDst++ = ((u16)uSrc) | 0x8000; }
-					else            { *pDst++ = ((u16)uSrc);          }
+					if (CF_MASKSET) { *pDst++ = uSrc | 0x8000; }
+					else            { *pDst++ = uSrc;          }
 
 				} while(--count);
 			}
@@ -537,12 +542,10 @@ endpolynotextnogou:
 			//u32 lCol=((u32)(gpu_unai.b4>>14)&(0x03ff)) | ((u32)(gpu_unai.g4>>3)&(0x07ff<<10)) | ((u32)(gpu_unai.r4<<8)&(0x07ff<<21));
 			u32 lCol; getLightGouraud(lCol);
 
-			u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 			do
 			{
-				uDst = *pDst;
-
 				if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolynotextgou; }
+				if (CF_BLEND || CF_MASKCHECK) uDst = *pDst;
 				if (CF_MASKCHECK) { if (uDst&0x8000) goto endpolynotextgou; }
 
 				gpuLightingRGB24(uSrc,lCol);
@@ -553,8 +556,8 @@ endpolynotextnogou:
 
 				gpuColorQuantization<CF_DITHER>(uSrc, pDst);
 
-				if (CF_MASKSET) { *pDst = ((u16)uSrc) | 0x8000; }
-				else            { *pDst = ((u16)uSrc);          }
+				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
+				else            { *pDst = uSrc;          }
 
 endpolynotextgou:
 				pDst++;
@@ -567,14 +570,10 @@ endpolynotextgou:
 	{
 		// TEXTURED
 
-		//senquack - 'Silent Hill' white rectangles around characters fix:
-		// MSB of pixel from source texture was not preserved across calls to
-		// gpuBlendingXX() macros.. we must save it if calling them:
-		u16 srcMSB;
-
 		// TEXTURE
 		u16 uDst;
 		u32 uSrc;
+		u16 srcMSB;
 		u32 linc; if (CF_LIGHT && CF_GOURAUD) linc=gpu_unai.lInc;
 
 		//senquack - note: original UNAI code had gpu_unai.{u4/v4} packed into
@@ -597,8 +596,6 @@ endpolynotextgou:
 		// line needed no adjustment for fixed point changes.
 		if (CF_LIGHT && !CF_GOURAUD) getLightNoGouraud(lCol);
 		if (CF_LIGHT &&  CF_GOURAUD) getLightGouraud(lCol);
-
-		u32 bMsk; if (CF_BLITMASK) bMsk=gpu_unai.blit_mask;
 
 		do
 		{
@@ -624,8 +621,8 @@ endpolynotextgou:
 				if (!uSrc) goto endpolytext;
 			}
 
-			//senquack - save source MSB, as blending or lighting macros will not
-			srcMSB = uSrc & 0x8000;
+			// Save source MSB, as blending or lighting will not (Silent Hill)
+			if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) srcMSB = uSrc & 0x8000;
 
 			// LIGHT &&  BLEND => dither
 			// LIGHT && !BLEND => dither
@@ -643,7 +640,7 @@ endpolynotextgou:
 			}
 			else
 			{
-				if (CF_BLEND && (srcMSB&0x8000)) {
+				if (CF_BLEND && (uSrc&0x8000)) {
 					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
 					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
 					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
