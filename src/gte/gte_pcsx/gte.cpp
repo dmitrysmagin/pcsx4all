@@ -220,7 +220,12 @@ INLINE u32 limE(u32 result) {
 #define F(a) BOUNDS((a), 0x7fffffff, (1 << 31) | (1 << 16), -(s64)0x80000000, (1 << 31) | (1 << 15))
 #define limG1(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 14))
 #define limG2(a) LIM((a), 0x3ff, -0x400, (1 << 31) | (1 << 13))
-#define limH(a) LIM((a), 0xfff, 0x000, (1 << 12))
+//Fix for Valkyrie Profile crash loading world map
+// (PCSX Rearmed commit 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
+//  'seems to work, unverified value')
+//#define limH(a) LIM((a), 0xfff, 0x000, (1 << 12))
+#define limH(a) LIM((a), 0x1000, 0x0000, (1 << 12))
+
 
 #ifdef PARANOID_OVERFLOW_CHECKING
 #define A1U A1
