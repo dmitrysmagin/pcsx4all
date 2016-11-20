@@ -242,6 +242,9 @@ INLINE u32 DIVIDE(s16 n, u16 d) {
 */
 #include "gte_divide.h"
 
+//senquack - Applied fixes from PCSX Rearmed 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
+// Case 28 now falls through to case 29, and don't return 0 for case 30
+// Fixes main menu freeze in 'Lego Racers'
 u32 gtecalcMFC2(int reg) {
 	switch(reg) {
 		case 1:
@@ -267,9 +270,6 @@ u32 gtecalcMFC2(int reg) {
 			break;
 
 		case 28:
-		case 30:
-			return 0;
-
 		case 29:
 			psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
 									(LIM(gteIR2 >> 7, 0x1f, 0, 0) << 5) |

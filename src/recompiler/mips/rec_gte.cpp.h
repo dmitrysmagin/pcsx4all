@@ -117,11 +117,8 @@ static void emitMFC2(u32 rt, u32 reg)
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
 		break;
 
-	case 28: case 30:
-		MOV(rt, 0);
-		break;
-
-	case 29:
+	//senquack - Applied fix, see comment in gte_pcsx/gte.cpp gtecalcMTC2()
+	case 28: case 29:
 		LW(rt, PERM_REG_1, off(CP2D.r[9])); // gteIR1
 		SRA(rt, rt, 7);
 		emitLIM(rt);
