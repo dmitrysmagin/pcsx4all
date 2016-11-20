@@ -119,14 +119,14 @@ static void emitMFC2(u32 rt, u32 reg)
 
 	//senquack - Applied fix, see comment in gte_pcsx/gte.cpp gtecalcMTC2()
 	case 28: case 29:
-		LW(rt, PERM_REG_1, off(CP2D.r[9])); // gteIR1
+		LH(rt, PERM_REG_1, off(CP2D.p[9].sw.l)); // gteIR1
 		SRA(rt, rt, 7);
 		emitLIM(rt);
-		LW(TEMP_1, PERM_REG_1, off(CP2D.r[10])); // gteIR2
+		LH(TEMP_1, PERM_REG_1, off(CP2D.p[10].sw.l)); // gteIR2
 		SRA(TEMP_1, TEMP_1, 7);
 		emitLIM(TEMP_1);
 		INS(rt, TEMP_1, 5, 5);
-		LW(TEMP_1, PERM_REG_1, off(CP2D.r[11])); // gteIR3
+		LH(TEMP_1, PERM_REG_1, off(CP2D.p[11].sw.l)); // gteIR3
 		SRA(TEMP_1, TEMP_1, 7);
 		emitLIM(TEMP_1);
 		INS(rt, TEMP_1, 10, 5);
