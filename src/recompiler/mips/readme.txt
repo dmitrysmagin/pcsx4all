@@ -28,17 +28,15 @@ What's already done:
  - Block recompilation is reworked to match pcsx4all behavior,
    recExecuteBlock is fixed for HLE
  - Moved to interpreter_pcsx and gte_pcsx (Destruction Derby 2 fixed)
- - Implemented partial GTE=>CPU transfer delay slots (Tekken 2 fixed)
+ - Implemented partially load delays in branch delay slots:
+   BGTZ: Tekken 2
+   JR: Tekken 3, Skullmonkeys
 
  TODO list
 
 * recompiler:
-  - Implement branches in branch delay slots:
-     # Next Tetris (hangs after intro)
-     # Jackie Chan Stuntmaster (hangs after logo)
-     # Contra - Legacy Wars (broken gfx in menu, otherwise playable)
-  - Implement load delay in delay slots for JR/JALR:
-     # Skullmonkeys (crashes)
+  - Implement proper page-based code invalidation to support self-modifying code
+  - Implement branches in branch delay slots (Threads of Fate)
   - Test more games from this list:
      https://github.com/libretro-mirrors/mednafen-git/blob/master/src/psx/notes/PROBLEMATIC-GAMES
   - Implement more GTE code generation (if reasonable)
@@ -51,3 +49,8 @@ What's already done:
   For now host registers s0-s7 are allocated, s8 is a pointer to psxRegs
   - Add caching of LO/HI regs
   - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
+
+ Problematic games:
+  - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
+  - R-Types (USA) (works with interpreter + bios)
+  - Next Tetris (works with interpreter/mipsrec + HLE)
