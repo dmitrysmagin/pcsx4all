@@ -527,9 +527,9 @@ void gteSQR(void) {
 	gteMAC1 = (gteIR1 * gteIR1) >> shift;
 	gteMAC2 = (gteIR2 * gteIR2) >> shift;
 	gteMAC3 = (gteIR3 * gteIR3) >> shift;
-	gteIR1 = limB1(gteMAC1 >> shift, lm);
-	gteIR2 = limB2(gteMAC2 >> shift, lm);
-	gteIR3 = limB3(gteMAC3 >> shift, lm);
+	gteIR1 = limB1(gteMAC1, lm);
+	gteIR2 = limB2(gteMAC2, lm);
+	gteIR3 = limB3(gteMAC3, lm);
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
