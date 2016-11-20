@@ -27,8 +27,6 @@
 #define RGB24(R,G,B)  	((((R)&0xF8)>>3)|(((G)&0xF8)<<2)|(((B)&0xF8)<<7))
 #endif
 
-#define	FRAME_OFFSET(x,y)	(((y)<<10)+(x))
-
 #define u8 uint8_t
 #define s8 int8_t
 #define u16 uint16_t
@@ -431,9 +429,13 @@ void vout_update(void)
 	if (w0 == 0 || h0 == 0)
 		return;
 
-	u16* dest_screen16 = SCREEN;
-	u16* src_screen16  = &(((u16*)gpu.vram)[FRAME_OFFSET(x0,y0)]);
 	bool isRGB24 = gpu.status.rgb24;
+	u16* dst16 = SCREEN;
+	u16* src16 = (u16*)gpu.vram;
+
+	// PS1 fb read wraps around (fixes black screen in 'Tobal no. 1')
+	unsigned int src16_offs_msk = 1024*512-1;
+	unsigned int src16_offs = (x0 + y0*1024) & src16_offs_msk;
 
 	//  Height centering
 	int sizeShift = 1;
@@ -442,12 +444,11 @@ void vout_update(void)
 	} else if (h0 == 480) {
 		sizeShift = 2;
 	}
-
 	if (h1 > h0) {
-		src_screen16 += ((h1-h0) / 2) * 1024;
+		src16_offs = (src16_offs + (((h1-h0) / 2) * 1024)) & src16_offs_msk;
 		h1 = h0;
-	} else if (h1<h0) {
-		dest_screen16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
+	} else if (h1 < h0) {
+		dst16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
 	}
 
 	int incY = (h0 == 480) ? 2 : 1;
@@ -457,51 +458,51 @@ void vout_update(void)
 	{
 		case 256: {
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWDWW(src_screen16, dest_screen16, isRGB24);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 
 		case 368: {
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWWWWWWWS(src_screen16, dest_screen16, isRGB24, 4);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 
 		case 320: {
-			//senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
-			src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
+			// Ensure 32-bit alignment for GPU_BlitWW() blitter:
+			src16_offs &= ~1;
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWW(src_screen16, dest_screen16, isRGB24);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 
 		case 384: {
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWWWWS(src_screen16, dest_screen16, isRGB24);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 
 		case 512: {
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWSWWSWS(src_screen16, dest_screen16, isRGB24);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 
 		case 640: {
 			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWS(src_screen16, dest_screen16, isRGB24);
-				dest_screen16 += VIDEO_WIDTH;
-				src_screen16 += h0;
+				GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
+				dst16 += VIDEO_WIDTH;
+				src16_offs = (src16_offs + h0) & src16_offs_msk;
 			}
 		} break;
 	}

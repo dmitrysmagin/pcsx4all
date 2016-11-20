@@ -680,15 +680,28 @@ static void gpuVideoOutput(void)
 	h1 = gpu_unai.DisplayArea[5] - gpu_unai.DisplayArea[4]; // display needed
 	if (h0 == 480) h1 = Min2(h1*2,480);
 
-	u16* dest_screen16 = SCREEN;
-	u16* src_screen16  = (u16*)gpu_unai.vram + FRAME_OFFSET(x0,y0);
 	bool isRGB24 = (gpu_unai.GPU_GP1 & 0x00200000 ? true : false);
+	u16* dst16 = SCREEN;
+	u16* src16 = (u16*)gpu_unai.vram;
+
+	// PS1 fb read wraps around (fixes black screen in 'Tobal no. 1')
+	unsigned int src16_offs_msk = 1024*512-1;
+	unsigned int src16_offs = (x0 + y0*1024) & src16_offs_msk;
 
 	//  Height centering
 	int sizeShift = 1;
-	if(h0==256) h0 = 240; else if(h0==480) sizeShift = 2;
-	if(h1>h0) { src_screen16 += ((h1-h0)>>sizeShift)*1024; h1 = h0; }
-	else if(h1<h0) dest_screen16 += ((h0-h1)>>sizeShift)*VIDEO_WIDTH;
+	if (h0 == 256) {
+		h0 = 240;
+	} else if (h0 == 480) {
+		sizeShift = 2;
+	}
+	if (h1 > h0) {
+		src16_offs = (src16_offs + (((h1-h0) / 2) * 1024)) & src16_offs_msk;
+		h1 = h0;
+	} else if (h1<h0) {
+		dst16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
+	}
+
 
 	/* Main blitter */
 	int incY = (h0==480) ? 2 : 1;
@@ -703,51 +716,57 @@ static void gpuVideoOutput(void)
 			case 256:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWDWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 368:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWWWWS(	src_screen16,	dest_screen16, isRGB24, 4);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 320:
-				//senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
-				src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
+				// Ensure 32-bit alignment for GPU_BlitWW() blitter:
+				src16_offs &= ~1;
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 384:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWS(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 512:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWSWWSWS(src_screen16,dest_screen16,isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 640:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWS(	src_screen16, dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 		}
