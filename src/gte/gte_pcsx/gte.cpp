@@ -174,7 +174,9 @@
 
 #define gteop (psxRegs.code & 0x1ffffff)
 
-INLINE s32 BOUNDS(s64 n_value, s64 n_max, int n_maxflag, s64 n_min, int n_minflag) {
+//senquack-Don't try to optimize return value to s32 like PCSX Rearmed did here:
+//it's why as of Nov. 2016, PC build has gfx glitches in 1st level of 'Driver'
+INLINE s64 BOUNDS(s64 n_value, s64 n_max, int n_maxflag, s64 n_min, int n_minflag) {
 	if (n_value > n_max) {
 		gteFLAG |= n_maxflag;
 	} else if (n_value < n_min) {
