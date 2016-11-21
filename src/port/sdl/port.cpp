@@ -680,6 +680,12 @@ void video_clear(void)
 	memset(screen->pixels, 0, screen->pitch*screen->h);
 }
 
+/* This is needed to override redirecting to stderr.txt and stdout.txt
+with mingw build. */
+#ifdef UNDEF_MAIN
+#undef main
+#endif
+
 int main (int argc, char **argv)
 {
 	char filename[256];
