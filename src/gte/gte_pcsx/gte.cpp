@@ -419,8 +419,9 @@ void gteRTPS(void) {
 	gteSX2 = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 	gteSY2 = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 
-	gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)) >> 12);
-	gteIR0 = limH(gteMAC0);
+	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
+	gteIR0 = limH(gteMAC0 >> 12);
+
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
@@ -451,8 +452,9 @@ void gteRTPT(void) {
 		fSX(v) = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 		fSY(v) = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 	}
-	gteMAC0 = F((s64)(gteDQB + ((s64)gteDQA * quotient)) >> 12);
-	gteIR0 = limH(gteMAC0);
+	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
+	gteIR0 = limH(gteMAC0 >> 12);
+
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
