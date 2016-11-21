@@ -335,7 +335,7 @@ do {                                                                           \
     } else {                                                                   \
         LUI(MIPSREG_V1, (__cycles >> 16));                                     \
         JR(MIPSREG_RA);                                                        \
-        ADDIU(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */         \
+        ORI(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */           \
     }                                                                          \
 } while (0)
 
