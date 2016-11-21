@@ -23,6 +23,11 @@
 #include "psxmem.h"
 #include "profiler.h"
 
+// MIPS platforms have hardware divider, faster than 64KB LUT + UNR algo
+#if defined(__mips__)
+#define GTE_USE_HARDWARE_DIVIDE
+#endif
+
 // (This is a backported optimization from PCSX Rearmed -senquack)
 // On slower platforms, bounds-check is disabled on some calculations,
 //  for now only some involving far colors. The overflow results from these
@@ -239,15 +244,16 @@ INLINE u32 limE(u32 result) {
 #define A3U(x) (x)
 #endif
 
-/*
+#ifdef GTE_USE_HARDWARE_DIVIDE
 INLINE u32 DIVIDE(s16 n, u16 d) {
 	if (n >= 0 && n < d * 2) {
 		return ((u32)n << 16) / d;
 	}
 	return 0xffffffff;
 }
-*/
+#else
 #include "gte_divide.h"
+#endif // GTE_USE_HARDWARE_DIVIDE
 
 //senquack - Applied fixes from PCSX Rearmed 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
 // Case 28 now falls through to case 29, and don't return 0 for case 30
