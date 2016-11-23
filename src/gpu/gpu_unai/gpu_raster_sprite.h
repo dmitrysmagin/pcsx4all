@@ -21,7 +21,6 @@
 ///////////////////////////////////////////////////////////////////////////////
 //  GPU internal sprite drawing functions
 
-///////////////////////////////////////////////////////////////////////////////
 void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 {
 	s32 x0, x1, y0, y1;
@@ -45,10 +44,6 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 	u0 = packet.U1[8];
 	v0 = packet.U1[9];
 
-	gpu_unai.r4 = packet.U1[0];
-	gpu_unai.g4 = packet.U1[1];
-	gpu_unai.b4 = packet.U1[2];
-
 	s32 temp;
 	temp = ymin - y0;
 	if (temp > 0) { y0 = ymin; v0 += temp; }
@@ -61,42 +56,27 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 	x1 -= x0;
 	if (x1 <= 0) return;
 
+	gpu_unai.r4 = packet.U1[0];
+	gpu_unai.g4 = packet.U1[1];
+	gpu_unai.b4 = packet.U1[2];
+
 	u16 *Pixel = &((u16*)gpu_unai.vram)[FRAME_OFFSET(x0, y0)];
 	const int li=gpu_unai.ilace_mask;
 	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
-	const u32 masku=gpu_unai.TextureWindow[2];
-	const u32 maskv=gpu_unai.TextureWindow[3];
-
-	// senquack-Fixed Xenogears text box border glitches cause by careless
-	//  setting of texture pointer when in 4bpp texture mode.
-	//  NOTE: sprite inner drivers now take u8* texture pointer as parameter
-	u0 &= masku;
-	v0 &= maskv;
 	unsigned int tmode = gpu_unai.TEXT_MODE >> 5;
-	unsigned int u0_off;
+	const u32 v0_mask = gpu_unai.TextureWindow[3];
+	u8* pTxt_base = (u8*)gpu_unai.TBA;
 
-	switch (tmode) {
-		default:
-		case 3: // 16bpp texture mode
-			u0_off = u0 << 1;
-			break;
-		case 2: // 8bpp texture mode
-			u0_off = u0;
-			break;
-		case 1: // 4bpp texture mode
-			u0_off = u0 >> 1;
-			break;
-	}
-
-	u8* pTxt_base = (u8*)gpu_unai.TBA + u0_off;
+	// Texture is accessed byte-wise, so adjust idx if 16bpp
+	if (tmode == 3) u0 <<= 1;
 
 	for (; y0<y1; ++y0) {
-		u8* pTxt = pTxt_base + (v0 * 2048);
-		if ((0==(y0&li))&&((y0&pi)!=pif))
-			gpuSpriteSpanDriver(Pixel, x1, pTxt, masku);
+		u8* pTxt = pTxt_base + ((v0 & v0_mask) * 2048);
+		if (!(y0&li) && (y0&pi)!=pif)
+			gpuSpriteSpanDriver(Pixel, x1, pTxt, u0);
 		Pixel += FRAME_WIDTH;
-		v0 = (v0+1) & maskv;
+		v0++;
 	}
 }
 
@@ -145,7 +125,6 @@ void gpuDrawS16(PtrUnion packet)
 }
 #endif // __arm__
 
-///////////////////////////////////////////////////////////////////////////////
 void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
 {
 	s32 x0, x1, y0, y1;
@@ -172,14 +151,15 @@ void gpuDrawT(PtrUnion packet, const PT gpuTileSpanDriver)
 	x1 -= x0;
 	if (x1 <= 0) return;
 
-	u16 *Pixel = &((u16*)gpu_unai.vram)[FRAME_OFFSET(x0, y0)];
 	const u16 Data = GPU_RGB16(packet.U4[0]);
+	u16 *Pixel = &((u16*)gpu_unai.vram)[FRAME_OFFSET(x0, y0)];
 	const int li=gpu_unai.ilace_mask;
 	const int pi=(ProgressiveInterlaceEnabled()?(gpu_unai.ilace_mask+1):0);
 	const int pif=(ProgressiveInterlaceEnabled()?(gpu_unai.prog_ilace_flag?(gpu_unai.ilace_mask+1):0):1);
 
 	for (; y0<y1; ++y0) {
-		if ((0==(y0&li))&&((y0&pi)!=pif)) gpuTileSpanDriver(Pixel,x1,Data);
+		if (!(y0&li) && (y0&pi)!=pif)
+			gpuTileSpanDriver(Pixel,x1,Data);
 		Pixel += FRAME_WIDTH;
 	}
 }

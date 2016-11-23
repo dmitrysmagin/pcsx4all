@@ -328,10 +328,16 @@ const PT gpuTileSpanDrivers[32] = {
 //  GPU Sprites innerloops generator
 
 template<const int CF>
-static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
+static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 {
-	u16 uSrc, uDst;
-	u32 u0 = 0;
+	u16 uSrc, uDst, srcMSB;
+	u32 u0_mask = gpu_unai.TextureWindow[2];
+
+	if (CF_TEXTMODE==3) {
+		// Texture is accessed byte-wise, so adjust mask if 16bpp
+		u0_mask <<= 1;
+	}
+
 	const u16 *CBA_; if (CF_TEXTMODE!=3) CBA_ = gpu_unai.CBA;
 	u32 lCol;
 	if (CF_LIGHT) {
@@ -339,40 +345,30 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 		       ((u32)(gpu_unai.g4 << 13)&(0x07ff<<10)) |
 		       ((u32)(gpu_unai.r4 << 24)&(0x07ff<<21));
 	}
-	u8 rgb; if (CF_TEXTMODE==1) rgb = pTxt[u0>>1];
 	u32 uMsk; if (CF_BLEND && CF_BLENDMODE==0) uMsk=0x7BDE;
-
-	//senquack - 'Silent Hill' white rectangles around characters fix:
-	// MSB of pixel from source texture was not preserved across calls to
-	// gpuBlendingXX() macros.. we must save it if calling them:
-	// NOTE: it was gpuPolySpanFn() that cause the Silent Hill glitches, but
-	// from reading the few PSX HW docs available, MSB should be transferred
-	// whenever a texture is being read.
-	u16 srcMSB;
 
 	do
 	{
 		if (CF_MASKCHECK) {
 			uDst = *pDst;
-			if (uDst&0x8000) { u0=(u0+1)&mask; goto endsprite; }
+			if (uDst&0x8000) { goto endsprite; }
 		}
 
 		if (CF_TEXTMODE==1) {  //  4bpp (CLUT)
-			if (!(u0&1)) rgb = pTxt[u0>>1];
+			u8 rgb = pTxt[(u0 & u0_mask)>>1];
 			uSrc = CBA_[(rgb>>((u0&1)<<2))&0xf];
-			u0=(u0+1)&mask;
 		}
 		if (CF_TEXTMODE==2) {  //  8bpp (CLUT)
-			uSrc = CBA_[pTxt[u0]];
-			u0=(u0+1)&mask;
+			uSrc = CBA_[pTxt[u0 & u0_mask]];
 		}
 		if (CF_TEXTMODE==3) {  // 16bpp
-			uSrc = ((u16*)pTxt)[u0];
-			u0=(u0+1)&mask;
+			uSrc = *(u16*)(&pTxt[u0 & u0_mask]);
 		}
+
 		if (!uSrc) goto endsprite;
 
 		//senquack - save source MSB, as blending or lighting macros will not
+		//           (Silent Hill gray rectangles mask bit bug)
 		if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) { srcMSB = uSrc & 0x8000; }
 		
 		if (CF_BLEND)
@@ -389,10 +385,6 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 			}
 		} else {
-			//senquack - While fixing Silent Hill white-rectangles bug, I
-			// noticed uSrc was being masked unnecessarily here:
-			//if(CF_LIGHT)  { gpuLightingTXT(uSrc, lCol);   } else
-			//{ if(!CF_MASKSET) uSrc&= 0x7fff;               }
 			if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
 		}
 
@@ -401,12 +393,13 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 		else                           { *pDst = uSrc;          }
 
 endsprite:
+		u0 += (CF_TEXTMODE==3) ? 2 : 1;
 		pDst++;
 	}
 	while (--count);
 }
 
-static void SpriteNULL(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
+static void SpriteNULL(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"SpriteNULL()\n");
@@ -417,7 +410,7 @@ static void SpriteNULL(u16 *pDst, u32 count, u8* pTxt, const u32 mask)
 
 ///////////////////////////////////////////////////////////////////////////////
 //  Sprite innerloops driver
-typedef void (*PS)(u16 *pDst, u32 count, u8* pTxt, const u32 mask);
+typedef void (*PS)(u16 *pDst, u32 count, u8* pTxt, u32 u0);
 
 // Template instantiation helper macros
 #define TI(cf) gpuSpriteSpanFn<(cf)>
