@@ -565,7 +565,7 @@ endpolynotextgou:
 
 		// TEXTURE
 		u16 uDst;
-		u32 uSrc;
+		u16 uSrc;
 		u16 srcMSB;
 		u32 linc; if (CF_LIGHT && CF_GOURAUD) linc=gpu_unai.lInc;
 
@@ -615,25 +615,24 @@ endpolynotextgou:
 			}
 
 			// Save source MSB, as blending or lighting will not (Silent Hill)
-			if (!CF_MASKSET && (CF_BLEND || CF_LIGHT)) srcMSB = uSrc & 0x8000;
+			if (CF_BLEND || CF_LIGHT) srcMSB = uSrc & 0x8000;
 
 			// LIGHT &&  BLEND => dither
 			// LIGHT && !BLEND => dither
 			//!LIGHT &&  BLEND => no dither
 			//!LIGHT && !BLEND => no dither
 
-			if (CF_LIGHT)
+			if (CF_DITHER) {
+				u32 uSrc32 = uSrc;
+				if (CF_LIGHT) gpuLightingTXT24(uSrc32, lCol);
+				if (CF_BLEND && srcMSB) doGpuPolyBlend<CF_BLENDMODE>(uSrc32, uDst);
+				if (CF_LIGHT) gpuColorQuantization<CF_DITHER>(uSrc32, pDst);
+				uSrc = uSrc32;
+			} else
 			{
-				if (!CF_BLEND || uSrc&0x8000)
-				{
-					gpuLightingTXT24(uSrc, lCol);
-					if (CF_BLEND) doGpuPolyBlend<CF_BLENDMODE>(uSrc, uDst);
-					gpuColorQuantization<CF_DITHER>(uSrc, pDst);
-				}
-			}
-			else
-			{
-				if (CF_BLEND && (uSrc&0x8000)) {
+				if (CF_LIGHT) gpuLightingTXT(uSrc, lCol);
+
+				if (CF_BLEND && srcMSB) {
 					if (CF_BLENDMODE==0) gpuBlending00(uSrc, uDst);
 					if (CF_BLENDMODE==1) gpuBlending01(uSrc, uDst);
 					if (CF_BLENDMODE==2) gpuBlending02(uSrc, uDst);
