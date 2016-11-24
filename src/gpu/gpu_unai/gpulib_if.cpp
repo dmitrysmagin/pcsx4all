@@ -303,6 +303,10 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x31:
       case 0x32:
       case 0x33: {          // Gouraud-shaded 3-pt poly
+        //NOTE: The '129' here is CF_GOURAUD | CF_LIGHT, however
+        // this is an untextured poly, so CF_LIGHT (texture blend)
+        // shouldn't apply. Until the original array of template
+        // instantiation ptrs is fixed, we're stuck with this. (TODO)
         PP driver = gpuPolySpanDrivers[
           (gpu_unai.blit_mask?1024:0) |
           Dithering |
@@ -331,6 +335,7 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x39:
       case 0x3A:
       case 0x3B: {          // Gouraud-shaded 4-pt poly
+        // See notes regarding '129' for 0x30..0x33 further above -senquack
         PP driver = gpuPolySpanDrivers[
           (gpu_unai.blit_mask?1024:0) |
           Dithering |

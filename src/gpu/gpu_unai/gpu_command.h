@@ -268,6 +268,10 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
+				//NOTE: The '129' here is CF_GOURAUD | CF_LIGHT, however
+				// this is an untextured poly, so CF_LIGHT (texture blend)
+				// shouldn't apply. Until the original array of template
+				// instantiation ptrs is fixed, we're stuck with this. (TODO)
 				PP driver = gpuPolySpanDrivers[
 					(gpu_unai.blit_mask?1024:0) |
 					Dithering |
@@ -308,6 +312,7 @@ void gpuSendPacketFunction(const int PRIM)
 			if (!gpu_unai.frameskip.skipGPU)
 			{
 				NULL_GPU();
+				// See notes regarding '129' for 0x30..0x33 further above -senquack
 				PP driver = gpuPolySpanDrivers[
 					(gpu_unai.blit_mask?1024:0) |
 					Dithering |
