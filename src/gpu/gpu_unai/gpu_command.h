@@ -111,8 +111,8 @@ static void gpuGP0Cmd_0xEx(gpu_unai_t &gpu_unai, u32 cmd_word)
 
 				// Inner loop vars must be updated whenever texture window is changed:
 				const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-				gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-				gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+				gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+				gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
 				gpuSetTexture(gpu_unai.GPU_GP1);
 			}

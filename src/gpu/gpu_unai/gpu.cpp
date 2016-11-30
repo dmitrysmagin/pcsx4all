@@ -26,6 +26,8 @@
 #include "debug.h"
 #include "gpu_unai.h"
 
+#define GPU_INLINE static inline __attribute__((always_inline))
+
 #define VIDEO_WIDTH 320
 
 #ifdef TIME_IN_MSEC
@@ -103,14 +105,15 @@ static void gpuReset(void)
 	//senquack - new vars must be updated whenever texture window is changed:
 	//           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
 	const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
-	gpu_unai.u4_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
-	gpu_unai.v4_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+	gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+	gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
 
 	// Configuration options
 	gpu_unai.config = gpu_unai_config_ext;
 	gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
 	gpu_unai.frameskip.skipCount = gpu_unai.config.frameskip_count;
 
+	SetupLightLUT();
 	SetupDitheringConstants();
 }
 

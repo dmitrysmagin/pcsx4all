@@ -1,3 +1,22 @@
+/***************************************************************************
+*   Copyright (C) 2016 PCSX4ALL Team                                      *
+*                                                                         *
+*   This program is free software; you can redistribute it and/or modify  *
+*   it under the terms of the GNU General Public License as published by  *
+*   the Free Software Foundation; either version 2 of the License, or     *
+*   (at your option) any later version.                                   *
+*                                                                         *
+*   This program is distributed in the hope that it will be useful,       *
+*   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+*   GNU General Public License for more details.                          *
+*                                                                         *
+*   You should have received a copy of the GNU General Public License     *
+*   along with this program; if not, write to the                         *
+*   Free Software Foundation, Inc.,                                       *
+*   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
+***************************************************************************/
+
 #ifndef _OP_DITHER_H_
 #define _OP_DITHER_H_
 
@@ -42,8 +61,22 @@ static void SetupDitheringConstants()
 	}
 }
 
-template <const int DITHER>
-INLINE void gpuColorQuantization(u32 &uSrc, u16 *&pDst)
+////////////////////////////////////////////////////////////////////////////////
+// Convert padded u32 5.4:5.4:5.4 bgr fixed-pt triplet to final bgr555 color,
+//  applying dithering if specified by template parameter.
+//
+// INPUT:
+//     'uSrc24' input: 000bbbbbXXXX0gggggXXXX0rrrrrXXXX
+//                     ^ bit 31
+//       'pDst' is a pointer to destination framebuffer pixel, used
+//         to determine which DitherMatrix[] entry to apply.
+// RETURNS:
+//         u16 output: 0bbbbbgggggrrrrr
+//                     ^ bit 16
+// Where 'X' are fixed-pt bits, '0' is zero-padding, and '-' is don't care
+////////////////////////////////////////////////////////////////////////////////
+template <int DITHER>
+GPU_INLINE u16 gpuColorQuantization24(u32 uSrc24, const u16 *pDst)
 {
 	if (DITHER)
 	{
@@ -51,16 +84,16 @@ INLINE void gpuColorQuantization(u32 &uSrc, u16 *&pDst)
 		u16 offset = ((fbpos & (0x7 << 10)) >> 7) | (fbpos & 0x7);
 
 		//clean overflow flags and add
-		uSrc = (uSrc & 0x1FF7FDFF) + gpu_unai.DitherMatrix[offset];
+		uSrc24 = (uSrc24 & 0x1FF7FDFF) + gpu_unai.DitherMatrix[offset];
 
-		if (uSrc & (1<< 9)) uSrc |= (0x1FF    );
-		if (uSrc & (1<<19)) uSrc |= (0x1FF<<10);
-		if (uSrc & (1<<29)) uSrc |= (0x1FF<<20);
+		if (uSrc24 & (1<< 9)) uSrc24 |= (0x1FF    );
+		if (uSrc24 & (1<<19)) uSrc24 |= (0x1FF<<10);
+		if (uSrc24 & (1<<29)) uSrc24 |= (0x1FF<<20);
 	}
 
-	uSrc = ((uSrc>> 4) & (0x1F    ))
-		 | ((uSrc>> 9) & (0x1F<<5 ))
-		 | ((uSrc>>14) & (0x1F<<10));
+	return ((uSrc24>> 4) & (0x1F    ))
+	     | ((uSrc24>> 9) & (0x1F<<5 ))
+	     | ((uSrc24>>14) & (0x1F<<10));
 }
 
 #endif //_OP_DITHER_H_

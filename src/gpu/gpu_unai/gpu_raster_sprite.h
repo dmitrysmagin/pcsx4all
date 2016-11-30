@@ -56,9 +56,9 @@ void gpuDrawS(PtrUnion packet, const PS gpuSpriteSpanDriver)
 	x1 -= x0;
 	if (x1 <= 0) return;
 
-	gpu_unai.r4 = packet.U1[0];
-	gpu_unai.g4 = packet.U1[1];
-	gpu_unai.b4 = packet.U1[2];
+	gpu_unai.r5 = packet.U1[0] >> 3;
+	gpu_unai.g5 = packet.U1[1] >> 3;
+	gpu_unai.b5 = packet.U1[2] >> 3;
 
 	u16 *Pixel = &((u16*)gpu_unai.vram)[FRAME_OFFSET(x0, y0)];
 	const int li=gpu_unai.ilace_mask;

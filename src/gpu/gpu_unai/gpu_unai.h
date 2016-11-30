@@ -19,8 +19,8 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
-#ifndef GPU_UNAI_GPU_UNAI_H
-#define GPU_UNAI_GPU_UNAI_H
+#ifndef GPU_UNAI_H
+#define GPU_UNAI_H
 
 #include "gpu.h"
 
@@ -197,28 +197,33 @@ struct gpu_unai_t {
 	u16* TBA;              // Ptr to current texture in VRAM
 	u16* CBA;              // Ptr to current CLUT in VRAM
 
+	////////////////////////////////////////////////////////////////////////////
 	//  Inner Loop parameters
-	//  TODO: Pass these through their own struct?
-	u16 PixelData;
-	s32   u4, du4;
-	s32   v4, dv4;
-	s32   r4, dr4;
-	s32   g4, dg4;
-	s32   b4, db4;
-	u32   lInc;
 
-	//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
-	//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
-	//           another word and increment both u4,v4 with one instruction.
-	//           During the course of fixing gpu_unai's polygon rendering issues,
-	//           I ultimately found it was impossible to keep them combined like
-	//           that, as pixel dropouts would always occur, particularly in NFS3
-	//           sky background, perhaps from the reduced accuracy. Now they are
-	//           incremented individually with du4 and dv4, and masked separetely,
-	//           using new vars u4_msk, v4_msk, which store fixed-point masks.
-	//           These are updated whenever TextureWindow[2] or [3] are changed.
-	//u32   tInc, tMsk;
-	u32   u4_msk, v4_msk;
+	// 22.10 Fixed-pt texture coords, mask, scanline advance
+	// NOTE: U,V are no longer packed together into one u32, this proved to be
+	//  too imprecise, leading to pixel dropouts.  Example: NFS3's skybox.
+	u32 u, v;
+	u32 u_msk, v_msk;
+	s32 u_inc, v_inc;
+
+	// Color for Gouraud-shaded prims
+	// Packed fixed-pt 8.3:8.3:8.2 rgb triplet
+	//  layout:  rrrrrrrrXXXggggggggXXXbbbbbbbbXX
+	//           ^ bit 31                       ^ bit 0
+	u32 gCol;
+	u32 gInc;          // Increment along scanline for gCol
+
+	// Color for flat-shaded, texture-blended prims
+	u8  r5, g5, b5;    // 5-bit light for undithered prims
+	u8  r8, g8, b8;    // 8-bit light for dithered prims
+
+	// Color for flat-shaded, untextured prims
+	u16 PixelData;      // bgr555 color for untextured flat-shaded polys
+
+	// End of inner Loop parameters
+	////////////////////////////////////////////////////////////////////////////
+
 
 	u8 blit_mask;           // Determines what pixels to skip when rendering.
 	                        //  Only useful on low-resolution devices using
@@ -243,6 +248,7 @@ struct gpu_unai_t {
 
 	gpu_unai_config_t config;
 
+	u8  LightLUT[32*32];    // 5-bit lighting LUT (gpu_inner_light.h)
 	u32 DitherMatrix[64];   // Matrix of dither coefficients
 };
 
@@ -300,4 +306,4 @@ static inline bool PixelSkipEnabled()
 	return gpu_unai.config.pixel_skip;
 }
 
-#endif // GPU_UNAI_GPU_UNAI_H
+#endif // GPU_UNAI_H
