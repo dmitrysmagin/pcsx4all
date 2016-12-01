@@ -36,45 +36,65 @@
 // RETURNS:
 // Where '0' is zero-padding, and '-' is don't care
 ////////////////////////////////////////////////////////////////////////////////
-template <int BLENDMODE>
+template <int BLENDMODE, bool SKIP_USRC_MSB_MASK>
 GPU_INLINE u16 gpuBlending(u16 uSrc, u16 uDst)
 {
+	// These use Blargg's bitwise modulo-clamping:
+	//  http://blargg.8bitalley.com/info/rgb_mixing.html
+	//  http://blargg.8bitalley.com/info/rgb_clamped_add.html
+	//  http://blargg.8bitalley.com/info/rgb_clamped_sub.html
+
 	u16 mix;
 
-	//	0.5 x Back + 0.5 x Forward
+	// 0.5 x Back + 0.5 x Forward
 	if (BLENDMODE==0) {
-		mix = ((uDst & 0x7BDE) + (uSrc & 0x7BDE)) >> 1;
+#ifdef GPU_UNAI_USE_ACCURATE_BLENDING
+		// Slower, but more accurate (doesn't lose LSB data)
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		mix = ((uSrc + uDst) - ((uSrc ^ uDst) & 0x0421)) >> 1;
+#else
+		mix = ((uDst & 0x7bde) + (uSrc & 0x7bde)) >> 1;
+#endif
 	}
 
-	//	1.0 x Back + 1.0 x Forward
+	// 1.0 x Back + 1.0 x Forward
 	if (BLENDMODE==1) {
-		u16 b = (uDst & 0x7C00) + (uSrc & 0x7C00);
-		u16 g = (uDst & 0x03E0) + (uSrc & 0x03E0);
-		u16 r = (uDst & 0x001F) + (uSrc & 0x001F);
-		if (b > 0x7C00) b = 0x7C00;
-		if (g > 0x03E0) g = 0x03E0;
-		if (r > 0x001F) r = 0x001F;
-		mix = b | g | r;
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		u32 sum      = uSrc + uDst;
+		u32 low_bits = (uSrc ^ uDst) & 0x0421;
+		u32 carries  = (sum - low_bits) & 0x8420;
+		u32 modulo   = sum - carries;
+		u32 clamp    = carries - (carries >> 5);
+		mix = modulo | clamp;
 	}
 
-	//	1.0 x Back - 1.0 x Forward	*/
+	// 1.0 x Back - 1.0 x Forward
 	if (BLENDMODE==2) {
-		s32 b = (uDst & 0x7C00) - (uSrc & 0x7C00);  if (b < 0) b = 0;
-		s32 g = (uDst & 0x03E0) - (uSrc & 0x03E0);  if (g > 0) b |= g;
-		s32 r = (uDst & 0x001F) - (uSrc & 0x001F);  if (r > 0) b |= r;
-		mix = b;
+		uDst &= 0x7fff;
+		if (!SKIP_USRC_MSB_MASK)
+			uSrc &= 0x7fff;
+		u32 diff     = uDst - uSrc + 0x8420;
+		u32 low_bits = (uDst ^ uSrc) & 0x8420;
+		u32 borrows  = (diff - low_bits) & 0x8420;
+		u32 modulo   = diff - borrows;
+		u32 clamp    = borrows - (borrows >> 5);
+		mix = modulo & clamp;
 	}
 
-	//	1.0 x Back + 0.25 x Forward	*/
+	// 1.0 x Back + 0.25 x Forward
 	if (BLENDMODE==3) {
-		uSrc >>= 2;
-		u16 b = (uDst & 0x7C00) + (uSrc & 0x1C00);
-		u16 g = (uDst & 0x03E0) + (uSrc & 0x00E0);
-		u16 r = (uDst & 0x001F) + (uSrc & 0x0007);
-		if (b > 0x7C00) b = 0x7C00;
-		if (g > 0x03E0) g = 0x03E0;
-		if (r > 0x001F) r = 0x001F;
-		mix = b | g | r;
+		uDst &= 0x7fff;
+		uSrc = ((uSrc >> 2) & 0x1ce7);
+		u32 sum      = uSrc + uDst;
+		u32 low_bits = (uSrc ^ uDst) & 0x0421;
+		u32 carries  = (sum - low_bits) & 0x8420;
+		u32 modulo   = sum - carries;
+		u32 clamp    = carries - (carries >> 5);
+		mix = modulo | clamp;
 	}
 
 	return mix;

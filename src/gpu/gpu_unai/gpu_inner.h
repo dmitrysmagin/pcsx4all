@@ -107,6 +107,10 @@ static inline u16 gpuGouraudColor15bpp(u32 r, u32 g, u32 b)
 template<int CF>
 static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 {
+	// Blend func can save an operation if it knows uSrc MSB is
+	//  unset. For untextured prims, this is always true.
+	const bool skip_uSrc_mask = true;
+
 	u16 col;
 	struct GouraudColor * gcPtr;
 	u32 r, g, b;
@@ -137,7 +141,9 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 				if (CF_MASKCHECK) { if (uDst & 0x8000) goto endpixel; }
 
 				u16 uSrc = col;
-				if (CF_BLEND) uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+
+				if (CF_BLEND)
+					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
 				if (CF_MASKSET) { *(u16*)pDst = uSrc | 0x8000; }
 				else            { *(u16*)pDst = uSrc;          }
@@ -162,7 +168,13 @@ static u8* gpuPixelSpanFn(u8* pDst, uintptr_t data, ptrdiff_t incr, size_t len)
 				col = gpuGouraudColor15bpp(r, g, b);
 
 				u16 uSrc = col;
-				if (CF_BLEND) uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+
+				// Blend func can save an operation if it knows uSrc MSB is
+				//  unset. For untextured prims, this is always true.
+				const bool skip_uSrc_mask = true;
+
+				if (CF_BLEND)
+					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
 				if (CF_MASKSET) { *(u16*)pDst = uSrc | 0x8000; }
 				else            { *(u16*)pDst = uSrc;          }
@@ -257,6 +269,10 @@ static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 		do { if (!(*pDst&0x8000)) { *pDst = data; } pDst++; } while (--count);
 	} else
 	{
+		// Blend func can save an operation if it knows uSrc MSB is
+		//  unset. For untextured prims, this is always true.
+		const bool skip_uSrc_mask = true;
+
 		u16 uSrc, uDst;
 		do
 		{
@@ -264,8 +280,9 @@ static void gpuTileSpanFn(u16 *pDst, u32 count, u16 data)
 			if (CF_MASKCHECK) { if (uDst&0x8000) goto endtile; }
 
 			uSrc = data;
+
 			if (CF_BLEND)
-				uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+				uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
 			if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
 			else            { *pDst = uSrc;          }
@@ -317,6 +334,11 @@ const PT gpuTileSpanDrivers[32] = {
 template<int CF>
 static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 {
+	// Blend func can save an operation if it knows uSrc MSB is unset.
+	//  Untextured prims can always skip (source color always comes with MSB=0).
+	//  For textured prims, lighting funcs always return it unset. (bonus!)
+	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
+
 	u16 uSrc, uDst, srcMSB;
 	u32 u0_mask = gpu_unai.TextureWindow[2];
 
@@ -360,7 +382,7 @@ static void gpuSpriteSpanFn(u16 *pDst, u32 count, u8* pTxt, u32 u0)
 			uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 
 		if (CF_BLEND && srcMSB)
-			uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+			uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
 		if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
 		else if (CF_BLEND || CF_LIGHT) { *pDst = uSrc | srcMSB; }
@@ -439,6 +461,11 @@ const PS gpuSpriteSpanDrivers[256] = {
 template<int CF>
 static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 {
+	// Blend func can save an operation if it knows uSrc MSB is unset.
+	//  Untextured prims can always skip this (src color MSB is always 0).
+	//  For textured prims, lighting funcs always return it unset. (bonus!)
+	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
+
 	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
 
 	if (!CF_TEXTMODE)
@@ -459,8 +486,9 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 				if (CF_MASKCHECK) { if (uDst&0x8000) { goto endpolynotextnogou; } }
 
 				uSrc = pix15;
+
 				if (CF_BLEND)
-					uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 
 				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
 				else            { *pDst = uSrc;          }
@@ -495,8 +523,9 @@ endpolynotextnogou:
 					// GOURAUD, NO DITHER
 
 					uSrc = gpuLightingRGB(l_gCol);
+
 					if (CF_BLEND)
-						uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+						uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 				}
 
 				if (CF_MASKSET) { *pDst = uSrc | 0x8000; }
@@ -600,7 +629,8 @@ endpolynotextgou:
 						uSrc = gpuLightingTXT(uSrc, r5, g5, b5);
 				}
 
-				if (CF_BLEND && srcMSB) uSrc = gpuBlending<CF_BLENDMODE>(uSrc, uDst);
+				if (CF_BLEND && srcMSB)
+					uSrc = gpuBlending<CF_BLENDMODE, skip_uSrc_mask>(uSrc, uDst);
 			}
 
 			if (CF_MASKSET)                { *pDst = uSrc | 0x8000; }
