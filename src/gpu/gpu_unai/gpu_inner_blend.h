@@ -139,45 +139,47 @@ GPU_INLINE u32 gpuGetRGB24(u16 uSrc)
 template <int BLENDMODE>
 GPU_INLINE u32 gpuBlending24(u32 uSrc24, u16 uDst)
 {
-	static const u32 uMsk = 0x1FE7F9FE;
+	// These use techniques adapted from Blargg's techniques mentioned in
+	//  in gpuBlending() comments above. Not as much bitwise trickery is
+	//  necessary because of presence of 0 padding in uSrc24 format.
 
-	u32 nDst = gpuGetRGB24(uDst);
+	u32 uDst24 = gpuGetRGB24(uDst);
 	u32 mix;
 
-	//	0.5 x Back + 0.5 x Forward
+	// 0.5 x Back + 0.5 x Forward
 	if (BLENDMODE==0) {
-		mix = (((nDst & uMsk) + (uSrc24 & uMsk)) >> 1);
+		const u32 uMsk = 0x1FE7F9FE;
+		// Only need to mask LSBs of uSrc24, uDst24's LSBs are 0 already
+		mix = (uDst24 + (uSrc24 & uMsk)) >> 1;
 	}
 
-	//	1.0 x Back + 1.0 x Forward
+	// 1.0 x Back + 1.0 x Forward
 	if (BLENDMODE==1) {
-		mix = nDst + uSrc24;
-
-		//clamp to 1FFh
-		if (mix & (1<< 9)) mix |= (0x1FF    );
-		if (mix & (1<<19)) mix |= (0x1FF<<10);
-		if (mix & (1<<29)) mix |= (0x1FF<<20);
+		u32 sum     = uSrc24 + uDst24;
+		u32 carries = sum & 0x20080200;
+		u32 modulo  = sum - carries;
+		u32 clamp   = carries - (carries >> 9);
+		mix = modulo | clamp;
 	}
 
-	//	1.0 x Back - 1.0 x Forward	*/
+	// 1.0 x Back - 1.0 x Forward
 	if (BLENDMODE==2) {
-		//((color^mask)+mask_one) = -color
-		mix = (nDst + ((uSrc24 ^ (0x1FF7FDFF)) + 0x100401));
-
-		//clamp to 0h
-		if ((mix & (0x1FF    )) > (nDst & (0x1FF    ))) mix &= ~(0x3FF);
-		if ((mix & (0x1FF<<10)) > (nDst & (0x1FF<<10))) mix &= ~(0x3FF << 10);
-		if ((mix & (0x1FF<<20)) > (nDst & (0x1FF<<20))) mix &= ~(0x3FF << 20);
+		// Insert ones in 0-padded borrow slot of color to be subtracted from
+		uDst24 |= 0x20080200;
+		u32 diff    = uDst24 - uSrc24;
+		u32 borrows = diff & 0x20080200;
+		u32 clamp   = borrows - (borrows >> 9);
+		mix = diff & clamp;
 	}
 
-	//	1.0 x Back + 0.25 x Forward	*/
+	// 1.0 x Back + 0.25 x Forward
 	if (BLENDMODE==3) {
-		mix = (nDst + ((uSrc24 & 0x1FC7F1FC) >> 2));
-
-		//clamp to 1FFh
-		if (mix & (1 << 9)) mix |= (0x1FF      );
-		if (mix & (1 <<19)) mix |= (0x1FF << 10);
-		if (mix & (1 <<29)) mix |= (0x1FF << 20);
+		uSrc24 = (uSrc24 & 0x1FC7F1FC) >> 2;
+		u32 sum     = uSrc24 + uDst24;
+		u32 carries = sum & 0x20080200;
+		u32 modulo  = sum - carries;
+		u32 clamp   = carries - (carries >> 9);
+		mix = modulo | clamp;
 	}
 
 	return mix;
