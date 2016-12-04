@@ -114,6 +114,7 @@ void renderer_notify_res_change(void)
     // Set blit_mask for high horizontal resolutions. This allows skipping
     //  rendering pixels that would never get displayed on low-resolution
     //  platforms that use simple pixel-dropping scaler.
+
     switch (gpu.screen.hres)
     {
       case 512: gpu_unai.blit_mask = 0xa4; break; // GPU_BlitWWSWWSWS
@@ -123,6 +124,30 @@ void renderer_notify_res_change(void)
   } else {
     gpu_unai.blit_mask = 0;
   }
+
+  if (LineSkipEnabled()) {
+    // Set rendering line-skip (only render every other line in high-res
+    //  480 vertical mode, or, optionally, force it for all video modes)
+
+    if (gpu.screen.vres == 480) {
+      if (gpu_unai.config.ilace_force) {
+        gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
+      } else {
+        gpu_unai.ilace_mask = 1; // Only need 1/2 of lines
+      }
+    } else {
+      // Vert resolution changed from 480 to lower one
+      gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+    }
+  } else {
+    gpu_unai.ilace_mask = 0;
+  }
+
+  /*
+  printf("res change hres: %d   vres: %d   depth: %d   ilace_mask: %d\n",
+      gpu.screen.hres, gpu.screen.vres, gpu.status.rgb24 ? 24 : 15,
+      gpu_unai.ilace_mask);
+  */
 }
 
 // Handles GP0 draw settings commands 0xE1...0xE6

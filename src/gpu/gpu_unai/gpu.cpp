@@ -622,6 +622,7 @@ void  GPU_writeStatus(u32 data)
 			{
 				// Update width
 				gpu_unai.DisplayArea[2] = new_width;
+
 				if (PixelSkipEnabled()) {
 					// Set blit_mask for high horizontal resolutions. This allows skipping
 					//  rendering pixels that would never get displayed on low-resolution
@@ -635,15 +636,28 @@ void  GPU_writeStatus(u32 data)
 				} else {
 					gpu_unai.blit_mask = 0;
 				}
+
 				// Update height
 				gpu_unai.DisplayArea[3] = new_height;
-				if (gpu_unai.DisplayArea[3] == 480)
-				{
-					if (gpu_unai.config.ilace_force) gpu_unai.ilace_mask = 3; // 1/4 of lines
-					else gpu_unai.ilace_mask = 1; // if 480 we only need half of lines
+
+				if (LineSkipEnabled()) {
+					// Set rendering line-skip (only render every other line in high-res
+					//  480 vertical mode, or, optionally, force it for all video modes)
+
+					if (gpu_unai.DisplayArea[3] == 480)
+						if (gpu_unai.config.ilace_force) {
+							gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
+						} else {
+							gpu_unai.ilace_mask = 1; // Only need 1/2 of lines
+						}
+					} else {
+						// Vert resolution changed from 480 to lower one
+						gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+					}
 				} else {
-					gpu_unai.ilace_mask = gpu_unai.config.ilace_force; // resolution changed from 480 to lower one
+					gpu_unai.ilace_mask = 0;
 				}
+
 				#ifdef ENABLE_GPU_LOG_SUPPORT
 					fprintf(stdout,"video_clear(CHANGE_RES)\n");
 				#endif
