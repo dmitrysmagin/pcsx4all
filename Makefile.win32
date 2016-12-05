@@ -12,10 +12,6 @@ SPU    = spu_pcsxrearmed
 #SPU    = spu_null
 #SPU   = spu_franxis
 
-# Note: 'gte_new' causes lighting problems in dark areas of Silent Hill
-GTE   = gte_pcsx
-#GTE    = gte_new
-
 RM     = rm -f
 MD     = mkdir
 CC     = gcc
@@ -38,7 +34,6 @@ CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
-	-Isrc/gte/$(GTE) -D$(GTE) \
 	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
@@ -69,7 +64,7 @@ LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lz
 
 OBJDIRS = \
 	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
-	obj/port obj/port/$(PORT) obj/gte obj/gte/$(GTE) \
+	obj/port obj/port/$(PORT) \
 	obj/plugin_lib
 
 all: maketree $(TARGET)
@@ -98,7 +93,7 @@ OBJS += obj/gpu/$(GPU)/gpu.o
 endif
 #*********************************************************************
 
-OBJS += obj/gte/$(GTE)/gte.o
+OBJS += obj/gte.o
 OBJS += obj/spu/$(SPU)/spu.o
 
 OBJS += obj/port/$(PORT)/port.o
