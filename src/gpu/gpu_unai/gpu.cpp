@@ -644,7 +644,7 @@ void  GPU_writeStatus(u32 data)
 					// Set rendering line-skip (only render every other line in high-res
 					//  480 vertical mode, or, optionally, force it for all video modes)
 
-					if (gpu_unai.DisplayArea[3] == 480)
+					if (gpu_unai.DisplayArea[3] == 480) {
 						if (gpu_unai.config.ilace_force) {
 							gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
 						} else {
