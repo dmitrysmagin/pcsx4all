@@ -21,7 +21,6 @@
 
 #include "gte.h"
 #include "psxmem.h"
-#include "profiler.h"
 
 // MIPS platforms have hardware divider, faster than 64KB LUT + UNR algo
 #if defined(__mips__)
@@ -362,46 +361,33 @@ void gtecalcCTC2(u32 value, int reg) {
 
 void gteMFC2(void) {
 	if (!_Rt_) return;
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	psxRegs.GPR.r[_Rt_] = gtecalcMFC2(_Rd_);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteCFC2(void) {
 	if (!_Rt_) return;
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	psxRegs.GPR.r[_Rt_] = psxRegs.CP2C.r[_Rd_];
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteMTC2(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	gtecalcMTC2(psxRegs.GPR.r[_Rt_], _Rd_);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteCTC2(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	gtecalcCTC2(psxRegs.GPR.r[_Rt_], _Rd_);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 #define _oB_ (psxRegs.GPR.r[_Rs_] + _Imm_)
 
 void gteLWC2(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	gtecalcMTC2(psxMemRead32(_oB_), _Rt_);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteSWC2(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	psxMemWrite32(_oB_, gtecalcMFC2(_Rt_));
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteRTPS(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int quotient;
 
 #ifdef GTE_LOG
@@ -427,12 +413,9 @@ void gteRTPS(void) {
 
 	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
 	gteIR0 = limH(gteMAC0 >> 12);
-
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteRTPT(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int quotient;
 	int v;
 	s32 vx, vy, vz;
@@ -460,12 +443,9 @@ void gteRTPT(void) {
 	}
 	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
 	gteIR0 = limH(gteMAC0 >> 12);
-
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteMVMVA(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 	int mx = GTE_MX(gteop);
 	int v = GTE_V(gteop);
@@ -487,11 +467,9 @@ void gteMVMVA(void) {
 	gteIR1 = limB1(gteMAC1, lm);
 	gteIR2 = limB2(gteMAC2, lm);
 	gteIR3 = limB3(gteMAC3, lm);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCLIP(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCLIP\n");
 #endif
@@ -500,11 +478,9 @@ void gteNCLIP(void) {
 	gteMAC0 = F((s64)gteSX0 * (gteSY1 - gteSY2) +
 				gteSX1 * (gteSY2 - gteSY0) +
 				gteSX2 * (gteSY0 - gteSY1));
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteAVSZ3(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE AVSZ3\n");
 #endif
@@ -512,11 +488,9 @@ void gteAVSZ3(void) {
 
 	gteMAC0 = F((s64)gteZSF3 * (gteSZ1 + gteSZ2 + gteSZ3));
 	gteOTZ = limD(gteMAC0 >> 12);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteAVSZ4(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE AVSZ4\n");
 #endif
@@ -524,11 +498,9 @@ void gteAVSZ4(void) {
 
 	gteMAC0 = F((s64)gteZSF4 * (gteSZ0 + gteSZ1 + gteSZ2 + gteSZ3));
 	gteOTZ = limD(gteMAC0 >> 12);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteSQR(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
@@ -543,11 +515,9 @@ void gteSQR(void) {
 	gteIR1 = limB1(gteMAC1, lm);
 	gteIR2 = limB2(gteMAC2, lm);
 	gteIR3 = limB3(gteMAC3, lm);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCCS(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCCS\n");
 #endif
@@ -578,11 +548,9 @@ void gteNCCS(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCCT(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int v;
 	s32 vx, vy, vz;
 
@@ -621,11 +589,9 @@ void gteNCCT(void) {
 	gteIR1 = gteMAC1;
 	gteIR2 = gteMAC2;
 	gteIR3 = gteMAC3;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCDS(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCDS\n");
 #endif
@@ -656,11 +622,9 @@ void gteNCDS(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCDT(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int v;
 	s32 vx, vy, vz;
 
@@ -699,11 +663,9 @@ void gteNCDT(void) {
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteOP(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
@@ -718,11 +680,9 @@ void gteOP(void) {
 	gteIR1 = limB1(gteMAC1, lm);
 	gteIR2 = limB2(gteMAC2, lm);
 	gteIR3 = limB3(gteMAC3, lm);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteDCPL(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int lm = GTE_LM(gteop);
 
 	s32 RIR1 = ((s32)gteR * gteIR1) >> 8;
@@ -748,11 +708,9 @@ void gteDCPL(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteGPF(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -773,11 +731,9 @@ void gteGPF(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteGPL(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -798,11 +754,9 @@ void gteGPL(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteDPCS(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -823,11 +777,9 @@ void gteDPCS(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteDPCT(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int v;
 
 #ifdef GTE_LOG
@@ -850,11 +802,9 @@ void gteDPCT(void) {
 	gteIR1 = limB1(gteMAC1, 0);
 	gteIR2 = limB2(gteMAC2, 0);
 	gteIR3 = limB3(gteMAC3, 0);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCS(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE NCS\n");
 #endif
@@ -879,11 +829,9 @@ void gteNCS(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteNCT(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int v;
 	s32 vx, vy, vz;
 
@@ -915,11 +863,9 @@ void gteNCT(void) {
 	gteIR1 = limB1(gteMAC1, 1);
 	gteIR2 = limB2(gteMAC2, 1);
 	gteIR3 = limB3(gteMAC3, 1);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteCC(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE CC\n");
 #endif
@@ -944,11 +890,9 @@ void gteCC(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteINTPL(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
@@ -969,11 +913,9 @@ void gteINTPL(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
 
 void gteCDP(void) {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 #ifdef GTE_LOG
 	GTE_LOG("GTE CDP\n");
 #endif
@@ -998,5 +940,4 @@ void gteCDP(void) {
 	gteR2 = limC1(gteMAC1 >> 4);
 	gteG2 = limC2(gteMAC2 >> 4);
 	gteB2 = limC3(gteMAC3 >> 4);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GTE,PCSX4ALL_PROF_CPU);
 }
