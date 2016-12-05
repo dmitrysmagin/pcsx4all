@@ -32,7 +32,6 @@
 #include <sys/mman.h>
 #endif
 #include "port.h"
-#include "profiler.h"
 
 #if defined(PSXREC) && defined(mips)
 // For Posix shared mem:
@@ -274,11 +273,6 @@ void psxMemShutdown() {
 
 u8 psxMemRead8(u32 mem)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead8++;
-#endif
-
 	u8 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -298,17 +292,12 @@ u8 psxMemRead8(u32 mem)
 			ret = 0;
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+
 	return ret;
 }
 
 u16 psxMemRead16(u32 mem)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead16++;
-#endif
-
 	u16 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -328,17 +317,12 @@ u16 psxMemRead16(u32 mem)
 			ret = 0;
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+
 	return ret;
 }
 
 u32 psxMemRead32(u32 mem)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead32++;
-#endif
-
 	u32 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -358,17 +342,12 @@ u32 psxMemRead32(u32 mem)
 			ret = 0;
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_READ, PCSX4ALL_PROF_CPU);
+
 	return ret;
 }
 
 void psxMemWrite8(u32 mem, u8 value)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite8++;
-#endif
-
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -389,16 +368,10 @@ void psxMemWrite8(u32 mem, u8 value)
 #endif
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 }
 
 void psxMemWrite16(u32 mem, u16 value)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite16++;
-#endif
-
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -419,16 +392,10 @@ void psxMemWrite16(u32 mem, u16 value)
 #endif
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 }
 
 void psxMemWrite32(u32 mem, u32 value)
 {
-	//pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite32++;
-#endif
-
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -478,16 +445,12 @@ void psxMemWrite32(u32 mem, u32 value)
 			}
 		}
 	}
-	//pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HW_WRITE, PCSX4ALL_PROF_CPU);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 //NOTE: Following *_direct() are old funcs used by unmaintained ARM dynarecs
 ///////////////////////////////////////////////////////////////////////////////
 u8 psxMemRead8_direct(u32 mem,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead8_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {
@@ -504,9 +467,6 @@ u8 psxMemRead8_direct(u32 mem,void *_regs) {
 }
 
 u16 psxMemRead16_direct(u32 mem,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead16_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {
@@ -523,9 +483,6 @@ u16 psxMemRead16_direct(u32 mem,void *_regs) {
 }
 
 u32 psxMemRead32_direct(u32 mem,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemRead32_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {
@@ -542,9 +499,6 @@ u32 psxMemRead32_direct(u32 mem,void *_regs) {
 }
 
 void psxMemWrite8_direct(u32 mem, u8 value,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite8_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {
@@ -559,9 +513,6 @@ void psxMemWrite8_direct(u32 mem, u8 value,void *_regs) {
 }
 
 void psxMemWrite16_direct(u32 mem, u16 value,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite16_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {
@@ -575,9 +526,6 @@ void psxMemWrite16_direct(u32 mem, u16 value,void *_regs) {
 }
 
 void psxMemWrite32_direct(u32 mem, u32 value,void *_regs) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxMemWrite32_direct++;
-#endif
 	const psxRegisters *regs=(psxRegisters *)_regs;
 	u32 m = mem & 0xffff;
 	switch(mem>>16) {

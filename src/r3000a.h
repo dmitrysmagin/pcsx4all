@@ -170,10 +170,6 @@ typedef struct {
 // CHUI: Añadido para posible uso en el recompilador (psxRecLUT)
 	void *reserved;
 	int writeok;
-#if defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES)
-// CHUI: Añado los ciclos pendientes (ver recompilador)
-	u32 cycle_add;
-#endif
 } psxRegisters;
 
 extern psxRegisters psxRegs;
@@ -265,27 +261,6 @@ extern void psxReset(void);
 extern void psxShutdown(void);
 extern void psxException(u32 code, u32 bd);
 extern void psxBranchTest(void);
-
-
-//-----------------------------------------------------------------------------
-// senquack - disabled the old inefficient, extremely ugly versions of
-//  psxBranchTest() and associated functions psxCalculateIoCycle(),
-//  psxBranchTestCalculate() after event-scheduling overhaul (see psxevents.h).
-//  These were used by old ARM recompiler and interpreter_new, which are
-//  also uncommented messes.
-//  TODO: remove these entirely?
-//-----------------------------------------------------------------------------
-#if 0
-#ifdef USE_BRANCH_TEST_CALCULATE
-// CHUI: Funcion que llama a psxBranchTest y luego psxCalculateIoCycle
-extern void psxBranchTestCalculate();
-#else
-#define psxBranchTestCalculate psxBranchTest
-#endif
-#endif //0
-#define psxBranchTestCalculate psxBranchTest
-
-
 extern void psxExecuteBios(void);
 extern int  psxTestLoadDelay(int reg, u32 tmp);
 extern void psxDelayTest(int reg, u32 bpc);
