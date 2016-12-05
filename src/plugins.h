@@ -59,6 +59,11 @@ extern void GPU_readDataMem(uint32_t *, int);
 extern long GPU_dmaChain(uint32_t *,uint32_t);
 extern void GPU_updateLace(void);
 extern long GPU_freeze(uint32_t, GPUFreeze_t *);
+extern void GPU_requestScreenRedraw(void);
+
+#ifdef USE_GPULIB
+extern void GPU_vBlank(int is_vblank, int lcf);
+#endif
 
 // CDROM structures
 

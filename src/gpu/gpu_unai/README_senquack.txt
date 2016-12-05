@@ -48,14 +48,8 @@
 //  Granted, the differences were all around .5 FPS or less.
 //
 // TODO:
-// * Determine if it was useful or wise to leave in the rx0/rx1/ry0/ry1
-//   blocks of checks in each routine. DrHell didn't use those checks
-//   and Peops seems to do things a bit differently. I think for now they
-//   probably are useful, if a little hard to understand.
 // * See if anything can be done about remaining pixel gaps in Gran
 //   Turismo car models, track.
-// * See about fixing Silent Hill running animation as a level is loaded
-//   (white rectangles bug I already fixed a while ago)
 // * Find better way of passing parameters to gpuPolySpanFn functions than
 //   through original Unai method of using global variables u4,v4,du4 etc.
 // * Come up with some newer way of drawing rows of pixels than by calling
@@ -63,14 +57,20 @@
 //   MIPS platforms, many registers are having to be pushed/popped from stack
 //   on each call, which is strange since MIPS has so many registers.
 // * MIPS MXU/ASM optimized gpuPolySpanFn ?
-// * Move use of GPU_TESTRANGE3 and GPU_ADJUSTCOORD3() to gpu_command.h, so that
-//   quads are having to have less unnecessary work done.
-
 
 //////////////////////////////////////////////////////////////////////////
 //senquack - Disabled original Unai poly routines left here for reference:
 // ( from gpu_raster_polygon.h )
 //////////////////////////////////////////////////////////////////////////
+#define GPU_TESTRANGE3() \
+{ \
+	if(x0<0) { if((x1-x0)>CHKMAX_X) return; if((x2-x0)>CHKMAX_X) return; } \
+	if(x1<0) { if((x0-x1)>CHKMAX_X) return; if((x2-x1)>CHKMAX_X) return; } \
+	if(x2<0) { if((x0-x2)>CHKMAX_X) return; if((x1-x2)>CHKMAX_X) return; } \
+	if(y0<0) { if((y1-y0)>CHKMAX_Y) return; if((y2-y0)>CHKMAX_Y) return; } \
+	if(y1<0) { if((y0-y1)>CHKMAX_Y) return; if((y2-y1)>CHKMAX_Y) return; } \
+	if(y2<0) { if((y0-y2)>CHKMAX_Y) return; if((y1-y2)>CHKMAX_Y) return; } \
+}
 
 /*----------------------------------------------------------------------
 F3

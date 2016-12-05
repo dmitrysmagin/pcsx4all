@@ -43,7 +43,6 @@
 // TODO : Implement Rearmed's auto-frameskip so SPU doesn't need to
 //        hackishly be updated twice per emulated frame.
 // TODO : Implement Rearmed's frame limiter
-// TODO : Add GPU_vBlank() from Rearmed?
 
 #include "psxcounters.h"
 #include "psxevents.h"
@@ -383,6 +382,10 @@ void psxRcntUpdate()
             dbg("UpdateLace");
 #endif
             HW_GPU_STATUS &= ~PSXGPU_LCF;
+
+#ifdef USE_GPULIB
+            GPU_vBlank( 1, 0 );
+#endif
             setIrq( 0x01 );
             GPU_updateLace();
 
@@ -409,6 +412,10 @@ void psxRcntUpdate()
             gpuSyncPluginSR();
             if( (HW_GPU_STATUS & PSXGPU_ILACE_BITS) == PSXGPU_ILACE_BITS )
                 HW_GPU_STATUS |= frame_counter << 31;
+
+#ifdef USE_GPULIB
+            GPU_vBlank( 0, HW_GPU_STATUS >> 31 );
+#endif
 
 #ifdef DEBUG_END_FRAME
 		{

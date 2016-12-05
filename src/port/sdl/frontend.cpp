@@ -22,11 +22,6 @@
 
 #define timer_delay(a)	wait_ticks(a*1000)
 
-#ifdef gpu_unai
-extern bool show_fps;
-extern bool frameLimit;
-#endif
-
 enum  {
 	KEY_UP=0x1,	KEY_LEFT=0x4,		KEY_DOWN=0x10,	KEY_RIGHT=0x40,
 	KEY_START=1<<8,	KEY_SELECT=1<<9,	KEY_L=1<<10,	KEY_R=1<<11,
@@ -643,45 +638,36 @@ static char *bios_show()
 
 static int fps_alter(u32 keys)
 {
-#ifdef gpu_unai
 	if (keys & KEY_RIGHT) {
-		if (show_fps == false) show_fps = true;
+		if (Config.ShowFps == false) Config.ShowFps = true;
 	} else if (keys & KEY_LEFT) {
-		if (show_fps == true) show_fps = false;
+		if (Config.ShowFps == true) Config.ShowFps = false;
 	}
-
-#endif
 	return 0;
 }
 
 static char *fps_show()
 {
 	static char buf[16] = "\0";
-#ifdef gpu_unai
-	sprintf(buf, "%s", show_fps == true ? "on" : "off");
-#endif
+	sprintf(buf, "%s", Config.ShowFps == true ? "on" : "off");
 	return buf;
 }
 
 static int framelimit_alter(u32 keys)
 {
-#ifdef gpu_unai
 	if (keys & KEY_RIGHT) {
-		if (frameLimit == false) frameLimit = true;
+		if (Config.FrameLimit == false) Config.FrameLimit = true;
 	} else if (keys & KEY_LEFT) {
-		if (frameLimit == true) frameLimit = false;
+		if (Config.FrameLimit == true) Config.FrameLimit = false;
 	}
 
-#endif
 	return 0;
 }
 
 static char *framelimit_show()
 {
 	static char buf[16] = "\0";
-#ifdef gpu_unai
-	sprintf(buf, "%s", frameLimit == true ? "on" : "off");
-#endif
+	sprintf(buf, "%s", Config.FrameLimit == true ? "on" : "off");
 	return buf;
 }
 
@@ -903,10 +889,8 @@ static int settings_defaults()
 	Config.SpuIrq = 0;
 	Config.SyncAudio = 1;
 	Config.ForcedXAUpdates = 1;
-#ifdef gpu_unai
-	show_fps = 0;
-	frameLimit = 0;
-#endif
+	Config.ShowFps = 0;
+	Config.FrameLimit = 0;
 #ifdef spu_pcsxrearmed
 	spu_config.iUseInterpolation = 0;
 #endif
@@ -926,10 +910,8 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"[PSX] RCntFix           ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"[PSX] VSyncWA           ", NULL, &VSyncWA_alter, &VSyncWA_show},
-#ifdef gpu_unai
 	{(char *)"[GPU] Show FPS          ", NULL, &fps_alter, &fps_show},
 	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
-#endif
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
 	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef spu_pcsxrearmed

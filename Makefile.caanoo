@@ -34,12 +34,15 @@ CFLAGS = -mcpu=arm926ej-s -mtune=arm926ej-s $(DEVLIBS) \
 	-fweb -frename-registers -falign-functions=32 -falign-loops -falign-labels -falign-jumps \
 	-finline -finline-functions -fno-common -fno-builtin \
 	-Wall -Wno-sign-compare -Wunused -Wpointer-arith -Wcast-align -Waggregate-return \
-    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
+    -Isrc -Isrc/zlib -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) -D$(INTERPRETER) -D$(RECOMPILER) -D$(GTE) -Isrc/port/$(PORT) -Isrc/gte/$(GTE) \
     -DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) -DMCD2_FILE=$(MCD2_FILE) \
     -D__arm__ -DWIZ -DMMUHACK -DINLINE="static __inline__" -Dasm="__asm__ __volatile__" -Wshadow -DPSXREC
 	# -fsigned-char 
 	# -Wstrict-prototypes -Wbad-function-cast
     # -Wshadow
+
+# Convert $GPU var to uppercase using 'tr' util and make it a CFLAG define
+CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
 
 #senquack- Following will force use of inaccurate fixed-point division
 #          using original inverse-lookup-table. It is faster on systems
@@ -82,8 +85,21 @@ OBJS = \
 	obj/cdriso.o obj/cdrom.o obj/ppf.o \
 	obj/sio.o obj/pad.o
 
-OBJS += obj/gte/$(GTE)/gte.o
+#*********************************************************************
+# Compile with new 'gpulib' adapted from PCSX Rearmed?
+#  Experimental as of Oct 2016 (Will eventually become default)
+#  Fixes many game incompatibilities and centralizes/improves many
+#  things that once were the responsibility of individual GPU plugins.
+#  NOTE: For now, only GPU Unai has been adapted.
+ifeq ($(USE_GPULIB),1)
+CFLAGS += -DUSE_GPULIB
+OBJDIRS += obj/gpu/gpulib
+OBJS += obj/gpu/$(GPU)/gpulib_if.o
+OBJS += obj/gpu/gpulib/gpu.o obj/gpu/gpulib/vout_port.o
+else
 OBJS += obj/gpu/$(GPU)/gpu.o
+endif
+#*********************************************************************
 
 ifneq ($(strip $(findstring arm,$(CFLAGS))),)
 ifneq ($(strip $(findstring gpu_unai,$(GPU))),)
@@ -92,6 +108,7 @@ OBJS += obj/gpu/$(GPU)/gpu_arm.o
 endif
 endif
 
+OBJS += obj/gte/$(GTE)/gte.o
 OBJS += obj/spu/$(SPU)/spu.o
 
 OBJS += obj/zlib/adler32.o obj/zlib/compress.o obj/zlib/crc32.o obj/zlib/gzio.o \

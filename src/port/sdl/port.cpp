@@ -19,6 +19,15 @@
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
 
+// New gpulib from Notaz's PCSX Rearmed handles duties common to GPU plugins
+#ifdef USE_GPULIB
+#include "gpu/gpulib/gpu.h"
+#endif
+
+#ifdef GPU_UNAI
+#include "gpu/gpu_unai/gpu.h"
+#endif
+
 enum {
 	DKEY_SELECT = 0,
 	DKEY_L3,
@@ -43,15 +52,12 @@ enum {
 static SDL_Surface *screen;
 unsigned short *SCREEN;
 
-#ifdef gpu_unai
+#ifdef GPU_UNAI
 /* FPS showing */
 extern char msg[36];
-extern bool show_fps;
-extern bool frameLimit;
 #endif
 
-#ifdef gpu_dfxvideo
-bool dfx_show_fps;
+#ifdef GPU_DFXVIDEO
 extern float fps_cur;
 #endif
 
@@ -257,16 +263,14 @@ void config_load()
 			sscanf(arg, "%d", &value);
 			Config.ForcedXAUpdates = value;
 		}
-#ifdef gpu_unai
 		else if(!strcmp(line, "ShowFps")) {
 			sscanf(arg, "%d", &value);
-			show_fps = value;
+			Config.ShowFps = value;
 		}
 		else if(!strcmp(line, "FrameLimit")) {
 			sscanf(arg, "%d", &value);
-			frameLimit = value;
+			Config.FrameLimit = value;
 		}
-#endif
 #ifdef spu_pcsxrearmed
 		else if(!strcmp(line, "SpuUseInterpolation")) {
 			sscanf(arg, "%d", &value);
@@ -310,11 +314,8 @@ void config_save()
 		return;
 	}
 
-	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates);
+	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\nShowFps %d\nFrameLimit %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit);
 
-#ifdef gpu_unai
-	fprintf(f, "ShowFps %d\nFrameLimit %d\n", show_fps, frameLimit);
-#endif
 #ifdef spu_pcsxrearmed
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
 #endif
@@ -404,10 +405,7 @@ void pad_update(void)
 #endif
 			case SDLK_F1: state_load(); break;
 			case SDLK_F2: state_save(); break;
-
-#ifdef gpu_unai
-			case SDLK_v: { show_fps=!show_fps; } break;
-#endif
+			case SDLK_v: { Config.ShowFps=!Config.ShowFps; } break;
 			default: break;
 			}
 			break;
@@ -472,11 +470,8 @@ void pad_update(void)
 		video_flip();
 		video_clear();
 #endif
-#ifdef gpu_unai
-		extern bool fb_dirty;
-		fb_dirty = true; // redraw screen
-#endif
 		pmonResume();   // Resume performance monitor
+		GPU_requestScreenRedraw(); // GPU plugin should redraw screen
 	}
 #endif
 }
@@ -638,17 +633,15 @@ void sound_set(unsigned char *pSound, long lBytes)
 
 void video_flip(void)
 {
-#ifdef gpu_unai
-	if (emu_running && show_fps)
+	if (emu_running && Config.ShowFps) {
+#ifdef GPU_UNAI
 		port_printf(5,5,msg);
-#endif
-#ifdef gpu_dfxvideo
-	if (emu_running && dfx_show_fps) {
+#elif GPU_DFXVIDEO
 		char msg[256];
 		sprintf(msg, "FPS: %02.02f", fps_cur);
 		port_printf(5,5,msg);
-	}
 #endif
+	}
 
 	if (SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
 	SDL_Flip(screen);
@@ -726,6 +719,9 @@ int main (int argc, char **argv)
 	//           full. This fixes droupouts in music/speech on slow devices.
 	Config.ForcedXAUpdates=1;  /* default is 1=allow forced XA updates */
 
+	Config.ShowFps=0;    // 0=don't show FPS
+	Config.FrameLimit=0; // 0=no frame limiting
+
 	//zear - Added option to store the last visited directory.
 	strncpy(Config.LastDir, home, MAXPATHLEN); /* Defaults to home directory. */
 	Config.LastDir[MAXPATHLEN-1] = '\0';
@@ -782,10 +778,11 @@ int main (int argc, char **argv)
 	//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
 	// gpu_dfxvideo
-	#ifdef gpu_dfxvideo
+	#ifdef GPU_DFXVIDEO
 	extern int UseFrameLimit; UseFrameLimit=0; // limit fps 1=on, 0=off
 	extern int UseFrameSkip; UseFrameSkip=0; // frame skip 1=on, 0=off
 	extern int iFrameLimit; iFrameLimit=0; // fps limit 2=auto 1=fFrameRate, 0=off
+	//senquack - TODO: is this really wise to have set to 200 as default:
 	extern float fFrameRate; fFrameRate=200.0f; // fps
 	extern int iUseDither; iUseDither=0; // 0=off, 1=game dependant, 2=always
 	extern int iUseFixes; iUseFixes=0; // use game fixes
@@ -802,18 +799,21 @@ int main (int argc, char **argv)
 	 256=repeated flat tex triangles (Dark Forces)
 	 512=draw quads with triangles (better g-colors, worse textures)
 	*/
-	#endif
+	#endif //GPU_DFXVIDEO
 
 	// gpu_drhell
-	#ifdef gpu_drhell
+	#ifdef GPU_DRHELL
 	extern unsigned int autoFrameSkip; autoFrameSkip=1; /* auto frameskip */
 	extern signed int framesToSkip; framesToSkip=0; /* frames to skip */
-	#endif
+	#endif //GPU_DRHELL
 
 	// gpu_unai
-	#ifdef gpu_unai
-	extern int skipCount; skipCount=0; /* frame skip (0,1,2,3...) */
-	extern int linesInterlace_user; linesInterlace_user=0; /* interlace */
+	#ifdef GPU_UNAI
+		gpu_unai_config_ext.pixel_skip = 1;
+		gpu_unai_config_ext.lighting = 1;
+		gpu_unai_config_ext.fast_lighting = 1;
+		gpu_unai_config_ext.blending = 1;
+		gpu_unai_config_ext.dithering = 0;
 	#endif
 
 	// Load config from file.
@@ -873,19 +873,57 @@ int main (int argc, char **argv)
 		}
 
 		// GPU
-	#ifdef gpu_dfxvideo
-		if (strcmp(argv[i],"-showfps")==0) { dfx_show_fps=true; } // show FPS
-	#endif
-	#ifdef gpu_unai
-		if (strcmp(argv[i],"-showfps")==0) { show_fps=true; } // show FPS
-		if (strcmp(argv[i],"-framelimit")==0) { frameLimit=true; } // frame limit
-		if (strcmp(argv[i],"-skip")==0) { extern int skipCount; skipCount=atoi(argv[i+1]); } // frame skip (0,1,2,3...)
-		if (strcmp(argv[i],"-interlace")==0) { extern int linesInterlace_user; linesInterlace_user=1; } // interlace
-		if (strcmp(argv[i],"-progressive")==0) { extern bool progressInterlace; progressInterlace=true; } // progressive interlace
-	#endif
+		if (strcmp(argv[i],"-showfps")==0) { Config.ShowFps=true; } // show FPS
+		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
+	#ifdef GPU_UNAI
+		// Render only every other line (looks ugly but faster)
+		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; }
 
-		// SPU
+		// Allow 24bpp->15bpp dithering (only polys, only if PS1 game uses it)
+		if (strcmp(argv[i],"-dither")==0) { gpu_unai_config_ext.dithering = 1; }
 
+		if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
+		if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
+
+		// Apply lighting to all primitives. Default is to only light primitives
+		//  with light values below a certain threshold (for speed).
+		if (strcmp(argv[i],"-nofastlight")==0) { gpu_unai_config_ext.fast_lighting = 0; }
+
+		// Render all pixels on a horizontal line, even when in hi-res 512,640
+		//  PSX vid modes and those pixels would never appear on 320x240 screen.
+		//  (when using pixel-dropping downscaler).
+		//  Can cause visual artifacts, default is on for now (for speed)
+		if (strcmp(argv[i],"-nopixelskip")==0) { gpu_unai_config_ext.pixel_skip = 0; }
+
+		// Settings specific to older, non-gpulib standalone gpu_unai:
+		#ifndef USE_GPULIB
+			if (strcmp(argv[i],"-skip")==0) {
+				int val = -1;
+				if (++i < argc) {
+					val = atoi(argv[i]);
+					if (val >= 0 && val <= 7) {
+						gpu_unai_config_ext.frameskip_count = val;
+					} else val = -1;
+				} else {
+					printf("ERROR: missing value for -skip\n");
+				}
+
+				if (val == -1) {
+					printf("ERROR: -skip value must be between 0..8\n");
+					param_parse_error = true;
+					break;
+				}
+			}
+
+			// Progressive interlace option - See gpu_unai/gpu.h
+			// Old option left in from when PCSX4ALL ran on very slow devices.
+			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = 1; }
+
+		#endif //!USE_GPULIB
+	#endif //GPU_UNAI
+
+
+	// SPU
 	#ifndef spu_null
 
 	#ifndef spu_pcsxrearmed
@@ -995,6 +1033,9 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 
+#ifdef USE_GPULIB
+	gpulib_set_config(&gpulib_config);
+#endif
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 

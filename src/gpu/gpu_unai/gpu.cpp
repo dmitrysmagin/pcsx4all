@@ -1,6 +1,7 @@
 /***************************************************************************
 *   Copyright (C) 2010 PCSX4ALL Team                                      *
 *   Copyright (C) 2010 Unai                                               *
+*   Copyright (C) 2016 Senquack (dansilsby <AT> gmail <DOT> com)          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -18,10 +19,16 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
 ***************************************************************************/
 
+#include <stddef.h>
+#include "psxcommon.h"
 #include "port.h"
-#include "gpu.h"
 #include "profiler.h"
 #include "debug.h"
+#include "gpu_unai.h"
+
+#define GPU_INLINE static inline __attribute__((always_inline))
+
+#define VIDEO_WIDTH 320
 
 #ifdef TIME_IN_MSEC
 #define TPS 1000
@@ -29,116 +36,36 @@
 #define TPS 1000000
 #endif
 
-int skipCount = 0; /* frame skip (0,1,2,3...) */
-int linesInterlace = 0;  /* internal lines interlace */
-int linesInterlace_user = 0; /* Lines interlace */
+#define IS_PAL (gpu_unai.GPU_GP1&(0x08<<17))
 
-bool isSkip = false; /* skip frame (according to GPU) */
-bool skipFrame = false; /* skip this frame (according to frame skip) */
-bool wasSkip = false; /* skip frame old value (according to GPU) */
-bool show_fps = false; /* Show FPS statistics */
+//TODO: Have gpu_unai use GPUFreeze_t declared in plugins.h
+typedef struct {
+	u32 Version;
+	u32 GPU_gp1;
+	u32 Control[256];
+	unsigned char FrameBuffer[1024*512*2];
+} GPUFreeze_t;
 
-bool skipGPU = false; /* skip GPU primitives */
-bool progressInterlace_flag = false; /* Progressive interlace flag */
-bool progressInterlace = false; /* Progressive interlace option*/
-bool frameLimit = false; /* frames to wait */
 
-bool fb_dirty = false; /* frame buffer is dirty (according to GPU) */
-bool light = true; /* lighting */
-bool blend = true; /* blending */
-bool FrameToRead = false; /* load image in progress */
-
-bool FrameToWrite = false; /* store image in progress */
-u8 BLEND_MODE;
-u8 TEXT_MODE;
-u8 Masking;
-
-u16 PixelMSB;
-u16 PixelData;
-
-///////////////////////////////////////////////////////////////////////////////
-//  GPU Global data
-///////////////////////////////////////////////////////////////////////////////
-
-///////////////////////////////////////////////////////////////////////////////
-//  Dma Transfers info
-s32		px,py;
-s32		x_end,y_end;
-u16*  pvram;
-
-u32 GP0;
-s32 PacketCount;
-s32 PacketIndex;
-
-///////////////////////////////////////////////////////////////////////////////
-//  Display status
-u32 DisplayArea   [6];
-
-///////////////////////////////////////////////////////////////////////////////
-//  Rasterizer status
-u32 TextureWindow [4];
-u32 DrawingArea   [4];
-u32 DrawingOffset [2];
-
-///////////////////////////////////////////////////////////////////////////////
-//  Rasterizer status
-
-u16* TBA;
-u16* CBA;
-
-///////////////////////////////////////////////////////////////////////////////
-//  Inner Loops
-s32   u4, du4;
-s32   v4, dv4;
-s32   r4, dr4;
-s32   g4, dg4;
-s32   b4, db4;
-u32   lInc;
-//senquack - u4,v4 were originally packed into one word in gpuPolySpanFn in
-//           gpu_inner.h, and these two vars were used to pack du4,dv4 into
-//           another word and increment both u4,v4 with one instruction.
-//           During the course of fixing gpu_unai's polygon rendering issues,
-//           I ultimately found it was impossible to keep them combined like
-//           that, as pixel dropouts would always occur, particularly in NFS3
-//           sky background, perhaps from the reduced accuracy. Now they are
-//           incremented individually with du4 and dv4, and masked separetely,
-//           using new vars u4_msk, v4_msk, which store fixed-point masks.
-//           These are updated whenever TextureWindow[2] or [3] are changed.
-//u32   tInc, tMsk;
-u32 u4_msk, v4_msk;
-
-GPUPacket PacketBuffer;
 //senquack - Original 512KB of guard space seems not to be enough, as Xenogears
 // accesses outside this range and crashes in town intro fight sequence.
 // Increased to 2MB total (double PSX VRAM) and Xenogears no longer
-// crashes, but some textures are still messed up. Also note that alignment
-// is increased to 2048 (Rearmed behavior) which should give some more guard room.
-// TODO: Determine cause of out-of-bounds write/reads.
+// crashes, but some textures are still messed up. Also note that alignment min
+// is 16 bytes, needed for pixel-skipping rendering/blitting in high horiz res.
+// Extra 4KB is for guard room at beginning.
+// TODO: Determine cause of out-of-bounds write/reads. <-- Note: this is largely
+//  solved by adoption of PCSX Rearmed's 'gpulib' in gpulib_if.cpp, which
+//  replaces this file (gpu.cpp)
 //u16   GPU_FrameBuffer[(FRAME_BUFFER_SIZE+512*1024)/2] __attribute__((aligned(32)));
-u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2)/2] __attribute__((aligned(2048)));
-
-u32   GPU_GP1;
-
-u32 tw=0; /* texture window */
-
-u32 blit_mask=0; /* blit mask */
-
-u32 *last_dma=NULL; /* last dma pointer */
+static u16 GPU_FrameBuffer[(FRAME_BUFFER_SIZE*2 + 4096)/2] __attribute__((aligned(32)));
 
 ///////////////////////////////////////////////////////////////////////////////
-//  Inner loop driver instanciation file
+// GPU fixed point math
+#include "gpu_fixedpoint.h"
+
+///////////////////////////////////////////////////////////////////////////////
+// Inner loop driver instantiation file
 #include "gpu_inner.h"
-
-///////////////////////////////////////////////////////////////////////////////
-//  GPU Raster Macros
-#define	GPU_RGB16(rgb)        ((((rgb)&0xF80000)>>9)|(((rgb)&0xF800)>>6)|(((rgb)&0xF8)>>3))
-
-#define GPU_EXPANDSIGN(x)  (((s32)(x)<<21)>>21)
-
-#define CHKMAX_X 1024
-#define CHKMAX_Y 512
-
-#define IS_PAL (GPU_GP1&(0x08<<17))
 
 ///////////////////////////////////////////////////////////////////////////////
 // GPU internal image drawing functions
@@ -161,25 +88,33 @@ u32 *last_dma=NULL; /* last dma pointer */
 #include "gpu_command.h"
 
 ///////////////////////////////////////////////////////////////////////////////
-INLINE void gpuReset(void)
+static void gpuReset(void)
 {
-	GPU_GP1 = 0x14802000;
-	TextureWindow[0] = 0;
-	TextureWindow[1] = 0;
-	TextureWindow[2] = 255;
-	TextureWindow[3] = 255;
-	DrawingArea[2] = 256;
-	DrawingArea[3] = 240;
-	DisplayArea[2] = 256;
-	DisplayArea[3] = 240;
-	DisplayArea[5] = 240;
-	linesInterlace=linesInterlace_user;
-	blit_mask=0;
-
+	memset((void*)&gpu_unai, 0, sizeof(gpu_unai));
+	gpu_unai.vram = (u16*)GPU_FrameBuffer + (4096/2); //4kb guard room in front
+	gpu_unai.GPU_GP1 = 0x14802000;
+	gpu_unai.DrawingArea[2] = 256;
+	gpu_unai.DrawingArea[3] = 240;
+	gpu_unai.DisplayArea[2] = 256;
+	gpu_unai.DisplayArea[3] = 240;
+	gpu_unai.DisplayArea[5] = 240;
+	gpu_unai.TextureWindow[0] = 0;
+	gpu_unai.TextureWindow[1] = 0;
+	gpu_unai.TextureWindow[2] = 255;
+	gpu_unai.TextureWindow[3] = 255;
 	//senquack - new vars must be updated whenever texture window is changed:
 	//           (used for polygon-drawing in gpu_inner.h, gpu_raster_polygon.h)
-	u4_msk = i2x(TextureWindow[2]) | ((1 << FIXED_BITS) - 1);
-	v4_msk = i2x(TextureWindow[3]) | ((1 << FIXED_BITS) - 1);
+	const u32 fb = FIXED_BITS;  // # of fractional fixed-pt bits of u4/v4
+	gpu_unai.u_msk = (((u32)gpu_unai.TextureWindow[2]) << fb) | ((1 << fb) - 1);
+	gpu_unai.v_msk = (((u32)gpu_unai.TextureWindow[3]) << fb) | ((1 << fb) - 1);
+
+	// Configuration options
+	gpu_unai.config = gpu_unai_config_ext;
+	gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+	gpu_unai.frameskip.skipCount = gpu_unai.config.frameskip_count;
+
+	SetupLightLUT();
+	SetupDitheringConstants();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -195,8 +130,8 @@ bool  GPU_init(void)
 	}
 #endif
 
-	fb_dirty = true;
-	last_dma = NULL;
+	gpu_unai.fb_dirty = true;
+	gpu_unai.dma.last_dma = NULL;
 	return (0);
 }
 
@@ -213,27 +148,27 @@ long  GPU_freeze(unsigned int bWrite, GPUFreeze_t* p2)
 
 	if (bWrite)
 	{
-		p2->GPU_gp1 = GPU_GP1;
+		p2->GPU_gp1 = gpu_unai.GPU_GP1;
 		memset(p2->Control, 0, sizeof(p2->Control));
 		// save resolution and registers for P.E.Op.S. compatibility
-		p2->Control[3] = (3 << 24) | ((GPU_GP1 >> 23) & 1);
-		p2->Control[4] = (4 << 24) | ((GPU_GP1 >> 29) & 3);
-		p2->Control[5] = (5 << 24) | (DisplayArea[0] | (DisplayArea[1] << 10));
+		p2->Control[3] = (3 << 24) | ((gpu_unai.GPU_GP1 >> 23) & 1);
+		p2->Control[4] = (4 << 24) | ((gpu_unai.GPU_GP1 >> 29) & 3);
+		p2->Control[5] = (5 << 24) | (gpu_unai.DisplayArea[0] | (gpu_unai.DisplayArea[1] << 10));
 		p2->Control[6] = (6 << 24) | (2560 << 12);
-		p2->Control[7] = (7 << 24) | (DisplayArea[4] | (DisplayArea[5] << 10));
-		p2->Control[8] = (8 << 24) | ((GPU_GP1 >> 17) & 0x3f) | ((GPU_GP1 >> 10) & 0x40);
-		memcpy(p2->FrameBuffer, (u16*)GPU_FrameBuffer, FRAME_BUFFER_SIZE);
+		p2->Control[7] = (7 << 24) | (gpu_unai.DisplayArea[4] | (gpu_unai.DisplayArea[5] << 10));
+		p2->Control[8] = (8 << 24) | ((gpu_unai.GPU_GP1 >> 17) & 0x3f) | ((gpu_unai.GPU_GP1 >> 10) & 0x40);
+		memcpy((void*)p2->FrameBuffer, (void*)gpu_unai.vram, FRAME_BUFFER_SIZE);
 		return (1);
 	}
 	else
 	{
 		extern void GPU_writeStatus(u32 data);
-		GPU_GP1 = p2->GPU_gp1;
-		memcpy((u16*)GPU_FrameBuffer, p2->FrameBuffer, FRAME_BUFFER_SIZE);
+		gpu_unai.GPU_GP1 = p2->GPU_gp1;
+		memcpy((void*)gpu_unai.vram, (void*)p2->FrameBuffer, FRAME_BUFFER_SIZE);
 		GPU_writeStatus((5 << 24) | p2->Control[5]);
 		GPU_writeStatus((7 << 24) | p2->Control[7]);
 		GPU_writeStatus((8 << 24) | p2->Control[8]);
-		gpuSetTexture(GPU_GP1);
+		gpuSetTexture(gpu_unai.GPU_GP1);
 		return (1);
 	}
 	return (0);
@@ -269,24 +204,24 @@ INLINE void gpuSendPacket()
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_GPU_sendPacket++;
 #endif
-	gpuSendPacketFunction(PacketBuffer.U4[0]>>24);
+	gpuSendPacketFunction(gpu_unai.PacketBuffer.U4[0]>>24);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuCheckPacket(u32 uData)
 {
-	if (PacketCount)
+	if (gpu_unai.PacketCount)
 	{
-		PacketBuffer.U4[PacketIndex++] = uData;
-		--PacketCount;
+		gpu_unai.PacketBuffer.U4[gpu_unai.PacketIndex++] = uData;
+		--gpu_unai.PacketCount;
 	}
 	else
 	{
-		PacketBuffer.U4[0] = uData;
-		PacketCount = PacketSize[uData >> 24];
-		PacketIndex = 1;
+		gpu_unai.PacketBuffer.U4[0] = uData;
+		gpu_unai.PacketCount = PacketSize[uData >> 24];
+		gpu_unai.PacketIndex = 1;
 	}
-	if (!PacketCount) gpuSendPacket();
+	if (!gpu_unai.PacketCount) gpuSendPacket();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -301,42 +236,42 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	u32 data;
-	const u16 *VIDEO_END=(GPU_FrameBuffer+(FRAME_BUFFER_SIZE/2)-1);
-	GPU_GP1 &= ~0x14000000;
+	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
+	gpu_unai.GPU_GP1 &= ~0x14000000;
 
 	while (dmaCount) 
 	{
-		if (FrameToWrite) 
+		if (gpu_unai.dma.FrameToWrite)
 		{
-			while (dmaCount) 
+			while (dmaCount)
 			{
 				dmaCount--;
 				data = *dmaAddress++;
-				if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-				pvram[px] = data;
-				if (++px>=x_end) 
+				if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+				gpu_unai.dma.pvram[gpu_unai.dma.px] = data;
+				if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 				{
-					px = 0;
-					pvram += 1024;
-					if (++py>=y_end) 
+					gpu_unai.dma.px = 0;
+					gpu_unai.dma.pvram += 1024;
+					if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 					{
-						FrameToWrite = false;
-						GPU_GP1 &= ~0x08000000;
-						fb_dirty = true;
+						gpu_unai.dma.FrameToWrite = false;
+						gpu_unai.GPU_GP1 &= ~0x08000000;
+						gpu_unai.fb_dirty = true;
 						break;
 					}
 				}
-				if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-				pvram[px] = data>>16;
-				if (++px>=x_end) 
+				if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+				gpu_unai.dma.pvram[gpu_unai.dma.px] = data>>16;
+				if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 				{
-					px = 0;
-					pvram += 1024;
-					if (++py>=y_end) 
+					gpu_unai.dma.px = 0;
+					gpu_unai.dma.pvram += 1024;
+					if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 					{
-						FrameToWrite = false;
-						GPU_GP1 &= ~0x08000000;
-						fb_dirty = true;
+						gpu_unai.dma.FrameToWrite = false;
+						gpu_unai.GPU_GP1 &= ~0x08000000;
+						gpu_unai.fb_dirty = true;
 						break;
 					}
 				}
@@ -350,7 +285,7 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 		}
 	}
 
-	GPU_GP1 = (GPU_GP1 | 0x14000000) & ~0x60000000;
+	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
@@ -369,9 +304,9 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 	u32 len, count;
 	long dma_words = 0;
 
-	if (last_dma) *last_dma |= 0x800000;
+	if (gpu_unai.dma.last_dma) *gpu_unai.dma.last_dma |= 0x800000;
 	
-	GPU_GP1 &= ~0x14000000;
+	gpu_unai.GPU_GP1 &= ~0x14000000;
 	
 	addr = start_addr & 0xffffff;
 	for (count = 0; addr != 0xffffff; count++)
@@ -405,10 +340,10 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 		list[0] &= ~0x800000;
 	}
 	
-	if (last_dma) *last_dma &= ~0x800000;
-	last_dma = rambase + (start_addr & 0x1fffff) / 4;
+	if (gpu_unai.dma.last_dma) *gpu_unai.dma.last_dma &= ~0x800000;
+	gpu_unai.dma.last_dma = rambase + (start_addr & 0x1fffff) / 4;
 
-	GPU_GP1 = (GPU_GP1 | 0x14000000) & ~0x60000000;
+	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 
 	return dma_words;
@@ -417,7 +352,7 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 ///////////////////////////////////////////////////////////////////////////////
 void  GPU_writeData(u32 data)
 {
-	const u16 *VIDEO_END=(GPU_FrameBuffer+(FRAME_BUFFER_SIZE/2)-1);
+	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef DEBUG_ANALYSIS
 		dbg_anacnt_GPU_writeData++;
 	#endif
@@ -426,36 +361,36 @@ void  GPU_writeData(u32 data)
 	#endif
 	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	GPU_GP1 &= ~0x14000000;
+	gpu_unai.GPU_GP1 &= ~0x14000000;
 
-	if (FrameToWrite)
+	if (gpu_unai.dma.FrameToWrite)
 	{
-		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-		pvram[px]=(u16)data;
-		if (++px>=x_end)
+		if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+		gpu_unai.dma.pvram[gpu_unai.dma.px]=(u16)data;
+		if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 		{
-			px = 0;
-			pvram += 1024;
-			if (++py>=y_end) 
+			gpu_unai.dma.px = 0;
+			gpu_unai.dma.pvram += 1024;
+			if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 			{
-				FrameToWrite = false;
-				GPU_GP1 &= ~0x08000000;
-				fb_dirty = true;
+				gpu_unai.dma.FrameToWrite = false;
+				gpu_unai.GPU_GP1 &= ~0x08000000;
+				gpu_unai.fb_dirty = true;
 			}
 		}
-		if (FrameToWrite)
+		if (gpu_unai.dma.FrameToWrite)
 		{
-			if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-			pvram[px]=data>>16;
-			if (++px>=x_end)
+			if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+			gpu_unai.dma.pvram[gpu_unai.dma.px]=data>>16;
+			if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 			{
-				px = 0;
-				pvram += 1024;
-				if (++py>=y_end) 
+				gpu_unai.dma.px = 0;
+				gpu_unai.dma.pvram += 1024;
+				if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 				{
-					FrameToWrite = false;
-					GPU_GP1 &= ~0x08000000;
-					fb_dirty = true;
+					gpu_unai.dma.FrameToWrite = false;
+					gpu_unai.GPU_GP1 &= ~0x08000000;
+					gpu_unai.fb_dirty = true;
 				}
 			}
 		}
@@ -464,7 +399,7 @@ void  GPU_writeData(u32 data)
 	{
 		gpuCheckPacket(data);
 	}
-	GPU_GP1 |= 0x14000000;
+	gpu_unai.GPU_GP1 |= 0x14000000;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 
@@ -474,53 +409,53 @@ void  GPU_writeData(u32 data)
 ///////////////////////////////////////////////////////////////////////////////
 void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 {
-	const u16 *VIDEO_END=(GPU_FrameBuffer+(FRAME_BUFFER_SIZE/2)-1);
+	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef DEBUG_ANALYSIS
 		dbg_anacnt_GPU_readDataMem++;
 	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_readDataMem(%d)\n",dmaCount);
 	#endif
-	if(!FrameToRead) return;
+	if(!gpu_unai.dma.FrameToRead) return;
 
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	GPU_GP1 &= ~0x14000000;
+	gpu_unai.GPU_GP1 &= ~0x14000000;
 	do 
 	{
-		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
+		if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
 		// lower 16 bit
 		//senquack - 64-bit fix (from notaz)
-		//u32 data = (unsigned long)pvram[px];
-		u32 data = (u32)pvram[px];
+		//u32 data = (unsigned long)gpu_unai.dma.pvram[gpu_unai.dma.px];
+		u32 data = (u32)gpu_unai.dma.pvram[gpu_unai.dma.px];
 
-		if (++px>=x_end) 
+		if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 		{
-			px = 0;
-			pvram += 1024;
+			gpu_unai.dma.px = 0;
+			gpu_unai.dma.pvram += 1024;
 		}
 
-		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
+		if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
 		// higher 16 bit (always, even if it's an odd width)
 		//senquack - 64-bit fix (from notaz)
-		//data |= (unsigned long)(pvram[px])<<16;
-		data |= (u32)(pvram[px])<<16;
+		//data |= (unsigned long)(gpu_unai.dma.pvram[gpu_unai.dma.px])<<16;
+		data |= (u32)(gpu_unai.dma.pvram[gpu_unai.dma.px])<<16;
 		
 		*dmaAddress++ = data;
 
-		if (++px>=x_end) 
+		if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 		{
-			px = 0;
-			pvram += 1024;
-			if (++py>=y_end) 
+			gpu_unai.dma.px = 0;
+			gpu_unai.dma.pvram += 1024;
+			if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 			{
-				FrameToRead = false;
-				GPU_GP1 &= ~0x08000000;
+				gpu_unai.dma.FrameToRead = false;
+				gpu_unai.GPU_GP1 &= ~0x08000000;
 				break;
 			}
 		}
 	} while (--dmaCount);
 
-	GPU_GP1 = (GPU_GP1 | 0x14000000) & ~0x60000000;
+	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 }
 
@@ -529,7 +464,7 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 ///////////////////////////////////////////////////////////////////////////////
 u32  GPU_readData(void)
 {
-	const u16 *VIDEO_END=(GPU_FrameBuffer+(FRAME_BUFFER_SIZE/2)-1);
+	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef DEBUG_ANALYSIS
 		dbg_anacnt_GPU_readData++;
 	#endif
@@ -538,40 +473,40 @@ u32  GPU_readData(void)
 	#endif
 	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
 	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
-	GPU_GP1 &= ~0x14000000;
-	if (FrameToRead)
+	gpu_unai.GPU_GP1 &= ~0x14000000;
+	if (gpu_unai.dma.FrameToRead)
 	{
-		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-		GP0 = pvram[px];
-		if (++px>=x_end)
+		if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+		gpu_unai.GPU_GP0 = gpu_unai.dma.pvram[gpu_unai.dma.px];
+		if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 		{
-			px = 0;
-			pvram += 1024;
-			if (++py>=y_end) 
+			gpu_unai.dma.px = 0;
+			gpu_unai.dma.pvram += 1024;
+			if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 			{
-				FrameToRead = false;
-				GPU_GP1 &= ~0x08000000;
+				gpu_unai.dma.FrameToRead = false;
+				gpu_unai.GPU_GP1 &= ~0x08000000;
 			}
 		}
-		if ((&pvram[px])>(VIDEO_END)) pvram-=512*1024;
-		GP0 |= pvram[px]<<16;
-		if (++px>=x_end)
+		if ((&gpu_unai.dma.pvram[gpu_unai.dma.px])>(VIDEO_END)) gpu_unai.dma.pvram-=512*1024;
+		gpu_unai.GPU_GP0 |= gpu_unai.dma.pvram[gpu_unai.dma.px]<<16;
+		if (++gpu_unai.dma.px >= gpu_unai.dma.x_end)
 		{
-			px = 0;
-			pvram +=1024;
-			if (++py>=y_end) 
+			gpu_unai.dma.px = 0;
+			gpu_unai.dma.pvram += 1024;
+			if (++gpu_unai.dma.py >= gpu_unai.dma.y_end)
 			{
-				FrameToRead = false;
-				GPU_GP1 &= ~0x08000000;
+				gpu_unai.dma.FrameToRead = false;
+				gpu_unai.GPU_GP1 &= ~0x08000000;
 			}
 		}
 
 	}
-	GPU_GP1 |= 0x14000000;
+	gpu_unai.GPU_GP1 |= 0x14000000;
 
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
 	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
-	return (GP0);
+	return (gpu_unai.GPU_GP0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -580,7 +515,7 @@ u32     GPU_readStatus(void)
 #ifdef DEBUG_ANALYSIS
 	dbg_anacnt_GPU_readStatus++;
 #endif
-	return GPU_GP1;
+	return gpu_unai.GPU_GP1;
 }
 
 INLINE void GPU_NoSkip(void)
@@ -588,16 +523,16 @@ INLINE void GPU_NoSkip(void)
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_NoSkip()\n");
 	#endif
-	wasSkip = isSkip;
-	if (isSkip)
+	gpu_unai.frameskip.wasSkip = gpu_unai.frameskip.isSkip;
+	if (gpu_unai.frameskip.isSkip)
 	{
-		isSkip = false;
-		skipGPU = false;
+		gpu_unai.frameskip.isSkip = false;
+		gpu_unai.frameskip.skipGPU = false;
 	}
 	else
 	{
-		isSkip = skipFrame;
-		skipGPU = skipFrame;
+		gpu_unai.frameskip.isSkip = gpu_unai.frameskip.skipFrame;
+		gpu_unai.frameskip.skipGPU = gpu_unai.frameskip.skipFrame;
 	}
 }
 
@@ -617,33 +552,52 @@ void  GPU_writeStatus(u32 data)
 		gpuReset();
 		break;
 	case 0x01:
-		GPU_GP1 &= ~0x08000000;
-		PacketCount = 0; FrameToRead = FrameToWrite = false;
+		gpu_unai.GPU_GP1 &= ~0x08000000;
+		gpu_unai.PacketCount = 0;
+		gpu_unai.dma.FrameToRead = gpu_unai.dma.FrameToWrite = false;
 		break;
 	case 0x02:
-		GPU_GP1 &= ~0x08000000;
-		PacketCount = 0; FrameToRead = FrameToWrite = false;
+		gpu_unai.GPU_GP1 &= ~0x08000000;
+		gpu_unai.PacketCount = 0;
+		gpu_unai.dma.FrameToRead = gpu_unai.dma.FrameToWrite = false;
 		break;
 	case 0x03:
-		GPU_GP1 = (GPU_GP1 & ~0x00800000) | ((data & 1) << 23);
+		gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x00800000) | ((data & 1) << 23);
 		break;
 	case 0x04:
-		if (data == 0x04000000)	PacketCount = 0;
-		GPU_GP1 = (GPU_GP1 & ~0x60000000) | ((data & 3) << 29);
+		if (data == 0x04000000)	gpu_unai.PacketCount = 0;
+		gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x60000000) | ((data & 3) << 29);
 		break;
 	case 0x05:
-		DisplayArea[0] = (data & 0x000003FF); //(short)(data & 0x3ff);
-		DisplayArea[1] = ((data & 0x0007FC00)>>10); //(data & 0x000FFC00) >> 10; //(short)((data>>10)&0x1ff);
+		// Start of Display Area in VRAM
+		gpu_unai.DisplayArea[0] = data & 0x3ff;         // X (0..1023)
+		gpu_unai.DisplayArea[1] = (data >> 10) & 0x1ff; // Y (0..511)
 		GPU_NoSkip();
 		break;
+	case 0x06:
+		// GP1(06h) - Horizontal Display range (on Screen)
+		// 0-11   X1 (260h+0)       ;12bit       ;\counted in 53.222400MHz units,
+		// 12-23  X2 (260h+320*8)   ;12bit       ;/relative to HSYNC
+
+		// senquack - gpu_unai completely ignores GP1(0x06) command and
+		// lacks even a place in DisplayArea[] array to store the values.
+		// It seems to have been concerned only with vertical display range
+		// and centering top/bottom. I will not add support here, and
+		// focus instead on the gpulib version (gpulib_if.cpp) which uses
+		// gpulib for its PS1->host framebuffer blitting.
+		break;
 	case 0x07:
+		// GP1(07h) - Vertical Display range (on Screen)
+		// 0-9   Y1 (NTSC=88h-(224/2), (PAL=A3h-(264/2))  ;\scanline numbers on screen,
+		// 10-19 Y2 (NTSC=88h+(224/2), (PAL=A3h+(264/2))  ;/relative to VSYNC
+		// 20-23 Not used (zero)
 		{
 			u32 v1=data & 0x000003FF; //(short)(data & 0x3ff);
 			u32 v2=(data & 0x000FFC00) >> 10; //(short)((data>>10) & 0x3ff);
-			if ((DisplayArea[4]!=v1)||(DisplayArea[5]!=v2))
+			if ((gpu_unai.DisplayArea[4]!=v1)||(gpu_unai.DisplayArea[5]!=v2))
 			{
-				DisplayArea[4] = v1;
-				DisplayArea[5] = v2;
+				gpu_unai.DisplayArea[4] = v1;
+				gpu_unai.DisplayArea[5] = v2;
 				#ifdef ENABLE_GPU_LOG_SUPPORT
 					fprintf(stdout,"video_clear(CHANGE_Y)\n");
 				#endif
@@ -655,39 +609,55 @@ void  GPU_writeStatus(u32 data)
 		{
 			static const u32 HorizontalResolution[8] = { 256, 368, 320, 384, 512, 512, 640, 640 };
 			static const u32 VerticalResolution[4] = { 240, 480, 256, 480 };
-			GPU_GP1 = (GPU_GP1 & ~0x007F0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
+			gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 & ~0x007F0000) | ((data & 0x3F) << 17) | ((data & 0x40) << 10);
 			#ifdef ENABLE_GPU_LOG_SUPPORT
-				fprintf(stdout,"GPU_writeStatus(RES=%dx%d,BITS=%d,PAL=%d)\n",HorizontalResolution[(GPU_GP1 >> 16) & 7],
-						VerticalResolution[(GPU_GP1 >> 19) & 3],(GPU_GP1&0x00200000?24:15),(IS_PAL?1:0));
+				fprintf(stdout,"GPU_writeStatus(RES=%dx%d,BITS=%d,PAL=%d)\n",HorizontalResolution[(gpu_unai.GPU_GP1 >> 16) & 7],
+						VerticalResolution[(gpu_unai.GPU_GP1 >> 19) & 3],(gpu_unai.GPU_GP1&0x00200000?24:15),(IS_PAL?1:0));
 			#endif
 			// Video mode change
-			u32 new_width = HorizontalResolution[(GPU_GP1 >> 16) & 7];
-			u32 new_height = VerticalResolution[(GPU_GP1 >> 19) & 3];
+			u32 new_width = HorizontalResolution[(gpu_unai.GPU_GP1 >> 16) & 7];
+			u32 new_height = VerticalResolution[(gpu_unai.GPU_GP1 >> 19) & 3];
 
-			if (DisplayArea[2] != new_width || DisplayArea[3] != new_height)
+			if (gpu_unai.DisplayArea[2] != new_width || gpu_unai.DisplayArea[3] != new_height)
 			{
 				// Update width
-				DisplayArea[2] = new_width;
-				switch (DisplayArea[2])
-				{
-					case 256: blit_mask=0x00; break;
-					case 320: blit_mask=0x00; break;
-					case 368: blit_mask=0x00; break;
-					case 384: blit_mask=0x00; break;
-					case 512: blit_mask=0xa4; break; // GPU_BlitWWSWWSWS
-					case 640: blit_mask=0xaa; break; // GPU_BlitWS
+				gpu_unai.DisplayArea[2] = new_width;
+
+				if (PixelSkipEnabled()) {
+					// Set blit_mask for high horizontal resolutions. This allows skipping
+					//  rendering pixels that would never get displayed on low-resolution
+					//  platforms that use simple pixel-dropping scaler.
+					switch (gpu_unai.DisplayArea[2])
+					{
+						case 512: gpu_unai.blit_mask = 0xa4; break; // GPU_BlitWWSWWSWS
+						case 640: gpu_unai.blit_mask = 0xaa; break; // GPU_BlitWS
+						default:  gpu_unai.blit_mask = 0;    break;
+					}
+				} else {
+					gpu_unai.blit_mask = 0;
 				}
+
 				// Update height
-				DisplayArea[3] = new_height;
-				if (DisplayArea[3] == 480)
-				{
-					if (linesInterlace_user) linesInterlace = 3; // 1/4 of lines
-					else linesInterlace = 1; // if 480 we only need half of lines
+				gpu_unai.DisplayArea[3] = new_height;
+
+				if (LineSkipEnabled()) {
+					// Set rendering line-skip (only render every other line in high-res
+					//  480 vertical mode, or, optionally, force it for all video modes)
+
+					if (gpu_unai.DisplayArea[3] == 480)
+						if (gpu_unai.config.ilace_force) {
+							gpu_unai.ilace_mask = 3; // Only need 1/4 of lines
+						} else {
+							gpu_unai.ilace_mask = 1; // Only need 1/2 of lines
+						}
+					} else {
+						// Vert resolution changed from 480 to lower one
+						gpu_unai.ilace_mask = gpu_unai.config.ilace_force;
+					}
+				} else {
+					gpu_unai.ilace_mask = 0;
 				}
-				else if (linesInterlace != linesInterlace_user)
-				{
-					linesInterlace = linesInterlace_user; // resolution changed from 480 to lower one
-				}
+
 				#ifdef ENABLE_GPU_LOG_SUPPORT
 					fprintf(stdout,"video_clear(CHANGE_RES)\n");
 				#endif
@@ -698,12 +668,12 @@ void  GPU_writeStatus(u32 data)
 		break;
 	case 0x10:
 		switch (data & 0xff) {
-			case 2: GP0 = tw; break;
-			case 3: GP0 = (DrawingArea[1] << 10) | DrawingArea[0]; break;
-			case 4: GP0 = ((DrawingArea[3]-1) << 10) | (DrawingArea[2]-1); break;
-			case 5: case 6:	GP0 = (DrawingOffset[1] << 11) | DrawingOffset[0]; break;
-			case 7: GP0 = 2; break;
-			case 8: case 15: GP0 = 0xBFC03720; break;
+			case 2: gpu_unai.GPU_GP0 = gpu_unai.tex_window; break;
+			case 3: gpu_unai.GPU_GP0 = (gpu_unai.DrawingArea[1] << 10) | gpu_unai.DrawingArea[0]; break;
+			case 4: gpu_unai.GPU_GP0 = ((gpu_unai.DrawingArea[3]-1) << 10) | (gpu_unai.DrawingArea[2]-1); break;
+			case 5: case 6:	gpu_unai.GPU_GP0 = (((u32)gpu_unai.DrawingOffset[1] & 0x7ff) << 11) | ((u32)gpu_unai.DrawingOffset[0] & 0x7ff); break;
+			case 7: gpu_unai.GPU_GP0 = 2; break;
+			case 8: case 15: gpu_unai.GPU_GP0 = 0xBFC03720; break;
 		}
 		break;
 	}
@@ -718,87 +688,106 @@ static void gpuVideoOutput(void)
 {
 	int h0, x0, y0, w0, h1;
 
-	x0 = DisplayArea[0];
-	y0 = DisplayArea[1];
+	x0 = gpu_unai.DisplayArea[0];
+	y0 = gpu_unai.DisplayArea[1];
 
-	w0 = DisplayArea[2];
-	h0 = DisplayArea[3];  // video mode
+	w0 = gpu_unai.DisplayArea[2];
+	h0 = gpu_unai.DisplayArea[3];  // video mode
 
-	h1 = DisplayArea[5] - DisplayArea[4]; // display needed
+	h1 = gpu_unai.DisplayArea[5] - gpu_unai.DisplayArea[4]; // display needed
 	if (h0 == 480) h1 = Min2(h1*2,480);
 
-	u16* dest_screen16 = SCREEN;
-	u16* src_screen16  = &((u16*)GPU_FrameBuffer)[FRAME_OFFSET(x0,y0)];
-	bool isRGB24 = (GPU_GP1 & 0x00200000 ? true : false);
+	bool isRGB24 = (gpu_unai.GPU_GP1 & 0x00200000 ? true : false);
+	u16* dst16 = SCREEN;
+	u16* src16 = (u16*)gpu_unai.vram;
+
+	// PS1 fb read wraps around (fixes black screen in 'Tobal no. 1')
+	unsigned int src16_offs_msk = 1024*512-1;
+	unsigned int src16_offs = (x0 + y0*1024) & src16_offs_msk;
 
 	//  Height centering
 	int sizeShift = 1;
-	if(h0==256) h0 = 240; else if(h0==480) sizeShift = 2;
-	if(h1>h0) { src_screen16 += ((h1-h0)>>sizeShift)*1024; h1 = h0; }
-	else if(h1<h0) dest_screen16 += ((h0-h1)>>sizeShift)*VIDEO_WIDTH;
+	if (h0 == 256) {
+		h0 = 240;
+	} else if (h0 == 480) {
+		sizeShift = 2;
+	}
+	if (h1 > h0) {
+		src16_offs = (src16_offs + (((h1-h0) / 2) * 1024)) & src16_offs_msk;
+		h1 = h0;
+	} else if (h1<h0) {
+		dst16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
+	}
+
 
 	/* Main blitter */
 	int incY = (h0==480) ? 2 : 1;
 	h0=(h0==480 ? 2048 : 1024);
 
 	{
-		const int li=linesInterlace;
-		bool pi=progressInterlace;
-		bool pif=progressInterlace_flag;
+		const int li=gpu_unai.ilace_mask;
+		bool pi = ProgressiveInterlaceEnabled();
+		bool pif = gpu_unai.prog_ilace_flag;
 		switch ( w0 )
 		{
 			case 256:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWDWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 368:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWWWWS(	src_screen16,	dest_screen16, isRGB24, 4);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 320:
-				//senquack - ensure 32-bit alignment for GPU_BlitWW() blitter:
-				src_screen16 = (u16*)((uintptr_t)src_screen16 & (~3));
+				// Ensure 32-bit alignment for GPU_BlitWW() blitter:
+				src16_offs &= ~1;
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWW(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 384:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWWWWS(	src_screen16,	dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 512:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWWSWWSWS(src_screen16,dest_screen16,isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 			case 640:
 				for(int y1=y0+h1; y0<y1; y0+=incY)
 				{
-					if(( 0 == (y0&li) ) && ((!pi) || (pif=!pif))) GPU_BlitWS(	src_screen16, dest_screen16, isRGB24);
-					dest_screen16 += VIDEO_WIDTH;
-					src_screen16  += h0;
+					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
+						GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += VIDEO_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
 		}
-		progressInterlace_flag=!progressInterlace_flag;
+		gpu_unai.prog_ilace_flag = !gpu_unai.prog_ilace_flag;
 	}
 	video_flip();
 }
@@ -813,15 +802,15 @@ static void GPU_frameskip (bool show)
 	u32 now=get_ticks(); // current frame
 
 	// Show FPS
-	if (show_fps)
+	if (Config.ShowFps)
 	{
 		static u32 frames_fps=0; // frames counter
 		static u32 prev_fps=now; // previous fps calculation
 		frames_fps++;
 		if ((now-prev_fps)>=TPS)
 		{
-			if (IS_PAL)	sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/50 SPD=%3d%%",DisplayArea[2],DisplayArea[3],(GPU_GP1&0x00200000?24:15),frames_fps,(frames_fps<<1));
-			else 		sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/60 SPD=%3d%%",DisplayArea[2],DisplayArea[3],(GPU_GP1&0x00200000?24:15),frames_fps,((frames_fps*1001)/600));
+			if (IS_PAL)	sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/50 SPD=%3d%%",gpu_unai.DisplayArea[2],gpu_unai.DisplayArea[3],(gpu_unai.GPU_GP1&0x00200000?24:15),frames_fps,(frames_fps<<1));
+			else 		sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/60 SPD=%3d%%",gpu_unai.DisplayArea[2],gpu_unai.DisplayArea[3],(gpu_unai.GPU_GP1&0x00200000?24:15),frames_fps,((frames_fps*1001)/600));
 			frames_fps=0;
 			prev_fps=now;
 #ifndef __arm__
@@ -834,9 +823,9 @@ static void GPU_frameskip (bool show)
 	}
 
 	// Update frameskip
-	if (skipCount==0) skipFrame=false; // frameskip off
-	else if (skipCount==7) { if (show) skipFrame=!skipFrame; } // frameskip medium
-	else if (skipCount==8) skipFrame=true; // frameskip maximum
+	if (gpu_unai.frameskip.skipCount==0) gpu_unai.frameskip.skipFrame=false; // frameskip off
+	else if (gpu_unai.frameskip.skipCount==7) { if (show) gpu_unai.frameskip.skipFrame=!gpu_unai.frameskip.skipFrame; } // frameskip medium
+	else if (gpu_unai.frameskip.skipCount==8) gpu_unai.frameskip.skipFrame=true; // frameskip maximum
 	else
 	{
 		static u32 spd=100; // speed %
@@ -851,18 +840,18 @@ static void GPU_frameskip (bool show)
 			frames=0;
 			prev=now;
 		}
-		switch(skipCount)
+		switch(gpu_unai.frameskip.skipCount)
 		{
-			case 1: if (spd<50) skipFrame=true; else skipFrame=false; break; // frameskip on (spd<50%)
-			case 2: if (spd<60) skipFrame=true; else skipFrame=false; break; // frameskip on (spd<60%)
-			case 3: if (spd<70) skipFrame=true; else skipFrame=false; break; // frameskip on (spd<70%)
-			case 4: if (spd<80) skipFrame=true; else skipFrame=false; break; // frameskip on (spd<80%)
-			case 5: if (spd<90) skipFrame=true; else skipFrame=false; break; // frameskip on (spd<90%)
+			case 1: if (spd<50) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<50%)
+			case 2: if (spd<60) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<60%)
+			case 3: if (spd<70) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<70%)
+			case 4: if (spd<80) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<80%)
+			case 5: if (spd<90) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<90%)
 		}
 	}
 
 	// Limit FPS
-	if (frameLimit)
+	if (Config.FrameLimit)
 	{
 		static u32 next=now; // next frame
 #ifdef GCW_ZERO
@@ -898,10 +887,10 @@ void  GPU_updateLace(void)
 #endif
 
 	// Interlace bit toggle
-	GPU_GP1 ^= 0x80000000;
+	gpu_unai.GPU_GP1 ^= 0x80000000;
 
 	// Update display?
-	if ((fb_dirty) && (!wasSkip) && (!(GPU_GP1&0x00800000)))
+	if ((gpu_unai.fb_dirty) && (!gpu_unai.frameskip.wasSkip) && (!(gpu_unai.GPU_GP1&0x00800000)))
 	{
 		// Display updated
 		gpuVideoOutput();
@@ -909,19 +898,23 @@ void  GPU_updateLace(void)
 		#ifdef ENABLE_GPU_LOG_SUPPORT
 			fprintf(stdout,"GPU_updateLace(UPDATE)\n");
 		#endif
-	}
-	else
-	{
+	} else {
 		GPU_frameskip(false);
 		#ifdef ENABLE_GPU_LOG_SUPPORT
 			fprintf(stdout,"GPU_updateLace(SKIP)\n");
 		#endif
 	}
 
-	if ((!skipCount) && (DisplayArea[3] == 480)) skipGPU=true; // Tekken 3 hack
+	if ((!gpu_unai.frameskip.skipCount) && (gpu_unai.DisplayArea[3] == 480)) gpu_unai.frameskip.skipGPU=true; // Tekken 3 hack
 
-	fb_dirty=false;
-	last_dma = NULL;
+	gpu_unai.fb_dirty=false;
+	gpu_unai.dma.last_dma = NULL;
 
 	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
+}
+
+// Allows frontend to signal plugin to redraw screen after returning to emu
+void GPU_requestScreenRedraw()
+{
+	gpu_unai.fb_dirty = true;
 }
