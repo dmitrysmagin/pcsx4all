@@ -47,7 +47,6 @@
 #include "psxcounters.h"
 #include "psxevents.h"
 #include "gpu.h"
-#include "profiler.h"
 #include "plugin_lib/perfmon.h"
 
 /******************************************************************************/
@@ -340,10 +339,6 @@ static void psxRcntReset( u32 index )
 
 void psxRcntUpdate()
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxRcntUpdate++;
-#endif
-    pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     u32 cycle;
 
     cycle = psxRegs.cycle;
@@ -446,13 +441,7 @@ void psxRcntUpdate()
 			{
 				toLoadState=0;
 				LoadState(SaveState_filename);
-				pcsx4all_prof_reset();
-#ifdef PROFILER_PCSX4ALL
-				_pcsx4all_prof_end(PCSX4ALL_PROF_CPU,0);
-#endif
-				pcsx4all_prof_start(PCSX4ALL_PROF_CPU);
 				psxCpu->Execute();
-				pcsx4all_prof_end(PCSX4ALL_PROF_CPU);
 				pcsx4all_exit();
 			}
         }
@@ -475,8 +464,6 @@ void psxRcntUpdate()
     }
 
     psxRcntSet();
-
-    pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
 }
 
 /******************************************************************************/
@@ -514,34 +501,7 @@ void psxRcntWtarget( u32 index, u32 value )
 
 u32 psxRcntRcount( u32 index )
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxRcntRcount++;
-#endif
-    pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     u32 count;
-
-	//senquack - TODO: Do we still need this?
-#ifndef USE_NO_IDLE_LOOP
-    if (autobias) {
-	u32 cycle_next=rcnts[index].cycle+rcnts[index].cycleStart;
-	if (cycle_next>psxRegs.cycle) {
-		if (psxRegs.io_cycle_counter>(psxRegs.cycle+32) && psxRegs.io_cycle_counter<cycle_next) {
-			cycle_next = psxRegs.io_cycle_counter - psxRegs.cycle - 24;
-		} else {
-			cycle_next = 12+((cycle_next - psxRegs.cycle)&0x1FF);
-		}
-	    	if (rcnts[index].target) {
-			unsigned value=(((rcnts[index].target)*(rcnts[index].rate+1))/4)*BIAS;
-			if (value<cycle_next)
-				psxRegs.cycle+=value;
-			else
-				psxRegs.cycle+=cycle_next;
-		} else {
-			psxRegs.cycle+=cycle_next;
-		}
-    	}
-    }
-#endif
 
     count = _psxRcntRcount( index );
 
@@ -555,16 +515,11 @@ u32 psxRcntRcount( u32 index )
 
     verboseLog( 2, "[RCNT %i] rcount: %x\n", index, count );
 
-    pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return count;
 }
 
 u32 psxRcntRmode( u32 index )
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxRcntRmode++;
-#endif
-    pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     u16 mode;
 
     mode = rcnts[index].mode;
@@ -572,7 +527,6 @@ u32 psxRcntRmode( u32 index )
 
     verboseLog( 2, "[RCNT %i] rmode: %x\n", index, mode );
 
-    pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_COUNTERS,PCSX4ALL_PROF_CPU);
     return mode;
 }
 
