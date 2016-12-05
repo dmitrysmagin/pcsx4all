@@ -7,7 +7,6 @@
 #include "r3000a.h"
 #include "plugins.h"
 #include "plugin_lib/perfmon.h"  // FPS / CPU performance monitoring
-#include "profiler.h"
 #include <SDL.h>
 
 /* PATH_MAX inclusion */
@@ -61,21 +60,6 @@ extern char msg[36];
 extern float fps_cur;
 #endif
 
-#ifdef DEBUG_FAST_MEMORY
-unsigned long long totalreads=0;
-unsigned long long totalreads_ok=0;
-unsigned long long totalreads_hw=0;
-unsigned long long totalreads_mh=0;
-unsigned long long totalwrites=0;
-unsigned long long totalwrites_ok=0;
-unsigned long long totalwrites_hw=0;
-unsigned long long totalwrites_mh=0;
-#endif
-#ifdef DEBUG_IO_CYCLE_COUNTER
-unsigned iocycle_saltado=0;
-unsigned iocycle_ok=0;
-#endif
-
 static bool pcsx4all_initted = false;
 static bool emu_running = false;
 
@@ -85,15 +69,6 @@ void config_save();
 void pcsx4all_exit(void)
 {
 	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
-#ifdef DEBUG_FAST_MEMORY
-	printf("READS TOTAL = %iK, OK=%iK (%.2f%%), HW=%iK (%.2f%%), MH=%iK (%.2f%%)\n",(unsigned)(totalreads/1000LL),(unsigned)(totalreads_ok/1000LL),(((double)totalreads_ok)*100.0)/((double)totalreads),(unsigned)(totalreads_hw/1000LL),(((double)totalreads_hw)*100.0)/((double)totalreads),(unsigned)(totalreads_mh/1000LL),(((double)totalreads_mh)*100.0)/((double)totalreads));
-	printf("WRITES TOTAL = %iK, OK=%iK (%.2f%%), HW=%iK (%.2f%%), MH=%iK (%.2f%%)\n",(unsigned)(totalwrites/1000LL),(unsigned)(totalwrites_ok/1000LL),(((double)totalwrites_ok)*100.0)/((double)totalwrites),(unsigned)(totalwrites_hw/1000LL),(((double)totalwrites_hw)*100.0)/((double)totalwrites),(unsigned)(totalwrites_mh/1000LL),(((double)totalwrites_mh)*100.0)/((double)totalwrites));
-#endif
-#ifdef DEBUG_IO_CYCLE_COUNTER
-	printf("IOCYCLE: %i/%i (%.2%%f)\n",iocycle_ok+iocycle_saltado,iocycle_ok, (((double)iocycle_ok)*100.0)/((double)(iocycle_ok+iocycle_saltado)));
-#endif
-	pcsx4all_prof_show();
-	dbg_print_analysis();
 
 	if (pcsx4all_initted == true) {
 		ReleasePlugins();
@@ -399,9 +374,6 @@ void pad_update(void)
 				event.type = SDL_QUIT;
 				SDL_PushEvent(&event);
 				break;
-#endif
-#ifdef DEBUG_FRAME
-			case SDLK_F12: dbg_enable_frame(); break;
 #endif
 			case SDLK_F1: state_load(); break;
 			case SDLK_F2: state_save(); break;
@@ -1018,14 +990,6 @@ int main (int argc, char **argv)
 	// ----- END SPU_PCSXREARMED SECTION -----
 
 	#endif
-
-
-		// WIZ
-#if 0
-		if (strcmp(argv[i],"-ramtweaks")==0) { extern int wiz_ram_tweaks; wiz_ram_tweaks=1; } // RAM tweaks
-		if (strcmp(argv[i],"-clock")==0) { wiz_clock=atoi(argv[i+1]); } // WIZ clock
-		if (strcmp(argv[i],"-frontend")==0) { strcpy(frontend,argv[i+1]); } // Frontend
-#endif
 	}
 
 	if (param_parse_error) {
@@ -1116,16 +1080,9 @@ int main (int argc, char **argv)
 	}
 
 	if ((cdrfilename[0] != '\0') || (filename[0] != '\0') || (Config.HLE == 0)) {
-#ifdef DEBUG_PCSX4ALL
-		if (savename[0])
-			LoadState(savename); // Load save-state
-#else
 		if ((autosavestate) && (savename[0]))
 			LoadState(savename); // Load save-state
-#endif
-		pcsx4all_prof_start(PCSX4ALL_PROF_CPU);
 		psxCpu->Execute();
-		pcsx4all_prof_end(PCSX4ALL_PROF_CPU);
 	}
 
 	pcsx4all_exit(); // exit
@@ -1239,5 +1196,4 @@ void port_printf(int x, int y, const char *text)
 
 void port_mute(void)
 {
-	//wiz_sound_thread_mute();
 }
