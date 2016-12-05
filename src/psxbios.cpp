@@ -25,7 +25,6 @@
 #include "psxbios.h"
 #include "psxhw.h"
 #include "gpu.h"
-#include "profiler.h"
 #include <zlib.h>
 
 //We try to emulate bios :) HELP US :P
@@ -199,15 +198,6 @@ typedef struct {
 #define EvMdINTR	0x1000
 #define EvMdNOINTR	0x2000
 
-/*
-typedef struct {
-	s32 next;
-	s32 func1;
-	s32 func2;
-	s32 pad;
-} SysRPst;
-*/
-
 typedef struct {
 	s32 status;
 	s32 mode;
@@ -270,70 +260,18 @@ static FileDesc FDesc[32];
 static u32 card_active_chan;
 
 INLINE void softCall(u32 pc) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_softCall++;
-#endif
 	pc0 = pc;
 	ra = 0x80001000;
 
-#ifdef PROFILER_PCSX4ALL
-#ifndef PCSX4ALL_PROFILER_ONE
-	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
-#else
-	int yet=-2;
-	if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_TEST) {
-		yet=_pcsx4all_prof_pause(PCSX4ALL_PROF_TEST);
-	}else if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_CPU) {
-		_pcsx4all_prof_resume(PCSX4ALL_PROF_CPU,0);
-	}
-#endif
-#endif
 	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(0x80001000);
-#ifdef PROFILER_PCSX4ALL
-#ifndef PCSX4ALL_PROFILER_ONE
-	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_CPU,PCSX4ALL_PROF_TEST);
-#else
-	if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_TEST) {
-		_pcsx4all_prof_resume(PCSX4ALL_PROF_TEST,yet);
-	}else if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_CPU) {
-		_pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	}
-#endif
-#endif
 }
 
 INLINE void softCall2(u32 pc) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_softCall2++;
-#endif
 	u32 sra = ra;
 	pc0 = pc;
 	ra = 0x80001000;
 
-#ifdef PROFILER_PCSX4ALL
-#ifndef PCSX4ALL_PROFILER_ONE
-	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_TEST,PCSX4ALL_PROF_CPU);
-#else
-	int yet=-2;
-	if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_TEST) {
-		yet=_pcsx4all_prof_pause(PCSX4ALL_PROF_TEST);
-	}else if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_CPU) {
-		_pcsx4all_prof_resume(PCSX4ALL_PROF_CPU,0);
-	}
-#endif
-#endif
 	while (pc0 != 0x80001000) psxCpu->ExecuteBlock(0x80001000);
-#ifdef PROFILER_PCSX4ALL
-#ifndef PCSX4ALL_PROFILER_ONE
-	pcsx4all_prof_pause_with_resume(PCSX4ALL_PROF_CPU,PCSX4ALL_PROF_TEST);
-#else
-	if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_TEST) {
-		_pcsx4all_prof_resume(PCSX4ALL_PROF_TEST,yet);
-	}else if (PCSX4ALL_PROFILER_ONE==PCSX4ALL_PROF_CPU) {
-		_pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	}
-#endif
-#endif
 	ra = sra;
 }
 
@@ -1809,12 +1747,6 @@ void psxBios_ReturnFromException(void) { // 17
 	LoadRegs();
 
 	pc0 = psxRegs.CP0.n.EPC;
-#ifdef DEBUG_BIOS
-	if (dbg_biosin()){
-		dbg_biosunset();
-		dbg_biosset(pc0);
-	}
-#endif
 	k0 = interrupt_r26;
 	if (autobias)
 		psxRegs.cycle+=interrupt_cycles_pst[interrupt_number];
@@ -2940,9 +2872,6 @@ void psxBiosShutdown() {
 }
 
 void biosInterrupt(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxInterrupt++;
-#endif
 	int i,bufcount;
 
 		if (pad_buf != NULL) {
@@ -3010,15 +2939,8 @@ void biosInterrupt(void) {
 void psxBiosException(void) {
 	int i;
 
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxBiosException++;
-#endif
 	switch (psxRegs.CP0.n.Cause & 0x3c) {
 		case 0x00: // Interrupt
-#ifdef PSXCPU_LOG
-			dbg("interrupt");
-			dbgregs((void *)&psxRegs);
-#endif
 			interrupt_number=(psxHu32(0x1070) & 0x7);
 			interrupt_r26=psxRegs.CP0.n.EPC;
 			SaveRegs();
@@ -3061,10 +2983,6 @@ void psxBiosException(void) {
 			break;
 
 		case 0x20: // Syscall
-#ifdef PSXCPU_LOG
-			dbgf("syscall exp %x\n", a0);
-			dbgregs((void *)&psxRegs);
-#endif
 			switch (a0) {
 				case 1: // EnterCritical - disable irq's
 					psxRegs.CP0.n.Status&=~0x404; 
@@ -3092,10 +3010,6 @@ void psxBiosException(void) {
 			return;
 
 		default:
-#ifdef PSXCPU_LOG
-			dbg("unknown bios exception!");
-			dbgregs((void *)&psxRegs);
-#endif
 			break;
 	}
 
