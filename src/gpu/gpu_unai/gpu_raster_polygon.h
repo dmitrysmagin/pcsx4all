@@ -37,8 +37,6 @@ struct PolyVertex {
 	};
 };
 
-static PolyVertex poly_vbuf[4];
-
 enum PolyAttribute {
 	POLYATTR_TEXTURE = (1 << 0),
 	POLYATTR_GOURAUD = (1 << 1)
@@ -53,9 +51,9 @@ enum PolyType {
 
 ///////////////////////////////////////////////////////////////////////////////
 // polyInitVertexBuffer()
-// Fills poly_vbuf[] array with data from any type of poly draw-command packet.
+// Fills vbuf[] array with data from any type of poly draw-command packet.
 ///////////////////////////////////////////////////////////////////////////////
-static void polyInitVertexBuffer(const PtrUnion packet, PolyType ptype, u32 is_quad)
+static void polyInitVertexBuffer(PolyVertex *vbuf, const PtrUnion packet, PolyType ptype, u32 is_quad)
 {
 	bool texturing = ptype & POLYATTR_TEXTURE;
 	bool gouraud   = ptype & POLYATTR_GOURAUD;
@@ -75,22 +73,22 @@ static void polyInitVertexBuffer(const PtrUnion packet, PolyType ptype, u32 is_q
 	ptr = &packet.U4[1];
 	for (int i=0;  i < num_verts; ++i, ptr += vert_stride) {
 		s16* coord_ptr = (s16*)ptr;
-		poly_vbuf[i].x = GPU_EXPANDSIGN(coord_ptr[0]) + x_off;
-		poly_vbuf[i].y = GPU_EXPANDSIGN(coord_ptr[1]) + y_off;
+		vbuf[i].x = GPU_EXPANDSIGN(coord_ptr[0]) + x_off;
+		vbuf[i].y = GPU_EXPANDSIGN(coord_ptr[1]) + y_off;
 	}
 
 	// U,V texture coords (if applicable)
 	if (texturing) {
 		ptr = &packet.U4[2];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			poly_vbuf[i].tex_word = *ptr;
+			vbuf[i].tex_word = *ptr;
 	}
 
 	// Colors (if applicable)
 	if (gouraud) {
 		ptr = &packet.U4[0];
 		for (int i=0;  i < num_verts; ++i, ptr += vert_stride)
-			poly_vbuf[i].col_word = *ptr;
+			vbuf[i].col_word = *ptr;
 	}
 }
 
@@ -161,27 +159,27 @@ static inline int vertIdxOfHighestYCoord3(const T *Tptr)
 //  Determines if the specified triangle should be rendered. If so, it
 //  fills the given array of vertex pointers, vert_ptrs, in order of
 //  increasing Y coordinate values, as required by rasterization algorithm.
-//  Parameter 'tri_num' is 0 for first triangle (idx 0,1,2 of poly_vbuf[]),
-//   or 1 for second triangle of a quad (idx 1,2,3 of poly_vbuf[]).
+//  Parameter 'tri_num' is 0 for first triangle (idx 0,1,2 of vbuf[]),
+//   or 1 for second triangle of a quad (idx 1,2,3 of vbuf[]).
 //  Returns true if triangle should be rendered, false if not.
 ///////////////////////////////////////////////////////////////////////////////
-static bool polyUseTriangle(int tri_num, PolyVertex **vert_ptrs)
+static bool polyUseTriangle(const PolyVertex *vbuf, int tri_num, const PolyVertex **vert_ptrs)
 {
 	// Using verts 0,1,2 or is this the 2nd pass of a quad (verts 1,2,3)?
-	PolyVertex *triplet_ptr = &poly_vbuf[(tri_num == 0) ? 0 : 1];
+	const PolyVertex *tri_ptr = &vbuf[(tri_num == 0) ? 0 : 1];
 
-	// Get indices of highest/lowest X,Y coords within triplet
-	int idx_lowest_x  = vertIdxOfLeastXCoord3(triplet_ptr);
-	int idx_highest_x = vertIdxOfHighestXCoord3(triplet_ptr);
-	int idx_lowest_y  = vertIdxOfLeastYCoord3(triplet_ptr);
-	int idx_highest_y = vertIdxOfHighestYCoord3(triplet_ptr);
+	// Get indices of highest/lowest X,Y coords within triangle
+	int idx_lowest_x  = vertIdxOfLeastXCoord3(tri_ptr);
+	int idx_highest_x = vertIdxOfHighestXCoord3(tri_ptr);
+	int idx_lowest_y  = vertIdxOfLeastYCoord3(tri_ptr);
+	int idx_highest_y = vertIdxOfHighestYCoord3(tri_ptr);
 
 	// Maximum absolute distance between any two X coordinates is 1023,
 	//  and for Y coordinates is 511 (PS1 hardware limitation)
-	int lowest_x  = triplet_ptr[idx_lowest_x].x;
-	int highest_x = triplet_ptr[idx_highest_x].x;
-	int lowest_y  = triplet_ptr[idx_lowest_y].y;
-	int highest_y = triplet_ptr[idx_highest_y].y;
+	int lowest_x  = tri_ptr[idx_lowest_x].x;
+	int highest_x = tri_ptr[idx_highest_x].x;
+	int lowest_y  = tri_ptr[idx_lowest_y].y;
+	int highest_y = tri_ptr[idx_highest_y].y;
 	if ((highest_x - lowest_x) >= CHKMAX_X ||
 	    (highest_y - lowest_y) >= CHKMAX_Y)
 		return false;
@@ -201,9 +199,9 @@ static bool polyUseTriangle(int tri_num, PolyVertex **vert_ptrs)
 	// Order vertex ptrs by increasing y value (draw routines need this).
 	// The middle index is deduced by a binary math trick that depends
 	//  on index range always being between 0..2
-	vert_ptrs[0] = triplet_ptr + idx_lowest_y;
-	vert_ptrs[1] = triplet_ptr + ((idx_lowest_y + idx_highest_y) ^ 3);
-	vert_ptrs[2] = triplet_ptr + idx_highest_y;
+	vert_ptrs[0] = tri_ptr + idx_lowest_y;
+	vert_ptrs[1] = tri_ptr + ((idx_lowest_y + idx_highest_y) ^ 3);
+	vert_ptrs[2] = tri_ptr + idx_highest_y;
 	return true;
 }
 
@@ -219,14 +217,15 @@ void gpuDrawPolyF(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad
 	// Set up bgr555 color to be used across calls in inner driver
 	gpu_unai.PixelData = GPU_RGB16(packet.U4[0]);
 
-	polyInitVertexBuffer(packet, POLYTYPE_F, is_quad);
+	PolyVertex vbuf[4];
+	polyInitVertexBuffer(vbuf, packet, POLYTYPE_F, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
 	do
 	{
-		PolyVertex* vptrs[3];
-		if (polyUseTriangle(cur_pass, vptrs) == false)
+		const PolyVertex* vptrs[3];
+		if (polyUseTriangle(vbuf, cur_pass, vptrs) == false)
 			continue;
 
 		s32 xa, xb, ya, yb;
@@ -375,14 +374,15 @@ void gpuDrawPolyFT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_qua
 	gpu_unai.g5 = packet.U1[1] >> 3;
 	gpu_unai.b5 = packet.U1[2] >> 3;
 
-	polyInitVertexBuffer(packet, POLYTYPE_FT, is_quad);
+	PolyVertex vbuf[4];
+	polyInitVertexBuffer(vbuf, packet, POLYTYPE_FT, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
 	do
 	{
-		PolyVertex* vptrs[3];
-		if (polyUseTriangle(cur_pass, vptrs) == false)
+		const PolyVertex* vptrs[3];
+		if (polyUseTriangle(vbuf, cur_pass, vptrs) == false)
 			continue;
 
 		s32 xa, xb, ya, yb;
@@ -698,14 +698,15 @@ gpuDrawPolyG - Gouraud-shaded, untextured poly
 ----------------------------------------------------------------------*/
 void gpuDrawPolyG(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
-	polyInitVertexBuffer(packet, POLYTYPE_G, is_quad);
+	PolyVertex vbuf[4];
+	polyInitVertexBuffer(vbuf, packet, POLYTYPE_G, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
 	do
 	{
-		PolyVertex* vptrs[3];
-		if (polyUseTriangle(cur_pass, vptrs) == false)
+		const PolyVertex* vptrs[3];
+		if (polyUseTriangle(vbuf, cur_pass, vptrs) == false)
 			continue;
 
 		s32 xa, xb, ya, yb;
@@ -1045,14 +1046,15 @@ gpuDrawPolyGT - Gouraud-shaded, textured poly
 ----------------------------------------------------------------------*/
 void gpuDrawPolyGT(const PtrUnion packet, const PP gpuPolySpanDriver, u32 is_quad)
 {
-	polyInitVertexBuffer(packet, POLYTYPE_GT, is_quad);
+	PolyVertex vbuf[4];
+	polyInitVertexBuffer(vbuf, packet, POLYTYPE_GT, is_quad);
 
 	int total_passes = is_quad ? 2 : 1;
 	int cur_pass = 0;
 	do
 	{
-		PolyVertex* vptrs[3];
-		if (polyUseTriangle(cur_pass, vptrs) == false)
+		const PolyVertex* vptrs[3];
+		if (polyUseTriangle(vbuf, cur_pass, vptrs) == false)
 			continue;
 
 		s32 xa, xb, ya, yb;
