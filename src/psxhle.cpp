@@ -23,12 +23,8 @@
 */
 
 #include "psxhle.h"
-#include "profiler.h"
 
 static void hleDummy(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleDummy++;
-#endif
 	if (autobias) psxRegs.cycle += 5;
 #ifdef DEBUG_HLE
 	{
@@ -38,17 +34,12 @@ static void hleDummy(void) {
 		dbgregs((void *)&psxRegs);
 	}
 #endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	psxRegs.pc = psxRegs.GPR.n.ra;
 
 	psxBranchTest();
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 static void hleA0(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleA0++;
-#endif
 	if (autobias) psxRegs.cycle += 51;
 #ifdef DEBUG_HLE
 	{
@@ -58,25 +49,14 @@ static void hleA0(void) {
 		dbgregs((void *)&psxRegs);
 	}
 #endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosA0[call]) biosA0[call]();
 
-#ifdef DEBUG_BIOS
-	psxRegs.cycle+=3;
-	dbg_bioscheckopcode(psxRegs.pc);
-	psxRegs.cycle-=3;
-#else
 	psxBranchTest();
-#endif
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 static void hleB0(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleB0++;
-#endif
 	if (autobias) psxRegs.cycle += 51;
 #ifdef DEBUG_HLE
 	{
@@ -86,25 +66,14 @@ static void hleB0(void) {
 		dbgregs((void *)&psxRegs);
 	}
 #endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosB0[call]) biosB0[call]();
 
-#ifdef DEBUG_BIOS
-	psxRegs.cycle+=3;
-	dbg_bioscheckopcode(psxRegs.pc);
-	psxRegs.cycle-=3;
-#else
 	psxBranchTest();
-#endif
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 static void hleC0(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleC0++;
-#endif
 	if (autobias) psxRegs.cycle += 51;
 #ifdef DEBUG_HLE
 	{
@@ -114,25 +83,14 @@ static void hleC0(void) {
 		dbgregs((void *)&psxRegs);
 	}
 #endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosC0[call]) biosC0[call]();
 
-#ifdef DEBUG_BIOS
-	psxRegs.cycle+=3;
-	dbg_bioscheckopcode(psxRegs.pc);
-	psxRegs.cycle-=3;
-#else
 	psxBranchTest();
-#endif
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 static void hleBootstrap(void) { // 0xbfc00000
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleBootstrap++;
-#endif
 	if (autobias) psxRegs.cycle += 15;
 #ifdef DEBUG_HLE
 	{
@@ -142,12 +100,10 @@ static void hleBootstrap(void) { // 0xbfc00000
 		dbgregs((void *)&psxRegs);
 	}
 #endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	printf("hleBootstrap\n");
 	CheckCdrom();
 	LoadCdrom();
 	printf("CdromLabel: \"%s\": PC = %8.8x (SP = %8.8x)\n", CdromLabel, psxRegs.pc, psxRegs.GPR.n.sp);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 typedef struct {                   
@@ -165,11 +121,7 @@ typedef struct {
 } EXEC;
 
 static void hleExecRet(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_hleExecRet++;
-#endif
 	if (autobias) psxRegs.cycle += 15;
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 	EXEC *header = (EXEC*)PSXM(psxRegs.GPR.n.s0);
 
 	//printf("ExecRet %x: %x\n", psxRegs.GPR.n.s0, header->ret);
@@ -190,7 +142,6 @@ static void hleExecRet(void) {
 
 	psxRegs.GPR.n.v0 = 1;
 	psxRegs.pc = psxRegs.GPR.n.ra;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_HLE,PCSX4ALL_PROF_CPU);
 }
 
 void (*psxHLEt[256])(void) = {
