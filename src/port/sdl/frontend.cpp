@@ -670,14 +670,12 @@ static char *framelimit_show()
 	return buf;
 }
 
-// Disable, because altering those do more harm
-#if 0
 static int cycle_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
 		if (BIAS < 4) BIAS++;
 	} else if (keys & KEY_LEFT) {
-		if (BIAS > 1) BIAS--;
+		if (BIAS > 2) BIAS--;
 	}
 
 	return 0;
@@ -690,6 +688,8 @@ static char *cycle_show()
 	return buf;
 }
 
+// Disable, because altering those do more harm
+#if 0
 static int clock_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -896,9 +896,9 @@ static int settings_defaults()
 
 static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
+	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
 // Disable, because altering those do more harm
 #if 0
-	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
 	{(char *)"[PSX] Processor clock   ", NULL, &clock_alter, &clock_show},
 #endif
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
