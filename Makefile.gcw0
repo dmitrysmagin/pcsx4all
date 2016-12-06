@@ -105,7 +105,6 @@ OBJS += obj/spu/$(SPU)/spu.o
 OBJS += obj/port/$(PORT)/port.o
 OBJS += obj/port/$(PORT)/frontend.o
 
-OBJS += obj/profiler.o obj/debug.o
 OBJS += obj/plugin_lib/perfmon.o
 
 #******************************************
