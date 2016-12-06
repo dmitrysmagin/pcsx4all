@@ -130,10 +130,6 @@ static inline void setIrq( u32 irq )
 //senquack - Added verboseLog & VERBOSE_LEVEL from PCSX Rearmed:
 #define VERBOSE_LEVEL 0
 
-#ifdef DEBUG_BIOS    // Original code logged in many places here when DEBUG_BIOS was defined, so do the same
-#define VERBOSE_LEVEL 1
-#endif
-
 static void verboseLog( u32 level, const char *str, ... )
 {
 #if VERBOSE_LEVEL > 0
@@ -373,9 +369,6 @@ void psxRcntUpdate()
         // VSync irq.
         if( hSyncCount == VBlankStart )
         {
-#ifdef DEBUG_BIOS
-            dbg("UpdateLace");
-#endif
             HW_GPU_STATUS &= ~PSXGPU_LCF;
 
 #ifdef USE_GPULIB

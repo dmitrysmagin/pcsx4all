@@ -247,7 +247,6 @@ extern psxRegisters psxRegs;
 #ifdef DEBUG_CPU_OPCODES
 #define ResetIoCycle() { \
 	if (psxRegs.io_cycle_counter) { \
-		dbg("ResetIoCycle"); \
 		psxRegs.io_cycle_counter=0; \
 	} \
 } 

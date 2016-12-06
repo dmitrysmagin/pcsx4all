@@ -26,14 +26,6 @@
 
 static void hleDummy(void) {
 	if (autobias) psxRegs.cycle += 5;
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleDummy (ret=%p) MEMORY SUM",psxRegs.GPR.n.ra);
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 	psxRegs.pc = psxRegs.GPR.n.ra;
 
 	psxBranchTest();
@@ -41,14 +33,6 @@ static void hleDummy(void) {
 
 static void hleA0(void) {
 	if (autobias) psxRegs.cycle += 51;
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleA0 (call=%p) MEMORY SUM",psxRegs.GPR.n.t1 & 0xff);
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosA0[call]) biosA0[call]();
@@ -58,14 +42,6 @@ static void hleA0(void) {
 
 static void hleB0(void) {
 	if (autobias) psxRegs.cycle += 51;
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleB0 (call=%p) MEMORY SUM",psxRegs.GPR.n.t1 & 0xff);
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosB0[call]) biosB0[call]();
@@ -75,14 +51,6 @@ static void hleB0(void) {
 
 static void hleC0(void) {
 	if (autobias) psxRegs.cycle += 51;
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleC0 (call=%p) MEMORY SUM",psxRegs.GPR.n.t1 & 0xff);
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 	u32 call = psxRegs.GPR.n.t1 & 0xff;
 
 	if (biosC0[call]) biosC0[call]();
@@ -92,14 +60,6 @@ static void hleC0(void) {
 
 static void hleBootstrap(void) { // 0xbfc00000
 	if (autobias) psxRegs.cycle += 15;
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleBootstrap MEMORY SUM");
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 	printf("hleBootstrap\n");
 	CheckCdrom();
 	LoadCdrom();
@@ -123,16 +83,6 @@ typedef struct {
 static void hleExecRet(void) {
 	if (autobias) psxRegs.cycle += 15;
 	EXEC *header = (EXEC*)PSXM(psxRegs.GPR.n.s0);
-
-	//printf("ExecRet %x: %x\n", psxRegs.GPR.n.s0, header->ret);
-#ifdef DEBUG_HLE
-	{
-		char msg[50];
-		sprintf((char *)&msg[0],"hleBExecRet %x: %x MEMORY SUM", psxRegs.GPR.n.s0, header->ret);
-		dbgsum((char *)&msg[0],(void *)&psxM[0],0x200000);
-		dbgregs((void *)&psxRegs);
-	}
-#endif
 
 	psxRegs.GPR.n.ra = header->ret;
 	psxRegs.GPR.n.sp = header->_sp;

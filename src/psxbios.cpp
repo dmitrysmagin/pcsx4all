@@ -1778,11 +1778,7 @@ void psxBios_HookEntryInt(void) { // 19
 	jmp_int = (u32*)Ra0;
 	pc0 = ra;
 	if (autobias)
-#ifdef DEBUG_BIOS
-		psxRegs.cycle-=22;
-#else
 		psxRegs.cycle+=42;
-#endif
 }
 
 void psxBios_UnDeliverEvent(void) { // 0x20
@@ -2364,11 +2360,7 @@ void psxBios_ChangeClearPad(void) { // 5b
 
 	pc0 = ra;
 	if (autobias)
-#ifdef DEBUG_BIOS
-		psxRegs.cycle-=15;
-#else
 		psxRegs.cycle+=56;
-#endif
 }
 
 void psxBios__card_status() { // 5c
@@ -2431,11 +2423,7 @@ void psxBios_ChangeClearRCnt(void) { // 0a
 	pc0 = ra;
 
 	if (autobias)
-#ifdef DEBUG_BIOS
-		psxRegs.cycle-=11;
-#else
 		psxRegs.cycle+=57;
-#endif
 }
 
 void psxBios_dummy(void) { 
