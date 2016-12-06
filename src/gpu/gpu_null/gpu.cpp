@@ -2,9 +2,6 @@
 #include "psxcommon.h"
 #include "port.h"
 #include "plugins.h"
-#include "profiler.h"
-#include "debug.h"
-
 
 #define MAXSKIP			6
 #define FRAME_HEIGHT            512
@@ -32,11 +29,7 @@ u32 frameRate=60;
 double frameRateAvg=0.0;
 s32 framesToSkip=0;
 s32 framesSkipped=0;
-#if defined(PROFILER_PCSX4ALL) || defined(DEBUG_CPU) || defined(DEBUG_CPU_OPCODES)
-u32 displayFrameInfo=0;
-#else
 u32 displayFrameInfo=1; //0;
-#endif
 s32 frameRateCounter=0;
 u32 framesTotal=0;
 u32 autoFrameSkip = 0;
@@ -202,14 +195,7 @@ gpuSendPacket
 
 void gpu_sendPacket(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_sendPacket++;
-#endif
 	u32 temp;
-
-//#ifdef WITH_DRDEBUG
-//SysMessage("PCKT %x", (PacketBuffer.U4[0]>>24));
-//#endif
 
 	temp = PacketBuffer.U4[0];
 	switch (temp >> 24) {
@@ -720,35 +706,11 @@ static void FrameSkip(void)
 /* GPUupdateLace */
 void  GPU_updateLace(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_updateLace++;
-#endif
 	unsigned newticks;
 	unsigned diffticks = 0;	
 
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
-#ifdef PROFILER_PCSX4ALL
-	pcsx4all_prof_frames++;
-#endif
-//	dbg("GPU_UpdateLace");
 	GPU_gp1 ^= 0x80000000;
-#if 0
-	if(skip_this_frame)
-	{
-		--skip_this_frame;
-		if(!skip_this_frame)
-			gpu_updateLace = 0;
-		pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
-		return;
-	}
 
-	skip_this_frame = framesToSkip;
-/*
-if(!gpu_updateLace)
-return;
-*/	
-#endif
-#ifndef DEBUG_END_FRAME
 	frameRateCounter++;
 	framesTotal++;
 	newticks=get_ticks()/1000;
@@ -772,36 +734,12 @@ return;
 		if( displayFrameInfo )
 			printf("FrameRate: %d, Avg=%.2f\n", frameRate, frameRateAvg);
 	}
-#endif
-#if 0
-	if(gpu_updateLace)
-	{
-		gpu_videoOutput();
-#if 0
-		if( displayFrameInfo )
-			printf("Frameskip: %d FrameRate: %d\n", framesToSkip, frameRate);
-#endif
-		gpu_updateLace = 0;
-	}
-#endif
-
-#ifdef MAXFRAMES
-	if (framesTotal>MAXFRAMES)
-		exit(0);
-#endif
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
 }
 
 
 /* GPUwriteStatus */
 void GPU_writeStatus(u32 data)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_writeStatus++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-//dbgf("GPU_writeStatus(%X)",data);
 	switch (data >> 24) {
 		case 0x00:
 			GPU_reset();
@@ -900,42 +838,21 @@ void GPU_writeStatus(u32 data)
 			}
 			break;
 	}
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 /* GPUreadStatus */
 u32  GPU_readStatus(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_readStatus++;
-#endif
-#if 0
-   static int iNumRead=0;                              // odd/even hack
-   if((iNumRead++)==2)
-    {
-     iNumRead=0;
-     GPU_gp1^=0x80000000;                        // interlaced bit toggle... we do it on every 3 read status... needed by some games (like ChronoCross) with old epsxe versions (1.5.2 and older)
-    }
-	return (GPU_gp1);
-#else
 //	u32 ret=(GPU_gp1 | 0x1c000000) & ~0x00480000;
 	u32 ret=GPU_gp1;
-//dbgf("GPU_readStatus()=%X\n",ret);
+
 	return ret;
-#endif
 }
 
 
 /* GPUwriteData */
 void GPU_writeData(u32 data)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_writeData++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-//dbgf("GPU_writeData(%X)",data);
 	GPU_gp1 &= ~0x14000000;
 	if (FrameToWrite > 0) {
           gpu_pvram[gpu_px]=(u16)data;
@@ -973,17 +890,10 @@ void GPU_writeData(u32 data)
 		}
 	}
 	GPU_gp1 |= 0x14000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 void GPU_writeDataMem(u32 * dmaAddress, s32 dmaCount)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_writeDataMem++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	u32 temp, temp2;
 
 	GPU_gp1 &= ~0x14000000;
@@ -1041,19 +951,11 @@ void GPU_writeDataMem(u32 * dmaAddress, s32 dmaCount)
 		}
 	}
 	GPU_gp1 = (GPU_gp1 | 0x14000000) & ~0x60000000;
-//GPU_gp1 |= 0x14000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 /* GPUreadData */
 u32  GPU_readData(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_readData++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
 	GPU_gp1 &= ~0x14000000;
 	if (FrameToRead)
 	{
@@ -1073,20 +975,14 @@ u32  GPU_readData(void)
 		if( FrameToRead == 0 ) GPU_gp1 &= ~0x08000000;
 	}
 	GPU_gp1 |= 0x14000000;
-//dbgf("GPU_readData()=%X\n",GPU_gp0);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 	return (GPU_gp0);
 }
 
 void  GPU_readDataMem(u32 * dmaAddress, s32 dmaCount)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_readDataMem++;
-#endif
 	if( FrameToRead == 0 ) return;
 
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	GPU_gp1 &= ~0x14000000;
 
 	do 
@@ -1119,16 +1015,10 @@ void  GPU_readDataMem(u32 * dmaAddress, s32 dmaCount)
 	} while (--dmaCount);
 
 	GPU_gp1 = (GPU_gp1 | 0x14000000) & ~0x60000000;
-//GPU_gp1 |= 0x14000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 }
 
 long int GPU_dmaChain(u32 * baseAddr, u32 dmaVAddr)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_dmaChain++;
-#endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	u32 temp, data, *address, count, offset;
 	GPU_gp1 &= ~0x14000000;
 	dmaVAddr &= 0x00FFFFFF;
@@ -1161,35 +1051,6 @@ long int GPU_dmaChain(u32 * baseAddr, u32 dmaVAddr)
 		}
 	}
 	GPU_gp1 = (GPU_gp1 | 0x14000000) & ~0x60000000;
-//GPU_gp1 |= 0x14000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
+
 	return 0;
 }
-
-
-#if 0
-void GPU_DmaExec(u32 madr, u32 bcr, u32 chcr)
-{
-	psx4all_profiler_start(PSX4ALL_PROFILER_GPU);
-//	dbgf("GPU_DmaExec(%X,%X,%X)",madr,bcr,chcr);
-	switch(chcr)
-	{
-		case 0x01000200: // vram2mem
-			GPU_readDataMem((u32*)&ram[madr&0x1fffff],(u32)(bcr >> 16) * (bcr & 0xffff));
-			break;
-		case 0x01000201: // mem2vram
-			GPU_writeDataMem((u32*)&ram[madr&0x1fffff],(u32)(bcr >> 16) * (bcr & 0xffff));
-			break;
-		case 0x01000401: // dma chain
-			GPU_dmaChain((u32 *)&ram[0], madr & 0x1fffff);
-			break;
-		case 0x00000200:
-		case 0x00000201:
-		case 0x00000401: // disable dma
-			break;
-		default:
-			printf("gpudma unknown %08x\n",(int)chcr);
-	}
-	psx4all_profiler_end(PSX4ALL_PROFILER_GPU);
-}
-#endif

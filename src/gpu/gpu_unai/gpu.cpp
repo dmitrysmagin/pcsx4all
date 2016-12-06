@@ -22,8 +22,6 @@
 #include <stddef.h>
 #include "psxcommon.h"
 #include "port.h"
-#include "profiler.h"
-#include "debug.h"
 #include "gpu_unai.h"
 
 #define GPU_INLINE static inline __attribute__((always_inline))
@@ -201,9 +199,6 @@ u8 PacketSize[256] =
 ///////////////////////////////////////////////////////////////////////////////
 INLINE void gpuSendPacket()
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_sendPacket++;
-#endif
 	gpuSendPacketFunction(gpu_unai.PacketBuffer.U4[0]>>24);
 }
 
@@ -227,14 +222,9 @@ INLINE void gpuCheckPacket(u32 uData)
 ///////////////////////////////////////////////////////////////////////////////
 void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 {
-	#ifdef DEBUG_ANALYSIS
-		dbg_anacnt_GPU_writeDataMem++;
-	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_writeDataMem(%d)\n",dmaCount);
 	#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	u32 data;
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	gpu_unai.GPU_GP1 &= ~0x14000000;
@@ -286,19 +276,13 @@ void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
 	}
 
 	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 long GPU_dmaChain(u32 *rambase, u32 start_addr)
 {
-	#ifdef DEBUG_ANALYSIS
-		dbg_anacnt_GPU_dmaChain++;
-	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_dmaChain(0x%x)\n",start_addr);
 	#endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 
 	u32 addr, *list;
 	u32 len, count;
@@ -344,7 +328,6 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 	gpu_unai.dma.last_dma = rambase + (start_addr & 0x1fffff) / 4;
 
 	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 
 	return dma_words;
 }
@@ -353,14 +336,9 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 void  GPU_writeData(u32 data)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
-	#ifdef DEBUG_ANALYSIS
-		dbg_anacnt_GPU_writeData++;
-	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_writeData()\n");
 	#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	gpu_unai.GPU_GP1 &= ~0x14000000;
 
 	if (gpu_unai.dma.FrameToWrite)
@@ -400,9 +378,6 @@ void  GPU_writeData(u32 data)
 		gpuCheckPacket(data);
 	}
 	gpu_unai.GPU_GP1 |= 0x14000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
-
 }
 
 
@@ -410,15 +385,11 @@ void  GPU_writeData(u32 data)
 void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
-	#ifdef DEBUG_ANALYSIS
-		dbg_anacnt_GPU_readDataMem++;
-	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_readDataMem(%d)\n",dmaCount);
 	#endif
 	if(!gpu_unai.dma.FrameToRead) return;
 
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	gpu_unai.GPU_GP1 &= ~0x14000000;
 	do 
 	{
@@ -456,7 +427,6 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 	} while (--dmaCount);
 
 	gpu_unai.GPU_GP1 = (gpu_unai.GPU_GP1 | 0x14000000) & ~0x60000000;
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 }
 
 
@@ -465,14 +435,9 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 u32  GPU_readData(void)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
-	#ifdef DEBUG_ANALYSIS
-		dbg_anacnt_GPU_readData++;
-	#endif
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_readData()\n");
 	#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
 	gpu_unai.GPU_GP1 &= ~0x14000000;
 	if (gpu_unai.dma.FrameToRead)
 	{
@@ -504,17 +469,12 @@ u32  GPU_readData(void)
 	}
 	gpu_unai.GPU_GP1 |= 0x14000000;
 
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_READ);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 	return (gpu_unai.GPU_GP0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 u32     GPU_readStatus(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_readStatus++;
-#endif
 	return gpu_unai.GPU_GP1;
 }
 
@@ -539,11 +499,6 @@ INLINE void GPU_NoSkip(void)
 ///////////////////////////////////////////////////////////////////////////////
 void  GPU_writeStatus(u32 data)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_writeStatus++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_writeStatus(%d,%d)\n",data>>24,data & 0xff);
 	#endif
@@ -677,8 +632,6 @@ void  GPU_writeStatus(u32 data)
 		}
 		break;
 	}
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_HW_WRITE);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 // Blitting functions
@@ -869,23 +822,6 @@ static void GPU_frameskip (bool show)
 ///////////////////////////////////////////////////////////////////////////////
 void  GPU_updateLace(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_GPU_updateLace++;
-#endif
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
-#ifdef PROFILER_PCSX4ALL
-	pcsx4all_prof_frames++;
-#endif
-#ifdef DEBUG_FRAME
-	if(isdbg_frame())
-	{
-		static int passed=0;
-		if (!passed) dbg_enable();
-		else pcsx4all_exit();
-		passed++;
-	}
-#endif
-
 	// Interlace bit toggle
 	gpu_unai.GPU_GP1 ^= 0x80000000;
 
@@ -909,8 +845,6 @@ void  GPU_updateLace(void)
 
 	gpu_unai.fb_dirty=false;
 	gpu_unai.dma.last_dma = NULL;
-
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_GPU,PCSX4ALL_PROF_COUNTERS);
 }
 
 // Allows frontend to signal plugin to redraw screen after returning to emu
