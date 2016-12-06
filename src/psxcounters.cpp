@@ -383,22 +383,6 @@ void psxRcntUpdate()
 #ifdef USE_GPULIB
             GPU_vBlank( 0, HW_GPU_STATUS >> 31 );
 #endif
-
-			if ((toSaveState)&&(SaveState_filename)) {
-			toSaveState=0;
-			SaveState(SaveState_filename);
-			if (toExit)
-				pcsx4all_exit();
-			}
-			if ((toLoadState)&&(SaveState_filename))
-			{
-				toLoadState=0;
-				// Check for error
-				if (LoadState(SaveState_filename) != -1) {
-					psxCpu->Execute();
-					pcsx4all_exit();
-				}
-			}
         }
 
         // Schedule next call, in hsyncs

@@ -47,11 +47,6 @@
 char CdromId[10] = "";
 char CdromLabel[33] = "";
 
-int toSaveState=0;
-int toLoadState=0;
-int toExit=0;
-char *SaveState_filename=NULL;
-
 /* PSX Executable types */
 #define PSX_EXE     1
 #define CPE_EXE     2

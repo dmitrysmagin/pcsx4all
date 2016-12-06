@@ -72,10 +72,6 @@ extern int Load(const char *ExePath);
 extern int SaveState(const char *file);
 extern int LoadState(const char *file);
 extern int CheckState(const char *file);
-extern int toSaveState;
-extern int toLoadState;
-extern int toExit;
-extern char *SaveState_filename;
 
 extern bool FileExists(const char* filename);
 #endif /* __MISC_H__ */
