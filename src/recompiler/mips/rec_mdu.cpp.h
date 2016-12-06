@@ -1,7 +1,5 @@
 static void recMULT() {
 // Lo/Hi = Rs * Rt (signed)
-	if (autobias) cycles_pending += 11;
-
 	if (!(_Rs_) || !(_Rt_)) {
 		// If either operand is $r0, just store 0 in both LO/HI regs
 		SW(0, PERM_REG_1, offGPR(32)); // LO
@@ -23,8 +21,6 @@ static void recMULT() {
 
 static void recMULTU() {
 // Lo/Hi = Rs * Rt (unsigned)
-	if (autobias) cycles_pending += 11;
-
 	if (!(_Rs_) || !(_Rt_)) {
 		// If either operand is $r0, just store 0 in both LO/HI regs
 		SW(0, PERM_REG_1, offGPR(32)); // LO
@@ -48,7 +44,6 @@ static void recDIV()
 {
 // Hi, Lo = rs / rt signed
 	u32 *backpatch1, *backpatch2;
-	if (autobias) cycles_pending += 34;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -86,7 +81,6 @@ static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
 	u32 *backpatch1, *backpatch2;
-	if (autobias) cycles_pending += 34;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 

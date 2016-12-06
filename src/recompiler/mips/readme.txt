@@ -23,7 +23,6 @@ What's already done:
  - GTE code is adapted for new gte core
  - Optimized for mips32r2 target (SEB/SEH/EXT/INS), so pay attention when
    backporting to Dingoo A320 which is mips32r1
- - Added autobias support
  - Added GTE code generation for CFC2, CTC2, MFC2, MTC2, LWC2, SWC2 opcodes
  - Block recompilation is reworked to match pcsx4all behavior,
    recExecuteBlock is fixed for HLE

@@ -74,16 +74,12 @@ void sioInit(void) {
 	//senquack - added initialization of sio data:
 	memset(&psxSio, 0, sizeof(psxSio));
 
-	if (autobias) {
-		psxSio.sio_cycle = 136*8;
-	} else {
-		//senquack-Rearmed uses 535 in all cases, so we'll use that instead:
-		//sio_cycle=200*BIAS; /* for SIO_INT() */
+	//senquack-Rearmed uses 535 in all cases, so we'll use that instead:
+	//sio_cycle=200*BIAS; /* for SIO_INT() */
 
-		// clk cycle byte
-		// 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
-		psxSio.sio_cycle = 535;
-	}
+	// clk cycle byte
+	// 4us * 8bits = (PSXCLK / 1000000) * 32; (linuzappz)
+	psxSio.sio_cycle = 535;
 
 	//senquack - updated to match PCSXR code:
 	psxSio.cardh1[0] = psxSio.cardh2[0] = 0xff;
@@ -301,8 +297,6 @@ void sioWriteCtrl16(unsigned short value) {
 }
 
 void sioWriteBaud16(unsigned short value) {
-	if (autobias)
-		psxSio.sio_cycle = value*8;
 	psxSio.BaudReg = value;
 }
 

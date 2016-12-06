@@ -36,7 +36,6 @@ PcsxConfig Config;
 R3000Acpu *psxCpu=NULL;
 psxRegisters psxRegs;
 u32 BIAS=3; /* 2 */
-int autobias=0;
 u32 PSXCLK=33868800; /* 33.8688 Mhz */
 
 //senquack - Adapted pcsxReARMed SPU to PCSX4ALL:
@@ -129,8 +128,6 @@ void psxException(u32 code, u32 bd) {
 		PSXMu32ref(psxRegs.CP0.n.EPC)&= SWAPu32(~0x02000000);
 	}
 
-	if (autobias)
-		psxRegs.cycle += 11;
 	if (Config.HLE) {
 		psxBiosException();
 	}

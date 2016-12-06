@@ -675,11 +675,9 @@ static char *framelimit_show()
 static int cycle_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (autobias) { autobias = 0; BIAS = 1; }
-		else if (BIAS < 4) BIAS++;
+		if (BIAS < 4) BIAS++;
 	} else if (keys & KEY_LEFT) {
 		if (BIAS > 1) BIAS--;
-		else { autobias = 1; BIAS = 2; }
 	}
 
 	return 0;
@@ -688,8 +686,7 @@ static int cycle_alter(u32 keys)
 static char *cycle_show()
 {
 	static char buf[16] = "\0";
-	if (autobias) strcpy(buf, "auto");
-	else sprintf(buf, "%d", BIAS);
+	sprintf(buf, "%d", BIAS);
 	return buf;
 }
 
