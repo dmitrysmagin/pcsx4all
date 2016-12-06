@@ -123,7 +123,6 @@ static u32 &psxNextsCounter = psxRegs.intCycle[PSXINT_RCNT].sCycle;
 static inline void setIrq( u32 irq )
 {
 	psxHu32ref(0x1070) |= SWAPu32(irq);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
     	ResetIoCycle();
 }
 

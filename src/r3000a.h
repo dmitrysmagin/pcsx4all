@@ -29,8 +29,8 @@
 typedef struct {
 	int  (*Init)(void);
 	void (*Reset)(void);
-	void (*Execute)(void);		/* executes up to a break */
-	void (*ExecuteBlock)(unsigned target_pc);	/* executes up to a jump */
+	void (*Execute)(void);
+	void (*ExecuteBlock)(unsigned target_pc);
 	void (*Clear)(u32 Addr, u32 Size);
 	void (*Shutdown)(void);
 } R3000Acpu;
@@ -69,13 +69,13 @@ typedef union {
 typedef union {
 	struct {
 		u32	Index,     Random,    EntryLo0,  EntryLo1,
-						Context,   PageMask,  Wired,     Reserved0,
-						BadVAddr,  Count,     EntryHi,   Compare,
-						Status,    Cause,     EPC,       PRid,
-						Config,    LLAddr,    WatchLO,   WatchHI,
-						XContext,  Reserved1, Reserved2, Reserved3,
-						Reserved4, Reserved5, ECC,       CacheErr,
-						TagLo,     TagHi,     ErrorEPC,  Reserved6;
+			Context,   PageMask,  Wired,     Reserved0,
+			BadVAddr,  Count,     EntryHi,   Compare,
+			Status,    Cause,     EPC,       PRid,
+			Config,    LLAddr,    WatchLO,   WatchHI,
+			XContext,  Reserved1, Reserved2, Reserved3,
+			Reserved4, Reserved5, ECC,       CacheErr,
+			TagLo,     TagHi,     ErrorEPC,  Reserved6;
 	} n;
 	u32 r[32];
 	PAIR p[32];
@@ -152,22 +152,20 @@ typedef struct {
 	psxCP0Regs CP0;		/* Coprocessor0 Registers */
 	psxCP2Data CP2D; 	/* Cop2 data registers */
 	psxCP2Ctrl CP2C; 	/* Cop2 control registers */
-    u32 pc;				/* Program counter */
-    u32 code;			/* The instruction */
+	u32 pc;			/* Program counter */
+	u32 code;		/* The instruction */
 	u32 cycle;
 	u32 interrupt;
 
 	intCycle_t intCycle[32];
 
-// CHUI: Añado los ciclos hasta el proximo evento.
 	u32 io_cycle_counter;
-// CHUI: Añado el puntero a la memoria PSX
+
 	s8 *psxM;
 	s8 *psxP;
 	s8 *psxR;
 	s8 *psxH;
-// CHUI: Añadido para posible uso en el recompilador (psxRecLUT)
-	void *reserved;
+
 	int writeok;
 } psxRegisters;
 
@@ -243,16 +241,7 @@ extern psxRegisters psxRegs;
 
 #define _SetLink(x)     psxRegs.GPR.r[x] = _PC_ + 4;       // Sets the return address in the link register
 
-// CHUI: Macro que permite que en el proximo salto entre en psxBranchTest
-#ifdef DEBUG_CPU_OPCODES
-#define ResetIoCycle() { \
-	if (psxRegs.io_cycle_counter) { \
-		psxRegs.io_cycle_counter=0; \
-	} \
-} 
-#else
-#define ResetIoCycle() psxRegs.io_cycle_counter=0;
-#endif
+#define ResetIoCycle() do { psxRegs.io_cycle_counter = 0; } while (0)
 
 extern int  psxInit(void);
 extern void psxReset(void);
@@ -263,6 +252,5 @@ extern void psxExecuteBios(void);
 extern int  psxTestLoadDelay(int reg, u32 tmp);
 extern void psxDelayTest(int reg, u32 bpc);
 extern void psxTestSWInts(void);
-
 
 #endif /* __R3000A_H__ */

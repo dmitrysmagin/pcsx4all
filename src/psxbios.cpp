@@ -1413,7 +1413,6 @@ void psxBios_StartRCnt(void) { // 04
 #endif
 
 	a0&= 0x3;
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 	if (a0 != 3) psxHu32ref(0x1074)|= SWAP32((u32)((1<<(a0+4))));
 	else psxHu32ref(0x1074)|= SWAPu32(0x1);
@@ -1426,7 +1425,6 @@ void psxBios_StopRCnt(void) { // 05
 #endif
 
 	a0&= 0x3;
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 	if (a0 != 3) psxHu32ref(0x1074)&= SWAP32((u32)(~(1<<(a0+4))));
 	else psxHu32ref(0x1074)&= SWAPu32(~0x1);
@@ -1694,7 +1692,6 @@ void psxBios_StartPAD(void) { // 13
 #endif
 
 	pad_stopped = 0;
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 	psxHwWrite16(0x1f801074, (unsigned short)(psxHwRead16(0x1f801074) | 0x1));
 	psxRegs.CP0.n.Status |= 0x401;
@@ -1721,7 +1718,6 @@ void psxBios_PAD_init(void) { // 15
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x15]);
 #endif
 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 	psxHwWrite16(0x1f801074, (u16)(psxHwRead16(0x1f801074) | 0x1));
 	pad_buf = (int*)Ra1;
@@ -1755,7 +1751,6 @@ void psxBios_ReturnFromException(void) { // 17
 
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
 						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 }
 
@@ -2917,7 +2912,6 @@ void biosInterrupt(void) {
 					softCall(RcEV[i][1].fhandler);
 				}
 				psxHwWrite32(0x1f801070, ~(1 << (i+4)));
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 				ResetIoCycle();
 			}
 		}
@@ -2949,7 +2943,6 @@ void psxBiosException(void) {
 			if (jmp_int != NULL) {
 
 				psxHwWrite32(0x1f801070, 0xffffffff);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 				ResetIoCycle();
 
 				ra = jmp_int[0];
@@ -2966,7 +2959,6 @@ void psxBiosException(void) {
 				return;
 			}
 			psxHwWrite16(0x1f801070, 0);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 			ResetIoCycle();
 			break;
 
@@ -2974,7 +2966,6 @@ void psxBiosException(void) {
 			switch (a0) {
 				case 1: // EnterCritical - disable irq's
 					psxRegs.CP0.n.Status&=~0x404; 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 					//v0=1;	// HDHOSHY experimental patch: Spongebob, Coldblood, fearEffect, Medievil2, Martian Gothic
 					if (autobias)
 						psxRegs.cycle+=624;
@@ -2982,7 +2973,6 @@ void psxBiosException(void) {
 
 				case 2: // ExitCritical - enable irq's
 					psxRegs.CP0.n.Status|= 0x404; 
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 					if (autobias)
 						psxRegs.cycle+=464;
 					break;
@@ -2993,7 +2983,6 @@ void psxBiosException(void) {
 
 			psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
 								  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 			ResetIoCycle();
 			return;
 
@@ -3006,7 +2995,6 @@ void psxBiosException(void) {
 
 	psxRegs.CP0.n.Status = (psxRegs.CP0.n.Status & 0xfffffff0) |
 						  ((psxRegs.CP0.n.Status & 0x3c) >> 2);
-// CHUI: Añado ResetIoCycle para permite que en el proximo salto entre en psxBranchTest
 	ResetIoCycle();
 }
 
