@@ -194,9 +194,6 @@ static void fake_bios_gpu_setup(void)
 //senquack - NOTE: original version (before updating to PCSX Rearmed code
 // on May 24 2016 had undocumented CPU debugging #ifdef's.
 int LoadCdrom() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_LoadCdrom++;
-#endif
 	EXE_HEADER tmpHead;
 	struct iso_directory_record *dir;
 	u8 time[4], *buf;
@@ -288,9 +285,6 @@ int LoadCdrom() {
 }
 
 int LoadCdromFile(const char *filename, EXE_HEADER *head) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_LoadCdromFile++;
-#endif
 	struct iso_directory_record *dir;
 	u8 time[4],*buf;
 	u8 mdir[4096];
@@ -337,9 +331,6 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 }
 
 int CheckCdrom() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_CheckCdrom++;
-#endif
 	struct iso_directory_record *dir;
 	unsigned char time[4], *buf;
 	unsigned char mdir[4096];
@@ -418,11 +409,10 @@ int CheckCdrom() {
 	if (CdromLabel[0] == ' ') {
 		strncpy(CdromLabel, CdromId, 9);
 	}
-#ifndef DEBUG_BIOS
+
 	printf("CD-ROM Label: %.32s\n", CdromLabel);
 	printf("CD-ROM ID: %.9s\n", CdromId);
 	printf("CD-ROM EXE Name: %.255s\n", exename);
-#endif
 
 	BuildPPFCache();
 
@@ -459,9 +449,6 @@ invalid:
 
 /* TODO Error handling - return integer for each error case below, defined in an enum. Pass variable on return */
 int Load(const char *ExePath) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_Load++;
-#endif
 	FILE *tmpFile;
 	EXE_HEADER tmpHead;
 	int type;
@@ -813,12 +800,6 @@ int LoadState(const char *file) {
 	     freeze_rw(f, FREEZE_LOAD, psxH, 0x00010000) )
 		goto error;
 
-#ifdef DEBUG_BIOS
-	u32 repeated=0;
-	//seek(f,0,SEEKCUR) returns current position in file:
-	u32 regs_offset=SaveFuncs.seek(f, 0, SEEK_CUR);
-#endif
-
 	if (freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs)))
 		goto error;
 	psxRegs.psxM=psxM;
@@ -826,11 +807,6 @@ int LoadState(const char *file) {
 	psxRegs.psxR=psxR;
 	psxRegs.psxH=psxH;
 	psxRegs.io_cycle_counter=0;
-#if !defined(DEBUG_CPU) && (defined(USE_CYCLE_ADD) || defined(DEBUG_CPU_OPCODES))
-	//senquack TODO: Get rid of all this old psxRegs.cycle_add hackery if possible
-	psxRegs.cycle_add=0;
-	SaveFuncs.seek(f, -4, SEEK_CUR);
-#endif
 
 	//senquack - Clear & intialize new event scheduler queue based on
 	// saved contents of psxRegs.interrupt and psxRegs.intCycle[]
@@ -840,10 +816,6 @@ int LoadState(const char *file) {
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
-
-#ifdef DEBUG_BIOS
-label_repeat_:
-#endif
 
 	// gpu
 	if ((gpufP = (GPUFreeze_t *)malloc(sizeof(GPUFreeze_t))) == NULL ||
@@ -872,32 +844,6 @@ label_repeat_:
 		goto error;
 
 	SaveFuncs.close(f);
-
-#ifdef DEBUG_CPU_OPCODES
-#ifndef DEBUG_BIOS
-	dbgsum("LOADSTATE MEMORY SUM:",(void *)&psxM[0],0x200000);
-#else
-	if (Config.HLE) {
-		if (!repeated && !strcmp("dbgbios_hle",file)){
-			repeated=1;
-			f = SaveFuncs.open("dbgbios_bios", false);
-			if (f) {
-				SaveFuncs.seek(f,regs_offset,SEEK_SET);
-				freeze_rw(f, FREEZE_LOAD, (void*)&psxRegs, sizeof(psxRegs));
-				psxRegs.psxM=psxM;
-				psxRegs.psxP=psxP;
-				psxRegs.psxR=psxR;
-				psxRegs.psxH=psxH;
-				psxRegs.io_cycle_counter=0;
-				goto label_repeat_;
-			}
-		}
-	}
-	printf("INTS 0x%X, 0x%X (0x%X), HSync=%u %u\n",psxHu32(0x1070),psxHu32(0x1074),psxRegs.CP0.n.Status,psxGetHSync(),psxGetSpuSync());
-#endif
-	dbgregs((void*)&psxRegs);
-	dbgregsCop((void *)&psxRegs);
-#endif
 
 	return 0;
 

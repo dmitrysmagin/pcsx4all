@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "spu_regs.h"
-#include "profiler.h"
-#include "debug.h"
 // some ms windows compatibility define
 #undef CALLBACK
 #define CALLBACK
@@ -31,9 +29,6 @@ unsigned long  spuAddr=0xffffffff;                     // address into spu mem
 
 void CALLBACK SPU_writeRegister(unsigned long reg, unsigned short val)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_writeRegister++;
-#endif
  unsigned long r=reg&0xfff;
  regArea[(r-0xc00)>>1] = val;
 
@@ -157,9 +152,6 @@ void CALLBACK SPU_writeRegister(unsigned long reg, unsigned short val)
 
 unsigned short CALLBACK SPU_readRegister(unsigned long reg)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readRegister++;
-#endif
  unsigned long r=reg&0xfff;
 
  if(r>=0x0c00 && r<0x0d80)
@@ -211,9 +203,6 @@ unsigned short CALLBACK SPU_readRegister(unsigned long reg)
 
 unsigned short CALLBACK SPU_readDMA(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readDMA++;
-#endif
  unsigned short s=spuMem[spuAddr>>1];
  spuAddr+=2;
  if(spuAddr>0x7ffff) spuAddr=0;
@@ -224,9 +213,6 @@ unsigned short CALLBACK SPU_readDMA(void)
 
 void CALLBACK SPU_writeDMA(unsigned short val)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_writeDMA++;
-#endif
  spuMem[spuAddr>>1] = val;                             // spu addr got by writeregister
  spuAddr+=2;                                           // inc spu addr
  if(spuAddr>0x7ffff) spuAddr=0;                        // wrap
@@ -236,9 +222,6 @@ void CALLBACK SPU_writeDMA(unsigned short val)
 
 void CALLBACK SPU_writeDMAMem(unsigned short * pusPSXMem,int iSize)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_writeDMAMem++;
-#endif
  int i;
  for(i=0;i<iSize;i++)
   {
@@ -252,9 +235,6 @@ void CALLBACK SPU_writeDMAMem(unsigned short * pusPSXMem,int iSize)
 
 void CALLBACK SPU_readDMAMem(unsigned short * pusPSXMem,int iSize)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readDMAMem++;
-#endif
  int i;
  for(i=0;i<iSize;i++)
   {
@@ -285,9 +265,6 @@ typedef struct
 
 void CALLBACK SPU_playADPCMchannel(xa_decode_t *xap)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_playADPCM++;
-#endif
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -371,14 +348,8 @@ long CALLBACK SPU_freeze(unsigned int ulFreezeMode,SPUFreeze_t * pF)
 
 void CALLBACK SPU_async(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_async++;
-#endif
 }
 
 void CALLBACK SPU_playCDDAchannel(unsigned char *pcm, int nbytes)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_playCDDA++;
-#endif
 }

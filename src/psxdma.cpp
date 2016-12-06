@@ -30,9 +30,6 @@
 
 //senquack - Updated to new PCSX Reloaded/Rearmed code:
 void spuInterrupt() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_spuInterrupt++;
-#endif
 	if (HW_DMA4_CHCR & SWAP32(0x01000000))
 	{
 		HW_DMA4_CHCR &= SWAP32(~0x01000000);
@@ -42,9 +39,6 @@ void spuInterrupt() {
 
 //senquack - Updated to new PCSX Reloaded/Rearmed code:
 void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxDma4++;
-#endif
 	u16 *ptr;
 	u32 words;
 
@@ -154,9 +148,6 @@ static u32 gpuDmaChainSize(u32 addr) {
 
 //senquack - updated to match PCSX Rearmed:
 void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxDma2++;
-#endif
 	u32 *ptr;
 	u32 words;
 	u32 size;
@@ -242,9 +233,6 @@ void psxDma2(u32 madr, u32 bcr, u32 chcr) { // GPU
 
 //senquack - updated to match PCSX Rearmed:
 void gpuInterrupt() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_gpuInterrupt++;
-#endif
 	if (HW_DMA2_CHCR & SWAP32(0x01000000))
 	{
 		HW_DMA2_CHCR &= SWAP32(~0x01000000);
@@ -254,9 +242,6 @@ void gpuInterrupt() {
 }
 
 void psxDma6(u32 madr, u32 bcr, u32 chcr) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_psxDma6++;
-#endif
 	u32 words;
 	u32 *mem = (u32 *)PSXM(madr);
 

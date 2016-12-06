@@ -101,16 +101,10 @@ void sioInit(void) {
 //           TODO: Add support for newer PCSXR Config.Sio option
 // clk cycle byte
 static inline void SIO_INT(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SIO_Int++;
-#endif
 	psxEventQueue.enqueue(PSXINT_SIO, psxSio.sio_cycle);
 }
 
 void sioWrite8(unsigned char value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioWrite8++;
-#endif
 #ifdef PAD_LOG
 	PAD_LOG("sio write8 %x\n", value);
 #endif
@@ -287,22 +281,13 @@ void sioWrite8(unsigned char value) {
 }
 
 void sioWriteStat16(unsigned short value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioWriteStat16++;
-#endif
 }
 
 void sioWriteMode16(unsigned short value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioWriteMode16++;
-#endif
 	psxSio.ModeReg = value;
 }
 
 void sioWriteCtrl16(unsigned short value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioWriteCtrl16++;
-#endif
 	psxSio.CtrlReg = value & ~RESET_ERR;
 	if (value & RESET_ERR) psxSio.StatReg &= ~IRQ;
 	//senquack - Updated to match PCSX Rearmed
@@ -316,18 +301,12 @@ void sioWriteCtrl16(unsigned short value) {
 }
 
 void sioWriteBaud16(unsigned short value) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioWriteBaud16++;
-#endif
 	if (autobias)
 		psxSio.sio_cycle = value*8;
 	psxSio.BaudReg = value;
 }
 
 unsigned char sioRead8() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioRead8++;
-#endif
 	unsigned char ret = 0;
 
 	if ((psxSio.StatReg & RX_RDY)/* && (CtrlReg & RX_PERM)*/) {
@@ -362,37 +341,22 @@ unsigned char sioRead8() {
 	return ret;
 }
 unsigned short sioReadStat16() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioReadStat16++;
-#endif
 	return psxSio.StatReg;
 }
 
 unsigned short sioReadMode16() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioReadMode16++;
-#endif
 	return psxSio.ModeReg;
 }
 
 unsigned short sioReadCtrl16() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioReadCtrl16++;
-#endif
 	return psxSio.CtrlReg;
 }
 
 unsigned short sioReadBaud16() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioReadBaud16++;
-#endif
 	return psxSio.BaudReg;
 }
 
 void sioInterrupt() {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_sioInterrupt++;
-#endif
 #ifdef PAD_LOG
 	PAD_LOG("Sio Interrupt (CP0.Status = %x)\n", psxRegs.CP0.n.Status);
 #endif

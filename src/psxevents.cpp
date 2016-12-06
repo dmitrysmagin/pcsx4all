@@ -23,7 +23,6 @@
 
 #include "psxevents.h"
 #include "r3000a.h"
-#include "debug.h"
 
 // To get event-handler functions:
 #include "cdrom.h"

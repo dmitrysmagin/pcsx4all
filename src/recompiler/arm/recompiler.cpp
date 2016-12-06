@@ -263,7 +263,7 @@ extern void (*recCP2BSC[32])();
 #endif
 
 
-#if defined(DEBUG_CPU_OPCODES) || defined(DEBUG_ANALYSIS)
+#if defined(DEBUG_CPU_OPCODES)
 #ifdef DEBUG_CPU
 static unsigned fallo_registro=0;
 static unsigned ok_registro=0;

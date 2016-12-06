@@ -21,9 +21,6 @@
 // READ DMA (one value)
 unsigned short SPU_readDMA(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readDMA++;
-#endif
 	unsigned short s=spuMem[spuAddr>>1];
 	spuAddr+=2;
 	if(spuAddr>0x7ffff) spuAddr=0;
@@ -33,9 +30,6 @@ unsigned short SPU_readDMA(void)
 // READ DMA (many values)
 void SPU_readDMAMem(unsigned short * pusPSXMem,int iSize)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readDMAMem++;
-#endif
 	int i;
 	for(i=0;i<iSize;i++)
 	{
@@ -48,9 +42,6 @@ void SPU_readDMAMem(unsigned short * pusPSXMem,int iSize)
 // WRITE DMA (one value)
 void SPU_writeDMA(unsigned short val)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readDMA++;
-#endif
 	spuMem[spuAddr>>1] = val;                             // spu addr got by writeregister
 	spuAddr+=2;                                           // inc spu addr
 	if(spuAddr>0x7ffff) spuAddr=0;                        // wrap
@@ -59,9 +50,6 @@ void SPU_writeDMA(unsigned short val)
 // WRITE DMA (many values)
 void SPU_writeDMAMem(unsigned short * pusPSXMem,int iSize)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_writeDMAMem++;
-#endif
 	int i;
 	for(i=0;i<iSize;i++)
 	{

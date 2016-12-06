@@ -21,7 +21,6 @@
 #include "psxcommon.h"
 #include "spu.h"
 #include "port.h"
-#include "profiler.h"
 
 // globals
 
@@ -332,27 +331,18 @@ ENDX:;
 // SPU ASYNC
 void SPU_async(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_async++;
-#endif
 	if (!nullspu) SoundUpdate();
 }
 
 // XA AUDIO
 void SPU_playADPCMchannel(xa_decode_t *xap)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_playADPCM++;
-#endif
 	if ((!nullspu) && (xap) && (xap->freq)) FeedXA(xap);
 }
 
 // CDDA AUDIO
 void SPU_playCDDAchannel(unsigned char *pcm, int nbytes)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_playCDDA++;
-#endif
 	if ((!nullspu) && (pcm) && (nbytes>0)) FeedCDDA((unsigned char*)pcm, nbytes);
 }
 

@@ -25,7 +25,6 @@
 #include "psxmem.h"
 #include "psxcounters.h"
 #include "psxbios.h"
-#include "debug.h"
 
 typedef struct {
 	int  (*Init)(void);

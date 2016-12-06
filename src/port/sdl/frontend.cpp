@@ -12,7 +12,6 @@
 #include "plugins.h"
 #include "cdrom.h"
 #include "cdriso.h"
-#include "profiler.h"
 #include <SDL.h>
 
 /* PATH_MAX inclusion */

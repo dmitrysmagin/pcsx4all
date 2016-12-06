@@ -1270,9 +1270,6 @@ cdrRead0:
 */
 
 unsigned char cdrRead0(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrRead0++;
-#endif
 	if (cdr.ResultReady)
 		cdr.Ctrl |= 0x20;
 	else
@@ -1297,18 +1294,12 @@ cdrWrite0:
 */
 
 void cdrWrite0(unsigned char rt) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrWrite0++;
-#endif
 	CDR_LOG_IO("cdr w0: %02x\n", rt);
 
 	cdr.Ctrl = (rt & 3) | (cdr.Ctrl & ~3);
 }
 
 unsigned char cdrRead1(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrRead1++;
-#endif
 	if ((cdr.ResultP & 0xf) < cdr.ResultC)
 		psxHu8(0x1801) = cdr.Result[cdr.ResultP & 0xf];
 	else
@@ -1323,10 +1314,6 @@ unsigned char cdrRead1(void) {
 }
 
 void cdrWrite1(unsigned char rt) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrWrite1++;
-#endif
-
 	u8 set_loc[3];
 	int i;
 
@@ -1405,9 +1392,6 @@ void cdrWrite1(unsigned char rt) {
 }
 
 unsigned char cdrRead2(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrRead2++;
-#endif
 	unsigned char ret;
 
 	if (cdr.Readed == 0) {
@@ -1423,9 +1407,6 @@ unsigned char cdrRead2(void) {
 }
 
 void cdrWrite2(unsigned char rt) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrWrite2++;
-#endif
 #ifdef CDR_LOG
 	CDR_LOG("cdrWrite2() Log: CD2 write: %x\n", rt);
 #endif
@@ -1449,9 +1430,6 @@ void cdrWrite2(unsigned char rt) {
 }
 
 unsigned char cdrRead3(void) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrRead3++;
-#endif
 	if (cdr.Ctrl & 0x1)
 		psxHu8(0x1803) = cdr.Stat | 0xE0;
 	else
@@ -1462,9 +1440,6 @@ unsigned char cdrRead3(void) {
 }
 
 void cdrWrite3(unsigned char rt) {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_cdrWrite3++;
-#endif
 	CDR_LOG_IO("cdr w3: %02x\n", rt);
 
 	switch (cdr.Ctrl & 3) {

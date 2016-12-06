@@ -253,9 +253,6 @@ static void playthread(void *param)
 static void *playthread(void *param)
 #endif
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_CDR_playthread++;
-#endif
 	long			d, t, i, s;
 	unsigned char	tmp;
 
@@ -454,9 +451,6 @@ static void startCDDA(void) {
 #ifdef spu_franxis
 void playCDDA(void)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_CDR_playCDDA++;
-#endif
 	long			d, i, s;
 	unsigned char	tmp;
 
