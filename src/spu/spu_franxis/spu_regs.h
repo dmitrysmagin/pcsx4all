@@ -168,12 +168,6 @@ INLINE void SetPitch(int ch,unsigned short val)               // SET PITCH
 
 void SPU_writeRegister(unsigned long reg, unsigned short val)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_writeRegister++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
-
 	const unsigned long r=reg&0xfff;
 	regArea[(r-0xc00)>>1] = val;
 
@@ -211,7 +205,7 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 				break;
 			}
 		}
-		pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 		return;
 	}
 
@@ -232,7 +226,6 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 	case H_Noise1: if (!nullspu) NoiseOn(0,16,val); break;
 	case H_Noise2: if (!nullspu) NoiseOn(16,24,val); break;
 	}
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -241,10 +234,6 @@ void SPU_writeRegister(unsigned long reg, unsigned short val)
 
 unsigned short SPU_readRegister(unsigned long reg)
 {
-#ifdef DEBUG_ANALYSIS
-	dbg_anacnt_SPU_readRegister++;
-#endif
-	pcsx4all_prof_pause(PCSX4ALL_PROF_CPU);
 	const unsigned long r=reg&0xfff;
 	
 	if(r>=0x0c00 && r<0x0d80)
@@ -260,7 +249,7 @@ unsigned short SPU_readRegister(unsigned long reg)
 					if((dwChannelOn&(1<<ch)) &&                     // same here... we haven't decoded one sample yet, so no envelope yet. return 1 as well
 						!s_chan[ch].ADSRX.EnvelopeVol) return 1;
 					unsigned short ret=(unsigned short)(s_chan[ch].ADSRX.EnvelopeVol>>16);
-					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 					return ret;
 				}
 				else
@@ -268,7 +257,7 @@ unsigned short SPU_readRegister(unsigned long reg)
 					static unsigned short adsr_dummy_vol=0;
 					adsr_dummy_vol=!adsr_dummy_vol;
 					unsigned short ret=adsr_dummy_vol;
-					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 					return ret;
 				}
 			}
@@ -280,12 +269,12 @@ unsigned short SPU_readRegister(unsigned long reg)
 					const int ch=(r>>4)-0xc0;
 					unsigned short ret;
 					ret=(unsigned short)((s_chan[ch].pLoop-spuMemC)>>3);
-					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 					return ret;
 				}
 				else
 				{
-					pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
+
 					return 0;
 				}
 			}
@@ -295,22 +284,16 @@ unsigned short SPU_readRegister(unsigned long reg)
 	switch(r)
 	{
 	case H_SPUctrl:
-		pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 		return spuCtrl;
 	case H_SPUstat:
-		pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 		return spuStat;
 	case H_SPUaddr:
-		pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 		return (unsigned short)(spuAddr>>3);
 	case H_SPUdata: { unsigned short s=spuMem[spuAddr>>1]; spuAddr+=2; if(spuAddr>0x7ffff) spuAddr=0;
-			pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 			return s; }
 	case H_SPUirqAddr:
-		pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 		return spuIrq;
 	}
 
-	pcsx4all_prof_resume(PCSX4ALL_PROF_CPU);
 	return regArea[(r-0xc00)>>1];
 }

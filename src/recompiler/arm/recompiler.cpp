@@ -25,8 +25,6 @@
 #include "psxhw.h"
 #include "r3000a.h"
 #include "psxmem.h"
-#include "profiler.h"
-#include "debug.h"
 #include "disarm.h"
 #include "gte.h"
 #include "port.h"
@@ -2774,7 +2772,6 @@ static void recFunctions() {
 }
 
 static void recRecompile() {
-	pcsx4all_prof_start_with_pause(PCSX4ALL_PROF_REC,PCSX4ALL_PROF_CPU);
 	u32 *armPtr_old;
 
 	if (!func_TestBranchIfOK_ptr)
@@ -2983,7 +2980,6 @@ static void recRecompile() {
 	UpdateImmediate(1);
 	gen_align4();
 	sys_cacheflush(armPtr_old,armPtr);
-	pcsx4all_prof_end_with_resume(PCSX4ALL_PROF_REC,PCSX4ALL_PROF_CPU);
 #ifdef DEBUG_CPU
 	cuantos++;
 	double numero=((double)(((unsigned)armPtr)-((unsigned)armPtr_old)))/((double)rec_total_opcodes);
