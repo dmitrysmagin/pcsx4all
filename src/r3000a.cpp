@@ -35,7 +35,6 @@
 PcsxConfig Config;
 R3000Acpu *psxCpu=NULL;
 psxRegisters psxRegs;
-u32 BIAS=3; /* 2 */
 
 //senquack - Adapted pcsxReARMed SPU to PCSX4ALL:
 #ifdef spu_pcsxrearmed

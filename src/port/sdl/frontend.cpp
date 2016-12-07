@@ -688,24 +688,6 @@ static char *framelimit_show()
 	return buf;
 }
 
-static int cycle_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (BIAS < 4) BIAS++;
-	} else if (keys & KEY_LEFT) {
-		if (BIAS > 2) BIAS--;
-	}
-
-	return 0;
-}
-
-static char *cycle_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%d", BIAS);
-	return buf;
-}
-
 static int xa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -894,7 +876,6 @@ static int settings_defaults()
 static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
-	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
 	{(char *)"[PSX] CDDA audio        ", NULL, &cdda_alter, &cdda_show},
 	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},

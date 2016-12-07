@@ -813,14 +813,6 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-file")==0) strcpy(filename,argv[i+1]); // Set executable file
 		if (strcmp(argv[i],"-savestate")==0) strcpy(savename,argv[i+1]); // Set executable file
 		if (strcmp(argv[i],"-autosavestate")==0) autosavestate=1; // Autosavestate
-		if (strcmp(argv[i],"-bias")==0) {
-			BIAS=atoi(argv[i+1]); // Set BIAS
-			if (((int)BIAS)<1) {
-				BIAS=1;
-			} else if (((int)BIAS)>4) {
-				BIAS=4;
-			}
-		}
 
 		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
 		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.

@@ -143,10 +143,7 @@ int freeze_rw(void *file, enum FreezeMode mode, void *buf, unsigned len);
 
 extern struct PcsxSaveFuncs SaveFuncs;
 
-
-//#define BIAS	2
-extern u32 BIAS;
-
+#define BIAS	2
 #define PSXCLK	33868800	/* 33.8688 Mhz */
 
 enum {
