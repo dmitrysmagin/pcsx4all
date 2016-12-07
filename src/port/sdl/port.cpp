@@ -821,7 +821,6 @@ int main (int argc, char **argv)
 				BIAS=4;
 			}
 		}
-		if (strcmp(argv[i],"-adjust")==0) { PSXCLK=(u32)((double)PSXCLK*atof(argv[i+1])); }
 
 		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
 		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.

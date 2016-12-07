@@ -45,8 +45,6 @@
  } while (0)
 #endif
 
-#define PSXCLK	33868800	/* 33.8688 MHz */
-
 // intended to be ~1 frame
 #define IRQ_NEAR_BLOCKS 32
 

@@ -36,7 +36,6 @@ PcsxConfig Config;
 R3000Acpu *psxCpu=NULL;
 psxRegisters psxRegs;
 u32 BIAS=3; /* 2 */
-u32 PSXCLK=33868800; /* 33.8688 Mhz */
 
 //senquack - Adapted pcsxReARMed SPU to PCSX4ALL:
 #ifdef spu_pcsxrearmed

@@ -688,27 +688,6 @@ static char *cycle_show()
 	return buf;
 }
 
-// Disable, because altering those do more harm
-#if 0
-static int clock_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (PSXCLK < 64000000) PSXCLK += 1000000;
-	} else if (keys & KEY_LEFT) {
-		if (PSXCLK > 10000000) PSXCLK -= 1000000;
-	}
-
-	return 0;
-}
-
-static char *clock_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%d.%d", PSXCLK / 1000000, (PSXCLK % 1000000) / 10000);
-	return buf;
-}
-#endif
-
 static int xa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -897,10 +876,6 @@ static int settings_defaults()
 static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
 	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
-// Disable, because altering those do more harm
-#if 0
-	{(char *)"[PSX] Processor clock   ", NULL, &clock_alter, &clock_show},
-#endif
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
 	{(char *)"[PSX] CDDA audio        ", NULL, &cdda_alter, &cdda_show},
 	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},

@@ -145,13 +145,7 @@ unsigned char Test23[] = { 0x43, 0x58, 0x44, 0x32, 0x39 ,0x34, 0x30, 0x51 };
 #define ERROR_INVALIDCMD (1<<6) // 0x40
 #define ERROR_INVALIDARG (1<<5) // 0x20
 
-//senquack - In PCSX4ALL, cdReadTime is a variable that changes in relation
-//           to PSXCLK, instead of a const like Rearmed/Reloaded:
-// 1x = 75 sectors per second
-// PSXCLK = 1 sec in the ps
-// so (PSXCLK / 75) = cdr read time (linuzappz)
-//#define cdReadTime (PSXCLK / 75)
-static u32 cdReadTime;
+#define cdReadTime (PSXCLK / 75)
 
 enum drive_state {
 	DRIVESTATE_STANDBY = 0,
@@ -1593,9 +1587,6 @@ void cdrReset() {
 	cdr.StatP = STATUS_ROTATING;
 	cdr.ReadRescheduled = 0;
 	pTransfer = cdr.Transfer;
-
-	//senquack - cdReadTime is a var in PCSX4ALL, not a const
-	cdReadTime = (PSXCLK / 75);
 
 	// BIOS player - default values
 	cdr.AttenuatorLeftToLeft = 0x80;

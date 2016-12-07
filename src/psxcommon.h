@@ -147,8 +147,7 @@ extern struct PcsxSaveFuncs SaveFuncs;
 //#define BIAS	2
 extern u32 BIAS;
 
-//#define PSXCLK	33868800	/* 33.8688 Mhz */
-extern u32 PSXCLK;
+#define PSXCLK	33868800	/* 33.8688 Mhz */
 
 enum {
 	PSX_TYPE_NTSC = 0,
