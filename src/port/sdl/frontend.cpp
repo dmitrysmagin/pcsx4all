@@ -617,6 +617,24 @@ static MENUITEM gui_GameMenuItems[] = {
 #define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
 
+static int emu_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.Cpu == 1) Config.Cpu = 0;
+	} else if (keys & KEY_LEFT) {
+		if (Config.Cpu == 0) Config.Cpu = 1;
+	}
+
+	return 0;
+}
+
+static char *emu_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.Cpu ? "int" : "rec");
+	return buf;
+}
+
 static int bios_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -874,6 +892,7 @@ static int settings_defaults()
 }
 
 static MENUITEM gui_SettingsItems[] = {
+	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
 	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
