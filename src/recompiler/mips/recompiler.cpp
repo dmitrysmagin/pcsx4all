@@ -95,6 +95,7 @@ extern void (*recCP2BSC[32])();
 u32	*recMemStart;
 u32	end_block = 0;
 u32	cycles_pending = 0;
+u32	cycle_multiplier = 0x200; // 0x200 == 2.00
 
 #ifdef WITH_DISASM
 

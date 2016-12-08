@@ -303,6 +303,12 @@ do { \
 #define CLZ(rd, rs) \
 	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
 
+static inline u32 ADJUST_CLOCK(u32 cycles)
+{
+	extern u32 cycle_multiplier;
+	return (cycles * cycle_multiplier) >> 8;
+}
+
 /* start of the recompiled block
  */
 #define rec_recompile_start() \
@@ -328,7 +334,7 @@ do {                                                                           \
     /*  to rec_recompile_end_part1().                                       */ \
     /* Somewhere between calls to ..part1() and ..part2(), calling code     */ \
     /*  places new value for psxRegs.pc in $v0.                             */ \
-    u32 __cycles = ((cycles_pending+((pc-oldpc)/4)))*BIAS;                     \
+    u32 __cycles = ADJUST_CLOCK(cycles_pending+((pc-oldpc)/4));                \
     if (__cycles <= 0xffff) {                                                  \
         JR(MIPSREG_RA);                                                        \
         LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
