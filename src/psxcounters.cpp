@@ -404,25 +404,6 @@ void psxRcntUpdate()
             GPU_vBlank( 0, HW_GPU_STATUS >> 31 );
 #endif
 
-#ifdef DEBUG_END_FRAME
-		{
-			static unsigned _endframe_=0;
-			static unsigned _frametime_[DEBUG_END_FRAME+1];
-			_frametime_[_endframe_]=(get_ticks()
-#ifndef TIME_IN_MSEC
-					/1000
-#endif
-					);
-			_endframe_++;
-			if (_endframe_>DEBUG_END_FRAME) {
-				unsigned i;
-				for(i=1;i<_endframe_;i++) 
-					printf("FRAME %u = %u msec\n",i,_frametime_[i]-_frametime_[i-1]);
-				pcsx4all_exit();
-			}
-		}
-#endif
-
 			if ((toSaveState)&&(SaveState_filename)) {
 			toSaveState=0;
 			SaveState(SaveState_filename);
