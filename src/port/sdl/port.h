@@ -20,10 +20,6 @@
 static inline int fsync(int f) { return 0; }
 #endif
 
-
-#define UDIV(n,d) ((n)/(d))
-#define SDIV(n,d) ((n)/(d))
-
 #define	CONFIG_VERSION	0
 
 extern unsigned get_ticks(void);

@@ -180,7 +180,7 @@ static inline u32 _psxRcntRcount( u32 index )
     count  = psxRegs.cycle;
     count -= rcnts[index].cycleStart;
     if (rcnts[index].rate > 1)
-        count = UDIV(count,rcnts[index].rate);
+        count /= rcnts[index].rate;
 
     if( count > 0x10000 )
     {
@@ -391,7 +391,7 @@ void psxRcntUpdate()
         }
 
         // Update lace. (with InuYasha fix)
-        if( hSyncCount >= (Config.VSyncWA ? UDIV(HSyncTotal[Config.PsxType],BIAS) : HSyncTotal[Config.PsxType]) )
+        if( hSyncCount >= (Config.VSyncWA ? HSyncTotal[Config.PsxType]/BIAS : HSyncTotal[Config.PsxType]) )
         {
             hSyncCount = 0;
             frame_counter++;
@@ -501,7 +501,7 @@ u32 psxRcntRcount( u32 index )
     if( Config.RCntFix ) {
         if( index == 2 ) {
             if( rcnts[index].counterState == CountToTarget )
-                count=UDIV(count,BIAS);
+                count /= BIAS;
         }
     }
 

@@ -122,16 +122,13 @@ static inline T Max3 (const T a, const T b, const T c)
 #define FRAME_BYTE_STRIDE     2048
 #define FRAME_BYTES_PER_PIXEL 2
 
-///////////////////////////////////////////////////////////////////////////
-// Division helpers (SDIV should be defined somewhere in port headers,
-//  allowing use of ASM routine on platforms lacking hardware divide)
 static inline s32 GPU_DIV(s32 rs, s32 rt)
 {
-	return rt ? (SDIV(rs,rt)) : (0);
+	return rt ? (rs / rt) : (0);
 }
 
 // 'Unsafe' version of above that doesn't check for div-by-zero
-#define GPU_FAST_DIV(rs, rt) SDIV((rs),(rt))
+#define GPU_FAST_DIV(rs, rt) ((signed)(rs) / (signed)(rt))
 
 struct gpu_unai_t {
 	u32 GPU_GP1;

@@ -103,7 +103,7 @@ INLINE void FModChangeFrequency(SPUCHAN *l_chan,int ns,signed int *mod)
 {
 	int NP=l_chan->iRawPitch;
 
-	NP=SDIV(((32768L+mod[ns])*NP),32768L);
+	NP=((32768L+mod[ns])*NP) / 32768L;
 
 	if(NP>0x3fff) NP=0x3fff;
 	if(NP<0x1)    NP=0x1;
@@ -112,7 +112,7 @@ INLINE void FModChangeFrequency(SPUCHAN *l_chan,int ns,signed int *mod)
 
 	l_chan->iActFreq=NP;
 	l_chan->iUsedFreq=NP;
-	l_chan->sinc=UDIV(((NP/10)<<16),4410);
+	l_chan->sinc=((NP/10)<<16)/4410;
 	if(!l_chan->sinc) l_chan->sinc=1;
 	l_chan->sinc<<=1;
 	mod[ns]=0;
@@ -138,7 +138,7 @@ INLINE int iGetNoiseVal(SPUCHAN *l_chan)
 	else fa=(dwNoiseVal>>2)&0x7fff;
 
 	// mmm... depending on the noise freq we allow bigger/smaller changes to the previous val
-	fa=l_chan->iOldNoise+SDIV((fa-l_chan->iOldNoise),((0x001f-((spuCtrl&0x3f00)>>9))+1));
+	fa=l_chan->iOldNoise+((fa-l_chan->iOldNoise)/((0x001f-((spuCtrl&0x3f00)>>9))+1));
 	CLIP_SHORT(fa);
 	l_chan->iOldNoise=fa;
 

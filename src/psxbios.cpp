@@ -753,7 +753,7 @@ static void qsort_main(char *a, char *l) {
 start:
 	if ((n = l - a) <= qswidth)
 		return;
-	n = qswidth * UDIV(n,(2 * qswidth));
+	n = qswidth * (n / (2 * qswidth));
 	hp = lp = a + n;
 	i = a;
 	j = l - qswidth;

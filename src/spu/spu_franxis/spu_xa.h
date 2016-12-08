@@ -106,11 +106,11 @@ INLINE void FeedXA(xa_decode_t *xap)
 	xapGlobal = xap;                                      // store info for save states
 	XARepeat  = 100;                                      // set up repeat
 
-	iSize=UDIV((22050*xap->nsamples),xap->freq);              // get size
+	iSize=(22050*xap->nsamples)/xap->freq;              // get size
 	if(!iSize) return;                                    // none? bye
 
 	spos=0x10000L;
-	sinc = UDIV((xap->nsamples << 16),iSize);                 // calc freq by num / size
+	sinc = (xap->nsamples << 16)/iSize;                 // calc freq by num / size
 
 	if(xap->stereo)
 	{
