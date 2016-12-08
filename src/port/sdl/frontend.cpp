@@ -635,6 +635,28 @@ static char *emu_show()
 	return buf;
 }
 
+#ifdef PSXREC
+extern u32 cycle_multiplier; // in mips/recompiler.cpp
+
+static int cycle_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (cycle_multiplier < 0x400) cycle_multiplier += 0x02;
+	} else if (keys & KEY_LEFT) {
+		if (cycle_multiplier > 0x100) cycle_multiplier -= 0x02;
+	}
+
+	return 0;
+}
+
+static char *cycle_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%d.%d", cycle_multiplier >> 8, (cycle_multiplier & 0xff) * 100 / 256);
+	return buf;
+}
+#endif
+
 static int bios_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -875,6 +897,9 @@ static int settings_defaults()
 
 static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
+#ifdef PSXREC
+	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
+#endif
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
 	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
 	{(char *)"[PSX] CDDA audio        ", NULL, &cdda_alter, &cdda_show},
