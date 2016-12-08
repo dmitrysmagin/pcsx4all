@@ -617,6 +617,7 @@ static MENUITEM gui_GameMenuItems[] = {
 #define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
 
+#ifdef PSXREC
 static int emu_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -635,7 +636,6 @@ static char *emu_show()
 	return buf;
 }
 
-#ifdef PSXREC
 extern u32 cycle_multiplier; // in mips/recompiler.cpp
 
 static int cycle_alter(u32 keys)
@@ -896,8 +896,8 @@ static int settings_defaults()
 }
 
 static MENUITEM gui_SettingsItems[] = {
-	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
 #ifdef PSXREC
+	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
 	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
 #endif
 	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
