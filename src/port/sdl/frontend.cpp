@@ -641,9 +641,9 @@ extern u32 cycle_multiplier; // in mips/recompiler.cpp
 static int cycle_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (cycle_multiplier < 0x400) cycle_multiplier += 0x02;
+		if (cycle_multiplier < 0x300) cycle_multiplier += 0x04;
 	} else if (keys & KEY_LEFT) {
-		if (cycle_multiplier > 0x100) cycle_multiplier -= 0x02;
+		if (cycle_multiplier > 0x050) cycle_multiplier -= 0x04;
 	}
 
 	return 0;
@@ -652,7 +652,7 @@ static int cycle_alter(u32 keys)
 static char *cycle_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%d.%d", cycle_multiplier >> 8, (cycle_multiplier & 0xff) * 100 / 256);
+	sprintf(buf, "%d.%02d", cycle_multiplier >> 8, (cycle_multiplier & 0xff) * 100 / 256);
 	return buf;
 }
 #endif
