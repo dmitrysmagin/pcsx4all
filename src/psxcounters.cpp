@@ -432,9 +432,11 @@ void psxRcntUpdate()
 			if ((toLoadState)&&(SaveState_filename))
 			{
 				toLoadState=0;
-				LoadState(SaveState_filename);
-				psxCpu->Execute();
-				pcsx4all_exit();
+				// Check for error
+				if (LoadState(SaveState_filename) != -1) {
+					psxCpu->Execute();
+					pcsx4all_exit();
+				}
 			}
         }
 
