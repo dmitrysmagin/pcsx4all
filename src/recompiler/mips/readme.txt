@@ -49,7 +49,9 @@ What's already done:
   - Add caching of LO/HI regs
   - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
 
- Problematic games:
+ Problematic games which get stuck with recompiler:
   - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
   - R-Types (USA) (works with interpreter + bios)
-  - Next Tetris (works with interpreter/mipsrec + HLE)
+  - Next Tetris (works occasionally with interpreter/mipsrec + HLE)
+  - Mortal Kombat Trilogy (works with interpreter + HLE)
+
