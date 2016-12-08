@@ -13,8 +13,6 @@ static void recSYSCALL()
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // Block retval $v0 = new PC set by psxException()
 	rec_recompile_end_part2();
 
-	cycles_pending = 0;
-
 	end_block = 1;
 }
 
@@ -168,8 +166,6 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 
 	rec_recompile_end_part2();
 
-	cycles_pending = 0;
-
 	fixup_branch(backpatch);
 	regUnlock(br1);
 
@@ -212,8 +208,6 @@ static void emitBxx(u32 bpc)
 
 	rec_recompile_end_part2();
 
-	cycles_pending = 0;
-
 	fixup_branch(backpatch);
 	regUnlock(br1);
 	regUnlock(br2);
@@ -231,8 +225,6 @@ static void iJumpNormal(u32 bpc)
 	regClearJump();
 	LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
 	rec_recompile_end_part2();
-
-	cycles_pending = 0;
 
 	end_block = 1;
 }
@@ -260,8 +252,6 @@ static void iJumpAL(u32 bpc, u32 nbpc)
 
 	SW(TEMP_1, PERM_REG_1, offGPR(31));
 	rec_recompile_end_part2();
-
-	cycles_pending = 0;
 
 	end_block = 1;
 }
@@ -415,8 +405,6 @@ static void recJR_load_delay()
 	regUnlock(br1);
 	rec_recompile_end_part2();
 
-	cycles_pending = 0;
-
 	end_block = 1;
 }
 
@@ -441,8 +429,6 @@ static void recJR()
 	regUnlock(br1);
 	rec_recompile_end_part2();
 
-	cycles_pending = 0;
-
 	end_block = 1;
 }
 
@@ -460,8 +446,6 @@ static void recJALR()
 	MOV(MIPSREG_V0, br1); // Block retval $v0 = new PC val
 	regUnlock(br1);
 	rec_recompile_end_part2();
-
-	cycles_pending = 0;
 
 	end_block = 1;
 }
@@ -555,8 +539,6 @@ static void recHLE()
 	rec_recompile_end_part1();
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // <BD> Block retval $v0 = psxRegs.pc
 	rec_recompile_end_part2();
-
-	cycles_pending = 0;
 
 	end_block = 1;
 }

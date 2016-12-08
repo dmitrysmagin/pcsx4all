@@ -334,7 +334,7 @@ do {                                                                           \
     /*  to rec_recompile_end_part1().                                       */ \
     /* Somewhere between calls to ..part1() and ..part2(), calling code     */ \
     /*  places new value for psxRegs.pc in $v0.                             */ \
-    u32 __cycles = ADJUST_CLOCK(cycles_pending+((pc-oldpc)/4));                \
+    u32 __cycles = ADJUST_CLOCK((pc-oldpc)/4);                                 \
     if (__cycles <= 0xffff) {                                                  \
         JR(MIPSREG_RA);                                                        \
         LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
