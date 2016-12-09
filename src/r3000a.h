@@ -166,6 +166,7 @@ typedef struct {
 	s8 *psxR;
 	s8 *psxH;
 
+	void *reserved;
 	int writeok;
 } psxRegisters;
 
