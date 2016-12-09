@@ -46,7 +46,12 @@ static void emitCTC2(u32 rt, u32 reg)
 {
 	switch (reg) {
 	case 4: case 12: case 20: case 26: case 27: case 29: case 30:
+#ifdef HAVE_MIPS32R2_SEB_SEH
 		SEH(TEMP_1, rt);
+#else
+		SLL(TEMP_1, rt, 16);
+		SRA(TEMP_1, TEMP_1, 16);
+#endif
 		SW(TEMP_1, PERM_REG_1, offCP2C(reg));
 		break;
 

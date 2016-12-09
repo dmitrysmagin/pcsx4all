@@ -240,7 +240,12 @@ static void LoadFromAddr(int count)
 		case 0x80000000: // LB
 			JAL(psxMemRead8);
 			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+#ifdef HAVE_MIPS32R2_SEB_SEH
 			SEB(r2, MIPSREG_V0);
+#else
+			SLL(r2, MIPSREG_V0, 24);
+			SRA(r2, r2, 24);
+#endif
 			break;
 		case 0x90000000: // LBU
 			JAL(psxMemRead8);
@@ -250,7 +255,12 @@ static void LoadFromAddr(int count)
 		case 0x84000000: // LH
 			JAL(psxMemRead16);
 			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+#ifdef HAVE_MIPS32R2_SEB_SEH
 			SEH(r2, MIPSREG_V0);
+#else
+			SLL(r2, MIPSREG_V0, 16);
+			SRA(r2, r2, 16);
+#endif
 			break;
 		case 0x94000000: // LHU
 			JAL(psxMemRead16);
