@@ -21,8 +21,8 @@ What's already done:
  - Implemented consequent loads/stores optimizations
  - Improved constant caching, eliminated useless const reloads
  - GTE code is adapted for new gte core
- - Optimized for mips32r2 target (SEB/SEH/EXT/INS), so pay attention when
-   backporting to Dingoo A320 which is mips32r1
+ - Optimized for mips32r2 target (SEB/SEH/EXT/INS), compatibility with
+   Dingoo A320 is retained (which is mips32r1)
  - Added GTE code generation for CFC2, CTC2, MFC2, MTC2, LWC2, SWC2 opcodes
  - Block recompilation is reworked to match pcsx4all behavior,
    recExecuteBlock is fixed for HLE
@@ -35,7 +35,7 @@ What's already done:
 
 * recompiler:
   - Implement proper page-based code invalidation to support self-modifying code
-  - Implement branches in branch delay slots (Threads of Fate)
+  - Implement branches in branch delay slots (which game uses them?)
   - Test more games from this list:
      https://github.com/libretro-mirrors/mednafen-git/blob/master/src/psx/notes/PROBLEMATIC-GAMES
   - Implement more GTE code generation (if reasonable)
@@ -52,6 +52,6 @@ What's already done:
  Problematic games which get stuck with recompiler:
   - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
   - R-Types (USA) (works with interpreter + bios)
-  - Next Tetris (works occasionally with interpreter/mipsrec + HLE)
+  - Next Tetris (gets stuck occasionally at start)
   - Mortal Kombat Trilogy (works with interpreter + HLE)
 
