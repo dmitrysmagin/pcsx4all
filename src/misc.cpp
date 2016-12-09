@@ -404,6 +404,9 @@ int CheckCdrom() {
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
+
+		// Should be called when Config.PsxType changes
+		SPU_resetUpdateInterval();
 	}
 
 	if (CdromLabel[0] == ' ') {
@@ -812,7 +815,7 @@ int LoadState(const char *file) {
 	// saved contents of psxRegs.interrupt and psxRegs.intCycle[]
 	// NOTE: important to do this before calling any functions like
 	// psxRcntFreeze() that will queue events of their own.
-	psxEventQueue.init_from_freeze();
+	psxEvqueueInitFromFreeze();
 
 	if (Config.HLE)
 		psxBiosFreeze(0);

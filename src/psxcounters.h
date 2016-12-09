@@ -28,7 +28,9 @@
 #include "plugins.h"
 
 extern u32 hSyncCount, frame_counter;
-extern u32 spu_upd_interval;
+
+extern const u32 FrameRate[2];
+extern const u32 HSyncTotal[2];
 
 typedef struct Rcnt
 {
@@ -50,9 +52,6 @@ extern u32 psxRcntRtarget(u32 index);
 
 extern int psxRcntFreeze(void* f, FreezeMode mode);
 
-extern unsigned psxGetSpuSync(void);
-
-// senquack - Called before psxRegs.cycle is adjusted back to zero
 void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val);
 
 #endif /* __PSXCOUNTERS_H__ */
