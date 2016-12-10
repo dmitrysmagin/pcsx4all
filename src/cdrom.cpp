@@ -226,29 +226,29 @@ u16 calcCrc(const u8 *d, const int len) {
 
 // cdrInterrupt
 #define CDR_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_CDR, eCycle); \
+	psxEvqueueAdd(PSXINT_CDR, eCycle); \
 }
 
 // cdrReadInterrupt
 #define CDREAD_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_CDREAD, eCycle); \
+	psxEvqueueAdd(PSXINT_CDREAD, eCycle); \
 }
 
 //senquack - Next two interrupt macros are new from PCSX Reloaded/Rearmed.
 // cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_CDRLID, eCycle); \
+	psxEvqueueAdd(PSXINT_CDRLID, eCycle); \
 }
 
 // cdrPlayInterrupt
 #define CDRMISC_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_CDRPLAY, eCycle); \
+	psxEvqueueAdd(PSXINT_CDRPLAY, eCycle); \
 }
 
 #define StopReading() { \
 	if (cdr.Reading) { \
 		cdr.Reading = 0; \
-		psxEventQueue.dequeue(PSXINT_CDREAD); \
+		psxEvqueueRemove(PSXINT_CDREAD); \
 	} \
 	cdr.StatP &= ~(STATUS_READ|STATUS_SEEK);\
 }

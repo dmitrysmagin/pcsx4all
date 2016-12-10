@@ -135,20 +135,12 @@ extern void SPU_playCDDAchannel(unsigned char *, int);
 #endif
 
 //senquack - added these two functions, see notes in plugins.cpp
-void UpdateSPU(void);
-void HandleSPU_IRQ(void);
-
-//senquack - added these two functions, see notes in plugins.cpp
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void CALLBACK Trigger_SPU_IRQ(void);
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
-
-#define SCHEDULE_SPU_UPDATE(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_SPU_UPDATE, eCycle); \
-}
 
 #ifdef __cplusplus
 }

@@ -119,9 +119,7 @@ static void setup_paths()
 	MKDIR(patchesdir);
 }
 
-static int autosavestate = 0;
 int saveslot = 0;
-static char savename[256];
 
 void probe_lastdir()
 {
@@ -303,20 +301,23 @@ void config_save()
 	free(config);
 }
 
-void state_load()
+// Returns 0: success, -1: failure
+int state_load()
 {
+	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
-	SaveState_filename = (char *)&savename;
-	if ((!toLoadState) && (!toSaveState))
-		toLoadState = 1;
+	if (FileExists(savename)) {
+		return LoadState(savename);
+	}
+	return -1;
 }
 
-void state_save()
+// Returns 0: success, -1: failure
+int state_save()
 {
+	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
-	SaveState_filename = (char *)&savename;
-	if ((!toLoadState) && (!toSaveState))
-		toSaveState = 1;
+	return SaveState(savename);
 }
 
 static struct {
@@ -361,11 +362,7 @@ void pad_update(void)
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
 		case SDL_QUIT:
-			if (autosavestate) {
-				toExit=1;
-				toSaveState=1;
-			} else
-				pcsx4all_exit();
+			pcsx4all_exit();
 			break;
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
@@ -375,8 +372,6 @@ void pad_update(void)
 				SDL_PushEvent(&event);
 				break;
 #endif
-			case SDLK_F1: state_load(); break;
-			case SDLK_F2: state_save(); break;
 			case SDLK_v: { Config.ShowFps=!Config.ShowFps; } break;
 			default: break;
 			}
@@ -657,7 +652,6 @@ int main (int argc, char **argv)
 	const char *cdrfilename=GetIsoFile();
 
 	filename[0] = '\0'; /* Executable file name */
-	savename[0] = '\0'; /* SaveState file name */
 
 	setup_paths();
 
@@ -811,8 +805,6 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-spuirq")==0) Config.SpuIrq=1; // SPU IRQ always enabled (fixes audio in some games)
 		if (strcmp(argv[i],"-iso")==0) SetIsoFile(argv[i+1]); // Set ISO file
 		if (strcmp(argv[i],"-file")==0) strcpy(filename,argv[i+1]); // Set executable file
-		if (strcmp(argv[i],"-savestate")==0) strcpy(savename,argv[i+1]); // Set executable file
-		if (strcmp(argv[i],"-autosavestate")==0) autosavestate=1; // Autosavestate
 
 		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
 		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
@@ -1070,8 +1062,6 @@ int main (int argc, char **argv)
 	}
 
 	if ((cdrfilename[0] != '\0') || (filename[0] != '\0') || (Config.HLE == 0)) {
-		if ((autosavestate) && (savename[0]))
-			LoadState(savename); // Load save-state
 		psxCpu->Execute();
 	}
 

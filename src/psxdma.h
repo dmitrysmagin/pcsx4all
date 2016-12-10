@@ -29,29 +29,29 @@
 
 //senquack - NOTE: These macros have been updated to use new PSXINT_*
 // interrupts enum and intCycle struct (much cleaner than before)
-// from PCSX Reloaded/Rearmed as well as new event queue (psxevents.h)
+// from PCSX Reloaded/Rearmed as well as new event queue (psxEvqueues.h)
 #define GPUDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_GPUDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_GPUDMA, eCycle); \
 }
 
 #define SPUDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_SPUDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_SPUDMA, eCycle); \
 }
 
 #define MDECOUTDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_MDECOUTDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_MDECOUTDMA, eCycle); \
 }
 
 #define MDECINDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_MDECINDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_MDECINDMA, eCycle); \
 }
 
 #define GPUOTCDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_GPUOTCDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_GPUOTCDMA, eCycle); \
 }
 
 #define CDRDMA_INT(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_CDRDMA, eCycle); \
+	psxEvqueueAdd(PSXINT_CDRDMA, eCycle); \
 }
 
 void psxDma2(u32 madr, u32 bcr, u32 chcr);

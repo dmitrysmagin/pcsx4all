@@ -27,14 +27,7 @@
 // * Proper handling of counter overflows.
 // * VBlank root counter (counter 3) is triggered only as often as needed,
 //   not every HSync.
-// * Because SPU was originally updated inside VBlank root counter code, the
-//   above change necessitated moving SPU update handling to psxBranchTest()
-//   in r3000a.cpp. In PCSX Rearmed, Notaz's SPU plugin requires an update
-//   only once per emulated frame, but we target slower devices and until
-//   we get good auto-frameskip, more-frequent SPU updates are necessary.
-//   Older SPU plugins required *much* more frequent updates, making it even
-//   less practical to do SPU updates here now that psxRcntUpdate() here is
-//   called so much less frequently.
+// * SPU updates occur using new event queue (psxevents.cpp)
 // * Some optimizations, more accurate calculation of timer updates.
 //
 // TODO : Implement direct rootcounter mem access of Rearmed dynarec?
@@ -77,46 +70,35 @@ enum
     RcUnknown15       = 0x8000, // 15   ? (always zero)
 };
 
-#define CounterQuantity           ( 4 )
-//static const u32 CounterQuantity  = 4;
-
+static const u32 CounterQuantity  = 4;
 static const u32 CountToOverflow  = 0;
 static const u32 CountToTarget    = 1;
 
-static const u32 FrameRate[]      = { 60, 50 };
+const u32 FrameRate[2] = { 60, 50 };
 
 //senquack - Originally {262,312}, updated to match Rearmed:
-static const u32 HSyncTotal[]     = { 263, 313 };
+const u32 HSyncTotal[2] = { 263, 313 };
 
 //senquack - TODO: PCSX Reloaded uses {243,256} here, and Rearmed
 // does away with array completely and uses 240 in all cases:
 //static const u32 VBlankStart[]    = { 240, 256 };
-#define VBlankStart 240
-
-//Cycles between SPU plugin updates
-u32 spu_upd_interval;
-
-#ifndef spu_pcsxrearmed
-// Older SPU plugins are updated every 23rd HSync, regardless of PAL/NTSC mode
-#define SPU_UPD_INTERVAL 23
-#endif
+static const u32 VBlankStart = 240;
 
 /******************************************************************************/
 
 static Rcnt rcnts[ CounterQuantity ];
 
 u32 hSyncCount = 0;
-static u32 spuSyncCount = 0;
 
-//senquack - Added two vars from PCSX Rearmed:
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
 static u32 base_cycle = 0;
+static bool rcntFreezeLoaded = false;
 
 //senquack - Originally separate variables, now handled together with
 // all other scheduled emu events as new event type PSXINT_RCNT
-static u32 &psxNextCounter = psxRegs.intCycle[PSXINT_RCNT].cycle;
-static u32 &psxNextsCounter = psxRegs.intCycle[PSXINT_RCNT].sCycle;
+#define psxNextCounter psxRegs.intCycle[PSXINT_RCNT].cycle
+#define psxNextsCounter psxRegs.intCycle[PSXINT_RCNT].sCycle
 
 /******************************************************************************/
 
@@ -264,7 +246,7 @@ static void psxRcntSet(void)
     }
 
     // Any previously queued PSXINT_RCNT event will be replaced
-    psxEventQueue.enqueue(PSXINT_RCNT, psxNextCounter);
+    psxEvqueueAdd(PSXINT_RCNT, psxNextCounter);
 }
 
 /******************************************************************************/
@@ -359,7 +341,6 @@ void psxRcntUpdate()
     // rcnt base.
     if( cycle - rcnts[3].cycleStart >= rcnts[3].cycle )
     {
-        // TODO (senquack): Implement HW_GPU_STATUS code from Rearmed
         u32 leftover_cycles = cycle - rcnts[3].cycleStart - rcnts[3].cycle;
         u32 next_vsync;
 
@@ -376,16 +357,25 @@ void psxRcntUpdate()
             setIrq( 0x01 );
             GPU_updateLace();
 
-            pmonUpdate();  // Update and display performance stats
+            // Update and display performance stats
+            pmonUpdate();
 
+            // Update controls
+            // NOTE: this is point of control transfer to frontend
             pad_update();
+
+            // If frontend called LoadState(), loading a savestate, do not
+            //  proceed further: Rootcounter state has been altered.
+            if (rcntFreezeLoaded) {
+                rcntFreezeLoaded = false;
+                return;
+            }
 
 #ifdef spu_pcsxrearmed
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
             // frame. However, we target slower platforms like GCW Zero, and
             // lack auto-frameskip, so this would lead to audio dropouts. For
-            // now, we update SPU plugin twice per frame in r3000a.cpp
-            // psxBranchTest()
+            // now, we update SPU plugin twice per frame in psxevents.cpp
             //SPU_async( cycle, 1 );
 #endif
         }
@@ -403,22 +393,6 @@ void psxRcntUpdate()
 #ifdef USE_GPULIB
             GPU_vBlank( 0, HW_GPU_STATUS >> 31 );
 #endif
-
-			if ((toSaveState)&&(SaveState_filename)) {
-			toSaveState=0;
-			SaveState(SaveState_filename);
-			if (toExit)
-				pcsx4all_exit();
-			}
-			if ((toLoadState)&&(SaveState_filename))
-			{
-				toLoadState=0;
-				// Check for error
-				if (LoadState(SaveState_filename) != -1) {
-					psxCpu->Execute();
-					pcsx4all_exit();
-				}
-			}
         }
 
         // Schedule next call, in hsyncs
@@ -543,22 +517,6 @@ void psxRcntInit(void)
     hSyncCount = 0;
     hsync_steps = 1;
 
-    // SPU interval handling:
-#ifdef spu_pcsxrearmed
-    // PCSX Rearmed only updates SPU once per frame, but we target platforms like
-    //  GCW Zero that are too slow to run many games at 60FPS. Until we have good
-    //  auto-frameskip, we update SPU plugin twice per frame to avoid dropouts.
-	//  If this interval is changed, be sure to check cutscenes in Metal Gear
-	//  Solid or the intro to Chrono Cross, as they use SPU HW IRQ and are highly
-	//  sensitive to timing.
-    spu_upd_interval = PSXCLK / (FrameRate[Config.PsxType] * 2);
-#else
-    // Older SPU plugins are updated much more often than above
-    spu_upd_interval = (SPU_UPD_INTERVAL * PSXCLK) / (FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]);
-#endif
-    // Schedule first SPU update. Future ones will be scheduled automatically
-    SCHEDULE_SPU_UPDATE(spu_upd_interval);
-
     psxRcntSet();
 }
 
@@ -566,7 +524,10 @@ void psxRcntInit(void)
 
 int psxRcntFreeze(void *f, FreezeMode mode)
 {
+    // Old var left from when SPU was updated by psxcounters code,
+    //  now this is 0 placeholder to maintain savestate compatibilty
     u32 spuSyncCount = 0;
+
     u32 count;
     s32 i;
 
@@ -590,17 +551,38 @@ int psxRcntFreeze(void *f, FreezeMode mode)
         psxRcntSet();
 
         base_cycle = 0;
+
+        // psxRcntUpdate() needs notification when state is altered:
+        rcntFreezeLoaded = true;
     }
 
     return 0;
 }
 
-unsigned psxGetSpuSync(void){
-	return spuSyncCount;
+// XXX: HACK December 2016
+//      Used to maintain compatibility with old buggy savestates,
+//      which failed to save any data after SPU data.
+//      See comments regarding save version 0x8b410004 in misc.cpp.
+void psxRcntFreezeLoadHack(void)
+{
+	// don't trust things from a savestate
+	for (int i = 0; i < CounterQuantity; ++i)
+	{
+		_psxRcntWmode( i, rcnts[i].mode );
+		u32 count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
+		_psxRcntWcount( i, count );
+	}
+	hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+	psxRcntSet();
+
+	base_cycle = 0;
+
+	// psxRcntUpdate() needs notification when state is altered:
+	rcntFreezeLoaded = true;
 }
 
-//senquack - Called before psxRegs.cycle is adjusted back to zero
-// by psxResetCycleValue() in psxevents.cpp
+// Called before psxRegs.cycle is adjusted back to zero
+//  by PSXINT_RESET_CYCLE_VAL event in psxevents.cpp
 void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val)
 {
 	for (int i=0; i < CounterQuantity; ++i) {
