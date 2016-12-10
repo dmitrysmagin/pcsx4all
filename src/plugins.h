@@ -34,8 +34,8 @@
 #include "psemu_plugin_defs.h"
 #include "decode_xa.h"
 
-extern int  LoadPlugins(void);
-extern void ReleasePlugins(void);
+int  LoadPlugins(void);
+void ReleasePlugins(void);
 
 // GPU structures
 
@@ -48,21 +48,21 @@ typedef struct {
 
 /// GPU functions
 
-extern long GPU_init(void);
-extern long GPU_shutdown(void);
-extern void GPU_writeStatus(uint32_t);
-extern void GPU_writeData(uint32_t);
-extern void GPU_writeDataMem(uint32_t *, int);
-extern uint32_t GPU_readStatus(void);
-extern uint32_t GPU_readData(void);
-extern void GPU_readDataMem(uint32_t *, int);
-extern long GPU_dmaChain(uint32_t *,uint32_t);
-extern void GPU_updateLace(void);
-extern long GPU_freeze(uint32_t, GPUFreeze_t *);
-extern void GPU_requestScreenRedraw(void);
+long GPU_init(void);
+long GPU_shutdown(void);
+void GPU_writeStatus(uint32_t);
+void GPU_writeData(uint32_t);
+void GPU_writeDataMem(uint32_t *, int);
+uint32_t GPU_readStatus(void);
+uint32_t GPU_readData(void);
+void GPU_readDataMem(uint32_t *, int);
+long GPU_dmaChain(uint32_t *,uint32_t);
+void GPU_updateLace(void);
+long GPU_freeze(uint32_t, GPUFreeze_t *);
+void GPU_requestScreenRedraw(void);
 
 #ifdef USE_GPULIB
-extern void GPU_vBlank(int is_vblank, int lcf);
+void GPU_vBlank(int is_vblank, int lcf);
 #endif
 
 // CDROM structures
@@ -88,18 +88,18 @@ struct SubQ {
 
 // CDROM functions
 
-extern long CDR_init(void);
-extern long CDR_shutdown(void);
-extern long CDR_open(void);
-extern long CDR_close(void);
-extern long CDR_getTN(unsigned char *);
-extern long CDR_getTD(unsigned char , unsigned char *);
-extern long CDR_readTrack(unsigned char *);
+long CDR_init(void);
+long CDR_shutdown(void);
+long CDR_open(void);
+long CDR_close(void);
+long CDR_getTN(unsigned char *);
+long CDR_getTD(unsigned char , unsigned char *);
+long CDR_readTrack(unsigned char *);
 extern unsigned char *(*CDR_getBuffer)(void);
-extern long CDR_play(unsigned char *);
-extern long CDR_stop(void);
-extern long CDR_getStatus(struct CdrStat *);
-extern unsigned char *CDR_getBufferSub(void);
+long CDR_play(unsigned char *);
+long CDR_stop(void);
+long CDR_getStatus(struct CdrStat *);
+unsigned char *CDR_getBufferSub(void);
 
 // SPU structures
 
@@ -120,18 +120,18 @@ typedef struct {
 #ifdef spu_pcsxrearmed
 #include "spu/spu_pcsxrearmed/spu_pcsxrearmed_wrapper.h"
 #else
-extern long SPU_init(void);				
-extern long SPU_shutdown(void);	
-extern void SPU_writeRegister(unsigned long, unsigned short);
-extern unsigned short SPU_readRegister(unsigned long);
-extern void SPU_writeDMA(unsigned short);
-extern unsigned short SPU_readDMA(void);
-extern void SPU_writeDMAMem(unsigned short *, int);
-extern void SPU_readDMAMem(unsigned short *, int);
-extern void SPU_playADPCMchannel(xa_decode_t *);
-extern long SPU_freeze(uint32_t, SPUFreeze_t *);
-extern void SPU_async(void);
-extern void SPU_playCDDAchannel(unsigned char *, int);
+long SPU_init(void);
+long SPU_shutdown(void);
+void SPU_writeRegister(unsigned long, unsigned short);
+unsigned short SPU_readRegister(unsigned long);
+void SPU_writeDMA(unsigned short);
+unsigned short SPU_readDMA(void);
+void SPU_writeDMAMem(unsigned short *, int);
+void SPU_readDMAMem(unsigned short *, int);
+void SPU_playADPCMchannel(xa_decode_t *);
+long SPU_freeze(uint32_t, SPUFreeze_t *);
+void SPU_async(void);
+void SPU_playCDDAchannel(unsigned char *, int);
 #endif
 
 //senquack - added these two functions, see notes in plugins.cpp
@@ -149,18 +149,18 @@ void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
 
 // PAD functions
 
-extern unsigned char PAD1_startPoll(void);
-extern unsigned char PAD2_startPoll(void);
-extern unsigned char PAD1_poll(void);
-extern unsigned char PAD2_poll(void);
+unsigned char PAD1_startPoll(void);
+unsigned char PAD2_startPoll(void);
+unsigned char PAD1_poll(void);
+unsigned char PAD2_poll(void);
 
 // ISO functions
 
-extern void SetIsoFile(const char *filename);
-extern const char *GetIsoFile(void);
-extern boolean UsingIso(void);
-extern void SetCdOpenCaseTime(s64 time);
-extern s64 GetCdOpenCaseTime(void);
-extern int ReloadCdromPlugin();
+void SetIsoFile(const char *filename);
+const char *GetIsoFile(void);
+boolean UsingIso(void);
+void SetCdOpenCaseTime(s64 time);
+s64 GetCdOpenCaseTime(void);
+int ReloadCdromPlugin();
 
 #endif /* __PLUGINS_H__ */

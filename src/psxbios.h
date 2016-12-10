@@ -33,10 +33,10 @@ extern char *biosB0n[256];
 extern char *biosC0n[256];
 #endif
 
-extern void psxBiosInit(void);
-extern void psxBiosShutdown(void);
-extern void psxBiosException(void);
-extern void psxBiosFreeze(int Mode);
+void psxBiosInit(void);
+void psxBiosShutdown(void);
+void psxBiosException(void);
+void psxBiosFreeze(int Mode);
 
 extern void (*biosA0[256])(void);
 extern void (*biosB0[256])(void);

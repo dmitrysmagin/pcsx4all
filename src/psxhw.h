@@ -71,13 +71,13 @@
 	} \
 }
 
-extern void psxHwReset(void);
-extern u8   psxHwRead8 (u32 add);
-extern u16  psxHwRead16(u32 add);
-extern u32  psxHwRead32(u32 add);
-extern void psxHwWrite8 (u32 add, u8  value);
-extern void psxHwWrite16(u32 add, u16 value);
-extern void psxHwWrite32(u32 add, u32 value);
-extern int psxHwFreeze(void* f, FreezeMode mode);
+void psxHwReset(void);
+u8   psxHwRead8 (u32 add);
+u16  psxHwRead16(u32 add);
+u32  psxHwRead32(u32 add);
+void psxHwWrite8 (u32 add, u8  value);
+void psxHwWrite16(u32 add, u16 value);
+void psxHwWrite32(u32 add, u32 value);
+int psxHwFreeze(void* f, FreezeMode mode);
 
 #endif /* __PSXHW_H__ */
