@@ -301,20 +301,23 @@ void config_save()
 	free(config);
 }
 
-void state_load()
+// Returns 0: success, -1: failure
+int state_load()
 {
 	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
 	if (FileExists(savename)) {
-		LoadState(savename);
+		return LoadState(savename);
 	}
+	return -1;
 }
 
-void state_save()
+// Returns 0: success, -1: failure
+int state_save()
 {
 	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
-	SaveState(savename);
+	return SaveState(savename);
 }
 
 static struct {
