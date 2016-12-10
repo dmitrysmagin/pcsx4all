@@ -90,10 +90,10 @@ static Rcnt rcnts[ CounterQuantity ];
 
 u32 hSyncCount = 0;
 
-//senquack - Added two vars from PCSX Rearmed:
 u32 frame_counter = 0;
 static u32 hsync_steps = 0;
 static u32 base_cycle = 0;
+static bool rcntFreezeLoaded = false;
 
 //senquack - Originally separate variables, now handled together with
 // all other scheduled emu events as new event type PSXINT_RCNT
@@ -357,9 +357,19 @@ void psxRcntUpdate()
             setIrq( 0x01 );
             GPU_updateLace();
 
-            pmonUpdate();  // Update and display performance stats
+            // Update and display performance stats
+            pmonUpdate();
 
+            // Update controls
+            // NOTE: this is point of control transfer to frontend
             pad_update();
+
+            // If frontend called LoadState(), loading a savestate, do not
+            //  proceed further: Rootcounter state has been altered.
+            if (rcntFreezeLoaded) {
+                rcntFreezeLoaded = false;
+                return;
+            }
 
 #ifdef spu_pcsxrearmed
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
@@ -514,8 +524,8 @@ void psxRcntInit(void)
 
 int psxRcntFreeze(void *f, FreezeMode mode)
 {
-	// Old cruft left from when SPU was updated by psxcounters code,
-	//  now this is 0 placeholder to maintain savestate compatibilty
+    // Old var left from when SPU was updated by psxcounters code,
+    //  now this is 0 placeholder to maintain savestate compatibilty
     u32 spuSyncCount = 0;
 
     u32 count;
@@ -541,9 +551,34 @@ int psxRcntFreeze(void *f, FreezeMode mode)
         psxRcntSet();
 
         base_cycle = 0;
+
+        // psxRcntUpdate() needs notification when state is altered:
+        rcntFreezeLoaded = true;
     }
 
     return 0;
+}
+
+// XXX: HACK December 2016
+//      Used to maintain compatibility with old buggy savestates,
+//      which failed to save any data after SPU data.
+//      See comments regarding save version 0x8b410004 in misc.cpp.
+void psxRcntFreezeLoadHack(void)
+{
+	// don't trust things from a savestate
+	for (int i = 0; i < CounterQuantity; ++i)
+	{
+		_psxRcntWmode( i, rcnts[i].mode );
+		u32 count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
+		_psxRcntWcount( i, count );
+	}
+	hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
+	psxRcntSet();
+
+	base_cycle = 0;
+
+	// psxRcntUpdate() needs notification when state is altered:
+	rcntFreezeLoaded = true;
 }
 
 // Called before psxRegs.cycle is adjusted back to zero

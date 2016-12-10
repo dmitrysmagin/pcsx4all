@@ -52,6 +52,10 @@ extern u32 psxRcntRtarget(u32 index);
 
 extern int psxRcntFreeze(void* f, FreezeMode mode);
 
+// XXX: HACK December 2016
+//      See comments regarding save version 0x8b410004 in misc.cpp.
+extern void psxRcntFreezeLoadHack(void);
+
 void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val);
 
 #endif /* __PSXCOUNTERS_H__ */
