@@ -861,7 +861,7 @@ int LoadState(const char *file) {
 		printf("Warning: using buggy older savestate version, expect problems.\n");
 		// Even though no rcnt data is available to load, root counter
 		//  still needs a hacked kick in the pants to get started.
-		psxRcntFreezeLoadHack();
+		psxRcntInitFromFreeze();
 		goto skip_missing_data_hack;
 	}
 

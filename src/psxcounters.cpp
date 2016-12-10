@@ -524,12 +524,9 @@ void psxRcntInit(void)
 
 int psxRcntFreeze(void *f, FreezeMode mode)
 {
-    // Old var left from when SPU was updated by psxcounters code,
+    // Old var left from when SPU was updated by very old psxcounters code,
     //  now this is 0 placeholder to maintain savestate compatibilty
     u32 spuSyncCount = 0;
-
-    u32 count;
-    s32 i;
 
     if (    freeze_rw(f, mode, &rcnts, sizeof(rcnts))
          || freeze_rw(f, mode, &hSyncCount, sizeof(hSyncCount))
@@ -539,31 +536,16 @@ int psxRcntFreeze(void *f, FreezeMode mode)
     return -1;
 
     if (mode == FREEZE_LOAD)
-    {
-        // don't trust things from a savestate
-        for( i = 0; i < CounterQuantity; ++i )
-        {
-            _psxRcntWmode( i, rcnts[i].mode );
-            count = (psxRegs.cycle - rcnts[i].cycleStart) / rcnts[i].rate;
-            _psxRcntWcount( i, count );
-        }
-        hsync_steps = (psxRegs.cycle - rcnts[3].cycleStart) / rcnts[3].target;
-        psxRcntSet();
-
-        base_cycle = 0;
-
-        // psxRcntUpdate() needs notification when state is altered:
-        rcntFreezeLoaded = true;
-    }
+        psxRcntInitFromFreeze();
 
     return 0;
 }
 
-// XXX: HACK December 2016
-//      Used to maintain compatibility with old buggy savestates,
-//      which failed to save any data after SPU data.
-//      See comments regarding save version 0x8b410004 in misc.cpp.
-void psxRcntFreezeLoadHack(void)
+/******************************************************************************/
+// Normally called by psxRcntFreeze() when loading sstate, however
+//  older buggy savestates may require it to be called directly.
+//  (see comments regarding save version 0x8b410004 in misc.cpp)
+void psxRcntInitFromFreeze(void)
 {
 	// don't trust things from a savestate
 	for (int i = 0; i < CounterQuantity; ++i)
@@ -581,6 +563,7 @@ void psxRcntFreezeLoadHack(void)
 	rcntFreezeLoaded = true;
 }
 
+/******************************************************************************/
 // Called before psxRegs.cycle is adjusted back to zero
 //  by PSXINT_RESET_CYCLE_VAL event in psxevents.cpp
 void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val)
@@ -589,5 +572,3 @@ void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val)
 		rcnts[i].cycleStart -= prev_cycle_val;
 	}
 }
-
-/******************************************************************************/
