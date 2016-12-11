@@ -122,12 +122,11 @@ long CALLBACK SPU_init(void)
 		   "    Tempo:              %d\n"
 		   "    UseThread:          %d\n"
 		   "    UseFixedUpdates:    %d\n"
-		   "    UseOldAudioMutex:   %d\n"
 		   "    SyncAudio:          %d\n",
 		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch, spu_config.iUseReverb,
 		   spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
 		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates,
-		   spu_config.iUseOldAudioMutex, Config.SyncAudio);
+		   Config.SyncAudio);
 
 	//TODO: allow nullspu backend driver of spu_pcsxrearmed to provide
 	//       simulated audio sync?

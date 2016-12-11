@@ -578,7 +578,6 @@ int main (int argc, char **argv)
 	spu_config.iVolume = 768;             // 1024 is max volume (1.0)
 	spu_config.iUseThread = 0;            // no effect if only 1 core is detected
 	spu_config.iUseFixedUpdates = 1;      // This is always set to 1 in libretro's pcsxReARMed
-	spu_config.iUseOldAudioMutex = 0;     // Use older code in SDL audio backend (FOR DEBUG/VERIFY)
 	spu_config.iTempo = 1;                // see note below
 	#endif
 
@@ -735,10 +734,6 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
 		if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
 		if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
-
-		// Use older mutex-style code in SDL audio backend instead of new atomic code.
-		//  (For debugging / verification / comparison against newer non-mutex code)
-		if (strcmp(argv[i],"-use_old_audio_mutex")==0) { spu_config.iUseOldAudioMutex = 1; }
 
 		// Enable SPU thread
 		// NOTE: By default, PCSX ReARMed would not launch
