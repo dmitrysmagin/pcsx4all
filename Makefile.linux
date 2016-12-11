@@ -6,7 +6,6 @@ PORT   = sdl
 #GPU    = gpu_null
 GPU    = gpu_unai
 
-#SPU    = spu_null
 SPU    = spu_pcsxrearmed
 
 RM     = rm -f
