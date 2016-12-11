@@ -33,7 +33,7 @@
 #endif
 #include "port.h"
 
-#if defined(PSXREC) && defined(mips)
+#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
 // For Posix shared mem:
 #include <fcntl.h>
 #include <unistd.h>
@@ -75,7 +75,7 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-#if defined(PSXREC) && defined(mips)
+#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
 	/* This is needed for direct writes in mips recompiler */
 
 	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
@@ -256,7 +256,7 @@ void psxMemReset() {
 
 void psxMemShutdown() {
 	free(psxNULLread);
-#if defined(PSXREC) && defined(mips)
+#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
 	munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap lower mirrored region
 	munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap upper mirrored region
 	munmap((void*)psxM, 0x200000);

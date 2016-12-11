@@ -9,7 +9,9 @@
 //  regions surrounding psxM[]. This allows skipping mirror-region boundary
 //  check which special-cased loads/stores that crossed the boundary, the
 //  Einhander game fix. See notes in psxmem.cpp psxMemInit().
+#ifdef SHMEM_MIRRORING
 #define SKIP_SAME_2MB_REGION_CHECK
+#endif
 
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))

@@ -25,7 +25,13 @@ BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
-CFLAGS = -mips32r2 -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
+ifdef A320
+	C_ARCH = -mips32 -msoft-float
+else
+	C_ARCH = -mips32r2 -DSHMEM_MIRRORING
+endif
+
+CFLAGS = $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
