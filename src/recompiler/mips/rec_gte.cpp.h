@@ -46,7 +46,12 @@ static void emitCTC2(u32 rt, u32 reg)
 {
 	switch (reg) {
 	case 4: case 12: case 20: case 26: case 27: case 29: case 30:
+#ifdef HAVE_MIPS32R2_SEB_SEH
 		SEH(TEMP_1, rt);
+#else
+		SLL(TEMP_1, rt, 16);
+		SRA(TEMP_1, TEMP_1, 16);
+#endif
 		SW(TEMP_1, PERM_REG_1, offCP2C(reg));
 		break;
 
@@ -122,11 +127,21 @@ static void emitMFC2(u32 rt, u32 reg)
 		LH(TEMP_1, PERM_REG_1, off(CP2D.p[10].sw.l)); // gteIR2
 		SRA(TEMP_1, TEMP_1, 7);
 		emitLIM(TEMP_1);
+#ifdef HAVE_MIPS32R2_EXT_INS
 		INS(rt, TEMP_1, 5, 5);
+#else
+		SLL(TEMP_1, TEMP_1, 5);
+		OR(rt, rt, TEMP_1);
+#endif
 		LH(TEMP_1, PERM_REG_1, off(CP2D.p[11].sw.l)); // gteIR3
 		SRA(TEMP_1, TEMP_1, 7);
 		emitLIM(TEMP_1);
+#ifdef HAVE_MIPS32R2_EXT_INS
 		INS(rt, TEMP_1, 10, 5);
+#else
+		SLL(TEMP_1, TEMP_1, 10);
+		OR(rt, rt, TEMP_1);
+#endif
 		SW(rt, PERM_REG_1, off(CP2D.r[29]));
 		/*
 		psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
@@ -156,16 +171,30 @@ static void emitMTC2(u32 rt, u32 reg)
 
 	case 28:
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+#ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_1, rt, 0, 5);
+#else
+		ANDI(TEMP_1, rt, 0x1f);
+#endif
 		SLL(TEMP_1, TEMP_1, 7);
 		// gteIR1 = ((value      ) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[9]));
+#ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_1, rt, 5, 5);
 		SLL(TEMP_1, TEMP_1, 7);
+#else
+		ANDI(TEMP_1, rt, 0x1f << 5);
+		SLL(TEMP_1, TEMP_1, 2);
+#endif
 		// gteIR2 = ((value >>  5) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[10]));
+#ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_1, rt, 10, 5);
 		SLL(TEMP_1, TEMP_1, 7);
+#else
+		ANDI(TEMP_1, rt, 0x1f << 10);
+		SRL(TEMP_1, TEMP_1, 3);
+#endif
 		// gteIR3 = ((value >> 10) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[11]));
 		break;

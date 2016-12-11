@@ -154,16 +154,16 @@ do { \
 	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
 #define SLTI(rt, rs, imm16) \
-	write32(0x28000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+	write32(0x28000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
 
 #define SLTIU(rt, rs, imm16) \
-	write32(0x2c000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+	write32(0x2c000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
 
 #define LUI(rt, imm16) \
 	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff))
 
 #define LI16(reg, imm16) \
-	write32(0x34000000 | ((reg) << 16) | ((short)imm16)) /* ori reg, zero, imm16 */
+	write32(0x34000000 | ((reg) << 16) | (short)(imm16)) /* ori reg, zero, imm16 */
 
 #define LI32(reg, imm32) \
 do { \
@@ -181,10 +181,10 @@ do { \
 	write32(0x0000000a | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define ANDI(rt, rs, imm16) \
-	write32(0x30000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+	write32(0x30000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
 
 #define ORI(rt, rs, imm16) \
-	write32(0x34000000 | (rs << 21) | (rt << 16) | (imm16 & 0xffff))
+	write32(0x34000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
 
 #define XORI(rt, rs, imm16) \
 	write32(0x38000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))

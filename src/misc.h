@@ -64,18 +64,14 @@ struct external_filehdr {
 extern char CdromId[10];
 extern char CdromLabel[33];
 
-extern int LoadCdrom(void);
-extern int LoadCdromFile(const char *filename, EXE_HEADER *head);
-extern int CheckCdrom(void);
-extern int Load(const char *ExePath);
+int LoadCdrom(void);
+int LoadCdromFile(const char *filename, EXE_HEADER *head);
+int CheckCdrom(void);
+int Load(const char *ExePath);
 
-extern int SaveState(const char *file);
-extern int LoadState(const char *file);
-extern int CheckState(const char *file);
-extern int toSaveState;
-extern int toLoadState;
-extern int toExit;
-extern char *SaveState_filename;
+int SaveState(const char *file);
+int LoadState(const char *file);
+int CheckState(const char *file);
 
-extern bool FileExists(const char* filename);
+bool FileExists(const char* filename);
 #endif /* __MISC_H__ */

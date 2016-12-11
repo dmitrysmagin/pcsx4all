@@ -28,7 +28,9 @@
 #include "plugins.h"
 
 extern u32 hSyncCount, frame_counter;
-extern u32 spu_upd_interval;
+
+extern const u32 FrameRate[2];
+extern const u32 HSyncTotal[2];
 
 typedef struct Rcnt
 {
@@ -37,22 +39,20 @@ typedef struct Rcnt
     u32 cycle, cycleStart;
 } Rcnt;
 
-extern void psxRcntInit(void);
-extern void psxRcntUpdate(void);
+void psxRcntInit(void);
+void psxRcntUpdate(void);
 
-extern void psxRcntWcount(u32 index, u32 value);
-extern void psxRcntWmode(u32 index, u32 value);
-extern void psxRcntWtarget(u32 index, u32 value);
+void psxRcntWcount(u32 index, u32 value);
+void psxRcntWmode(u32 index, u32 value);
+void psxRcntWtarget(u32 index, u32 value);
 
-extern u32 psxRcntRcount(u32 index);
-extern u32 psxRcntRmode(u32 index);
-extern u32 psxRcntRtarget(u32 index);
+u32 psxRcntRcount(u32 index);
+u32 psxRcntRmode(u32 index);
+u32 psxRcntRtarget(u32 index);
 
-extern int psxRcntFreeze(void* f, FreezeMode mode);
+int psxRcntFreeze(void* f, FreezeMode mode);
+void psxRcntInitFromFreeze(void);
 
-extern unsigned psxGetSpuSync(void);
-
-// senquack - Called before psxRegs.cycle is adjusted back to zero
 void psxRcntAdjustTimestamps(const uint32_t prev_cycle_val);
 
 #endif /* __PSXCOUNTERS_H__ */

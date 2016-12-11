@@ -489,7 +489,7 @@ void psxHwWrite16(u32 add, u16 value) {
 
 		default:
 			if (add>=0x1f801c00 && add<0x1f801e00) {
-            			SPU_writeRegister(add, value);
+				SPU_writeRegister(add, value, psxRegs.cycle);
 				return;
 			}
 

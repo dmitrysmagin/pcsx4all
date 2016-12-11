@@ -26,6 +26,31 @@ static void disasm_psx(u32 pc)
 	printf("%08x: %08x %s\n", pc, opcode, buffer);
 }
 
+/* Emit address calculation and store to TEMP_2 */
+static void emitAddrCalc(u32 r2)
+{
+	if ((u32)psxM == 0x10000000) {
+		// psxM base is mmap'd at virtual address 0x10000000
+		LUI(TEMP_2, 0x1000);
+#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
+#else
+		SLL(TEMP_1, r2, 11);
+		SRL(TEMP_1, TEMP_1, 11);
+		OR(TEMP_2, TEMP_2, TEMP_1);
+#endif
+	} else {
+		LW(TEMP_2, PERM_REG_1, off(psxM));
+#ifdef HAVE_MIPS32R2_EXT_INS
+		EXT(TEMP_1, r2, 0, 0x15);
+#else
+		SLL(TEMP_1, r2, 11);
+		SRL(TEMP_1, TEMP_1, 11);
+#endif
+		ADDU(TEMP_2, TEMP_2, TEMP_1);
+	}
+}
+
 s32 imm_max, imm_min;
 
 /* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
@@ -51,15 +76,7 @@ static int LoadFromConstAddr(int count)
 				DISASM_PSX(pc + i * 4);
 			#endif
 
-			if ((u32)psxM == 0x10000000) {
-				// psxM base is mmap'd at virtual address 0x10000000
-				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
-			} else {
-				LW(TEMP_2, PERM_REG_1, off(psxM));
-				EXT(TEMP_1, r2, 0, 0x15);
-				ADDU(TEMP_2, TEMP_2, TEMP_1);
-			}
+			emitAddrCalc(r2); // TEMP_2 == recalculated addr
 
 			do {
 				u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -108,15 +125,7 @@ static int StoreToConstAddr(int count)
 				DISASM_PSX(pc + i * 4);
 			#endif
 
-			if ((u32)psxM == 0x10000000) {
-				// psxM base is mmap'd at virtual address 0x10000000
-				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
-			} else {
-				LW(TEMP_2, PERM_REG_1, off(psxM));
-				EXT(TEMP_1, r2, 0, 0x15);
-				ADDU(TEMP_2, TEMP_2, TEMP_1);
-			}
+			emitAddrCalc(r2); // TEMP_2 == recalculated addr
 
 			do {
 				u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -171,28 +180,25 @@ static void LoadFromAddr(int count)
 #endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to TEMP_2)
+	NOP();
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
-	EXT(TEMP_2, MIPSREG_A0, 21, 3); // <BD slot> TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
-	EXT(TEMP_3, r1, 21, 3);         //           TEMP_3 = (r1 >> 21) & 0x7
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 21, 3); // TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
+	EXT(TEMP_3, r1, 21, 3);         // TEMP_3 = (r1 >> 21) & 0x7
+#else
+	SRL(TEMP_2, MIPSREG_A0, 21);
+	ANDI(TEMP_2, TEMP_2, 7);
+	SRL(TEMP_3, r1, 21);
+	ANDI(TEMP_3, TEMP_3, 7);
+#endif
 	u32 *backpatch_label_hle_2 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp reg)
+	NOP();
 #endif
 
-	if ((u32)psxM == 0x10000000) {
-		// psxM base is mmap'd at virtual address 0x10000000
-		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
-	} else {
-		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-	}
+	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	int icount = count;
 	u32 *backpatch_label_exit_1 = 0;
@@ -240,7 +246,12 @@ static void LoadFromAddr(int count)
 		case 0x80000000: // LB
 			JAL(psxMemRead8);
 			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+#ifdef HAVE_MIPS32R2_SEB_SEH
 			SEB(r2, MIPSREG_V0);
+#else
+			SLL(r2, MIPSREG_V0, 24);
+			SRA(r2, r2, 24);
+#endif
 			break;
 		case 0x90000000: // LBU
 			JAL(psxMemRead8);
@@ -250,7 +261,12 @@ static void LoadFromAddr(int count)
 		case 0x84000000: // LH
 			JAL(psxMemRead16);
 			ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
+#ifdef HAVE_MIPS32R2_SEB_SEH
 			SEH(r2, MIPSREG_V0);
+#else
+			SLL(r2, MIPSREG_V0, 16);
+			SRA(r2, r2, 16);
+#endif
 			break;
 		case 0x94000000: // LHU
 			JAL(psxMemRead16);
@@ -329,28 +345,25 @@ static void StoreToAddr(int count)
 	SLTU(TEMP_2, TEMP_2, TEMP_1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_2, 0);
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp var)
+	NOP();
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
-	EXT(TEMP_2, MIPSREG_A0, 21, 3); // <BD slot> TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
-	EXT(TEMP_3, r1, 21, 3);         //           TEMP_3 = (r1 >> 21) & 0x7
+#ifdef HAVE_MIPS32R2_EXT_INS
+	EXT(TEMP_2, MIPSREG_A0, 21, 3); // TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
+	EXT(TEMP_3, r1, 21, 3);         // TEMP_3 = (r1 >> 21) & 0x7
+#else
+	SRL(TEMP_2, MIPSREG_A0, 21);
+	ANDI(TEMP_2, TEMP_2, 7);
+	SRL(TEMP_3, r1, 21);
+	ANDI(TEMP_3, TEMP_3, 7);
+#endif
 	u32 *backpatch_label_hle_2 = (u32 *)recMem;
 	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp reg)
+	NOP();
 #endif
 
-	if ((u32)psxM == 0x10000000) {
-		// psxM base is mmap'd at virtual address 0x10000000
-		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
-	} else {
-		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-	}
+	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
@@ -369,10 +382,22 @@ static void StoreToAddr(int count)
 			//  as it was already done for us during initial checks.
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+#else
+		SLL(TEMP_1, MIPSREG_A0, 11);
+		SRL(TEMP_1, TEMP_1, 11);
+#endif
+
 		if ((opcode & 0xfc000000) != 0xac000000) {
 			// Not a SW, clear lower 2 bits to ensure addr is aligned:
+#ifdef HAVE_MIPS32R2_EXT_INS
 			INS(TEMP_1, 0, 0, 2);
+#else
+			SRL(TEMP_1, TEMP_1, 2);
+			SLL(TEMP_1, TEMP_1, 2);
+#endif
 		}
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
@@ -661,18 +686,9 @@ static void gen_LWL_LWR(int count)
 #endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BGTZ(TEMP_2, 0);
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to temp reg)
+	NOP();
 
-	if ((u32)psxM == 0x10000000) {
-		// psxM base is mmap'd at virtual address 0x10000000
-		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
-	} else {
-		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-	}
+	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
@@ -719,8 +735,15 @@ static void gen_LWL_LWR(int count)
 			//  is already in $a0 from earlier direct-mem address range check.
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 		JAL(psxMemRead32);          // result in MIPSREG_V0
 		INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
+#else
+		SRL(MIPSREG_A0, MIPSREG_A0, 2);
+		JAL(psxMemRead32);              // result in MIPSREG_V0
+		SLL(MIPSREG_A0, MIPSREG_A0, 2); // <BD> clear lower 2 bits of $a0
+#endif
 
 		ADDIU(MIPSREG_A0, r1, imm);
 
@@ -814,18 +837,9 @@ static void gen_SWL_SWR(int count)
 	SLTU(TEMP_2, TEMP_2, TEMP_1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
 	BEQZ(TEMP_2, 0);
-	//NOTE: Delay slot of branch is harmlessly occupied by the first op
-	// of the branch-not-taken section below (writing to a temp reg)
+	NOP();
 
-	if ((u32)psxM == 0x10000000) {
-		// psxM base is mmap'd at virtual address 0x10000000
-		LUI(TEMP_2, 0x1000);      // <BD slot>
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
-	} else {
-		EXT(TEMP_1, r1, 0, 0x15); // <BD slot> TEMP_1 = r1 & 0x1fffff
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-	}
+	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
@@ -845,8 +859,20 @@ static void gen_SWL_SWR(int count)
 			//  as it was already done for us during initial checks.
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+#else
+		SLL(TEMP_1, MIPSREG_A0, 11);
+		SRL(TEMP_1, TEMP_1, 11);
+#endif
+
+#ifdef HAVE_MIPS32R2_EXT_INS
 		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+#else
+		SRL(TEMP_1, TEMP_1, 2);
+		SLL(TEMP_1, TEMP_1, 2);
+#endif
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 		if (icount == 1) {
@@ -1008,15 +1034,7 @@ static void recLWL()
 				DISASM_PSX(pc + i * 4);
 			#endif
 
-			if ((u32)psxM == 0x10000000) {
-				// psxM base is mmap'd at virtual address 0x10000000
-				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
-			} else {
-				LW(TEMP_2, PERM_REG_1, off(psxM));
-				EXT(TEMP_1, r2, 0, 0x15);
-				ADDU(TEMP_2, TEMP_2, TEMP_1);
-			}
+			emitAddrCalc(r2); // TEMP_2 == recalculated addr
 
 			do {
 				u32 opcode = *(u32 *)((char *)PSXM(PC));
@@ -1065,15 +1083,7 @@ static void recSWL()
 				DISASM_PSX(pc + i * 4);
 			#endif
 
-			if ((u32)psxM == 0x10000000) {
-				// psxM base is mmap'd at virtual address 0x10000000
-				LUI(TEMP_2, 0x1000);
-				INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
-			} else {
-				LW(TEMP_2, PERM_REG_1, off(psxM));
-				EXT(TEMP_1, r2, 0, 0x15);
-				ADDU(TEMP_2, TEMP_2, TEMP_1);
-			}
+			emitAddrCalc(r2); // TEMP_2 == recalculated addr
 
 			do {
 				u32 opcode = *(u32 *)((char *)PSXM(PC));

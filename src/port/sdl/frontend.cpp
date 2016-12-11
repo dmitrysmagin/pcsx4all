@@ -19,6 +19,10 @@
 #include <limits.h>
 #endif
 
+#ifdef SPU_PCSXREARMED
+#include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
+#endif
+
 #define timer_delay(a)	wait_ticks(a*1000)
 
 enum  {
@@ -456,14 +460,39 @@ static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_MainMenuIt
 
 static int gui_state_load()
 {
-	state_load();
+	if (state_load() < 0) {
+		// Load failure
+		// TODO: Add user interaction to handle gracefully, improve interface
+		return 0;
+	}
 
 	return 1;
 }
 
 static int gui_state_save()
 {
-	state_save();
+	video_clear();
+	port_printf(160-(6*8/2), 120-(8/2), "SAVING");
+	video_flip();
+
+	if (state_save() < 0) {
+		// Error saving
+
+		for (;;) {
+			u32 keys = key_read();
+			video_clear();
+			// check keys
+			if (keys) {
+				key_reset();
+				return 0;
+			}
+
+			port_printf(160-(11*8/2), 120-12, "SAVE FAILED");
+			port_printf(160-(18*8/2), 120+12, "Out of disk space?");
+			video_flip();
+			timer_delay(75);
+		}
+	}
 
 	return 1;
 }
@@ -836,7 +865,7 @@ static char *spuirq_show()
 	return buf;
 }
 
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 static int interpolation_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -860,7 +889,7 @@ static char *interpolation_show()
 	}
 	return buf;
 }
-#endif
+#endif //SPU_PCSXREARMED
 
 static int settings_back()
 {
@@ -888,7 +917,7 @@ static int settings_defaults()
 	Config.ForcedXAUpdates = 1;
 	Config.ShowFps = 0;
 	Config.FrameLimit = 0;
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
 #endif
 
@@ -910,7 +939,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
 	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	{(char *)"[SPU] Interpolation     ", NULL, &interpolation_alter, &interpolation_show},
 #endif
 	{(char *)"Restore default values  ", &settings_defaults, NULL, NULL},

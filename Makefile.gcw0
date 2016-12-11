@@ -1,16 +1,12 @@
-
 TARGET = pcsx4all
 PORT   = sdl
 
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
-#GPU    = gpu_null
-GPU    = gpu_unai
+#GPU   = gpu_null
+GPU   = gpu_unai
 
-SPU    = spu_pcsxrearmed
-#SPU   = spu_dfxsound
-#SPU    = spu_null
-#SPU   = spu_franxis
+SPU   = spu_pcsxrearmed
 
 RECOMPILER = mips
 
@@ -39,8 +35,9 @@ CFLAGS = -mips32r2 -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
 
-# Convert $GPU var to uppercase using 'tr' util and make it a CFLAG define
+# Convert plugin names to uppercase and make them CFLAG defines
 CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
+CFLAGS += -D$(shell echo $(SPU) | tr a-z A-Z)
 
 ifdef RECOMPILER
 CFLAGS += -DPSXREC -D$(RECOMPILER)
@@ -94,16 +91,15 @@ OBJS += obj/port/$(PORT)/frontend.o
 OBJS += obj/plugin_lib/perfmon.o
 
 #******************************************
-# senquack - spu_pcsxrearmed section BEGIN
+# spu_pcsxrearmed section BEGIN
 #******************************************
 ifeq ($(SPU),spu_pcsxrearmed)
-#senquack - specify which audio backend to use:
+# Specify which audio backend to use:
 SOUND_DRIVERS=sdl
 #SOUND_DRIVERS=alsa
 #SOUND_DRIVERS=oss
 #SOUND_DRIVERS=pulseaudio
 
-# spu
 # Note: obj/spu/spu_pcsxrearmed/spu.o will already have been added to OBJS
 #		list previously in Makefile
 OBJS += obj/spu/spu_pcsxrearmed/dma.o obj/spu/spu_pcsxrearmed/freeze.o \
@@ -140,7 +136,7 @@ endif
 
 endif
 #******************************************
-# senquack - spu_pcsxrearmed END
+# spu_pcsxrearmed END
 #******************************************
 
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions

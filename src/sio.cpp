@@ -97,7 +97,7 @@ void sioInit(void) {
 //           TODO: Add support for newer PCSXR Config.Sio option
 // clk cycle byte
 static inline void SIO_INT(void) {
-	psxEventQueue.enqueue(PSXINT_SIO, psxSio.sio_cycle);
+	psxEvqueueAdd(PSXINT_SIO, psxSio.sio_cycle);
 }
 
 void sioWrite8(unsigned char value) {
@@ -292,7 +292,7 @@ void sioWriteCtrl16(unsigned short value) {
 	if ((psxSio.CtrlReg & SIO_RESET) || !(psxSio.CtrlReg & DTR)) {
 		psxSio.padst = 0; psxSio.mcdst = 0; psxSio.parp = 0;
 		psxSio.StatReg = TX_RDY | TX_EMPTY;
-		psxEventQueue.dequeue(PSXINT_SIO);
+		psxEvqueueRemove(PSXINT_SIO);
 	}
 }
 
@@ -481,7 +481,7 @@ int sioMcdWrite(enum MemcardNum mcd_num, const char *src, uint32_t adr, int size
 	// If memcard file was already open for writing, or was just opened by
 	//  call to SaveMcd(), (re)schedule a memcard file flush/sync/close
 	if (memcards[mcd_num].file != NULL)
-		psxEventQueue.enqueue(PSXINT_SIO_SYNC_MCD, MEMCARD_SYNC_DELAY);
+		psxEvqueueAdd(PSXINT_SIO_SYNC_MCD, MEMCARD_SYNC_DELAY);
 
 	return retval;
 }

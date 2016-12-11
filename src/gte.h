@@ -24,39 +24,39 @@
 #include "psxcommon.h"
 #include "r3000a.h"
 
-extern void gteMFC2(void);
-extern void gteCFC2(void);
-extern void gteMTC2(void);
-extern void gteCTC2(void);
-extern void gteLWC2(void);
-extern void gteSWC2(void);
+void gteMFC2(void);
+void gteCFC2(void);
+void gteMTC2(void);
+void gteCTC2(void);
+void gteLWC2(void);
+void gteSWC2(void);
 
-extern void gteRTPS(void);
-extern void gteOP(void);
-extern void gteNCLIP(void);
-extern void gteDPCS(void);
-extern void gteINTPL(void);
-extern void gteMVMVA(void);
-extern void gteNCDS(void);
-extern void gteNCDT(void);
-extern void gteCDP(void);
-extern void gteNCCS(void);
-extern void gteCC(void);
-extern void gteNCS(void);
-extern void gteNCT(void);
-extern void gteSQR(void);
-extern void gteDCPL(void);
-extern void gteDPCT(void);
-extern void gteAVSZ3(void);
-extern void gteAVSZ4(void);
-extern void gteRTPT(void);
-extern void gteGPF(void);
-extern void gteGPL(void);
-extern void gteNCCT(void);
+void gteRTPS(void);
+void gteOP(void);
+void gteNCLIP(void);
+void gteDPCS(void);
+void gteINTPL(void);
+void gteMVMVA(void);
+void gteNCDS(void);
+void gteNCDT(void);
+void gteCDP(void);
+void gteNCCS(void);
+void gteCC(void);
+void gteNCS(void);
+void gteNCT(void);
+void gteSQR(void);
+void gteDCPL(void);
+void gteDPCT(void);
+void gteAVSZ3(void);
+void gteAVSZ4(void);
+void gteRTPT(void);
+void gteGPF(void);
+void gteGPL(void);
+void gteNCCT(void);
 
 // for the recompiler
-extern u32 gtecalcMFC2(int reg);
-extern void gtecalcMTC2(u32 value, int reg);
-extern void gtecalcCTC2(u32 value, int reg);
+u32 gtecalcMFC2(int reg);
+void gtecalcMTC2(u32 value, int reg);
+void gtecalcCTC2(u32 value, int reg);
 
 #endif /* __GTE_H__ */

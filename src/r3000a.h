@@ -166,6 +166,7 @@ typedef struct {
 	s8 *psxR;
 	s8 *psxH;
 
+	void *reserved;
 	int writeok;
 } psxRegisters;
 
@@ -243,14 +244,14 @@ extern psxRegisters psxRegs;
 
 #define ResetIoCycle() do { psxRegs.io_cycle_counter = 0; } while (0)
 
-extern int  psxInit(void);
-extern void psxReset(void);
-extern void psxShutdown(void);
-extern void psxException(u32 code, u32 bd);
-extern void psxBranchTest(void);
-extern void psxExecuteBios(void);
-extern int  psxTestLoadDelay(int reg, u32 tmp);
-extern void psxDelayTest(int reg, u32 bpc);
-extern void psxTestSWInts(void);
+int  psxInit(void);
+void psxReset(void);
+void psxShutdown(void);
+void psxException(u32 code, u32 bd);
+void psxBranchTest(void);
+void psxExecuteBios(void);
+int  psxTestLoadDelay(int reg, u32 tmp);
+void psxDelayTest(int reg, u32 bpc);
+void psxTestSWInts(void);
 
 #endif /* __R3000A_H__ */

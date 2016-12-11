@@ -34,8 +34,8 @@
 #include "psemu_plugin_defs.h"
 #include "decode_xa.h"
 
-extern int  LoadPlugins(void);
-extern void ReleasePlugins(void);
+int  LoadPlugins(void);
+void ReleasePlugins(void);
 
 // GPU structures
 
@@ -48,21 +48,21 @@ typedef struct {
 
 /// GPU functions
 
-extern long GPU_init(void);
-extern long GPU_shutdown(void);
-extern void GPU_writeStatus(uint32_t);
-extern void GPU_writeData(uint32_t);
-extern void GPU_writeDataMem(uint32_t *, int);
-extern uint32_t GPU_readStatus(void);
-extern uint32_t GPU_readData(void);
-extern void GPU_readDataMem(uint32_t *, int);
-extern long GPU_dmaChain(uint32_t *,uint32_t);
-extern void GPU_updateLace(void);
-extern long GPU_freeze(uint32_t, GPUFreeze_t *);
-extern void GPU_requestScreenRedraw(void);
+long GPU_init(void);
+long GPU_shutdown(void);
+void GPU_writeStatus(uint32_t);
+void GPU_writeData(uint32_t);
+void GPU_writeDataMem(uint32_t *, int);
+uint32_t GPU_readStatus(void);
+uint32_t GPU_readData(void);
+void GPU_readDataMem(uint32_t *, int);
+long GPU_dmaChain(uint32_t *,uint32_t);
+void GPU_updateLace(void);
+long GPU_freeze(uint32_t, GPUFreeze_t *);
+void GPU_requestScreenRedraw(void);
 
 #ifdef USE_GPULIB
-extern void GPU_vBlank(int is_vblank, int lcf);
+void GPU_vBlank(int is_vblank, int lcf);
 #endif
 
 // CDROM structures
@@ -73,7 +73,7 @@ struct CdrStat {
 	unsigned char Time[3];
 };
 
-//senquack - updated to newer PCSX Reloaded/Rearmed code:
+// Updated to newer PCSX Reloaded/Rearmed code:
 struct SubQ {
 	char res0[12];
 	unsigned char ControlAndADR;
@@ -88,18 +88,18 @@ struct SubQ {
 
 // CDROM functions
 
-extern long CDR_init(void);
-extern long CDR_shutdown(void);
-extern long CDR_open(void);
-extern long CDR_close(void);
-extern long CDR_getTN(unsigned char *);
-extern long CDR_getTD(unsigned char , unsigned char *);
-extern long CDR_readTrack(unsigned char *);
+long CDR_init(void);
+long CDR_shutdown(void);
+long CDR_open(void);
+long CDR_close(void);
+long CDR_getTN(unsigned char *);
+long CDR_getTD(unsigned char , unsigned char *);
+long CDR_readTrack(unsigned char *);
 extern unsigned char *(*CDR_getBuffer)(void);
-extern long CDR_play(unsigned char *);
-extern long CDR_stop(void);
-extern long CDR_getStatus(struct CdrStat *);
-extern unsigned char *CDR_getBufferSub(void);
+long CDR_play(unsigned char *);
+long CDR_stop(void);
+long CDR_getStatus(struct CdrStat *);
+unsigned char *CDR_getBufferSub(void);
 
 // SPU structures
 
@@ -113,62 +113,83 @@ typedef struct {
 	unsigned char *SPUInfo;
 } SPUFreeze_t;
 
-// SPU functions
-
-//senquack - if using spu_pcsxrearmed plugin adapted from PCSX ReArmed, use
-//           PSX4ALL->PCSX_ReARMED SPU wrapper header
-#ifdef spu_pcsxrearmed
-#include "spu/spu_pcsxrearmed/spu_pcsxrearmed_wrapper.h"
-#else
-extern long SPU_init(void);				
-extern long SPU_shutdown(void);	
-extern void SPU_writeRegister(unsigned long, unsigned short);
-extern unsigned short SPU_readRegister(unsigned long);
-extern void SPU_writeDMA(unsigned short);
-extern unsigned short SPU_readDMA(void);
-extern void SPU_writeDMAMem(unsigned short *, int);
-extern void SPU_readDMAMem(unsigned short *, int);
-extern void SPU_playADPCMchannel(xa_decode_t *);
-extern long SPU_freeze(uint32_t, SPUFreeze_t *);
-extern void SPU_async(void);
-extern void SPU_playCDDAchannel(unsigned char *, int);
-#endif
-
-//senquack - added these two functions, see notes in plugins.cpp
-void UpdateSPU(void);
-void HandleSPU_IRQ(void);
-
-//senquack - added these two functions, see notes in plugins.cpp
+// SPU functions, should have C linkage
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// These two implemented in plugins.cpp for use by SPU plugins
 void CALLBACK Trigger_SPU_IRQ(void);
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
 
-#define SCHEDULE_SPU_UPDATE(eCycle) { \
-	psxEventQueue.enqueue(PSXINT_SPU_UPDATE, eCycle); \
-}
+long CALLBACK SPUinit(void);
+long CALLBACK SPUopen(void);
+long CALLBACK SPUshutdown(void);
+long CALLBACK SPUclose(void);
+void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
+unsigned short CALLBACK SPUreadRegister(unsigned long);
+void CALLBACK SPUwriteDMA(unsigned short);
+unsigned short CALLBACK SPUreadDMA(void);
+void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
+void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *);
+unsigned int CALLBACK SPUgetADPCMBufferRoom(void); //senquack - added function
+int  CALLBACK SPUplayCDDAchannel(short *, int);
+long CALLBACK SPUconfigure(void);
+long CALLBACK SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
+void CALLBACK SPUasync(uint32_t, uint32_t);
+
+#ifdef SPU_PCSXREARMED
+void CALLBACK SPUregisterCallback(void (*callback)(void));
+void CALLBACK SPUregisterScheduleCb(void (*callback)(unsigned int));
+
+// We provide our own private SPU_init() in plugins.cpp that will call
+// spu_pcsxrearmed plugin's SPUinit() and then set its settings.
+long SPU_init(void);
+#endif //SPU_PCSXREARMED
 
 #ifdef __cplusplus
 }
 #endif
 
+// ** See comment for #ifdef above regarding SPUinit
+#ifndef SPU_PCSXREARMED
+#define SPU_init SPUinit
+#endif
+
+#define SPU_open SPUopen
+#define SPU_shutdown SPUshutdown
+#define SPU_close SPUclose
+#define SPU_writeRegister SPUwriteRegister
+#define SPU_readRegister SPUreadRegister
+#define SPU_writeDMA SPUwriteDMA
+#define SPU_readDMA SPUreadDMA
+#define SPU_writeDMAMem SPUwriteDMAMem
+#define SPU_readDMAMem SPUreadDMAMem
+#define SPU_playADPCMchannel SPUplayADPCMchannel
+#define SPU_getADPCMBufferRoom SPUgetADPCMBufferRoom
+#define SPU_playCDDAchannel SPUplayCDDAchannel
+#define SPU_registerCallback SPUregisterCallback
+#define SPU_registerScheduleCb SPUregisterScheduleCb
+#define SPU_configure SPUconfigure
+#define SPU_freeze SPUfreeze
+#define SPU_async SPUasync
+
 
 // PAD functions
 
-extern unsigned char PAD1_startPoll(void);
-extern unsigned char PAD2_startPoll(void);
-extern unsigned char PAD1_poll(void);
-extern unsigned char PAD2_poll(void);
+unsigned char PAD1_startPoll(void);
+unsigned char PAD2_startPoll(void);
+unsigned char PAD1_poll(void);
+unsigned char PAD2_poll(void);
 
 // ISO functions
 
-extern void SetIsoFile(const char *filename);
-extern const char *GetIsoFile(void);
-extern boolean UsingIso(void);
-extern void SetCdOpenCaseTime(s64 time);
-extern s64 GetCdOpenCaseTime(void);
-extern int ReloadCdromPlugin();
+void SetIsoFile(const char *filename);
+const char *GetIsoFile(void);
+boolean UsingIso(void);
+void SetCdOpenCaseTime(s64 time);
+s64 GetCdOpenCaseTime(void);
+int ReloadCdromPlugin();
 
 #endif /* __PLUGINS_H__ */

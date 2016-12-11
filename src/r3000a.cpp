@@ -36,15 +36,6 @@ PcsxConfig Config;
 R3000Acpu *psxCpu=NULL;
 psxRegisters psxRegs;
 
-//senquack - Adapted pcsxReARMed SPU to PCSX4ALL:
-#ifdef spu_pcsxrearmed
-//senquack - Added so spu_pcsxrearmed can read current cycle value. Some of its SPU*() functions
-//           take a new "cycles" parameter, and because of circuluar header dependency problems
-//           I must provide a simple pointer to the current cycle value, so the wrapped
-//           functions can be passed it from anywhere in code.
-const u32 * const psxRegs_cycle_valptr = &psxRegs.cycle;
-#endif //spu_pcsxrearmed
-
 int psxInit() {
 	printf("Running PCSX Version %s (%s).\n", PACKAGE_VERSION, __DATE__);
 
@@ -82,10 +73,7 @@ void psxReset() {
 	psxRegs.CP0.r[12] = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	psxRegs.CP0.r[15] = 0x00000002; // PRevID = Revision ID, same as R3000A
 
-	// Queue up any events that always get scheduled (e.g., SPU update)
-	psxEventQueue.clear_internal_queue();
-	psxEventQueue.schedule_persistent_events();
-
+	psxEvqueueInit();  // Event scheduler queue
 	psxHwReset();
 	psxBiosInit();
 
@@ -143,7 +131,7 @@ void psxBranchTest()
 			psxRegs.intCycle[PSXINT_NEXT_EVENT].cycle) {
 		// After dispatching the most-imminent event, this will update
 		//  the intCycle[PSXINT_NEXT_EVENT] element.
-		psxEventQueue.dispatch_and_remove_front();
+		psxEvqueueDispatchAndRemoveFront(&psxRegs);
 	}
 
 	psxRegs.io_cycle_counter = psxRegs.intCycle[PSXINT_NEXT_EVENT].sCycle +

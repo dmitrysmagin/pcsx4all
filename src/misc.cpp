@@ -47,11 +47,6 @@
 char CdromId[10] = "";
 char CdromLabel[33] = "";
 
-int toSaveState=0;
-int toLoadState=0;
-int toExit=0;
-char *SaveState_filename=NULL;
-
 /* PSX Executable types */
 #define PSX_EXE     1
 #define CPE_EXE     2
@@ -266,7 +261,9 @@ int LoadCdrom() {
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
+#ifdef PSXREC
 	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+#endif
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -313,7 +310,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	size = head->t_size;
 	addr = head->t_addr;
 
+#ifdef PSXREC
 	psxCpu->Clear(addr, size / 4);
+#endif
 
 	while (size & ~2047) {
 		incTime();
@@ -404,6 +403,9 @@ int CheckCdrom() {
 		if (CdromId[2] == 'e' || CdromId[2] == 'E')
 			Config.PsxType = PSX_TYPE_PAL; // pal
 		else Config.PsxType = PSX_TYPE_NTSC; // ntsc
+
+		// Should be called when Config.PsxType changes
+		SPU_resetUpdateInterval();
 	}
 
 	if (CdromLabel[0] == ' ') {
@@ -483,7 +485,9 @@ int Load(const char *ExePath) {
 						retval = -1;
 						break;
 					}
+#ifdef PSXREC
 					psxCpu->Clear(section_address, section_size / 4);
+#endif
 				}
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
@@ -528,7 +532,9 @@ int Load(const char *ExePath) {
 									retval = -1;
 									break;
 								}
+#ifdef PSXREC
 								psxCpu->Clear(section_address, section_size / 4);
+#endif
 							}
 							break;
 						case 3: /* register loading (PC only?) */
@@ -680,8 +686,28 @@ struct PcsxSaveFuncs SaveFuncs = {
 static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
-// If you make changes to the savestate version, please increment the value below.
-static const u32 SaveVersion = 0x8b410004;
+// If you make changes to the savestate version, please increment value below.
+static const u32 SaveVersion = 0x8b410005;
+static const u32 SaveVersionEarliestSupported = 0x8b410004;
+// Versions supported: (NOTE: this only includes versions after 2016
+//  adoption of PCSX4ALL 2.3 codebase by MIPS / GCW Zero port team)
+// 0x8b410004    - May 2016
+//                 Assumes gpu_unai was used as GPU plugin.
+//                 Suffers long-standing bug from original codebase, where
+//                 libc was used to write all data up to and including SPU,
+//                 and zlib was incorrectly used w/ libc fd to write all data
+//                 after. Doing so silently dropped all data after SPU.
+//                 Somehow, miraculously, savestates still kind of worked.
+//                 Embedded screenshot data area was present but unused.
+//
+// 0x8b410005    - Dec 2016
+//                 Uses same format as 0xb410004, but zlib is used to write
+//                 all data. If 0xb410004 savestate is detected, no data
+//                 past SPU data will be loaded. This also marks the point
+//                 that 'gpulib' was backported from PCSX Rearmed. It handles
+//                 GPU state-saving across all GPU plugins, and happens to use
+//                 the same format as old gpu_unai sstate, so older saves work.
+//                 Embedded screenshot data area contains 156*117 rgb565 image.
 
 int SaveState(const char *file) {
 	void* f;
@@ -733,13 +759,13 @@ int SaveState(const char *file) {
 	// spu
 	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
 		goto error;
-	SPU_freeze(FREEZE_INFO, spufP);
+	SPU_freeze(FREEZE_INFO, spufP, psxRegs.cycle);
 	Size = spufP->Size;
 	free(spufP);
 	if (freeze_rw(f, FREEZE_SAVE, &Size, 4))
 		goto error;
-	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-	     (!SPU_freeze(FREEZE_SAVE, spufP))             ||
+	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL    ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP, psxRegs.cycle)) ||
 	     freeze_rw(f, FREEZE_SAVE, spufP, Size) )
 		goto error;
 	free(spufP);
@@ -787,8 +813,8 @@ int LoadState(const char *file) {
 	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )
 		goto error;
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 ||
-	     version != SaveVersion              ||
+	if (strncmp("STv4 PCSX", header, 9) != 0    ||
+	     version < SaveVersionEarliestSupported ||
 	     hle != Config.HLE)
 		goto error;
 
@@ -812,7 +838,7 @@ int LoadState(const char *file) {
 	// saved contents of psxRegs.interrupt and psxRegs.intCycle[]
 	// NOTE: important to do this before calling any functions like
 	// psxRcntFreeze() that will queue events of their own.
-	psxEventQueue.init_from_freeze();
+	psxEvqueueInitFromFreeze();
 
 	if (Config.HLE)
 		psxBiosFreeze(0);
@@ -831,10 +857,21 @@ int LoadState(const char *file) {
 	if ( freeze_rw(f, FREEZE_LOAD, &Size, 4)            ||
 	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL  ||
 	     freeze_rw(f, FREEZE_LOAD, spufP, Size)         ||
-	     (!SPU_freeze(FREEZE_LOAD, spufP)))
+	     (!SPU_freeze(FREEZE_LOAD, spufP, psxRegs.cycle)) )
 		goto error;
 	free(spufP);
 	spufP = NULL;
+
+	// XXX: HACK December 2016
+	//      See comments regarding save version 0x8b410004 at definition
+	//      of 'SaveVersion' variable for explanation.
+	if (version <= 0x8b410004) {
+		printf("Warning: using buggy older savestate version, expect problems.\n");
+		// Even though no rcnt data is available to load, root counter
+		//  still needs a hacked kick in the pants to get started.
+		psxRcntInitFromFreeze();
+		goto skip_missing_data_hack;
+	}
 
 	if ( sioFreeze(f, FREEZE_LOAD)      ||
 	     cdrFreeze(f, FREEZE_LOAD)      ||
@@ -842,6 +879,9 @@ int LoadState(const char *file) {
 	     psxRcntFreeze(f, FREEZE_LOAD)  ||
 	     mdecFreeze(f, FREEZE_LOAD)     )
 		goto error;
+
+	//XXX: HACK December 2016 -- see comment above
+skip_missing_data_hack:
 
 	SaveFuncs.close(f);
 
@@ -875,7 +915,9 @@ int CheckState(const char *file) {
 
 	SaveFuncs.close(f);
 
-	if (strncmp("STv4 PCSX", header, 9) != 0 || version != SaveVersion || hle != Config.HLE)
+	if (strncmp("STv4 PCSX", header, 9) != 0    ||
+	    version < SaveVersionEarliestSupported  ||
+	    hle != Config.HLE)
 		return -1;
 
 	return 0;

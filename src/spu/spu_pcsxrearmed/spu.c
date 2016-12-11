@@ -1271,21 +1271,6 @@ void CALLBACK SPUasync(unsigned int cycle, unsigned int flags)
  }
 }
 
-// SPU UPDATE... new epsxe func
-//  1 time every 32 hsync lines
-//  (312/32)x50 in pal
-//  (262/32)x60 in ntsc
-
-// since epsxe 1.5.2 (linux) uses SPUupdate, not SPUasync, I will
-// leave that func in the linux port, until epsxe linux is using
-// the async function as well
-
-//senquack - disabled this, it just is confusing having both spuUpdate() and also a dummy
-//           SPUupdate() function just for some sort of epsxe compatibility:
-//void CALLBACK SPUupdate(void)
-//{
-//}
-
 // XA AUDIO
 
 void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
@@ -1293,12 +1278,14 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
  FeedXA(xap);                                          // call main XA feeder
 }
 
-//senquack - Added function to tell how much room is free in XA audio buffer,
+//senquack -   Added function to tell how much room is free in XA audio buffer,
 //           in number of stereo samples. It is used by cdrReadInterrupt()
 //           in cdrom.cpp to determine if a CDREAD_INT interrupt should be
 //           scheduled sooner than normal faster, to keep buffer full.
-//           See notes there and in xa.c for UpdateXABufferRoom().
-unsigned int CALLBACK SPUgetADPCMBufferRoom()
+//             I added this function when fixing XA audio dropouts on
+//           slower devices/games. Also see UpdateXABufferRoom() and
+//           FeedXA() in xa.c
+unsigned int CALLBACK SPUgetADPCMBufferRoom(void)
 {
    return spu.XABufferRoom;
 }
