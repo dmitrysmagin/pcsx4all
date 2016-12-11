@@ -261,7 +261,9 @@ int LoadCdrom() {
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
+#ifdef PSXREC
 	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+#endif
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -308,7 +310,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	size = head->t_size;
 	addr = head->t_addr;
 
+#ifdef PSXREC
 	psxCpu->Clear(addr, size / 4);
+#endif
 
 	while (size & ~2047) {
 		incTime();
@@ -481,7 +485,9 @@ int Load(const char *ExePath) {
 						retval = -1;
 						break;
 					}
+#ifdef PSXREC
 					psxCpu->Clear(section_address, section_size / 4);
+#endif
 				}
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
@@ -526,7 +532,9 @@ int Load(const char *ExePath) {
 									retval = -1;
 									break;
 								}
+#ifdef PSXREC
 								psxCpu->Clear(section_address, section_size / 4);
+#endif
 							}
 							break;
 						case 3: /* register loading (PC only?) */

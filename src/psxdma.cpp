@@ -87,9 +87,9 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			SPU_readDMAMem(ptr, words * 2);
 #endif
 
-			//senquack - Original PCSX4ALL code had this statement surrounded by
-			//           #ifdef PSXREC, but newer Reloaded/Rearmed code doesn't:
+#ifdef PSXREC
 			psxCpu->Clear(madr, words);
+#endif
 
 			HW_DMA4_MADR = SWAPu32(madr + words * 4);
 			SPUDMA_INT(words / 2);

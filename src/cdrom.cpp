@@ -234,7 +234,7 @@ u16 calcCrc(const u8 *d, const int len) {
 	psxEvqueueAdd(PSXINT_CDREAD, eCycle); \
 }
 
-//senquack - Next two interrupt macros are new from PCSX Reloaded/Rearmed.
+// Next two interrupt macros are new from PCSX Reloaded/Rearmed.
 // cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
 	psxEvqueueAdd(PSXINT_CDRLID, eCycle); \
@@ -1528,10 +1528,9 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				memcpy(ptr, pTransfer, size);
 			}
 
-			//senquack - TODO: should this be wrapped in '#ifdef PSXREC' like
-			// original PCSX4ALL code?
+#ifdef PSXREC
 			psxCpu->Clear(madr, cdsize / 4);
-
+#endif
 			pTransfer += cdsize;
 
 			if( chcr == 0x11400100 ) {
