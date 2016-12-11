@@ -1,16 +1,12 @@
-
 TARGET = pcsx4all.exe
 PORT   = sdl
 
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
-#GPU    = gpu_null
-GPU    = gpu_unai
+#GPU   = gpu_null
+GPU   = gpu_unai
 
-SPU    = spu_pcsxrearmed
-#SPU   = spu_dfxsound
-#SPU    = spu_null
-#SPU   = spu_franxis
+SPU   = spu_pcsxrearmed
 
 RM     = rm -f
 MD     = mkdir
@@ -44,8 +40,9 @@ ifdef CONSOLE
 CFLAGS += -DUNDEF_MAIN
 endif
 
-# Convert $GPU var to uppercase using 'tr' util and make it a CFLAG define
+# Convert plugin names to uppercase and make them CFLAG defines
 CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
+CFLAGS += -D$(shell echo $(SPU) | tr a-z A-Z)
 
 LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lz
 
@@ -89,10 +86,10 @@ OBJS += obj/port/$(PORT)/frontend.o
 OBJS += obj/plugin_lib/perfmon.o
 
 #******************************************
-# senquack - spu_pcsxrearmed section BEGIN
+# spu_pcsxrearmed section BEGIN
 #******************************************
 ifeq ($(SPU),spu_pcsxrearmed)
-#senquack - specify which audio backend to use:
+# Specify which audio backend to use:
 SOUND_DRIVERS=sdl
 #SOUND_DRIVERS=alsa
 #SOUND_DRIVERS=oss
@@ -135,7 +132,7 @@ endif
 
 endif
 #******************************************
-# senquack - spu_pcsxrearmed END
+# spu_pcsxrearmed END
 #******************************************
 
 CXXFLAGS := $(CFLAGS) -fno-rtti

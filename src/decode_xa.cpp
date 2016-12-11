@@ -150,7 +150,6 @@ static void xa_decode_data( xa_decode_t *xdp, unsigned char *srcp ) {
     				ADPCM_DecodeBlock16( &xdp->left,  sound_groupsp[headtable[i]+0], data,
         	           				    destp+0, 2 );
 
-					#ifndef spu_franxis
         			datap = data;
         			sound_datap2 = sound_datap + i;
         			for (k=0; k < 14; k++, sound_datap2 += 8) {
@@ -159,7 +158,6 @@ static void xa_decode_data( xa_decode_t *xdp, unsigned char *srcp ) {
 					}
 					ADPCM_DecodeBlock16( &xdp->right,  sound_groupsp[headtable[i]+1], data,
                            			    destp+1, 2 );
-					#endif
 										
 	        		destp += 28*2;
 				}
@@ -182,7 +180,6 @@ static void xa_decode_data( xa_decode_t *xdp, unsigned char *srcp ) {
 	    			ADPCM_DecodeBlock16( &xdp->left,  sound_groupsp[headtable[i]+0], data,
                    				    destp+0, 2 );
 
-					#ifndef spu_franxis
 	        		datap = data;
 	        		sound_datap2 = sound_datap + i;
         			for (k=0; k < 7; k++, sound_datap2 += 16) {
@@ -193,7 +190,6 @@ static void xa_decode_data( xa_decode_t *xdp, unsigned char *srcp ) {
 					}
 					ADPCM_DecodeBlock16( &xdp->right,  sound_groupsp[headtable[i]+1], data,
                            			    destp+1, 2 );
-					#endif
 
 	        		destp += 28*2;
 				}

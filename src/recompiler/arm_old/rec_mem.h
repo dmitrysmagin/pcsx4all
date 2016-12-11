@@ -650,6 +650,10 @@ static void recSH() {
 					MOV32RtoR(HOST_a2, rt);
 				}
 				MOV32ItoR(HOST_a1, addr);
+// XXX Dec 2016: SPU of PCSX Rearmed has been adopted as standard SPU.
+//               Some SPU functions now take additional 'cycles' param and
+//               no effort has been made to update old ARM dynarecs to match.
+#error "ARM dynarec has not been updated to match new SPU interface of spu_pcsxrearmed"
 				CALLFunc((u32)&SPU_writeRegister);
 				return;
 			}

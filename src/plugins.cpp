@@ -25,6 +25,10 @@
 #include "plugins.h"
 #include "psxevents.h"
 
+#ifdef SPU_PCSXREARMED
+#include "spu/spu_pcsxrearmed/spu_config.h"
+#endif
+
 int LoadPlugins(void) {
 	int ret;
 	const char *cdrfilename=NULL;
@@ -43,19 +47,6 @@ int LoadPlugins(void) {
 	ret = SPU_init();
 	if (ret < 0) { printf ("Error initializing SPU plugin: %d\n", ret); return -1; }
 
-#ifdef spu_pcsxrearmed
-	//senquack - PCSX Rearmed SPU supports handling SPU hardware IRQ through
-	// two callback functions. Needed by games like NFS3, Grandia, Fifa98,
-	// Chrono Cross, THPS2 etc.
-	// Only spu_pcsxrearmed supports this (older SPU plugins all had
-	// problems with sound in these games.. TODO: add support?)
-	SPU_registerCallback(Trigger_SPU_IRQ);
-
-	//senquack - pcsx_rearmed SPU plugin schedules its own updates to scan
-	// for upcoming SPU HW interrupts, calling above function when needed.
-	SPU_registerScheduleCb(Schedule_SPU_IRQ);
-#endif
-
 	cdrfilename=GetIsoFile();
 	if (cdrfilename[0] != '\0') {
 		ret=CDR_open();
@@ -72,27 +63,83 @@ void ReleasePlugins(void) {
 	SPU_shutdown();
 }
 
+//////////////////////////////////////////
+// SPU functions, should have C linkage //
+//////////////////////////////////////////
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//senquack - A generic function SPU plugins can use to set the hardware
-// SPU interrupt bit (currently only used by spu_pcsxrearmed)
+// A generic function SPU plugins can use to set hardware SPU IRQ
 void CALLBACK Trigger_SPU_IRQ(void) {
 	psxHu32ref(0x1070) |= SWAPu32(0x200);
 	// Ensure psxBranchTest() is called soon when IRQ is pending:
 	ResetIoCycle();
 }
 
-//senquack - A generic function SPU plugins can use to schedule an update
+// A generic function SPU plugins can use to schedule an update
 // that scans for upcoming SPU HW IRQs. If one is encountered, above
 // function will be called.
 // (This is used by games that use the actual hardware SPU IRQ like
-//  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc. and is currently
-//  only implemented in spu_pcsxrearmed)
+//  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc.)
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after) {
 	psxEvqueueAdd(PSXINT_SPUIRQ, cycles_after);
 }
+
+#ifdef SPU_PCSXREARMED
+// We provide our own private SPU_init() in plugins.cpp that will call
+// spu_pcsxrearmed plugin's SPUinit() and then set its settings.
+long CALLBACK SPU_init(void)
+{
+	//senquack - added new SPUConfig member to indicate when no configuration has been set:
+	if (spu_config.iHaveConfiguration == 0) {
+		printf("ERROR: SPU plugin 'spu_pcsxrearmed' configuration settings not set, aborting.\n");
+		return -1;
+	}
+
+	// Should be called before SPU_open()
+	if (SPUinit() < 0) {
+		printf("ERROR initializing SPU plugin 'spu_pcsxrearmed'");
+		return -1;
+	}
+
+	// This inits the low-level audio backend driver, i.e. OSS,ALSA,SDL,PulseAudio etc
+	if (SPUopen() < 0) {
+		printf("ERROR opening audio backend for SPU 'spu_pcsxrearmed'");
+		return -1;
+	}
+
+	printf("-> SPU plugin 'spu_pcsxrearmed' initialized successfully.\n");
+
+	const char* interpol_str[4] = { "none", "simple", "gaussian", "cubic" };
+	assert(spu_config.iUseInterpolation >= 0 && spu_config.iUseInterpolation <= 3);
+	printf("-> SPU plugin using configuration settings:\n"
+		   "    Volume:             %d\n"
+		   "    Disabled (-silent): %d\n"
+		   "    XAPitch:            %d\n"
+		   "    UseReverb:          %d\n"
+		   "    UseInterpolation:   %d (%s)\n"
+		   "    Tempo:              %d\n"
+		   "    UseThread:          %d\n"
+		   "    UseFixedUpdates:    %d\n"
+		   "    SyncAudio:          %d\n",
+		   spu_config.iVolume, spu_config.iDisabled, spu_config.iXAPitch, spu_config.iUseReverb,
+		   spu_config.iUseInterpolation, interpol_str[spu_config.iUseInterpolation],
+		   spu_config.iTempo, spu_config.iUseThread, spu_config.iUseFixedUpdates,
+		   Config.SyncAudio);
+
+	//TODO: allow nullspu backend driver of spu_pcsxrearmed to provide
+	//       simulated audio sync?
+	if (Config.SyncAudio && spu_config.iDisabled)
+		printf("-> WARNING: '-silent' option in effect; nullspu cannot sync emu to audio (yet).\n");
+
+	SPU_registerCallback(Trigger_SPU_IRQ);
+	SPU_registerScheduleCb(Schedule_SPU_IRQ);
+	//NOTE: Even PCSX Rearmed emu never calls SPU_registerCDDAVolume()
+
+	return 0;
+}
+#endif //SPU_PCSXREARMED
 
 #ifdef __cplusplus
 }

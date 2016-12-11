@@ -119,23 +119,23 @@ extern u8 **psxMemRLUT;
 
 #define PSXMu32ref(mem)	(*(u32*)PSXM(mem))
 
-extern int  psxMemInit(void);
-extern void psxMemReset(void);
-extern void psxMemShutdown(void);
+int  psxMemInit(void);
+void psxMemReset(void);
+void psxMemShutdown(void);
 
-extern u8   psxMemRead8(u32 mem);
-extern u8   psxMemRead8_direct(u32 mem,void *regs);
-extern u16  psxMemRead16(u32 mem);
-extern u16  psxMemRead16_direct(u32 mem,void *regs);
-extern u32  psxMemRead32(u32 mem);
-extern u32  psxMemRead32_direct(u32 mem,void *regs);
-extern void psxMemWrite8(u32 mem, u8 value);
-extern void psxMemWrite8_direct(u32 mem, u8 value,void *regs);
-extern void psxMemWrite16(u32 mem, u16 value);
-extern void psxMemWrite16_direct(u32 mem, u16 value,void *regs);
-extern void psxMemWrite32(u32 mem, u32 value);
-extern void psxMemWrite32_direct(u32 mem, u32 value,void *regs);
-extern void *psxMemPointer(u32 mem);
+u8   psxMemRead8(u32 mem);
+u8   psxMemRead8_direct(u32 mem,void *regs);
+u16  psxMemRead16(u32 mem);
+u16  psxMemRead16_direct(u32 mem,void *regs);
+u32  psxMemRead32(u32 mem);
+u32  psxMemRead32_direct(u32 mem,void *regs);
+void psxMemWrite8(u32 mem, u8 value);
+void psxMemWrite8_direct(u32 mem, u8 value,void *regs);
+void psxMemWrite16(u32 mem, u16 value);
+void psxMemWrite16_direct(u32 mem, u16 value,void *regs);
+void psxMemWrite32(u32 mem, u32 value);
+void psxMemWrite32_direct(u32 mem, u32 value,void *regs);
+void *psxMemPointer(u32 mem);
 
 #endif /* __PSXMEMORY_H__ */
 

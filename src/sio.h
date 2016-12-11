@@ -28,22 +28,22 @@
 #include "plugins.h"
 #include "psemu_plugin_defs.h"
 
-extern void sioInit(void);
+void sioInit(void);
 
-extern void sioWrite8(unsigned char value);
-extern void sioWriteStat16(unsigned short value);
-extern void sioWriteMode16(unsigned short value);
-extern void sioWriteCtrl16(unsigned short value);
-extern void sioWriteBaud16(unsigned short value);
+void sioWrite8(unsigned char value);
+void sioWriteStat16(unsigned short value);
+void sioWriteMode16(unsigned short value);
+void sioWriteCtrl16(unsigned short value);
+void sioWriteBaud16(unsigned short value);
 
-extern unsigned char sioRead8(void);
-extern unsigned short sioReadStat16(void);
-extern unsigned short sioReadMode16(void);
-extern unsigned short sioReadCtrl16(void);
-extern unsigned short sioReadBaud16(void);
+unsigned char sioRead8(void);
+unsigned short sioReadStat16(void);
+unsigned short sioReadMode16(void);
+unsigned short sioReadCtrl16(void);
+unsigned short sioReadBaud16(void);
 
-extern void sioInterrupt(void);
-extern int sioFreeze(void* f, FreezeMode mode);
+void sioInterrupt(void);
+int sioFreeze(void* f, FreezeMode mode);
 
 ////////////////////////
 // Memcard operations //

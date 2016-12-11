@@ -41,11 +41,6 @@
 // When psxRegs.cycle is >= this figure, it gets reset to 0:
 static const u32 reset_cycle_val_at = 2000000000;
 
-#ifndef spu_pcsxrearmed
-// Older SPU plugins are updated every 23rd HSync, regardless of PAL/NTSC mode
-#define SPU_UPD_INTERVAL 23
-#endif
-
 ///////////////////////////
 // Internal helper funcs //
 ///////////////////////////
@@ -68,13 +63,11 @@ static const int EVQUEUE_CAPACITY = PSXINT_COUNT;
 typedef void (*EventFunc)(void);
 
 static struct {
-	u8 useBeginIdx;             // Index of first used element of storage[]
-	u8 useEndIdx;               // One past last used index of storage[], or
+	u8 useBeginIdx;             // Idx of first used element of queue[]
+	u8 useEndIdx;               // Idx one past last used element of queue[], or
 	                            //  same val as useBeginIdx when queue is empty.
 	u8 queue[EVQUEUE_CAPACITY];
-
 	EventFunc funcs[EVQUEUE_CAPACITY];
-
 	u32 spuUpdateInterval;      // Cycles between SPU plugin updates
 } evqueue;
 
@@ -93,10 +86,10 @@ static inline u8* evqueueEndPtr(void);
 static inline void evqueueAdd(u8 ev);
 static inline bool evqueueRemove(u8 ev);
 static inline void evqueueRemoveFront(void);
-static inline void evqueueMoveForward(u8 *start, u8 *end);
-static inline void evqueueMoveBackward(u8 *start, u8 *end);
-static inline void evqueueInsertFront(u8 *it, u8 ev);
-static inline void evqueueInsertBack(u8 *it, u8 ev);
+static inline void evqueueMoveTowardsFront(u8 *start, u8 *end);
+static inline void evqueueMoveTowardsBack(u8 *start, u8 *end);
+static inline void evqueueInsertFront(u8 *pos, u8 ev);
+static inline void evqueueInsertBack(u8 *pos, u8 ev);
 #ifdef DEBUG_EVENTS
 static bool evqueueConsistencyCheck(void);
 static void evqueuePrintQueue(void);
@@ -133,14 +126,14 @@ void psxEvqueueInitFromFreeze(void)
 	evqueueClear();
 	for (int ev=0; ev < PSXINT_COUNT; ++ev)
 		if (psxRegs.interrupt & (1 << ev))
-			evqueueAdd((psxEventNum)ev);
+			evqueueAdd(ev);
 
+	psxRegs.intCycle[PSXINT_NEXT_EVENT] = psxRegs.intCycle[evqueueFront()];
 	psxEvqueueSchedulePersistentEvents();
 
 	// Don't trust io_cycle_counter from a freeze, as older savestate versions
 	//  from before event queue implementation may have invalid value.
 	psxRegs.io_cycle_counter = 0;
-	psxRegs.intCycle[PSXINT_NEXT_EVENT] = psxRegs.intCycle[evqueueFront()];
 }
 
 // Function called when PSXINT_RESET_CYCLE_VAL event occurs:
@@ -281,7 +274,6 @@ void psxEvqueueDispatchAndRemoveFront(psxRegisters *pr)
 // Should be called if Config.PsxType is changed
 void SPU_resetUpdateInterval(void)
 {
-#ifdef spu_pcsxrearmed
 	// PCSX Rearmed only updates SPU once per frame, but we target slower
 	//  platforms that might not run all games at 60FPS. Until we have good
 	//  auto-frameskip, we update SPU plugin twice per frame to avoid dropouts.
@@ -289,11 +281,6 @@ void SPU_resetUpdateInterval(void)
 	//  Solid or the intro to Chrono Cross, as they use SPU HW IRQ and are
 	//  highly sensitive to timing.
 	evqueue.spuUpdateInterval = PSXCLK / (FrameRate[Config.PsxType] * 2);
-#else
-	// Older SPU plugins are updated much more often than above
-	evqueue.spuUpdateInterval = (SPU_UPD_INTERVAL * PSXCLK) /
-		(FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]);
-#endif
 
 	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
 }
@@ -302,15 +289,13 @@ void SPU_resetUpdateInterval(void)
 // allowing handling as a generic event
 static void SPU_update(void)
 {
-#ifdef spu_pcsxrearmed
+#ifndef SPU_NULL
 	//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
 	// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
 	psxEvqueueRemove(PSXINT_SPUIRQ);
+#endif
 
 	SPU_async(psxRegs.cycle, 1);
-#else
-	SPU_async();
-#endif
 
 	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
 }
@@ -319,10 +304,7 @@ static void SPU_update(void)
 // allowing handling as a generic event
 static void SPU_handleIRQ(void)
 {
-#ifdef spu_pcsxrearmed
-	// NOTE: Only spu_pcsxrearmed actually implements handling of SPU HW IRQs.
 	SPU_async(psxRegs.cycle, 0);
-#endif
 }
 
 // Returns true if event 'lh_ev' is more imminent than 'rh_ev'.
@@ -398,12 +380,10 @@ static inline void evqueueAdd(u8 ev)
 	//  decide how to insert, we choose evqueueInsertFront() when possible,
 	//  to keep object code size small. Our queue is usually pretty small.
 	if (evqueue.useBeginIdx > 0) {
-		// Insert at position 'it-1', moving backward all elements between
-		//  that position and the front
-		evqueueInsertFront(it, ev);
+		// Insert before position 'it', move elements towards front to make room
+		evqueueInsertFront(it-1, ev);
 	} else {
-		// Insert at position 'it', moving forward all elements between that
-		//  position and the end
+		// Insert at position 'it', move elements towards back to make room
 		evqueueInsertBack(it, ev);
 	}
 
@@ -429,7 +409,7 @@ static bool evqueueRemove(u8 ev)
 	// Rather than be fancy and compute position relative to front/end, we
 	//  always shrink array towards front, to keep object code size small.
 	--evqueue.useEndIdx;
-	evqueueMoveBackward(it + 1, evqueueEndPtr());
+	evqueueMoveTowardsFront(it+1, evqueueEndPtr());
 
 #ifdef DEBUG_EVENTS
 	if (!evqueueConsistencyCheck()) {
@@ -456,7 +436,7 @@ static inline void evqueueRemoveFront(void)
 
 // Copy all elements between [start,end] to [start+1,end+1].
 //  If start address is greater than end, no copy will occur.
-static inline void evqueueMoveForward(u8 *start, u8 *end)
+static inline void evqueueMoveTowardsBack(u8 *start, u8 *end)
 {
 	for (u8 *ptr = end; ptr >= start; --ptr)
 		*(ptr+1) = *ptr;
@@ -464,29 +444,28 @@ static inline void evqueueMoveForward(u8 *start, u8 *end)
 
 // Copy all elements between [start,end] to [start-1,end-1].
 //  If start address is greater than end, no copy will occur.
-static inline void evqueueMoveBackward(u8 *start, u8 *end)
+static inline void evqueueMoveTowardsFront(u8 *start, u8 *end)
 {
 	for (u8 *ptr = start; ptr <= end; ++ptr)
 		*(ptr-1) = *ptr;
 }
 
-// Insert new entry 't' before position 'it'. Array contents before the
-//  position will be moved backward before insertion.
-static inline void evqueueInsertFront(u8 *it, u8 ev)
+// Insert new entry 'ev' at position 'pos'. Any existing elements at or
+//  before position will be moved towards the front to make room.
+static inline void evqueueInsertFront(u8 *pos, u8 ev)
 {
-	--it;
-	evqueueMoveBackward(evqueueFrontPtr(), it);
+	evqueueMoveTowardsFront(evqueueFrontPtr(), pos);
 	--evqueue.useBeginIdx;
-	*it = ev;
+	*pos = ev;
 }
 
-// Insert new entry 't' at position 'it'. Array contents between that
-//  position and the end will be moved forwards before the insertion.
-static inline void evqueueInsertBack(u8 *it, u8 ev)
+// Insert new entry 'ev' at position 'pos'. Any existing elements at or
+//  after position will be moved towards the rear to make room.
+static inline void evqueueInsertBack(u8 *pos, u8 ev)
 {
-	evqueueMoveForward(it, evqueueEndPtr()-1);
+	evqueueMoveTowardsBack(pos, evqueueEndPtr()-1);
 	++evqueue.useEndIdx;
-	*it = ev;
+	*pos = ev;
 }
 
 #ifdef DEBUG_EVENTS

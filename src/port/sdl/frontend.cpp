@@ -19,6 +19,10 @@
 #include <limits.h>
 #endif
 
+#ifdef SPU_PCSXREARMED
+#include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
+#endif
+
 #define timer_delay(a)	wait_ticks(a*1000)
 
 enum  {
@@ -861,7 +865,7 @@ static char *spuirq_show()
 	return buf;
 }
 
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 static int interpolation_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -885,7 +889,7 @@ static char *interpolation_show()
 	}
 	return buf;
 }
-#endif
+#endif //SPU_PCSXREARMED
 
 static int settings_back()
 {
@@ -913,7 +917,7 @@ static int settings_defaults()
 	Config.ForcedXAUpdates = 1;
 	Config.ShowFps = 0;
 	Config.FrameLimit = 0;
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
 #endif
 
@@ -935,7 +939,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
 	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	{(char *)"[SPU] Interpolation     ", NULL, &interpolation_alter, &interpolation_show},
 #endif
 	{(char *)"Restore default values  ", &settings_defaults, NULL, NULL},

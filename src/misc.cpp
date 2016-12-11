@@ -261,7 +261,9 @@ int LoadCdrom() {
 	tmpHead.t_size = SWAP32(tmpHead.t_size);
 	tmpHead.t_addr = SWAP32(tmpHead.t_addr);
 
+#ifdef PSXREC
 	psxCpu->Clear(tmpHead.t_addr, tmpHead.t_size / 4);
+#endif
 
 	// Read the rest of the main executable
 	while (tmpHead.t_size & ~2047) {
@@ -308,7 +310,9 @@ int LoadCdromFile(const char *filename, EXE_HEADER *head) {
 	size = head->t_size;
 	addr = head->t_addr;
 
+#ifdef PSXREC
 	psxCpu->Clear(addr, size / 4);
+#endif
 
 	while (size & ~2047) {
 		incTime();
@@ -481,7 +485,9 @@ int Load(const char *ExePath) {
 						retval = -1;
 						break;
 					}
+#ifdef PSXREC
 					psxCpu->Clear(section_address, section_size / 4);
+#endif
 				}
 				psxRegs.pc = SWAP32(tmpHead.pc0);
 				psxRegs.GPR.n.gp = SWAP32(tmpHead.gp0);
@@ -526,7 +532,9 @@ int Load(const char *ExePath) {
 									retval = -1;
 									break;
 								}
+#ifdef PSXREC
 								psxCpu->Clear(section_address, section_size / 4);
+#endif
 							}
 							break;
 						case 3: /* register loading (PC only?) */
@@ -751,13 +759,13 @@ int SaveState(const char *file) {
 	// spu
 	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
 		goto error;
-	SPU_freeze(FREEZE_INFO, spufP);
+	SPU_freeze(FREEZE_INFO, spufP, psxRegs.cycle);
 	Size = spufP->Size;
 	free(spufP);
 	if (freeze_rw(f, FREEZE_SAVE, &Size, 4))
 		goto error;
-	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-	     (!SPU_freeze(FREEZE_SAVE, spufP))             ||
+	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL    ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP, psxRegs.cycle)) ||
 	     freeze_rw(f, FREEZE_SAVE, spufP, Size) )
 		goto error;
 	free(spufP);
@@ -849,7 +857,7 @@ int LoadState(const char *file) {
 	if ( freeze_rw(f, FREEZE_LOAD, &Size, 4)            ||
 	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL  ||
 	     freeze_rw(f, FREEZE_LOAD, spufP, Size)         ||
-	     (!SPU_freeze(FREEZE_LOAD, spufP)))
+	     (!SPU_freeze(FREEZE_LOAD, spufP, psxRegs.cycle)) )
 		goto error;
 	free(spufP);
 	spufP = NULL;
@@ -861,7 +869,7 @@ int LoadState(const char *file) {
 		printf("Warning: using buggy older savestate version, expect problems.\n");
 		// Even though no rcnt data is available to load, root counter
 		//  still needs a hacked kick in the pants to get started.
-		psxRcntFreezeLoadHack();
+		psxRcntInitFromFreeze();
 		goto skip_missing_data_hack;
 	}
 

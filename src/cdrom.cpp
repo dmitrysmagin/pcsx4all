@@ -234,7 +234,7 @@ u16 calcCrc(const u8 *d, const int len) {
 	psxEvqueueAdd(PSXINT_CDREAD, eCycle); \
 }
 
-//senquack - Next two interrupt macros are new from PCSX Reloaded/Rearmed.
+// Next two interrupt macros are new from PCSX Reloaded/Rearmed.
 // cdrLidSeekInterrupt
 #define CDRLID_INT(eCycle) { \
 	psxEvqueueAdd(PSXINT_CDRLID, eCycle); \
@@ -1166,10 +1166,8 @@ void cdrReadInterrupt() {
 			cdr.Channel = cdr.Transfer[4 + 1];
 		}
 
-#ifdef spu_pcsxrearmed
 		int was_first_sector = (cdr.FirstSector == 1);
 		bool played_ADPCM = false;   // See comments further below
-#endif
 
 		if((cdr.Transfer[4 + 2] & 0x4) &&
 			 (cdr.Transfer[4 + 1] == cdr.Channel) &&
@@ -1178,9 +1176,7 @@ void cdrReadInterrupt() {
 			if (!ret) {
 				cdrAttenuate(cdr.Xa.pcm, cdr.Xa.nsamples, cdr.Xa.stereo);
 				if ((cdr.Xa.nsamples != 0) && (cdr.Xa.freq != 0)) {
-#ifdef spu_pcsxrearmed
 					played_ADPCM = true;
-#endif
 					SPU_playADPCMchannel(&cdr.Xa);
 				}
 
@@ -1189,7 +1185,7 @@ void cdrReadInterrupt() {
 			else cdr.FirstSector = -1;
 		}
 
-#ifdef spu_pcsxrearmed
+#ifndef SPU_NULL
 		//senquack - if XA ADPCM buffer is not full, schedule next CDREAD_INT
 		// IRQ twice as soon as normal, to avoid audio dropouts. Only do this
 		// if there has been a XA sector with ADPCM played within the last
@@ -1204,7 +1200,6 @@ void cdrReadInterrupt() {
 		//
 		// TODO: Is it also necessary to do this for CdlReadN/CdlReadS case in
 		//  new cdrInterrupt() code taken from Reloaded/Rearmed?
-		// TODO: Only spu_pcsxrearmed has new SPU_getADPCMBufferRoom().. add to others?
 
 		static unsigned int calls_since_playing_ADPCM = 0;
 		if (!played_ADPCM)
@@ -1528,10 +1523,9 @@ void psxDma3(u32 madr, u32 bcr, u32 chcr) {
 				memcpy(ptr, pTransfer, size);
 			}
 
-			//senquack - TODO: should this be wrapped in '#ifdef PSXREC' like
-			// original PCSX4ALL code?
+#ifdef PSXREC
 			psxCpu->Clear(madr, cdsize / 4);
-
+#endif
 			pTransfer += cdsize;
 
 			if( chcr == 0x11400100 ) {
