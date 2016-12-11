@@ -1278,12 +1278,14 @@ void CALLBACK SPUplayADPCMchannel(xa_decode_t *xap)
  FeedXA(xap);                                          // call main XA feeder
 }
 
-//senquack - Added function to tell how much room is free in XA audio buffer,
+//senquack -   Added function to tell how much room is free in XA audio buffer,
 //           in number of stereo samples. It is used by cdrReadInterrupt()
 //           in cdrom.cpp to determine if a CDREAD_INT interrupt should be
 //           scheduled sooner than normal faster, to keep buffer full.
-//           See notes there and in xa.c for UpdateXABufferRoom().
-unsigned int CALLBACK SPUgetADPCMBufferRoom()
+//             I added this function when fixing XA audio dropouts on
+//           slower devices/games. Also see UpdateXABufferRoom() and
+//           FeedXA() in xa.c
+unsigned int CALLBACK SPUgetADPCMBufferRoom(void)
 {
    return spu.XABufferRoom;
 }

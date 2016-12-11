@@ -73,7 +73,7 @@ struct CdrStat {
 	unsigned char Time[3];
 };
 
-//senquack - updated to newer PCSX Reloaded/Rearmed code:
+// Updated to newer PCSX Reloaded/Rearmed code:
 struct SubQ {
 	char res0[12];
 	unsigned char ControlAndADR;
@@ -113,38 +113,67 @@ typedef struct {
 	unsigned char *SPUInfo;
 } SPUFreeze_t;
 
-// SPU functions
-
-//senquack - if using spu_pcsxrearmed plugin adapted from PCSX ReArmed, use
-//           PSX4ALL->PCSX_ReARMED SPU wrapper header
-#ifdef spu_pcsxrearmed
-#include "spu/spu_pcsxrearmed/spu_pcsxrearmed_wrapper.h"
-#else
-long SPU_init(void);
-long SPU_shutdown(void);
-void SPU_writeRegister(unsigned long, unsigned short);
-unsigned short SPU_readRegister(unsigned long);
-void SPU_writeDMA(unsigned short);
-unsigned short SPU_readDMA(void);
-void SPU_writeDMAMem(unsigned short *, int);
-void SPU_readDMAMem(unsigned short *, int);
-void SPU_playADPCMchannel(xa_decode_t *);
-long SPU_freeze(uint32_t, SPUFreeze_t *);
-void SPU_async(void);
-void SPU_playCDDAchannel(unsigned char *, int);
-#endif
-
-//senquack - added these two functions, see notes in plugins.cpp
+// SPU functions, should have C linkage
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// These two implemented in plugins.cpp for use by SPU plugins
 void CALLBACK Trigger_SPU_IRQ(void);
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after);
+
+long CALLBACK SPUinit(void);
+long CALLBACK SPUopen(void);
+long CALLBACK SPUshutdown(void);
+long CALLBACK SPUclose(void);
+void CALLBACK SPUwriteRegister(unsigned long, unsigned short, unsigned int);
+unsigned short CALLBACK SPUreadRegister(unsigned long);
+void CALLBACK SPUwriteDMA(unsigned short);
+unsigned short CALLBACK SPUreadDMA(void);
+void CALLBACK SPUwriteDMAMem(unsigned short *, int, unsigned int);
+void CALLBACK SPUreadDMAMem(unsigned short *, int, unsigned int);
+void CALLBACK SPUplayADPCMchannel(xa_decode_t *);
+unsigned int CALLBACK SPUgetADPCMBufferRoom(void); //senquack - added function
+int  CALLBACK SPUplayCDDAchannel(short *, int);
+long CALLBACK SPUconfigure(void);
+long CALLBACK SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
+void CALLBACK SPUasync(uint32_t, uint32_t);
+
+#ifdef SPU_PCSXREARMED
+void CALLBACK SPUregisterCallback(void (*callback)(void));
+void CALLBACK SPUregisterScheduleCb(void (*callback)(unsigned int));
+
+// We provide our own private SPU_init() in plugins.cpp that will call
+// spu_pcsxrearmed plugin's SPUinit() and then set its settings.
+long SPU_init(void);
+#endif //SPU_PCSXREARMED
 
 #ifdef __cplusplus
 }
 #endif
+
+// ** See comment for #ifdef above regarding SPUinit
+#ifndef SPU_PCSXREARMED
+#define SPU_init SPUinit
+#endif
+
+#define SPU_open SPUopen
+#define SPU_shutdown SPUshutdown
+#define SPU_close SPUclose
+#define SPU_writeRegister SPUwriteRegister
+#define SPU_readRegister SPUreadRegister
+#define SPU_writeDMA SPUwriteDMA
+#define SPU_readDMA SPUreadDMA
+#define SPU_writeDMAMem SPUwriteDMAMem
+#define SPU_readDMAMem SPUreadDMAMem
+#define SPU_playADPCMchannel SPUplayADPCMchannel
+#define SPU_getADPCMBufferRoom SPUgetADPCMBufferRoom
+#define SPU_playCDDAchannel SPUplayCDDAchannel
+#define SPU_registerCallback SPUregisterCallback
+#define SPU_registerScheduleCb SPUregisterScheduleCb
+#define SPU_configure SPUconfigure
+#define SPU_freeze SPUfreeze
+#define SPU_async SPUasync
 
 
 // PAD functions

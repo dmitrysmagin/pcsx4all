@@ -14,7 +14,7 @@
 #include <limits.h>
 #endif
 
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
 
@@ -244,7 +244,7 @@ void config_load()
 			sscanf(arg, "%d", &value);
 			Config.FrameLimit = value;
 		}
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 		else if(!strcmp(line, "SpuUseInterpolation")) {
 			sscanf(arg, "%d", &value);
 			spu_config.iUseInterpolation = value;
@@ -289,7 +289,7 @@ void config_save()
 
 	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\nShowFps %d\nFrameLimit %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit);
 
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
 #endif
 
@@ -447,156 +447,6 @@ unsigned short pad_read(int num)
 {
 	if (num==0) return pad1; else return pad2;
 }
-
-//senquack - spu_pcsxrearmed has its own sound backends
-#if !defined(spu_pcsxrearmed)
-
-#ifdef spu_franxis
-#define SOUND_BUFFER_SIZE (1024 * 3 * 2)
-#else
-#define SOUND_BUFFER_SIZE (1024 * 4 * 4)
-#endif
-static unsigned *sound_buffer = NULL;
-static unsigned int buf_read_pos = 0;
-static unsigned int buf_write_pos = 0;
-static unsigned buffered_bytes = 0;
-static int sound_initted = 0;
-static int sound_running = 0;
-
-SDL_mutex *sound_mutex;
-SDL_cond *sound_cv;
-static unsigned int mutex = 0; // 0 - don't use mutex; 1 - use it
-
-static void sound_mix(void *unused, Uint8 *stream, int len)
-{
-	u8 *data = (u8 *)stream;
-	u8 *buffer = (u8 *)sound_buffer;
-
-	if (!sound_running)
-		return;
-
-	if (mutex)
-		SDL_LockMutex(sound_mutex);
-
-	if (buffered_bytes >= len) {
-		if (buf_read_pos + len <= SOUND_BUFFER_SIZE ) {
-			memcpy(data, buffer + buf_read_pos, len);
-		} else {
-			int tail = SOUND_BUFFER_SIZE - buf_read_pos;
-			memcpy(data, buffer + buf_read_pos, tail);
-			memcpy(data + tail, buffer, len - tail);
-		}
-		buf_read_pos = (buf_read_pos + len) % SOUND_BUFFER_SIZE;
-		buffered_bytes -= len;
-	}
-
-	if (mutex) {
-		SDL_CondSignal(sound_cv);
-		SDL_UnlockMutex(sound_mutex);
-	}
-}
-
-void sound_init(void)
-{
-#ifndef spu_null
-	SDL_AudioSpec fmt;
-
-	if (sound_initted)
-		return;
-	sound_initted = 1;
-
-	fmt.format = AUDIO_S16;
-#ifdef spu_franxis
-	fmt.channels = 1;
-	fmt.freq = 22050;
-	fmt.samples = 1024;
-#else
-	fmt.channels = 2;
-	fmt.freq = 44100;
-	fmt.samples = 1024;
-#endif
-	fmt.callback = sound_mix;
-	if (!sound_buffer)
-		sound_buffer = (unsigned *)calloc(SOUND_BUFFER_SIZE,1);
-
-	SDL_OpenAudio(&fmt, NULL);
-#endif
-	if (mutex) {
-		sound_mutex = SDL_CreateMutex();
-		sound_cv = SDL_CreateCond();
-	}
-
-	sound_running = 0;
-	SDL_PauseAudio(0);
-}
-
-void sound_close(void) {
-#ifndef spu_null
-	sound_running = 0;
-
-	if (mutex) {
-		SDL_LockMutex(sound_mutex);
-		buffered_bytes = SOUND_BUFFER_SIZE;
-		SDL_CondSignal(sound_cv);
-		SDL_UnlockMutex(sound_mutex);
-		SDL_Delay(100);
-
-		SDL_DestroyCond(sound_cv);
-		SDL_DestroyMutex(sound_mutex);
-	}
-
-	if (!sound_initted)
-		return;
-
-	sound_initted = 0;
-	SDL_CloseAudio();
-	if (sound_buffer)
-		free(sound_buffer);
-	sound_buffer = NULL;
-#endif
-}
-
-unsigned long sound_get(void) {
-	#ifndef spu_null
-	return 0; // return 0 to get more bytes
-	#else
-	return 24193; // no more bytes
-	#endif
-}
-
-void sound_set(unsigned char *pSound, long lBytes)
-{
-	u8 *data = (u8 *)pSound;
-	u8 *buffer = (u8 *)sound_buffer;
-
-	sound_running = 1;
-
-	if (mutex)
-		SDL_LockMutex(sound_mutex);
-
-	for (int i = 0; i < lBytes; i += 4) {
-		if (mutex) {
-			while (buffered_bytes == SOUND_BUFFER_SIZE)
-				SDL_CondWait(sound_cv, sound_mutex);
-		} else {
-			if (buffered_bytes == SOUND_BUFFER_SIZE)
-				return; // just drop samples
-		}
-
-		*(int*)((char*)(buffer + buf_write_pos)) = *(int*)((char*)(data + i));
-		//memcpy(buffer + buf_write_pos, data + i, 4);
-		buf_write_pos = (buf_write_pos + 4) % SOUND_BUFFER_SIZE;
-		buffered_bytes += 4;
-	}
-
-	if (mutex) {
-		SDL_CondSignal(sound_cv);
-		SDL_UnlockMutex(sound_mutex);
-	}
-}
-
-#endif //spu_pcsxrearmed
-
 
 void video_flip(void)
 {
@@ -878,15 +728,10 @@ int main (int argc, char **argv)
 
 
 	// SPU
-	#ifndef spu_null
-
-	#ifndef spu_pcsxrearmed
-		if (strcmp(argv[i],"-mutex")==0) { mutex = 1; } // use mutex
-		if (strcmp(argv[i],"-silent")==0) { extern bool nullspu; nullspu=true; } // No sound
-	#endif //!spu_pcsxrearmed
+	#ifndef SPU_NULL
 
 	// ----- BEGIN SPU_PCSXREARMED SECTION -----
-	#ifdef spu_pcsxrearmed
+	#ifdef SPU_PCSXREARMED
 		if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
 		if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
 		if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
@@ -968,10 +813,10 @@ int main (int argc, char **argv)
 		//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
 		//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
-	#endif //spu_pcsxrearmed
+	#endif //SPU_PCSXREARMED
 	// ----- END SPU_PCSXREARMED SECTION -----
 
-	#endif
+	#endif //!SPU_NULL
 	}
 
 	if (param_parse_error) {
@@ -983,11 +828,8 @@ int main (int argc, char **argv)
 	gpulib_set_config(&gpulib_config);
 #endif
 
+	//NOTE: spu_pcsxrearmed will handle audio initialization
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
-
-#if !defined(spu_pcsxrearmed)		//spu_pcsxrearmed handles its own audio backends
-	SDL_Init(SDL_INIT_AUDIO);
-#endif
 
 	atexit(SDL_Quit);
 

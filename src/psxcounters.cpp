@@ -371,13 +371,11 @@ void psxRcntUpdate()
                 return;
             }
 
-#ifdef spu_pcsxrearmed
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
             // frame. However, we target slower platforms like GCW Zero, and
             // lack auto-frameskip, so this would lead to audio dropouts. For
             // now, we update SPU plugin twice per frame in psxevents.cpp
             //SPU_async( cycle, 1 );
-#endif
         }
 
         // Update lace. (with InuYasha fix)

@@ -19,8 +19,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
 
-//senquack - NOTE: Code here adapted from newer PCSX Rearmed/Reloaded code
-// TODO: Add spu_franxis support back in? (Was a bit of a hackish SPU plugin)
+// NOTE: Code here adapted from newer PCSX Rearmed/Reloaded code
 
 #include "psxcommon.h"
 #include "plugins.h"
@@ -227,7 +226,6 @@ static void tok2msf(char *time, char *msf) {
 	}
 }
 
-#ifndef spu_franxis
 #ifndef _WIN32
 static long GetTickCount(void) {
 	static time_t		initial_time = 0;
@@ -243,88 +241,6 @@ static long GetTickCount(void) {
 }
 #endif
 
-//senquack - new spu_pcsxrearmed uses its own version of playthread():
-#ifndef spu_pcsxrearmed
-// ORIGINAL PCSX4ALL version:
-// this thread plays audio data
-#ifdef _WIN32
-static void playthread(void *param)
-#else
-static void *playthread(void *param)
-#endif
-{
-	long			d, t, i, s;
-	unsigned char	tmp;
-
-	t = GetTickCount();
-
-	while (playing) {
-		d = t - (long)GetTickCount();
-		if (d <= 0) {
-			d = 1;
-		}
-		else if (d > CDDA_FRAMETIME) {
-			d = CDDA_FRAMETIME;
-		}
-
-		usleep(d * 1000);
-
-		t = GetTickCount() + CDDA_FRAMETIME;
-
-		if (subChanMixed) {
-			s = 0;
-
-			for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
-				// read one sector
-				d = fread(sndbuffer + CD_FRAMESIZE_RAW * i, 1, CD_FRAMESIZE_RAW, cddaHandle);
-				if (d < CD_FRAMESIZE_RAW) {
-					break;
-				}
-
-				s += d;
-
-				// skip the subchannel data
-				fseek(cddaHandle, SUB_FRAMESIZE, SEEK_CUR);
-			}
-		}
-		else {
-			s = fread(sndbuffer, 1, sizeof(sndbuffer), cddaHandle);
-		}
-
-		if (s == 0) {
-			playing = 0;
-			fclose(cddaHandle);
-			cddaHandle = NULL;
-			initial_offset = 0;
-			break;
-		}
-
-		if (!cdr.Muted && playing) {
-			if (cddaBigEndian) {
-				for (i = 0; i < s / 2; i++) {
-					tmp = sndbuffer[i * 2];
-					sndbuffer[i * 2] = sndbuffer[i * 2 + 1];
-					sndbuffer[i * 2 + 1] = tmp;
-				}
-			}
-
-			SPU_playCDDAchannel((unsigned char *)sndbuffer, s);
-		}
-
-		cdda_file_offset += s;
-	}
-
-#ifdef _WIN32
-	_endthread();
-#else
-	pthread_exit(0);
-	return NULL;
-#endif
-}
-#else
-//SPU_PCSXREARMED VERSION:
-// NOTE: spu_pcsxrearmed handles sleeping differently than above thread, using the
-//       new SPU's version of SPU_playCDDAchannel that gives feedback in return val
 #ifdef _WIN32
 static void playthread(void *param)
 #else
@@ -414,8 +330,6 @@ static void *playthread(void *param)
 	return NULL;
 #endif
 }
-#endif //spu_pcsxrearmed
-#endif //spu_franxis
 
 // stop the CDDA playback
 static void stopCDDA() {
@@ -439,67 +353,12 @@ static void startCDDA(void) {
 
 	playing = TRUE;
 
-#ifndef spu_franxis
 #ifdef _WIN32
 	threadid = (HANDLE)_beginthread(playthread, 0, NULL);
 #else
 	pthread_create(&threadid, NULL, playthread, NULL);
 #endif
-#endif
 }
-
-#ifdef spu_franxis
-void playCDDA(void)
-{
-	long			d, i, s;
-	unsigned char	tmp;
-
-	if (playing) {
-
-		if (subChanMixed) {
-			s = 0;
-
-			for (i = 0; i < sizeof(sndbuffer) / CD_FRAMESIZE_RAW; i++) {
-				// read one sector
-				d = fread(sndbuffer + CD_FRAMESIZE_RAW * i, 1, CD_FRAMESIZE_RAW, cddaHandle);
-				if (d < CD_FRAMESIZE_RAW) {
-					break;
-				}
-
-				s += d;
-
-				// skip the subchannel data
-				fseek(cddaHandle, SUB_FRAMESIZE, SEEK_CUR);
-			}
-		}
-		else {
-			s = fread(sndbuffer, 1, sizeof(sndbuffer), cddaHandle);
-		}
-
-		if (s == 0) {
-			playing = 0;
-			fclose(cddaHandle);
-			cddaHandle = NULL;
-			initial_offset = 0;
-			return;
-		}
-
-		if (!cdr.Muted && playing) {
-			if (cddaBigEndian) {
-				for (i = 0; i < s / 2; i++) {
-					tmp = sndbuffer[i * 2];
-					sndbuffer[i * 2] = sndbuffer[i * 2 + 1];
-					sndbuffer[i * 2 + 1] = tmp;
-				}
-			}
-
-			SPU_playCDDAchannel((unsigned char *)sndbuffer, s);
-		}
-
-		cdda_file_offset += s;
-	}
-}
-#endif
 
 // this function tries to get the .toc file of the given .bin
 // the necessary data is put into the ti (trackinformation)-array

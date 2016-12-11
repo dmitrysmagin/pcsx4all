@@ -759,13 +759,13 @@ int SaveState(const char *file) {
 	// spu
 	if ((spufP = (SPUFreeze_t *)malloc(16)) == NULL)
 		goto error;
-	SPU_freeze(FREEZE_INFO, spufP);
+	SPU_freeze(FREEZE_INFO, spufP, psxRegs.cycle);
 	Size = spufP->Size;
 	free(spufP);
 	if (freeze_rw(f, FREEZE_SAVE, &Size, 4))
 		goto error;
-	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL ||
-	     (!SPU_freeze(FREEZE_SAVE, spufP))             ||
+	if ( (spufP = (SPUFreeze_t *)malloc(Size)) == NULL    ||
+	     (!SPU_freeze(FREEZE_SAVE, spufP, psxRegs.cycle)) ||
 	     freeze_rw(f, FREEZE_SAVE, spufP, Size) )
 		goto error;
 	free(spufP);
@@ -857,7 +857,7 @@ int LoadState(const char *file) {
 	if ( freeze_rw(f, FREEZE_LOAD, &Size, 4)            ||
 	     (spufP = (SPUFreeze_t *)malloc(Size)) == NULL  ||
 	     freeze_rw(f, FREEZE_LOAD, spufP, Size)         ||
-	     (!SPU_freeze(FREEZE_LOAD, spufP)))
+	     (!SPU_freeze(FREEZE_LOAD, spufP, psxRegs.cycle)) )
 		goto error;
 	free(spufP);
 	spufP = NULL;

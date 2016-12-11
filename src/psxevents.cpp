@@ -41,11 +41,6 @@
 // When psxRegs.cycle is >= this figure, it gets reset to 0:
 static const u32 reset_cycle_val_at = 2000000000;
 
-#ifndef spu_pcsxrearmed
-// Older SPU plugins are updated every 23rd HSync, regardless of PAL/NTSC mode
-#define SPU_UPD_INTERVAL 23
-#endif
-
 ///////////////////////////
 // Internal helper funcs //
 ///////////////////////////
@@ -279,7 +274,6 @@ void psxEvqueueDispatchAndRemoveFront(psxRegisters *pr)
 // Should be called if Config.PsxType is changed
 void SPU_resetUpdateInterval(void)
 {
-#ifdef spu_pcsxrearmed
 	// PCSX Rearmed only updates SPU once per frame, but we target slower
 	//  platforms that might not run all games at 60FPS. Until we have good
 	//  auto-frameskip, we update SPU plugin twice per frame to avoid dropouts.
@@ -287,11 +281,6 @@ void SPU_resetUpdateInterval(void)
 	//  Solid or the intro to Chrono Cross, as they use SPU HW IRQ and are
 	//  highly sensitive to timing.
 	evqueue.spuUpdateInterval = PSXCLK / (FrameRate[Config.PsxType] * 2);
-#else
-	// Older SPU plugins are updated much more often than above
-	evqueue.spuUpdateInterval = (SPU_UPD_INTERVAL * PSXCLK) /
-		(FrameRate[Config.PsxType] * HSyncTotal[Config.PsxType]);
-#endif
 
 	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
 }
@@ -300,15 +289,13 @@ void SPU_resetUpdateInterval(void)
 // allowing handling as a generic event
 static void SPU_update(void)
 {
-#ifdef spu_pcsxrearmed
+#ifndef SPU_NULL
 	//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
 	// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
 	psxEvqueueRemove(PSXINT_SPUIRQ);
+#endif
 
 	SPU_async(psxRegs.cycle, 1);
-#else
-	SPU_async();
-#endif
 
 	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
 }
@@ -317,10 +304,7 @@ static void SPU_update(void)
 // allowing handling as a generic event
 static void SPU_handleIRQ(void)
 {
-#ifdef spu_pcsxrearmed
-	// NOTE: Only spu_pcsxrearmed actually implements handling of SPU HW IRQs.
 	SPU_async(psxRegs.cycle, 0);
-#endif
 }
 
 // Returns true if event 'lh_ev' is more imminent than 'rh_ev'.

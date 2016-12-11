@@ -56,12 +56,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			}
 			words = (bcr >> 16) * (bcr & 0xffff);
 
-#ifdef spu_pcsxrearmed
 			SPU_writeDMAMem(ptr, words * 2, psxRegs.cycle);
-#else
-			//senquack - older SPU plugins like spu_franxis don't take cycles param:
-			SPU_writeDMAMem(ptr, words * 2);
-#endif
 
 			HW_DMA4_MADR = SWAPu32(madr + words * 4);
 			SPUDMA_INT(words / 2);
@@ -80,12 +75,7 @@ void psxDma4(u32 madr, u32 bcr, u32 chcr) { // SPU
 			}
 			words = (bcr >> 16) * (bcr & 0xffff);
 
-#ifdef spu_pcsxrearmed
 			SPU_readDMAMem(ptr, words * 2, psxRegs.cycle);
-#else
-			//senquack - older SPU plugins like spu_franxis don't take cycles param:
-			SPU_readDMAMem(ptr, words * 2);
-#endif
 
 #ifdef PSXREC
 			psxCpu->Clear(madr, words);
