@@ -139,6 +139,10 @@ void probe_lastdir()
 	}
 }
 
+#ifdef PSXREC
+extern u32 cycle_multiplier; // in mips/recompiler.cpp
+#endif
+
 void config_load()
 {
 	FILE *f;
@@ -252,6 +256,12 @@ void config_load()
 
 			strcpy(Config.LastDir, arg);
 		}
+#ifdef PSXREC
+		else if (!strcmp(line, "CycleMultiplier")) {
+			sscanf(arg, "%03x", &value);
+			cycle_multiplier = value;
+		}
+#endif
 	}
 
 	fclose(f);
@@ -276,8 +286,10 @@ void config_save()
 		return;
 	}
 
-	fprintf(f, "CONFIG_VERSION %d\nXa %d\n"
-		   "Mdec %d\nPsxAuto %d\n"
+	fprintf(f, "CONFIG_VERSION %d\n"
+		   "Xa %d\n"
+		   "Mdec %d\n"
+		   "PsxAuto %d\n"
 		   "Cdda %d\n"
 		   "HLE %d\n"
 		   "RCntFix %d\n"
@@ -296,6 +308,10 @@ void config_save()
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
+#endif
+
+#ifdef PSXREC
+	fprintf(f, "CycleMultiplier %03x\n", cycle_multiplier);
 #endif
 
 	if (Config.LastDir[0]) {

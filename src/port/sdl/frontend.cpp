@@ -920,7 +920,9 @@ static int settings_defaults()
 #ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
 #endif
-
+#ifdef PSXREC
+	cycle_multiplier = 0x200; // == 2.0
+#endif
 	return 0;
 }
 
