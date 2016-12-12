@@ -1689,7 +1689,8 @@ long CDR_play(unsigned char *time) {
 
 	cddaHandle = ti[i].handle;
 
-	if (SPU_playCDDAchannel != NULL)
+	// Uncomment when SPU_playCDDAchannel is a func ptr again
+	//if (SPU_playCDDAchannel != NULL)
 		startCDDA();
 
 	return 0;
