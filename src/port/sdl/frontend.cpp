@@ -23,6 +23,15 @@
 #include "spu/spu_pcsxrearmed/spu_config.h"		// To set spu-specific configuration
 #endif
 
+// New gpulib from Notaz's PCSX Rearmed handles duties common to GPU plugins
+#ifdef USE_GPULIB
+#include "gpu/gpulib/gpu.h"
+#endif
+
+#ifdef GPU_UNAI
+#include "gpu/gpu_unai/gpu.h"
+#endif
+
 #define timer_delay(a)	wait_ticks(a*1000)
 
 enum  {
@@ -739,6 +748,28 @@ static char *framelimit_show()
 	return buf;
 }
 
+#ifdef GPU_UNAI
+static int dithering_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.dithering == false)
+			gpu_unai_config_ext.dithering = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.dithering == true)
+			gpu_unai_config_ext.dithering = false;
+	}
+
+	return 0;
+}
+
+static char *dithering_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.dithering == true ? "on" : "off");
+	return buf;
+}
+#endif
+
 static int xa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -939,6 +970,9 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] VSyncWA           ", NULL, &VSyncWA_alter, &VSyncWA_show},
 	{(char *)"[GPU] Show FPS          ", NULL, &fps_alter, &fps_show},
 	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
+#ifdef GPU_UNAI
+	{(char *)"[GPU] Dithering         ", NULL, &dithering_alter, &dithering_show},
+#endif
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
 	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef SPU_PCSXREARMED

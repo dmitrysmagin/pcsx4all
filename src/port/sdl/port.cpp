@@ -262,6 +262,24 @@ void config_load()
 			cycle_multiplier = value;
 		}
 #endif
+#ifdef GPU_UNAI
+		else if (!strcmp(line, "pixel_skip")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.pixel_skip = value;
+		} else if (!strcmp(line, "lighting")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.lighting = value;
+		} else if (!strcmp(line, "fast_lighting")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.fast_lighting = value;
+		} else if (!strcmp(line, "blending")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.blending = value;
+		} else if (!strcmp(line, "dithering")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.dithering = value;
+		}
+#endif
 	}
 
 	fclose(f);
@@ -313,6 +331,20 @@ void config_save()
 #ifdef PSXREC
 	fprintf(f, "CycleMultiplier %03x\n", cycle_multiplier);
 #endif
+
+#ifdef GPU_UNAI
+	fprintf(f, "pixel_skip %d\n"
+		   "lighting %d\n"
+		   "fast_lighting %d\n"
+		   "blending %d\n"
+		   "dithering %d\n",
+		   gpu_unai_config_ext.pixel_skip,
+		   gpu_unai_config_ext.lighting,
+		   gpu_unai_config_ext.fast_lighting,
+		   gpu_unai_config_ext.blending,
+		   gpu_unai_config_ext.dithering);
+#endif
+
 
 	if (Config.LastDir[0]) {
 		fprintf(f, "LastDir %s\n", Config.LastDir);
