@@ -496,6 +496,7 @@ void video_flip(void)
 }
 
 /* This is used by gpu_dfxvideo only as it doesn't scale itself */
+#ifdef GPU_DFXVIDEO
 void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 {
 	int y;
@@ -511,6 +512,7 @@ void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 
 	video_flip();
 }
+#endif
 
 void video_clear(void)
 {
