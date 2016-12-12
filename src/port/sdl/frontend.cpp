@@ -1014,7 +1014,7 @@ static int gui_Settings()
 
 static int gui_Quit()
 {
-	pcsx4all_exit();
+	exit(0);
 	return 0;
 }
 

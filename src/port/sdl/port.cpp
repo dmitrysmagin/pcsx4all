@@ -66,22 +66,20 @@ static bool emu_running = false;
 void config_load();
 void config_save();
 
-void pcsx4all_exit(void)
+static void pcsx4all_exit(void)
 {
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
+
+	SDL_Quit();
 
 	if (pcsx4all_initted == true) {
 		ReleasePlugins();
 		psxShutdown();
 	}
 
-	SDL_Quit();
-
 	// Store config to file
 	config_save();
-
-	exit(0);
 }
 
 static char *home = NULL;
@@ -418,7 +416,7 @@ void pad_update(void)
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
 		case SDL_QUIT:
-			pcsx4all_exit();
+			exit(0);
 			break;
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
@@ -960,7 +958,7 @@ int main (int argc, char **argv)
 	//NOTE: spu_pcsxrearmed will handle audio initialization
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 
-	atexit(SDL_Quit);
+	atexit(pcsx4all_exit);
 
 #ifdef SDL_TRIPLEBUF
 	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
@@ -986,18 +984,18 @@ int main (int argc, char **argv)
 		emu_running = false;
 		if (!SelectGame()) {
 			printf("ERROR: missing filename for -iso\n");
-			pcsx4all_exit();
+			exit(1);
 		}
 	}
 
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
-		pcsx4all_exit();
+		exit(1);
 	}
 
 	if (LoadPlugins() == -1) {
 		printf("Failed loading plugins.\n");
-		pcsx4all_exit();
+		exit(1);
 	}
 
 	pcsx4all_initted = true;
@@ -1037,8 +1035,6 @@ int main (int argc, char **argv)
 	if ((cdrfilename[0] != '\0') || (filename[0] != '\0') || (Config.HLE == 0)) {
 		psxCpu->Execute();
 	}
-
-	pcsx4all_exit(); // exit
 
 	return 0;
 }
