@@ -68,7 +68,8 @@ void config_save();
 
 void pcsx4all_exit(void)
 {
-	if(SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
+	if (SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
 
 	if (pcsx4all_initted == true) {
 		ReleasePlugins();
@@ -84,11 +85,11 @@ void pcsx4all_exit(void)
 }
 
 static char *home = NULL;
-static char homedir[PATH_MAX] =	"./.pcsx4all";
+static char homedir[PATH_MAX] =		"./.pcsx4all";
 static char sstatesdir[PATH_MAX] =	"./.pcsx4all/sstates";
 static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
-static char biosdir[PATH_MAX] =	"./.pcsx4all/bios";
-static char patchesdir[PATH_MAX] = "./.pcsx4all/patches";
+static char biosdir[PATH_MAX] =		"./.pcsx4all/bios";
+static char patchesdir[PATH_MAX] =	"./.pcsx4all/patches";
 
 #ifdef __WIN32__
 	#define MKDIR(A) mkdir(A)
@@ -104,7 +105,7 @@ static void setup_paths()
 	char buf[PATH_MAX];
 	home = getcwd(buf, PATH_MAX);
 #endif
-	if(home) {
+	if (home) {
 		sprintf(homedir, "%s/.pcsx4all", home);
 		sprintf(sstatesdir, "%s/sstates", homedir);
 		sprintf(memcardsdir, "%s/memcards", homedir);
@@ -133,8 +134,7 @@ void probe_lastdir()
 		// Fallback to home directory.
 		strncpy(Config.LastDir, home, MAXPATHLEN);
 		Config.LastDir[MAXPATHLEN-1] = '\0';
-	}
-	else {
+	} else {
 		closedir(dir);
 	}
 }
@@ -153,111 +153,100 @@ void config_load()
 
 	f = fopen(config, "r");
 
-	if(f == NULL) {
+	if (f == NULL) {
 		printf("Failed to open config file: \"%s\" for reading.\n", config);
 		free(config);
 		return;
 	}
 
-	while(fgets(line, sizeof(line), f)) {
+	while (fgets(line, sizeof(line), f)) {
 		char *arg = strchr(line, ' ');
 		int value;
 
 		++lineNum;
 
-		if(!arg) {
+		if (!arg) {
 			continue;
 		}
 
 		*arg = '\0';
 		arg++;
 
-		if(lineNum == 1) {
+		if (lineNum == 1) {
 			if (!strcmp(line, "CONFIG_VERSION")) {
 				sscanf(arg, "%d", &value);
 				if (value == CONFIG_VERSION) {
 					continue;
-				}
-				else {
-					printf("Incompatible config version for \"%s\". Required: %d. Found: %d. Ignoring.\n", config, CONFIG_VERSION, value);
+				} else {
+					printf("Incompatible config version for \"%s\"."
+					       "Required: %d. Found: %d. Ignoring.\n",
+					       config, CONFIG_VERSION, value);
 					break;
 				}
 			}
 
-			printf("Incompatible config format for \"%s\". Ignoring.\n", config);
+			printf("Incompatible config format for \"%s\"."
+			       "Ignoring.\n", config);
 			break;
 		}
 
-		if(!strcmp(line, "Xa")) {
+		if (!strcmp(line, "Xa")) {
 			sscanf(arg, "%d", &value);
 			Config.Xa = value;
-		}
-		else if(!strcmp(line, "Mdec")) {
+		} else if (!strcmp(line, "Mdec")) {
 			sscanf(arg, "%d", &value);
 			Config.Mdec = value;
-		}
-		else if(!strcmp(line, "PsxAuto")) {
+		} else if (!strcmp(line, "PsxAuto")) {
 			sscanf(arg, "%d", &value);
 			Config.PsxAuto = value;
-		}
-		else if(!strcmp(line, "Cdda")) {
+		} else if (!strcmp(line, "Cdda")) {
 			sscanf(arg, "%d", &value);
 			Config.Cdda = value;
-		}
-		else if(!strcmp(line, "HLE")) {
+		} else if (!strcmp(line, "HLE")) {
 			sscanf(arg, "%d", &value);
 			Config.HLE = value;
-		}
-		else if(!strcmp(line, "RCntFix")) {
+		} else if (!strcmp(line, "RCntFix")) {
 			sscanf(arg, "%d", &value);
 			Config.RCntFix = value;
-		}
-		else if(!strcmp(line, "VSyncWA")) {
+		} else if (!strcmp(line, "VSyncWA")) {
 			sscanf(arg, "%d", &value);
 			Config.VSyncWA = value;
-		}
-		else if(!strcmp(line, "Cpu")) {
+		} else if (!strcmp(line, "Cpu")) {
 			sscanf(arg, "%d", &value);
 			Config.Cpu = value;
-		}
-		else if(!strcmp(line, "PsxType")) {
+		} else if (!strcmp(line, "PsxType")) {
 			sscanf(arg, "%d", &value);
 			Config.PsxType = value;
-		}
-		else if(!strcmp(line, "SpuIrq")) {
+		} else if (!strcmp(line, "SpuIrq")) {
 			sscanf(arg, "%d", &value);
 			Config.SpuIrq = value;
-		}
-		else if(!strcmp(line, "SyncAudio")) {
+		} else if (!strcmp(line, "SyncAudio")) {
 			sscanf(arg, "%d", &value);
 			Config.SyncAudio = value;
-		}
-		else if(!strcmp(line, "ForcedXAUpdates")) {
+		} else if (!strcmp(line, "ForcedXAUpdates")) {
 			sscanf(arg, "%d", &value);
 			Config.ForcedXAUpdates = value;
-		}
-		else if(!strcmp(line, "ShowFps")) {
+		} else if (!strcmp(line, "ShowFps")) {
 			sscanf(arg, "%d", &value);
 			Config.ShowFps = value;
-		}
-		else if(!strcmp(line, "FrameLimit")) {
+		} else if (!strcmp(line, "FrameLimit")) {
 			sscanf(arg, "%d", &value);
 			Config.FrameLimit = value;
 		}
 #ifdef SPU_PCSXREARMED
-		else if(!strcmp(line, "SpuUseInterpolation")) {
+		else if (!strcmp(line, "SpuUseInterpolation")) {
 			sscanf(arg, "%d", &value);
 			spu_config.iUseInterpolation = value;
 		}
 #endif
-		else if(!strcmp(line, "LastDir")) {
+		else if (!strcmp(line, "LastDir")) {
 			int len = strlen(arg);
 
-			if(len == 0 || len > sizeof(Config.LastDir) - 1) {
+			if (len == 0 || len > sizeof(Config.LastDir) - 1) {
 				continue;
 			}
 
-			if(arg[len-1] == '\n') {
+			if (arg[len-1] == '\n') {
 				arg[len-1] = '\0';
 			}
 
@@ -287,7 +276,23 @@ void config_save()
 		return;
 	}
 
-	fprintf(f, "CONFIG_VERSION %d\nXa %d\nMdec %d\nPsxAuto %d\nCdda %d\nHLE %d\nRCntFix %d\nVSyncWA %d\nCpu %d\nPsxType %d\nSpuIrq %d\nSyncAudio %d\nForcedXAUpdates %d\nShowFps %d\nFrameLimit %d\n", CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit);
+	fprintf(f, "CONFIG_VERSION %d\nXa %d\n"
+		   "Mdec %d\nPsxAuto %d\n"
+		   "Cdda %d\n"
+		   "HLE %d\n"
+		   "RCntFix %d\n"
+		   "VSyncWA %d\n"
+		   "Cpu %d\n"
+		   "PsxType %d\n"
+		   "SpuIrq %d\n"
+		   "SyncAudio %d\n"
+		   "ForcedXAUpdates %d\n"
+		   "ShowFps %d\n"
+		   "FrameLimit %d\n",
+		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto,
+		   Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA,
+		   Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio,
+		   Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit);
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
@@ -306,9 +311,11 @@ int state_load()
 {
 	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
+
 	if (FileExists(savename)) {
 		return LoadState(savename);
 	}
+
 	return -1;
 }
 
@@ -317,6 +324,7 @@ int state_save()
 {
 	char savename[512];
 	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
+
 	return SaveState(savename);
 }
 
@@ -351,8 +359,8 @@ static struct {
 	{ 0, 0 }
 };
 
-static unsigned short pad1=0xffff;
-static unsigned short pad2=0xffff;
+static unsigned short pad1 = 0xffff;
+static unsigned short pad2 = 0xffff;
 
 void pad_update(void)
 {
@@ -445,7 +453,7 @@ void pad_update(void)
 
 unsigned short pad_read(int num)
 {
-	if (num==0) return pad1; else return pad2;
+	return (num == 0 ? pad1 : pad2);
 }
 
 void video_flip(void)
@@ -460,9 +468,13 @@ void video_flip(void)
 #endif
 	}
 
-	if (SDL_MUSTLOCK(screen)) SDL_UnlockSurface(screen);
+	if (SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
+
 	SDL_Flip(screen);
-	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+
+	if (SDL_MUSTLOCK(screen))
+		SDL_LockSurface(screen);
 
 	SCREEN = (Uint16 *)screen->pixels;
 }
@@ -471,15 +483,14 @@ void video_flip(void)
 void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 {
 	int y;
-	unsigned short *ptr=SCREEN;
-	int w=(width>320?320:width);
-	int h=(height>240?240:height);
+	unsigned short *ptr = SCREEN;
+	int w = (width > 320 ? 320 : width);
+	int h = (height > 240 ? 240 : height);
 
-	for (y=0;y<h;y++)
-	{
-		memcpy (ptr,pVideo,w*2);
-		ptr+=320;
-		pVideo+=width;
+	for (y = 0; y < h; y++) {
+		memcpy(ptr, pVideo, w * 2);
+		ptr += 320;
+		pVideo += width;
 	}
 
 	video_flip();
@@ -499,7 +510,7 @@ with mingw build. */
 int main (int argc, char **argv)
 {
 	char filename[256];
-	const char *cdrfilename=GetIsoFile();
+	const char *cdrfilename = GetIsoFile();
 
 	filename[0] = '\0'; /* Executable file name */
 
@@ -543,16 +554,14 @@ int main (int argc, char **argv)
 	Config.LastDir[MAXPATHLEN-1] = '\0';
 
 	// spu_dfxsound
-	#ifdef spu_dfxsound
-	{
+#ifdef spu_dfxsound
 	extern int iDisStereo; iDisStereo=0; // 0=stereo, 1=mono
 	extern int iUseInterpolation; iUseInterpolation=0; // 0=disabled, 1=enabled
 	extern int iUseReverb; iUseReverb=0; // 0=disabled, 1=enabled
-	}
-	#endif
+#endif
 
 	// senquack - added spu_pcsxrearmed plugin:
-	#ifdef spu_pcsxrearmed
+#ifdef spu_pcsxrearmed
 	//ORIGINAL PCSX ReARMed SPU defaults (put here for reference):
 	//	spu_config.iUseReverb = 1;
 	//	spu_config.iUseInterpolation = 1;
@@ -579,7 +588,7 @@ int main (int argc, char **argv)
 	spu_config.iUseThread = 0;            // no effect if only 1 core is detected
 	spu_config.iUseFixedUpdates = 1;      // This is always set to 1 in libretro's pcsxReARMed
 	spu_config.iTempo = 1;                // see note below
-	#endif
+#endif
 
 	//senquack - NOTE REGARDING iTempo config var above
 	// From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
@@ -593,7 +602,7 @@ int main (int argc, char **argv)
 	//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
 	// gpu_dfxvideo
-	#ifdef GPU_DFXVIDEO
+#ifdef GPU_DFXVIDEO
 	extern int UseFrameLimit; UseFrameLimit=0; // limit fps 1=on, 0=off
 	extern int UseFrameSkip; UseFrameSkip=0; // frame skip 1=on, 0=off
 	extern int iFrameLimit; iFrameLimit=0; // fps limit 2=auto 1=fFrameRate, 0=off
@@ -614,22 +623,22 @@ int main (int argc, char **argv)
 	 256=repeated flat tex triangles (Dark Forces)
 	 512=draw quads with triangles (better g-colors, worse textures)
 	*/
-	#endif //GPU_DFXVIDEO
+#endif //GPU_DFXVIDEO
 
 	// gpu_drhell
-	#ifdef GPU_DRHELL
+#ifdef GPU_DRHELL
 	extern unsigned int autoFrameSkip; autoFrameSkip=1; /* auto frameskip */
 	extern signed int framesToSkip; framesToSkip=0; /* frames to skip */
-	#endif //GPU_DRHELL
+#endif //GPU_DRHELL
 
 	// gpu_unai
-	#ifdef GPU_UNAI
-		gpu_unai_config_ext.pixel_skip = 1;
-		gpu_unai_config_ext.lighting = 1;
-		gpu_unai_config_ext.fast_lighting = 1;
-		gpu_unai_config_ext.blending = 1;
-		gpu_unai_config_ext.dithering = 0;
-	#endif
+#ifdef GPU_UNAI
+	gpu_unai_config_ext.pixel_skip = 1;
+	gpu_unai_config_ext.lighting = 1;
+	gpu_unai_config_ext.fast_lighting = 1;
+	gpu_unai_config_ext.blending = 1;
+	gpu_unai_config_ext.dithering = 0;
+#endif
 
 	// Load config from file.
 	config_load();
@@ -638,92 +647,152 @@ int main (int argc, char **argv)
 	probe_lastdir();
 
 	// command line options
-	bool param_parse_error=0;
-	for (int i=1;i<argc;i++)
-	{
+	bool param_parse_error = 0;
+	for (int i = 1; i < argc; i++) {
 		// PCSX
-		if (strcmp(argv[i],"-noxa")==0) Config.Xa=1; // XA audio disabled
-		if (strcmp(argv[i],"-bwmdec")==0) Config.Mdec=1; // Black & White MDEC
-		if (strcmp(argv[i],"-pal")==0) { Config.PsxAuto=0; Config.PsxType=1; } // Force PAL system
-		if (strcmp(argv[i],"-ntsc")==0) { Config.PsxAuto=0; Config.PsxType=0; } // Force NTSC system
-		if (strcmp(argv[i],"-nocdda")==0) Config.Cdda=1; // CD audio disabled
-		if (strcmp(argv[i],"-bios")==0) Config.HLE=0; // BIOS enabled
-		if (strcmp(argv[i],"-interpreter")==0) Config.Cpu=1; // Interpreter enabled
-		if (strcmp(argv[i],"-rcntfix")==0) Config.RCntFix=1; // Parasite Eve 2, Vandal Hearts 1/2 Fix
-		if (strcmp(argv[i],"-vsyncwa")==0) Config.VSyncWA=1; // InuYasha Sengoku Battle Fix
-		if (strcmp(argv[i],"-spuirq")==0) Config.SpuIrq=1; // SPU IRQ always enabled (fixes audio in some games)
-		if (strcmp(argv[i],"-iso")==0) SetIsoFile(argv[i+1]); // Set ISO file
-		if (strcmp(argv[i],"-file")==0) strcpy(filename,argv[i+1]); // Set executable file
+		// XA audio disabled
+		if (strcmp(argv[i],"-noxa") == 0)
+			Config.Xa = 1;
+
+		// Black & White MDEC
+		if (strcmp(argv[i],"-bwmdec") == 0)
+			Config.Mdec = 1;
+
+		// Force PAL system
+		if (strcmp(argv[i],"-pal") == 0) {
+			Config.PsxAuto = 0;
+			Config.PsxType = 1;
+		}
+
+		// Force NTSC system
+		if (strcmp(argv[i],"-ntsc") == 0) {
+			Config.PsxAuto = 0;
+			Config.PsxType = 0;
+		}
+
+		// CD audio disabled
+		if (strcmp(argv[i],"-nocdda") == 0)
+			Config.Cdda = 1;
+
+		// BIOS enabled
+		if (strcmp(argv[i],"-bios") == 0)
+			Config.HLE = 0;
+
+		// Interpreter enabled
+		if (strcmp(argv[i],"-interpreter") == 0)
+			Config.Cpu = 1;
+
+		// Parasite Eve 2, Vandal Hearts 1/2 Fix
+		if (strcmp(argv[i],"-rcntfix") == 0)
+			Config.RCntFix = 1;
+
+		// InuYasha Sengoku Battle Fix
+		if (strcmp(argv[i],"-vsyncwa") == 0)
+			Config.VSyncWA = 1;
+
+		// SPU IRQ always enabled (fixes audio in some games)
+		if (strcmp(argv[i],"-spuirq") == 0)
+			Config.SpuIrq = 1;
+
+		// Set ISO file
+		if (strcmp(argv[i],"-iso") == 0)
+			SetIsoFile(argv[i + 1]);
+
+		// Set executable file
+		if (strcmp(argv[i],"-file") == 0)
+			strcpy(filename, argv[i + 1]);
 
 		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
 		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
 		//           TODO: adapt all spu plugins to use this?
-		if (strcmp(argv[i],"-nosyncaudio")==0) Config.SyncAudio=0;
+		if (strcmp(argv[i],"-nosyncaudio") == 0)
+			Config.SyncAudio = 0;
 
 		//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
 		//           than they'd normally be issued when SPU's XA buffer is not
 		//           full. This fixes droupouts in music/speech on slow devices.
-		if (strcmp(argv[i],"-noforcedxaupdates")==0) {
+		if (strcmp(argv[i],"-noforcedxaupdates") == 0) {
 			printf("Forced XA audio updates are disabled.\n");
-			Config.ForcedXAUpdates=0;
+			Config.ForcedXAUpdates = 0;
 		}
 
 		// Performance monitoring options
-		if (strcmp(argv[i],"-perfmon")==0) {
+		if (strcmp(argv[i],"-perfmon") == 0) {
 			// Enable detailed stats and console output
 			Config.PerfmonConsoleOutput = true;
 			Config.PerfmonDetailedStats = true;
 		}
 
 		// GPU
-		if (strcmp(argv[i],"-showfps")==0) { Config.ShowFps=true; } // show FPS
-		if (strcmp(argv[i],"-framelimit")==0) { Config.FrameLimit=true; } // frame limit
-	#ifdef GPU_UNAI
+		// show FPS
+		if (strcmp(argv[i],"-showfps") == 0) {
+			Config.ShowFps = true;
+		}
+
+		// frame limit
+		if (strcmp(argv[i],"-framelimit") == 0) {
+			Config.FrameLimit = true;
+		}
+#ifdef GPU_UNAI
 		// Render only every other line (looks ugly but faster)
-		if (strcmp(argv[i],"-interlace")==0) { gpu_unai_config_ext.ilace_force = 1; }
+		if (strcmp(argv[i],"-interlace") == 0) {
+			gpu_unai_config_ext.ilace_force = 1;
+		}
 
 		// Allow 24bpp->15bpp dithering (only polys, only if PS1 game uses it)
-		if (strcmp(argv[i],"-dither")==0) { gpu_unai_config_ext.dithering = 1; }
+		if (strcmp(argv[i],"-dither") == 0) {
+			gpu_unai_config_ext.dithering = 1;
+		}
 
-		if (strcmp(argv[i],"-nolight")==0) { gpu_unai_config_ext.lighting = 0; }
-		if (strcmp(argv[i],"-noblend")==0) { gpu_unai_config_ext.blending = 0; }
+		if (strcmp(argv[i],"-nolight") == 0) {
+			gpu_unai_config_ext.lighting = 0;
+		}
+
+		if (strcmp(argv[i],"-noblend") == 0) {
+			gpu_unai_config_ext.blending = 0;
+		}
 
 		// Apply lighting to all primitives. Default is to only light primitives
 		//  with light values below a certain threshold (for speed).
-		if (strcmp(argv[i],"-nofastlight")==0) { gpu_unai_config_ext.fast_lighting = 0; }
+		if (strcmp(argv[i],"-nofastlight") == 0) {
+			gpu_unai_config_ext.fast_lighting = 0;
+		}
 
 		// Render all pixels on a horizontal line, even when in hi-res 512,640
 		//  PSX vid modes and those pixels would never appear on 320x240 screen.
 		//  (when using pixel-dropping downscaler).
 		//  Can cause visual artifacts, default is on for now (for speed)
-		if (strcmp(argv[i],"-nopixelskip")==0) { gpu_unai_config_ext.pixel_skip = 0; }
+		if (strcmp(argv[i],"-nopixelskip") == 0) {
+			gpu_unai_config_ext.pixel_skip = 0;
+		}
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
-		#ifndef USE_GPULIB
-			if (strcmp(argv[i],"-skip")==0) {
-				int val = -1;
-				if (++i < argc) {
-					val = atoi(argv[i]);
-					if (val >= 0 && val <= 7) {
-						gpu_unai_config_ext.frameskip_count = val;
-					} else val = -1;
-				} else {
-					printf("ERROR: missing value for -skip\n");
-				}
-
-				if (val == -1) {
-					printf("ERROR: -skip value must be between 0..8\n");
-					param_parse_error = true;
-					break;
-				}
+	#ifndef USE_GPULIB
+		if (strcmp(argv[i],"-skip") == 0) {
+			int val = -1;
+			if (++i < argc) {
+				val = atoi(argv[i]);
+				if (val >= 0 && val <= 7) {
+					gpu_unai_config_ext.frameskip_count = val;
+				} else val = -1;
+			} else {
+				printf("ERROR: missing value for -skip\n");
 			}
 
-			// Progressive interlace option - See gpu_unai/gpu.h
-			// Old option left in from when PCSX4ALL ran on very slow devices.
-			if (strcmp(argv[i],"-progressive")==0) { gpu_unai_config_ext.prog_ilace = 1; }
+			if (val == -1) {
+				printf("ERROR: -skip value must be between 0..8\n");
+				param_parse_error = true;
+				break;
+			}
+		}
 
-		#endif //!USE_GPULIB
-	#endif //GPU_UNAI
+		// Progressive interlace option - See gpu_unai/gpu.h
+		// Old option left in from when PCSX4ALL ran on very slow devices.
+		if (strcmp(argv[i],"-progressive") == 0) {
+			gpu_unai_config_ext.prog_ilace = 1;
+		}
+	#endif //!USE_GPULIB
+#endif //GPU_UNAI
 
 
 	// SPU
@@ -731,32 +800,45 @@ int main (int argc, char **argv)
 
 	// ----- BEGIN SPU_PCSXREARMED SECTION -----
 	#ifdef SPU_PCSXREARMED
-		if (strcmp(argv[i],"-silent")==0) { spu_config.iDisabled=1; }   // No sound
-		if (strcmp(argv[i],"-reverb")==0) { spu_config.iUseReverb=1; }  // Reverb
-		if (strcmp(argv[i],"-xapitch")==0) { spu_config.iXAPitch=1; }   // XA Pitch change support
+		// No sound
+		if (strcmp(argv[i],"-silent") == 0) {
+			spu_config.iDisabled = 1;
+		}
+		// Reverb
+		if (strcmp(argv[i],"-reverb") == 0) {
+			spu_config.iUseReverb = 1;
+		}
+		// XA Pitch change support
+		if (strcmp(argv[i],"-xapitch") == 0) {
+			spu_config.iXAPitch = 1;
+		}
 
 		// Enable SPU thread
 		// NOTE: By default, PCSX ReARMed would not launch
 		//  a thread if only one core was detected, but I have
 		//  changed it to allow it under any case.
 		// TODO: test if any benefit is ever achieved
-		if (strcmp(argv[i],"-threaded_spu")==0) { spu_config.iUseThread=1; }
+		if (strcmp(argv[i],"-threaded_spu") == 0) {
+			spu_config.iUseThread = 1;
+		}
 
 		// Don't output fixed number of samples per frame
 		// (unknown if this helps or hurts performance
 		//  or compatibility.) The default in all builds
 		//  of PCSX_ReARMed is "true", so that is also the
 		//  default here.
-		if (strcmp(argv[i],"-nofixedupdates")==0) { spu_config.iUseFixedUpdates=0; }
+		if (strcmp(argv[i],"-nofixedupdates") == 0) {
+			spu_config.iUseFixedUpdates = 0;
+		}
 
 		// Set interpolation none/simple/gaussian/cubic, default is none
-		if (strcmp(argv[i],"-interpolation")==0) {
+		if (strcmp(argv[i],"-interpolation") == 0) {
 			int val = -1;
 			if (++i < argc) {
-				if (strcmp(argv[i],"none")==0) val=0;
-				if (strcmp(argv[i],"simple")==0) val=1;
-				if (strcmp(argv[i],"gaussian")==0) val=2;
-				if (strcmp(argv[i],"cubic")==0) val=3;
+				if (strcmp(argv[i],"none") == 0) val=0;
+				if (strcmp(argv[i],"simple") == 0) val=1;
+				if (strcmp(argv[i],"gaussian") == 0) val=2;
+				if (strcmp(argv[i],"cubic") == 0) val=3;
 			} else
 				printf("ERROR: missing value for -interpolation\n");
 
@@ -771,7 +853,7 @@ int main (int argc, char **argv)
 
 		// Set volume level of SPU, 0-1024, default is 768.
 		//  If value is 0, sound will be disabled.
-		if (strcmp(argv[i],"-volume")==0) {
+		if (strcmp(argv[i],"-volume") == 0) {
 			int val = -1;
 			if (++i < argc)
 				val = atoi(argv[i]);
@@ -795,7 +877,9 @@ int main (int argc, char **argv)
 		//  PCSX_ReARMed, but Wiz/Caanoo builds used the faster
 		//  inaccurate setting, "true", so I've made our default
 		//  "true" as well, since we target low-end devices.
-		if (strcmp(argv[i],"-notempo")==0) { spu_config.iTempo=0; }
+		if (strcmp(argv[i],"-notempo") == 0) {
+			spu_config.iTempo = 0;
+		}
 
 		//NOTE REGARDING ABOVE SETTING "spu_config.iTempo":
 		// From thread https://pyra-handheld.com/boards/threads/pcsx-rearmed-r22-now-using-the-dsp.75388/
@@ -840,7 +924,9 @@ int main (int argc, char **argv)
 		exit(0);
 	}
 
-	if (SDL_MUSTLOCK(screen)) SDL_LockSurface(screen);
+	if (SDL_MUSTLOCK(screen))
+		SDL_LockSurface(screen);
+
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
 
 	SCREEN = (Uint16 *)screen->pixels;
@@ -994,10 +1080,9 @@ void port_printf(int x, int y, const char *text)
 		0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00,0x70,0x18,0x30,0x1C,0x30,0x18,0x70,0x00,
 		0x00,0x00,0x76,0xDC,0x00,0x00,0x00,0x00,0x10,0x28,0x10,0x54,0xAA,0x44,0x00,0x00,
 	};
-	unsigned short *screen=(SCREEN+x+y*320);
-	for (int i=0;i<strlen(text);i++) {
-
-		for (int l=0;l<8;l++) {
+	unsigned short *screen = (SCREEN + x + y * 320);
+	for (int i = 0; i < strlen(text); i++) {
+		for (int l = 0; l < 8; l++) {
 			screen[l*320+0]=(fontdata8x8[((text[i])*8)+l]&0x80)?0xffff:0x0000;
 			screen[l*320+1]=(fontdata8x8[((text[i])*8)+l]&0x40)?0xffff:0x0000;
 			screen[l*320+2]=(fontdata8x8[((text[i])*8)+l]&0x20)?0xffff:0x0000;
@@ -1007,7 +1092,7 @@ void port_printf(int x, int y, const char *text)
 			screen[l*320+6]=(fontdata8x8[((text[i])*8)+l]&0x02)?0xffff:0x0000;
 			screen[l*320+7]=(fontdata8x8[((text[i])*8)+l]&0x01)?0xffff:0x0000;
 		}
-		screen+=8;
+		screen += 8;
 	}
 }
 
