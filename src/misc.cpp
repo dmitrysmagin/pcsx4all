@@ -31,7 +31,6 @@
 #include "gpu.h"
 #include "ppf.h"
 #include "psxevents.h"
-#include "port.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
