@@ -722,8 +722,6 @@ int SaveState(const char *file) {
 		return -1;
 	}
 
-	port_mute();
-	
 	if ( freeze_rw(f, FREEZE_SAVE, (void*)PcsxHeader, 32)              ||
 	     freeze_rw(f, FREEZE_SAVE, (void*)&SaveVersion, sizeof(u32))   ||
 	     freeze_rw(f, FREEZE_SAVE, (void*)&Config.HLE, sizeof(boolean)) )

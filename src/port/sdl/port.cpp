@@ -1095,7 +1095,3 @@ void port_printf(int x, int y, const char *text)
 		screen += 8;
 	}
 }
-
-void port_mute(void)
-{
-}
