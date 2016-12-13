@@ -468,7 +468,7 @@ static MENUITEM gui_MainMenuItems[] = {
 };
 
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_MainMenuItems };
+static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 140, (MENUITEM *)&gui_MainMenuItems };
 
 static int gui_state_load()
 {
@@ -1257,13 +1257,8 @@ static void ShowMenu(MENU *menu)
 	port_printf(menu->x - 3 * 8, menu->y + menu->cur * 10, "-->");
 
 	// general copyrights info
-	port_printf( 4 * 8,  0, "pcsx4all 2.3 by Franxis and Chui");
-	port_printf( 0 * 8, 10, "based on pcsx-r 1.9 and psx4all-dingoo");
-	port_printf( 4 * 8, 20, "with some code from pcsx_rearmed");
-
-	char string[64];
-	sprintf(string, "Built on %s at %s", __DATE__, __TIME__);
-	port_printf( 4 * 8, 29 * 8, string);
+	port_printf( 8 * 8, 30, "pcsx4all 2.4 for GCW-Zero");
+	port_printf( 4 * 8, 40, "Built on " __DATE__ " at " __TIME__);
 }
 
 static int gui_RunMenu(MENU *menu)
