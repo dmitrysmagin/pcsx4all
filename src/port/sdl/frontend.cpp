@@ -439,16 +439,19 @@ static int gui_Credits()
 
 		port_printf(10 * 8, 90, "notaz - PCSX-ReArmed");
 
-		port_printf( 0 * 8, 120, "Dmitry Smagin - porting and optimizing");
-		port_printf( 0 * 8, 130, "                of mips recompiler,");
-		port_printf( 0 * 8, 140, "                gui coding");
+		port_printf( 0 * 8, 110, "Dmitry Smagin - porting and optimizing");
+		port_printf( 0 * 8, 120, "                of mips recompiler,");
+		port_printf( 0 * 8, 130, "                gui coding");
 
-		port_printf( 0 * 8,160, "senquack - fixing polygons in gpu_unai,");
-		port_printf( 0 * 8,170, "           porting spu and other stuff");
-		port_printf( 0 * 8,180, "           from pcsx_rearmed and pcsx-r,");
-		port_printf( 0 * 8,190, "           many fixes and improvements");
+		port_printf( 0 * 8, 150, "senquack - fixing polygons in gpu_unai,");
+		port_printf( 0 * 8, 160, "           porting spu and other stuff");
+		port_printf( 0 * 8, 170, "           from pcsx_rearmed and pcsx-r,");
+		port_printf( 0 * 8, 180, "           many fixes and improvements");
 
-		port_printf( 0 * 8, 210, "zear     - gui fixing and testing");
+		port_printf( 0 * 8, 195, "JohnnyonFlame   - gpu_unai dithering");
+		port_printf( 0 * 8, 205, "                  and other fixes");
+
+		port_printf( 0 * 8, 220, "zear         - gui fixing and testing");
 
 		video_flip();
 		timer_delay(75);
