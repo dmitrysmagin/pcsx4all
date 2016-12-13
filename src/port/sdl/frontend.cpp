@@ -391,6 +391,7 @@ typedef struct {
 static int gui_RunMenu(MENU *menu);
 static int gui_LoadIso();
 static int gui_Settings();
+static int gui_GPUSettings();
 static int gui_Quit();
 
 static int state_alter(u32 keys)
@@ -458,7 +459,8 @@ static int gui_Credits()
 
 static MENUITEM gui_MainMenuItems[] = {
 	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
-	{(char *)"Settings", &gui_Settings, NULL, NULL},
+	{(char *)"Core settings", &gui_Settings, NULL, NULL},
+	{(char *)"GPU settings", &gui_GPUSettings, NULL, NULL},
 	{(char *)"Credits", &gui_Credits, NULL, NULL},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
@@ -713,63 +715,6 @@ static char *bios_show()
 	return buf;
 }
 
-static int fps_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.ShowFps == false) Config.ShowFps = true;
-	} else if (keys & KEY_LEFT) {
-		if (Config.ShowFps == true) Config.ShowFps = false;
-	}
-	return 0;
-}
-
-static char *fps_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.ShowFps == true ? "on" : "off");
-	return buf;
-}
-
-static int framelimit_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.FrameLimit == false) Config.FrameLimit = true;
-	} else if (keys & KEY_LEFT) {
-		if (Config.FrameLimit == true) Config.FrameLimit = false;
-	}
-
-	return 0;
-}
-
-static char *framelimit_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.FrameLimit == true ? "on" : "off");
-	return buf;
-}
-
-#ifdef GPU_UNAI
-static int dithering_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (gpu_unai_config_ext.dithering == false)
-			gpu_unai_config_ext.dithering = true;
-	} else if (keys & KEY_LEFT) {
-		if (gpu_unai_config_ext.dithering == true)
-			gpu_unai_config_ext.dithering = false;
-	}
-
-	return 0;
-}
-
-static char *dithering_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", gpu_unai_config_ext.dithering == true ? "on" : "off");
-	return buf;
-}
-#endif
-
 static int xa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -946,8 +891,6 @@ static int settings_defaults()
 	Config.SpuIrq = 0;
 	Config.SyncAudio = 1;
 	Config.ForcedXAUpdates = 1;
-	Config.ShowFps = 0;
-	Config.FrameLimit = 0;
 #ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
 #endif
@@ -968,11 +911,6 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"[PSX] RCntFix           ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"[PSX] VSyncWA           ", NULL, &VSyncWA_alter, &VSyncWA_show},
-	{(char *)"[GPU] Show FPS          ", NULL, &fps_alter, &fps_show},
-	{(char *)"[GPU] Frame Limit       ", NULL, &framelimit_alter, &framelimit_show},
-#ifdef GPU_UNAI
-	{(char *)"[GPU] Dithering         ", NULL, &dithering_alter, &dithering_show},
-#endif
 	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
 	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef SPU_PCSXREARMED
@@ -980,12 +918,241 @@ static MENUITEM gui_SettingsItems[] = {
 #endif
 	{(char *)"Restore default values  ", &settings_defaults, NULL, NULL},
 	{NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu", &settings_back, NULL, NULL},
+	{(char *)"Back to main menu       ", &settings_back, NULL, NULL},
 	{0}
 };
 
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 60, (MENUITEM *)&gui_SettingsItems };
+
+#ifndef USE_GPULIB
+static int fps_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.ShowFps == false) Config.ShowFps = true;
+	} else if (keys & KEY_LEFT) {
+		if (Config.ShowFps == true) Config.ShowFps = false;
+	}
+	return 0;
+}
+
+static char *fps_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.ShowFps == true ? "on" : "off");
+	return buf;
+}
+#endif
+
+static int framelimit_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.FrameLimit == false) Config.FrameLimit = true;
+	} else if (keys & KEY_LEFT) {
+		if (Config.FrameLimit == true) Config.FrameLimit = false;
+	}
+
+	return 0;
+}
+
+static char *framelimit_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.FrameLimit == true ? "on" : "off");
+	return buf;
+}
+
+#ifdef GPU_UNAI
+#ifndef USE_GPULIB
+static int frameskip_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.frameskip_count < 7)
+			gpu_unai_config_ext.frameskip_count += 1;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.frameskip_count > 0)
+			gpu_unai_config_ext.frameskip_count -= 1;
+	}
+
+	return 0;
+}
+
+static char *frameskip_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%d", gpu_unai_config_ext.frameskip_count);
+	return buf;
+}
+#endif
+
+static int interlace_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.ilace_force == false)
+			gpu_unai_config_ext.ilace_force = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.ilace_force == true)
+			gpu_unai_config_ext.ilace_force = false;
+	}
+
+	return 0;
+}
+
+static char *interlace_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.ilace_force == true ? "on" : "off");
+	return buf;
+}
+
+static int dithering_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.dithering == false)
+			gpu_unai_config_ext.dithering = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.dithering == true)
+			gpu_unai_config_ext.dithering = false;
+	}
+
+	return 0;
+}
+
+static char *dithering_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.dithering == true ? "on" : "off");
+	return buf;
+}
+
+static int lighting_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.lighting == false)
+			gpu_unai_config_ext.lighting = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.lighting == true)
+			gpu_unai_config_ext.lighting = false;
+	}
+
+	return 0;
+}
+
+static char *lighting_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.lighting == true ? "on" : "off");
+	return buf;
+}
+
+static int fast_lighting_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.fast_lighting == false)
+			gpu_unai_config_ext.fast_lighting = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.fast_lighting == true)
+			gpu_unai_config_ext.fast_lighting = false;
+	}
+
+	return 0;
+}
+
+static char *fast_lighting_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.fast_lighting == true ? "on" : "off");
+	return buf;
+}
+
+static int blending_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.blending == false)
+			gpu_unai_config_ext.blending = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.blending == true)
+			gpu_unai_config_ext.blending = false;
+	}
+
+	return 0;
+}
+
+static char *blending_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.blending == true ? "on" : "off");
+	return buf;
+}
+
+static int pixel_skip_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.pixel_skip == false)
+			gpu_unai_config_ext.pixel_skip = true;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.pixel_skip == true)
+			gpu_unai_config_ext.pixel_skip = false;
+	}
+
+	return 0;
+}
+
+static char *pixel_skip_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.pixel_skip == true ? "on" : "off");
+	return buf;
+}
+#endif
+
+static int gpu_settings_defaults()
+{
+	Config.ShowFps = 0;
+	Config.FrameLimit = 0;
+
+#ifdef GPU_UNAI
+#ifndef USE_GPULIB
+	gpu_unai_config_ext.frameskip_count = 0;
+#endif
+	gpu_unai_config_ext.ilace_force = 0;
+	gpu_unai_config_ext.pixel_skip = 1;
+	gpu_unai_config_ext.lighting = 1;
+	gpu_unai_config_ext.fast_lighting = 1;
+	gpu_unai_config_ext.blending = 1;
+	gpu_unai_config_ext.dithering = 0;
+#endif
+
+	return 0;
+}
+
+
+static MENUITEM gui_GPUSettingsItems[] = {
+#ifndef USE_GPULIB
+	/* Not working with gpulib yet */
+	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
+#endif
+	{(char *)"Frame Limit          ", NULL, &framelimit_alter, &framelimit_show},
+#ifdef GPU_UNAI
+#ifndef USE_GPULIB
+	/* Not working with gpulib yet */
+	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show},
+#endif
+	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show},
+	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show},
+	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show},
+	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show},
+	{(char *)"Blending             ", NULL, &blending_alter, &blending_show},
+	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show},
+#endif
+	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL},
+	{NULL, NULL, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
+	{0}
+};
+
+#define SET_GPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
+static MENU gui_GPUSettingsMenu = { SET_GPUSIZE, 0, 56, 60, (MENUITEM *)&gui_GPUSettingsItems };
 
 static int gui_LoadIso()
 {
@@ -1008,6 +1175,13 @@ static int gui_LoadIso()
 static int gui_Settings()
 {
 	gui_RunMenu(&gui_SettingsMenu);
+
+	return 0;
+}
+
+static int gui_GPUSettings()
+{
+	gui_RunMenu(&gui_GPUSettingsMenu);
 
 	return 0;
 }

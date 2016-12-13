@@ -276,6 +276,9 @@ void config_load()
 		} else if (!strcmp(line, "dithering")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.dithering = value;
+		} else if (!strcmp(line, "interlace")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.ilace_force = value;
 		}
 #endif
 	}
@@ -331,11 +334,13 @@ void config_save()
 #endif
 
 #ifdef GPU_UNAI
-	fprintf(f, "pixel_skip %d\n"
+	fprintf(f, "interlace %d\n"
+		   "pixel_skip %d\n"
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
 		   "dithering %d\n",
+		   gpu_unai_config_ext.ilace_force,
 		   gpu_unai_config_ext.pixel_skip,
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
@@ -681,6 +686,7 @@ int main (int argc, char **argv)
 
 	// gpu_unai
 #ifdef GPU_UNAI
+	gpu_unai_config_ext.ilace_force = 0;
 	gpu_unai_config_ext.pixel_skip = 1;
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
