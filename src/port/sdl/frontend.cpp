@@ -392,6 +392,7 @@ static int gui_RunMenu(MENU *menu);
 static int gui_LoadIso();
 static int gui_Settings();
 static int gui_GPUSettings();
+static int gui_SPUSettings();
 static int gui_Quit();
 
 static int state_alter(u32 keys)
@@ -461,6 +462,7 @@ static MENUITEM gui_MainMenuItems[] = {
 	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
 	{(char *)"Core settings", &gui_Settings, NULL, NULL},
 	{(char *)"GPU settings", &gui_GPUSettings, NULL, NULL},
+	{(char *)"SPU settings", &gui_SPUSettings, NULL, NULL},
 	{(char *)"Credits", &gui_Credits, NULL, NULL},
 	{(char *)"Quit", &gui_Quit, NULL, NULL},
 	{0}
@@ -700,9 +702,9 @@ static char *cycle_show()
 static int bios_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (Config.HLE == 1) Config.HLE = 0;
-	} else if (keys & KEY_LEFT) {
 		if (Config.HLE == 0) Config.HLE = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.HLE == 1) Config.HLE = 0;
 	}
 
 	return 0;
@@ -711,61 +713,7 @@ static int bios_alter(u32 keys)
 static char *bios_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.HLE ? "HLE" : "scph1001.bin");
-	return buf;
-}
-
-static int xa_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.Xa == 1) Config.Xa = 0;
-	} else if (keys & KEY_LEFT) {
-		if (Config.Xa == 0) Config.Xa = 1;
-	}
-
-	return 0;
-}
-
-static char *xa_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.Xa ? "off" : "on");
-	return buf;
-}
-
-static int cdda_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.Cdda == 1) Config.Cdda = 0;
-	} else if (keys & KEY_LEFT) {
-		if (Config.Cdda == 0) Config.Cdda = 1;
-	}
-
-	return 0;
-}
-
-static char *cdda_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.Cdda ? "off" : "on");
-	return buf;
-}
-
-static int forcedxa_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.ForcedXAUpdates == 0) Config.ForcedXAUpdates = 1;
-	} else if (keys & KEY_LEFT) {
-		if (Config.ForcedXAUpdates == 1) Config.ForcedXAUpdates = 0;
-	}
-
-	return 0;
-}
-
-static char *forcedxa_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.ForcedXAUpdates ? "on" : "off");
+	sprintf(buf, "%s", Config.HLE ? "on" : "off");
 	return buf;
 }
 
@@ -805,68 +753,6 @@ static char *VSyncWA_show()
 	return buf;
 }
 
-static int syncaudio_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.SyncAudio < 1) Config.SyncAudio = 1;
-	} else if (keys & KEY_LEFT) {
-		if (Config.SyncAudio > 0) Config.SyncAudio = 0;
-	}
-
-	return 0;
-}
-
-static char *syncaudio_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.SyncAudio ? "on" : "off");
-	return buf;
-}
-
-static int spuirq_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (Config.SpuIrq < 1) Config.SpuIrq = 1;
-	} else if (keys & KEY_LEFT) {
-		if (Config.SpuIrq > 0) Config.SpuIrq = 0;
-	}
-
-	return 0;
-}
-
-static char *spuirq_show()
-{
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.SpuIrq ? "on" : "off");
-	return buf;
-}
-
-#ifdef SPU_PCSXREARMED
-static int interpolation_alter(u32 keys)
-{
-	if (keys & KEY_RIGHT) {
-		if (spu_config.iUseInterpolation < 3) spu_config.iUseInterpolation++;
-	} else if (keys & KEY_LEFT) {
-		if (spu_config.iUseInterpolation > 0) spu_config.iUseInterpolation--;
-	}
-
-	return 0;
-}
-
-static char *interpolation_show()
-{
-	static char buf[16] = "\0";
-	switch (spu_config.iUseInterpolation) {
-	case 0: strcpy(buf, "none"); break;
-	case 1: strcpy(buf, "simple"); break;
-	case 2: strcpy(buf, "gaussian"); break;
-	case 3: strcpy(buf, "cubic"); break;
-	default: buf[0] = '\0'; break;
-	}
-	return buf;
-}
-#endif //SPU_PCSXREARMED
-
 static int settings_back()
 {
 	return 1;
@@ -875,10 +761,8 @@ static int settings_back()
 static int settings_defaults()
 {
 	/* Restores settings to default values. */
-	Config.Xa = 0;
 	Config.Mdec = 0;
 	Config.PsxAuto = 1;
-	Config.Cdda = 0;
 	Config.HLE = 1;
 	Config.RCntFix = 0;
 	Config.VSyncWA = 0;
@@ -888,12 +772,6 @@ static int settings_defaults()
 	Config.Cpu = 1;
 #endif
 	Config.PsxType = 0;
-	Config.SpuIrq = 0;
-	Config.SyncAudio = 1;
-	Config.ForcedXAUpdates = 1;
-#ifdef SPU_PCSXREARMED
-	spu_config.iUseInterpolation = 0;
-#endif
 #ifdef PSXREC
 	cycle_multiplier = 0x200; // == 2.0
 #endif
@@ -902,28 +780,20 @@ static int settings_defaults()
 
 static MENUITEM gui_SettingsItems[] = {
 #ifdef PSXREC
-	{(char *)"[PSX] Emulation core    ", NULL, &emu_alter, &emu_show},
-	{(char *)"[PSX] Cycle multiplier  ", NULL, &cycle_alter, &cycle_show},
+	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show},
+	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show},
 #endif
-	{(char *)"[PSX] BIOS              ", NULL, &bios_alter, &bios_show},
-	{(char *)"[PSX] XA audio          ", NULL, &xa_alter, &xa_show},
-	{(char *)"[PSX] CDDA audio        ", NULL, &cdda_alter, &cdda_show},
-	{(char *)"[PSX] Forced XA updates ", NULL, &forcedxa_alter, &forcedxa_show},
-	{(char *)"[PSX] RCntFix           ", NULL, &RCntFix_alter, &RCntFix_show},
-	{(char *)"[PSX] VSyncWA           ", NULL, &VSyncWA_alter, &VSyncWA_show},
-	{(char *)"[SPU] Audio sync        ", NULL, &syncaudio_alter, &syncaudio_show},
-	{(char *)"[SPU] IRQ fix           ", NULL, &spuirq_alter, &spuirq_show},
-#ifdef SPU_PCSXREARMED
-	{(char *)"[SPU] Interpolation     ", NULL, &interpolation_alter, &interpolation_show},
-#endif
-	{(char *)"Restore default values  ", &settings_defaults, NULL, NULL},
+	{(char *)"HLE                  ", NULL, &bios_alter, &bios_show},
+	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show},
+	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show},
+	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL},
 	{NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu       ", &settings_back, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
 	{0}
 };
 
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_SettingsMenu = { SET_SIZE, 0, 24, 60, (MENUITEM *)&gui_SettingsItems };
+static MENU gui_SettingsMenu = { SET_SIZE, 0, 56, 112, (MENUITEM *)&gui_SettingsItems };
 
 #ifndef USE_GPULIB
 static int fps_alter(u32 keys)
@@ -1152,7 +1022,156 @@ static MENUITEM gui_GPUSettingsItems[] = {
 };
 
 #define SET_GPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_GPUSettingsMenu = { SET_GPUSIZE, 0, 56, 60, (MENUITEM *)&gui_GPUSettingsItems };
+static MENU gui_GPUSettingsMenu = { SET_GPUSIZE, 0, 56, 112, (MENUITEM *)&gui_GPUSettingsItems };
+
+static int xa_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.Xa == 1) Config.Xa = 0;
+	} else if (keys & KEY_LEFT) {
+		if (Config.Xa == 0) Config.Xa = 1;
+	}
+
+	return 0;
+}
+
+static char *xa_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.Xa ? "off" : "on");
+	return buf;
+}
+
+static int cdda_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.Cdda == 1) Config.Cdda = 0;
+	} else if (keys & KEY_LEFT) {
+		if (Config.Cdda == 0) Config.Cdda = 1;
+	}
+
+	return 0;
+}
+
+static char *cdda_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.Cdda ? "off" : "on");
+	return buf;
+}
+
+static int forcedxa_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.ForcedXAUpdates == 0) Config.ForcedXAUpdates = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.ForcedXAUpdates == 1) Config.ForcedXAUpdates = 0;
+	}
+
+	return 0;
+}
+
+static char *forcedxa_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.ForcedXAUpdates ? "on" : "off");
+	return buf;
+}
+
+static int syncaudio_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.SyncAudio < 1) Config.SyncAudio = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.SyncAudio > 0) Config.SyncAudio = 0;
+	}
+
+	return 0;
+}
+
+static char *syncaudio_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.SyncAudio ? "on" : "off");
+	return buf;
+}
+
+static int spuirq_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.SpuIrq < 1) Config.SpuIrq = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.SpuIrq > 0) Config.SpuIrq = 0;
+	}
+
+	return 0;
+}
+
+static char *spuirq_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.SpuIrq ? "on" : "off");
+	return buf;
+}
+
+#ifdef SPU_PCSXREARMED
+static int interpolation_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (spu_config.iUseInterpolation < 3) spu_config.iUseInterpolation++;
+	} else if (keys & KEY_LEFT) {
+		if (spu_config.iUseInterpolation > 0) spu_config.iUseInterpolation--;
+	}
+
+	return 0;
+}
+
+static char *interpolation_show()
+{
+	static char buf[16] = "\0";
+	switch (spu_config.iUseInterpolation) {
+	case 0: strcpy(buf, "none"); break;
+	case 1: strcpy(buf, "simple"); break;
+	case 2: strcpy(buf, "gaussian"); break;
+	case 3: strcpy(buf, "cubic"); break;
+	default: buf[0] = '\0'; break;
+	}
+	return buf;
+}
+#endif //SPU_PCSXREARMED
+
+static int spu_settings_defaults()
+{
+	/* Restores settings to default values. */
+	Config.Xa = 0;
+	Config.Cdda = 0;
+	Config.HLE = 1;
+	Config.SpuIrq = 0;
+	Config.SyncAudio = 1;
+	Config.ForcedXAUpdates = 1;
+#ifdef SPU_PCSXREARMED
+	spu_config.iUseInterpolation = 0;
+#endif
+	return 0;
+}
+
+static MENUITEM gui_SPUSettingsItems[] = {
+	{(char *)"XA audio             ", NULL, &xa_alter, &xa_show},
+	{(char *)"CDDA audio           ", NULL, &cdda_alter, &cdda_show},
+	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
+	{(char *)"Audio sync           ", NULL, &syncaudio_alter, &syncaudio_show},
+	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show},
+#ifdef SPU_PCSXREARMED
+	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show},
+#endif
+	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL},
+	{NULL, NULL, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
+	{0}
+};
+
+#define SET_SPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
+static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 112, (MENUITEM *)&gui_SPUSettingsItems };
 
 static int gui_LoadIso()
 {
@@ -1182,6 +1201,13 @@ static int gui_Settings()
 static int gui_GPUSettings()
 {
 	gui_RunMenu(&gui_GPUSettingsMenu);
+
+	return 0;
+}
+
+static int gui_SPUSettings()
+{
+	gui_RunMenu(&gui_SPUSettingsMenu);
 
 	return 0;
 }
