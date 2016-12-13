@@ -253,6 +253,30 @@ void config_load()
 			}
 
 			strcpy(Config.LastDir, arg);
+		} else if (!strcmp(line, "BiosDir")) {
+			int len = strlen(arg);
+
+			if (len == 0 || len > sizeof(Config.BiosDir) - 1) {
+				continue;
+			}
+
+			if (arg[len-1] == '\n') {
+				arg[len-1] = '\0';
+			}
+
+			strcpy(Config.BiosDir, arg);
+		} else if (!strcmp(line, "Bios")) {
+			int len = strlen(arg);
+
+			if (len == 0 || len > sizeof(Config.Bios) - 1) {
+				continue;
+			}
+
+			if (arg[len-1] == '\n') {
+				arg[len-1] = '\0';
+			}
+
+			strcpy(Config.Bios, arg);
 		}
 #ifdef PSXREC
 		else if (!strcmp(line, "CycleMultiplier")) {
@@ -351,6 +375,14 @@ void config_save()
 
 	if (Config.LastDir[0]) {
 		fprintf(f, "LastDir %s\n", Config.LastDir);
+	}
+
+	if (Config.BiosDir[0]) {
+		fprintf(f, "BiosDir %s\n", Config.BiosDir);
+	}
+
+	if (Config.Bios[0]) {
+		fprintf(f, "Bios %s\n", Config.Bios);
 	}
 
 	fclose(f);

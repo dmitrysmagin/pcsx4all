@@ -157,7 +157,6 @@ static inline char *GetCwd(void)
 				gamepath[i] = '/';
 		}
 #endif
-	strcpy(Config.LastDir, gamepath);
 
 	return gamepath;
 }
@@ -232,9 +231,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 	if (dir)
 		ChDir(dir);
 
-	if (!cwd) {
-		cwd = Config.LastDir ? Config.LastDir : GetCwd();
-	}
+	cwd = GetCwd();
 
 	for (;;) {
 		keys = key_read();
@@ -324,6 +321,8 @@ char *FileReq(char *dir, const char *ext, char *result)
 				key_reset();
 			} else {
 				sprintf(result, "%s/%s", cwd, filereq_dir_items[cursor_pos].name);
+				if (dir)
+					strcpy(dir, cwd);
 
 				video_clear();
 				port_printf(16 * 8, 120, "LOADING");
@@ -618,7 +617,7 @@ static int gui_swap_cd(void)
 		}
 	} else {
 		static char isoname[PATH_MAX];
-		const char *name = FileReq(NULL, NULL, isoname);
+		const char *name = FileReq(Config.LastDir, NULL, isoname);
 		if (name == NULL)
 			return 0;
 
@@ -717,6 +716,19 @@ static char *bios_show()
 	return buf;
 }
 
+static int bios_set()
+{
+	static char biosname[PATH_MAX];
+	const char *name = FileReq(Config.BiosDir, NULL, biosname);
+
+	if (name) {
+		const char *p = strrchr(name, '/');
+		strcpy(Config.Bios, p + 1);
+	}
+
+	return 0;
+}
+
 static int RCntFix_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -784,6 +796,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show},
 #endif
 	{(char *)"HLE                  ", NULL, &bios_alter, &bios_show},
+	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL},
 	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show},
 	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL},
@@ -1176,7 +1189,7 @@ static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 112, (MENUITEM *)&gui_SP
 static int gui_LoadIso()
 {
 	static char isoname[PATH_MAX];
-	const char *name = FileReq(NULL, NULL, isoname);
+	const char *name = FileReq(Config.LastDir, NULL, isoname);
 
 	if (name) {
 		SetIsoFile(name);
