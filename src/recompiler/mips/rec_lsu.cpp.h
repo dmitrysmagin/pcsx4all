@@ -834,15 +834,18 @@ static void gen_LWL_LWR(int count)
 	// See comments in StoreToAddr() for explanation of check.
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+	EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
 #else
-	LUI(TEMP_2, 0x0f00);
-	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+	LUI(MIPSREG_A1, 0x0f00);
+	AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
 #endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BGTZ(TEMP_2, 0);
-	NOP();
+	BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
 
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1
+
+	// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
 	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
