@@ -971,6 +971,10 @@ static void gen_SWL_SWR(int count)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+	// Get the effective address of first store in the series.
+	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+	ADDIU(MIPSREG_A0, r1, _Imm_);
+
 #ifdef USE_DIRECT_MEM_ACCESS
 	regPushState();
 
@@ -980,23 +984,21 @@ static void gen_SWL_SWR(int count)
 	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
 	//    goto label_hle_1;
 
-	LW(TEMP_1, PERM_REG_1, off(writeok));
-
-	// Get the effective address of first store in the series.
-	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
-	ADDIU(MIPSREG_A0, r1, _Imm_);
+	LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+	EXT(TEMP_3, MIPSREG_A0, 24, 4);
 #else
-	LUI(TEMP_2, 0x0f00);
-	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+	LUI(TEMP_3, 0x0f00);
+	AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-	SLTU(TEMP_2, TEMP_2, TEMP_1);
+	SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_2, 0);
-	NOP();
+	BEQZ(MIPSREG_A1, 0);
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1
 
+	// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
 	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
@@ -1008,8 +1010,6 @@ static void gen_SWL_SWR(int count)
 		s32 imm = _fImm_(opcode);
 		u32 rt = _fRt_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 		/* Invalidate recRAM[addr+imm16] pointer */
 		if (icount != count) {
@@ -1032,6 +1032,8 @@ static void gen_SWL_SWR(int count)
 		SLL(TEMP_1, TEMP_1, 2);
 #endif
 		ADDU(TEMP_1, TEMP_1, TEMP_3);
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 		if (icount == 1) {
 			// This is the end of the loop
@@ -1063,15 +1065,11 @@ static void gen_SWL_SWR(int count)
 		s32 imm = _fImm_(opcode);
 		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-#ifdef USE_DIRECT_MEM_ACCESS
 		if (icount != count) {
 			// No need to do this for the first store of the series, as value
 			//  is already in $a0 from earlier direct-mem address range check.
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
-#else
-			ADDIU(MIPSREG_A0, r1, imm);
-#endif
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 		JAL(psxMemRead32);              // result in MIPSREG_V0
