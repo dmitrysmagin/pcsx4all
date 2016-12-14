@@ -36,8 +36,6 @@ CFLAGS = $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
 	-DXA_HACK \
-	-DMCD1_FILE=$(MCD1_FILE) \
-	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
 

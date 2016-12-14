@@ -602,8 +602,8 @@ int main (int argc, char **argv)
 	setup_paths();
 
 	// PCSX
-	sprintf(Config.Mcd1, "%s/%s", memcardsdir, MCD1_FILE);
-	sprintf(Config.Mcd2, "%s/%s", memcardsdir, MCD2_FILE);
+	sprintf(Config.Mcd1, "%s/%s", memcardsdir, "mcd001.mcr");
+	sprintf(Config.Mcd2, "%s/%s", memcardsdir, "mcd002.mcr");
 	strcpy(Config.PatchesDir, patchesdir);
 	strcpy(Config.BiosDir, biosdir);
 	strcpy(Config.Bios, "scph1001.bin");
