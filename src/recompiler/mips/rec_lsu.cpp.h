@@ -107,48 +107,125 @@ static int LoadFromConstAddr(int count)
 
 static int StoreToConstAddr(int count)
 {
-#ifdef USE_CONST_ADDRESSES
-	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + imm_min;
-
-#ifndef SKIP_SAME_2MB_REGION_CHECK
-		/* Check if addr and addr+imm are in the same 2MB region */
-		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
-			return 0;
+#ifndef USE_CONST_ADDRESSES
+	return 0;
 #endif
 
-		// Is address in lower 8MB region? (2MB mirrored x4)
-		if ((addr & 0x1fffffff) < 0x800000) {
-			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
+	if (!IsConst(_Rs_))
+		return 0;
 
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
+	bool direct = false;
 
-			emitAddrCalc(r2); // TEMP_2 == recalculated addr
+#ifdef USE_DIRECT_MEM_ACCESS
+	u32 addr_max = iRegs[_Rs_].r + imm_max;
+	// Is address in lower 8MB region? (2MB mirrored x4)
+	if ((addr_max & 0x1fffffff) < 0x800000)
+		direct = true;
+#endif
 
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
 
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
+	u32 PC = pc - 4;
 
-				regUnlock(r1);
-				PC += 4;
-			} while (--count);
+	if (direct)  /* DIRECT - Invalidate code and (maybe) write */
+	{
+		LW(TEMP_1, PERM_REG_1, off(writeok));
 
-			pc = PC;
+		// Keep upper half of last code block and RAM addresses in regs,
+		// tracking current values so we can avoid loading same val repeatedly.
+		u16 mem_addr_hi = 0;
+		u16 code_addr_hi = 0;
+
+		u32 last_code_addr = 0;
+
+		int icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+			u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+			u32 code_addr = (u32)recRAM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+			code_addr &= ~3;  // Align code block ptr address
+
+			if ((icount == count) || (ADR_HI(code_addr) != code_addr_hi)) {
+				code_addr_hi = ADR_HI(code_addr);
+				LUI(TEMP_3, ADR_HI(code_addr));
+			}
+
+			if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
+				mem_addr_hi = ADR_HI(mem_addr);
+				LUI(TEMP_2, ADR_HI(mem_addr));
+			}
+
+			// Skip RAM write if psxRegs.writeok == 0
+			u32 *backpatch_label_no_write = (u32 *)recMem;
+			BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
+			// NOTE: Branch delay slot contains next instruction emitted below
+
+			if (code_addr != last_code_addr) {
+				// Set code block ptr to NULL
+				last_code_addr = code_addr;
+				SW(0, TEMP_3, ADR_LO(code_addr));  // <BD slot>
+			} else {
+				// Last code address is same. Rather than spam store buffer
+				//  with duplicate write, put NOP() in branch delay slot.
+				NOP();  // <BD slot>
+			}
+
+			// Write to RAM:
+			OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+
+			// label_no_write:
+			fixup_branch(backpatch_label_no_write);
+
 			regUnlock(r2);
-			return 1;
-		}
+			PC += 4;
+		} while (--icount);
 	}
-#endif // USE_CONST_ADDRESSES
+	else  /* INDIRECT - Pass everything off to C handler */
+	{
+		// Allocate base register common to series
+		u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 
-	return 0;
+		int icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+			ADDIU(MIPSREG_A0, r1, imm); // $a0 = Effective dest addr
+
+			switch (opcode & 0xfc000000) {
+			case 0xa0000000: // SB
+				JAL(psxMemWrite8);
+				MOV(MIPSREG_A1, r2); // <BD slot> $a1 = val to write
+				break;
+			case 0xa4000000: // SH
+				JAL(psxMemWrite16);
+				MOV(MIPSREG_A1, r2); // <BD slot> $a1 = val to write
+				break;
+			case 0xac000000: // SW
+				JAL(psxMemWrite32);
+				MOV(MIPSREG_A1, r2); // <BD slot> $a1 = val to write
+				break;
+			default: break;
+			}
+
+			regUnlock(r2);
+			PC += 4;
+		} while (--icount);
+
+		regUnlock(r1);
+	}
+
+	pc = PC;
+	return 1;
 }
 
 static void LoadFromAddr(int count)
@@ -321,7 +398,7 @@ static void StoreToAddr(int count)
 	//   It is not possible for a series of stores sharing a base register to
 	//  write both inside and outside of lower-8MB RAM region: signed 16bit imm
 	//  offset is not large enough to reach a valid mapped address in both.
-	//   Writes to 0xFFFF_xxxx and 0x8000_xxxx regions would cause an exception
+	//   Writes to 0xFFFF_xxxx and 0x0080_xxxx regions would cause an exception
 	//  on a real PS1, so no need to worry about imm offsets reaching them.
 	//  Base addresses with offsets wrapping to next/prior mirror region are
 	//  handled either with masking further below, or by emulation of mirrors
