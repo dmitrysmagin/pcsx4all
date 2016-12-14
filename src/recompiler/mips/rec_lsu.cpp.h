@@ -810,7 +810,7 @@ static u32 LWL_MASKSHIFT[8] = { 0xffffff, 0xffff, 0xff, 0,
 static u32 LWR_MASKSHIFT[8] = { 0, 0xff000000, 0xffff0000, 0xffffff00,
                                 0, 8, 16, 24 };
 
-static void gen_LWL_LWR(int count)
+static void gen_LWL_LWR(int count, bool force_indirect)
 {
 	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
@@ -826,58 +826,61 @@ static void gen_LWL_LWR(int count)
 	ADDIU(MIPSREG_A0, r1, _Imm_);
 
 #ifdef USE_DIRECT_MEM_ACCESS
-	regPushState();
+	u32 *backpatch_label_exit_1 = 0;
+	if (!force_indirect)
+	{
+		regPushState();
 
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	//  We check only the effective address of first load in the series,
-	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
-	// See comments in StoreToAddr() for explanation of check.
+		// Is address in lower 8MB region? (2MB mirrored x4)
+		//  We check only the effective address of first load in the series,
+		// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+		// See comments in StoreToAddr() for explanation of check.
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
+		EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
 #else
-	LUI(MIPSREG_A1, 0x0f00);
-	AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
+		LUI(MIPSREG_A1, 0x0f00);
+		AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
 #endif
-	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
+		u32 *backpatch_label_hle_1 = (u32 *)recMem;
+		BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
 
-	// NOTE: Branch delay slot contains next emitted instruction,
-	//       which should not write to MIPSREG_A1
+		// NOTE: Branch delay slot contains next emitted instruction,
+		//       which should not write to MIPSREG_A1
 
-	// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
-	emitAddrCalc(r1); // TEMP_2 == recalculated addr
+		// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
+		emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
-	icount = count;
-	u32 *backpatch_label_exit_1 = 0;
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		s32 imm = _fImm_(opcode);
-		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+		icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-		if (icount == 1) {
-			// This is the end of the loop
-			backpatch_label_exit_1 = (u32 *)recMem;
-			B(0); // b label_exit
-			// NOTE: Branch delay slot will contain the instruction below
-		}
-		// Important: this should be the last instruction in the loop (see note above)
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+			if (icount == 1) {
+				// This is the end of the loop
+				backpatch_label_exit_1 = (u32 *)recMem;
+				B(0); // b label_exit
+				// NOTE: Branch delay slot will contain the instruction below
+			}
+			// Important: this should be the last instruction in the loop (see note above)
+			OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
-		SetUndef(rt);
-		regMipsChanged(rt);
-		regUnlock(r2);
+			SetUndef(rt);
+			regMipsChanged(rt);
+			regUnlock(r2);
 
-		PC += 4;
-	} while (--icount);
+			PC += 4;
+		} while (--icount);
 
-	PC = pc - 4;
+		PC = pc - 4;
 
-	regPopState();
+		regPopState();
 
-	// label_hle:
-	fixup_branch(backpatch_label_hle_1);
+		// label_hle:
+		fixup_branch(backpatch_label_hle_1);
+	}
 #endif // USE_DIRECT_MEM_ACCESS
 
 	icount = count;
@@ -947,11 +950,11 @@ static void gen_LWL_LWR(int count)
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
-	fixup_branch(backpatch_label_exit_1);
+	if (!force_indirect)
+		fixup_branch(backpatch_label_exit_1);
 #endif
 
 	pc = PC;
-
 	regUnlock(r1);
 }
 
@@ -1177,49 +1180,73 @@ static void recLWL()
 {
 	int count = calc_wl_wr(0x22, 0x26);
 
+	bool const_addr = false;
 #ifdef USE_CONST_ADDRESSES
-	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + imm_min;
-		// Is address in lower 8MB region? (2MB mirrored x4)
-		if ((addr & 0x1fffffff) < 0x800000) {
-			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
-
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
-
-			emitAddrCalc(r2); // TEMP_2 == recalculated addr
-
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
-
-				SetUndef(rt);
-				regMipsChanged(rt);
-				regUnlock(r1);
-				PC += 4;
-			} while (--count);
-
-			pc = PC;
-			regUnlock(r2);
-
-			return;
-		}
+	const_addr = IsConst(_Rs_);
+#endif
+	if (!const_addr) {
+		// Call general-case emitter for non-const addr
+		gen_LWL_LWR(count, false);
+		return;
 	}
-#endif // USE_CONST_ADDRESSES
 
-	gen_LWL_LWR(count);
+	// Is address in lower 8MB region? (2MB mirrored x4)
+	u32 addr_max = iRegs[_Rs_].r + imm_max;
+	if ((addr_max & 0x1fffffff) >= 0x800000) {
+		// Call general-case emitter, but force indirect access since
+		//  known-const address is outside lower 8MB RAM.
+		gen_LWL_LWR(count, true);
+		return;
+	}
+
+	//////////////////////////////
+	// Handle const RAM address //
+	//////////////////////////////
+
+#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+#endif
+
+	u32 PC = pc - 4;
+
+	// Keep upper mem address in a register, but track its current value
+	// so we avoid unnecessarily loading same value repeatedly
+	u16 mem_addr_hi = 0;
+
+	int icount = count;
+	do {
+		// Paranoia check: was base reg written to by last iteration?
+		if (!IsConst(_Rs_))
+			break;
+
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+		u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+
+		if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
+			mem_addr_hi = ADR_HI(mem_addr);
+			LUI(TEMP_2, ADR_HI(mem_addr));
+		}
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+		PC += 4;
+	} while (--icount);
+
+	pc = PC;
+	return;
 }
 
 static void recLWR()
 {
-	gen_LWL_LWR(1);
+	recLWL();
 }
 
 static void recSWL()
