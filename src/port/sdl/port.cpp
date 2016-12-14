@@ -606,7 +606,7 @@ int main (int argc, char **argv)
 	sprintf(Config.Mcd2, "%s/%s", memcardsdir, MCD2_FILE);
 	strcpy(Config.PatchesDir, patchesdir);
 	strcpy(Config.BiosDir, biosdir);
-	strcpy(Config.Bios, BIOS_FILE);
+	strcpy(Config.Bios, "scph1001.bin");
 
 	Config.Xa=0; /* 0=XA enabled, 1=XA disabled */
 	Config.Mdec=0; /* 0=Black&White Mdecs Only Disabled, 1=Black&White Mdecs Only Enabled */

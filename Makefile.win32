@@ -21,7 +21,6 @@ else
 SDL_LIBS    := `sdl-config --libs`
 endif
 
-BIOS_FILE = \"scph1001.bin\"
 MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
@@ -31,7 +30,8 @@ CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
 	-Wno-format -Wno-format-extra-args \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
-	-DXA_HACK -DBIOS_FILE=$(BIOS_FILE) -DMCD1_FILE=$(MCD1_FILE) \
+	-DXA_HACK \
+	-DMCD1_FILE=$(MCD1_FILE) \
 	-DMCD2_FILE=$(MCD2_FILE) \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
