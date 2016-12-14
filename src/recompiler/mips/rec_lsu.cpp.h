@@ -320,31 +320,36 @@ static void LoadFromAddr(int count)
 	ADDIU(MIPSREG_A0, r1, _Imm_);
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+	EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
 #else
-	LUI(TEMP_2, 0x0f00);
-	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+	LUI(MIPSREG_A1, 0x0f00);
+	AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
 #endif
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BGTZ(TEMP_2, 0); // beqz temp_2, label_hle
-	NOP();
+	BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
+
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 21, 3); // TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
-	EXT(TEMP_3, r1, 21, 3);         // TEMP_3 = (r1 >> 21) & 0x7
+	EXT(TEMP_3, r1, 21, 3);             // <BD slot> TEMP_3 = (r1 >> 21) & 0x7
+	EXT(MIPSREG_A1, MIPSREG_A0, 21, 3); // MIPSREG_A1 = (MIPSREG_A0 >> 21) & 0x7
 #else
-	SRL(TEMP_2, MIPSREG_A0, 21);
-	ANDI(TEMP_2, TEMP_2, 7);
-	SRL(TEMP_3, r1, 21);
+	SRL(TEMP_3, r1, 21);                // <BD slot>
 	ANDI(TEMP_3, TEMP_3, 7);
+	SRL(MIPSREG_A1, MIPSREG_A0, 21);
+	ANDI(MIPSREG_A1, MIPSREG_A1, 7);
 #endif
 	u32 *backpatch_label_hle_2 = (u32 *)recMem;
-	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-	NOP();
+	BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
+
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1, TEMP_3
 #endif
 
+	// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
 	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	int icount = count;
