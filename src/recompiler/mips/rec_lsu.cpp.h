@@ -55,54 +55,120 @@ static void emitAddrCalc(u32 r2)
 
 s32 imm_max, imm_min;
 
-/* NOTE: psxM must be mmap'ed, not malloc'ed, otherwise segfault */
 static int LoadFromConstAddr(int count)
 {
-#ifdef USE_CONST_ADDRESSES
-	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + imm_min;
-
-#ifndef SKIP_SAME_2MB_REGION_CHECK
-		/* Check if addr and addr+imm are in the same 2MB region */
-		if ((addr & 0xe00000) != (iRegs[_Rs_].r & 0xe00000))
-			return 0;
+#ifndef USE_CONST_ADDRESSES
+	return 0;
 #endif
 
-		// Is address in lower 8MB region? (2MB mirrored x4)
-		if ((addr & 0x1fffffff) < 0x800000) {
-			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
+	if (!IsConst(_Rs_))
+		return 0;
 
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
+	bool direct = false;
 
-			emitAddrCalc(r2); // TEMP_2 == recalculated addr
+#ifdef USE_DIRECT_MEM_ACCESS
+	u32 addr_max = iRegs[_Rs_].r + imm_max;
+	// Is address in lower 8MB region? (2MB mirrored x4)
+	if ((addr_max & 0x1fffffff) < 0x800000)
+		direct = true;
+#endif
 
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+	#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+	#endif
 
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
+	u32 PC = pc - 4;
 
-				SetUndef(rt);
-				regMipsChanged(rt);
-				regUnlock(r1);
-				PC += 4;
-			} while (--count);
+	if (direct)  /* DIRECT */
+	{
+		// Keep upper mem address in a register, but track its
+		// current value so we avoid unnecessarily loading it repeatedly
+		u16 mem_addr_hi = 0;
 
-			pc = PC;
+		int icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+			u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+
+			if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
+				mem_addr_hi = ADR_HI(mem_addr);
+				LUI(TEMP_2, ADR_HI(mem_addr));
+			}
+
+			OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+
+			SetUndef(rt);
+			regMipsChanged(rt);
+			regUnlock(r2);
+			PC += 4;
+		} while (--icount);
+
+	} else  /* INDIRECT - Pass everything off to C handler */
+	{
+		// Allocate base register common to series
+		u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+			switch (opcode & 0xfc000000) {
+			case 0x80000000: // LB
+				JAL(psxMemRead8);
+				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
+#ifdef HAVE_MIPS32R2_SEB_SEH
+				SEB(r2, MIPSREG_V0);
+#else
+				SLL(r2, MIPSREG_V0, 24);
+				SRA(r2, r2, 24);
+#endif
+				break;
+			case 0x90000000: // LBU
+				JAL(psxMemRead8);
+				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
+				MOV(r2, MIPSREG_V0);
+				break;
+			case 0x84000000: // LH
+				JAL(psxMemRead16);
+				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
+#ifdef HAVE_MIPS32R2_SEB_SEH
+				SEH(r2, MIPSREG_V0);
+#else
+				SLL(r2, MIPSREG_V0, 16);
+				SRA(r2, r2, 16);
+#endif
+				break;
+			case 0x94000000: // LHU
+				JAL(psxMemRead16);
+				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
+				MOV(r2, MIPSREG_V0);
+				break;
+			case 0x8c000000: // LW
+				JAL(psxMemRead32);
+				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
+				MOV(r2, MIPSREG_V0);
+				break;
+			}
+
+			SetUndef(rt);
+			regMipsChanged(rt);
 			regUnlock(r2);
 
-			return 1;
-		}
-	}
-#endif // USE_CONST_ADDRESSES
+			PC += 4;
+		} while (--count);
 
-	return 0;
+		regUnlock(r1);
+	}
+
+	pc = PC;
+	return 1;
 }
 
 static int StoreToConstAddr(int count)
