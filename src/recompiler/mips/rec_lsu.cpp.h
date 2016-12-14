@@ -29,24 +29,26 @@ static void disasm_psx(u32 pc)
 }
 
 /* Emit address calculation and store to TEMP_2 */
-static void emitAddrCalc(u32 r2)
+static void emitAddrCalc(u32 r1)
 {
+	// IMPORTANT: emitAddrCalc() promises to only write to TEMP_1,TEMP_2
+
 	if ((u32)psxM == 0x10000000) {
 		// psxM base is mmap'd at virtual address 0x10000000
 		LUI(TEMP_2, 0x1000);
 #ifdef HAVE_MIPS32R2_EXT_INS
-		INS(TEMP_2, r2, 0, 0x15); // TEMP_2 = 0x10000000 | (r2 & 0x1fffff)
+		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
 #else
-		SLL(TEMP_1, r2, 11);
+		SLL(TEMP_1, r1, 11);
 		SRL(TEMP_1, TEMP_1, 11);
 		OR(TEMP_2, TEMP_2, TEMP_1);
 #endif
 	} else {
 		LW(TEMP_2, PERM_REG_1, off(psxM));
 #ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, r2, 0, 0x15);
+		EXT(TEMP_1, r1, 0, 0x15);
 #else
-		SLL(TEMP_1, r2, 11);
+		SLL(TEMP_1, r1, 11);
 		SRL(TEMP_1, TEMP_1, 11);
 #endif
 		ADDU(TEMP_2, TEMP_2, TEMP_1);
@@ -475,39 +477,42 @@ static void StoreToAddr(int count)
 	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
 	//    goto label_hle_1;
 
-	LW(TEMP_1, PERM_REG_1, off(writeok));
+	LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 	// Get the effective address of first store in the series.
 	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
 	ADDIU(MIPSREG_A0, r1, _Imm_);
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 24, 4);
+	EXT(TEMP_3, MIPSREG_A0, 24, 4);
 #else
-	LUI(TEMP_2, 0x0f00);
-	AND(TEMP_2, TEMP_2, MIPSREG_A0);
+	LUI(TEMP_3, 0x0f00);
+	AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-	SLTU(TEMP_2, TEMP_2, TEMP_1);
+	SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
 	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(TEMP_2, 0);
-	NOP();
+	BEQZ(MIPSREG_A1, 0);
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 	/* Check if addr and addr+imm are in the same 2MB region */
 #ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_2, MIPSREG_A0, 21, 3); // TEMP_2 = (MIPSREG_A0 >> 21) & 0x7
-	EXT(TEMP_3, r1, 21, 3);         // TEMP_3 = (r1 >> 21) & 0x7
+	EXT(TEMP_3, r1, 21, 3);             // <BD slot> TEMP_3 = (r1 >> 21) & 0x7
+	EXT(MIPSREG_A1, MIPSREG_A0, 21, 3); // MIPSREG_A1 = (MIPSREG_A0 >> 21) & 0x7
 #else
-	SRL(TEMP_2, MIPSREG_A0, 21);
-	ANDI(TEMP_2, TEMP_2, 7);
-	SRL(TEMP_3, r1, 21);
+	SRL(TEMP_3, r1, 21);                // <BD slot>
 	ANDI(TEMP_3, TEMP_3, 7);
+	SRL(MIPSREG_A1, MIPSREG_A0, 21);
+	ANDI(MIPSREG_A1, MIPSREG_A1, 7);
 #endif
 	u32 *backpatch_label_hle_2 = (u32 *)recMem;
-	BNE(TEMP_2, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-	NOP();
+	BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
+	// NOTE: Branch delay slot contains next emitted instruction,
+	//       which should not write to MIPSREG_A1, TEMP_3
 #endif
 
+	// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
 	emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 	icount = count;
