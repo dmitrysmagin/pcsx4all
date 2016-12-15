@@ -30,6 +30,8 @@ What's already done:
  - Implemented partially load delays in branch delay slots:
    BGTZ: Tekken 2
    JR: Tekken 3, Skullmonkeys
+ - Added check if RAM is valid for writing for writes to constant addresses [senquack],
+   this fixes R-Types and Cart World Series freezes at start.
 
  TODO list
 
@@ -51,7 +53,6 @@ What's already done:
 
  Problematic games which get stuck with recompiler:
   - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
-  - R-Types (USA) (works with interpreter + bios)
   - Next Tetris (gets stuck occasionally at start)
   - Mortal Kombat Trilogy (works with interpreter + HLE)
 
