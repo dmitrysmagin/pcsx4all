@@ -31,7 +31,6 @@
 #include "gpu.h"
 #include "ppf.h"
 #include "psxevents.h"
-#include "port.h"
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -722,8 +721,6 @@ int SaveState(const char *file) {
 		return -1;
 	}
 
-	port_mute();
-	
 	if ( freeze_rw(f, FREEZE_SAVE, (void*)PcsxHeader, 32)              ||
 	     freeze_rw(f, FREEZE_SAVE, (void*)&SaveVersion, sizeof(u32))   ||
 	     freeze_rw(f, FREEZE_SAVE, (void*)&Config.HLE, sizeof(boolean)) )

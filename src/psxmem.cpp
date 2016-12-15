@@ -31,7 +31,6 @@
 #ifndef WIN32
 #include <sys/mman.h>
 #endif
-#include "port.h"
 
 #if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
 // For Posix shared mem:

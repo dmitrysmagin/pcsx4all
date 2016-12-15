@@ -1,6 +1,3 @@
-//TODO: Adapt all code here to use guard 'HAVE_MIPS32R2_EXT_INS',
-//      with fallbacks to pre-R2 instructions. Only some has been.
-
 // Generate inline psxMemRead/Write or call them as-is
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
@@ -20,6 +17,7 @@
 //#define LOG_LOADS
 //#define LOG_STORES
 
+#if defined(LOG_LOADS) || defined (LOG_LOADS) || defined (LOG_WL_WR)
 static void disasm_psx(u32 pc)
 {
 	static char buffer[512];
@@ -27,6 +25,7 @@ static void disasm_psx(u32 pc)
 	disasm_mips_instruction(opcode, buffer, pc, 0, 0);
 	printf("%08x: %08x %s\n", pc, opcode, buffer);
 }
+#endif
 
 /* Emit address calculation and store to TEMP_2 */
 static void emitAddrCalc(u32 r1)

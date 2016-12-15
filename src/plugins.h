@@ -140,12 +140,12 @@ long CALLBACK SPUfreeze(uint32_t, SPUFreeze_t *, uint32_t);
 void CALLBACK SPUasync(uint32_t, uint32_t);
 
 #ifdef SPU_PCSXREARMED
-void CALLBACK SPUregisterCallback(void (*callback)(void));
-void CALLBACK SPUregisterScheduleCb(void (*callback)(unsigned int));
+void CALLBACK SPUregisterCallback(void CALLBACK (*callback)(void));
+void CALLBACK SPUregisterScheduleCb(void CALLBACK (*callback)(unsigned int));
 
 // We provide our own private SPU_init() in plugins.cpp that will call
 // spu_pcsxrearmed plugin's SPUinit() and then set its settings.
-long SPU_init(void);
+long CALLBACK SPU_init(void);
 #endif //SPU_PCSXREARMED
 
 #ifdef __cplusplus
