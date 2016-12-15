@@ -63,6 +63,8 @@ void psxReset() {
 
 	memset(&psxRegs, 0, sizeof(psxRegs));
 
+	psxRegs.writeok = 1;
+
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 
 	psxRegs.psxM = psxM;	// PSX Memory

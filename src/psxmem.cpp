@@ -187,8 +187,6 @@ int psxMemInit() {
 	psxMemWLUT[0x1f00] = (u8 *)psxP;
 	psxMemWLUT[0x1f80] = (u8 *)psxH;
 
-	psxRegs.writeok = 1;
-
 	return 0;
 }
 
@@ -336,7 +334,7 @@ u32 psxMemRead32(u32 mem)
 			ret = SWAPu32(*(u32*)(p + m));
 		} else {
 #ifdef PSXMEM_LOG
-			if (writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
+			if (psxRegs.writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
 #endif
 			ret = 0;
 		}
