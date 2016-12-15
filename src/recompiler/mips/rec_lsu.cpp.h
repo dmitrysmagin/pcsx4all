@@ -848,7 +848,7 @@ static void gen_LWL_LWR(int count, bool force_indirect)
 		// NOTE: Branch delay slot contains next emitted instruction,
 		//       which should not write to MIPSREG_A1
 
-		// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
+		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
 		emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
 		icount = count;
@@ -963,7 +963,7 @@ static u32 SWL_MASKSHIFT[8] = { 0xffffff00, 0xffff0000, 0xff000000, 0,
 static u32 SWR_MASKSHIFT[8] = { 0, 0xff, 0xffff, 0xffffff,
                                 0, 8, 16, 24 };
 
-static void gen_SWL_SWR(int count)
+static void gen_SWL_SWR(int count, bool force_indirect)
 {
 	int icount;
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
@@ -979,85 +979,87 @@ static void gen_SWL_SWR(int count)
 	ADDIU(MIPSREG_A0, r1, _Imm_);
 
 #ifdef USE_DIRECT_MEM_ACCESS
-	regPushState();
-
-	// Check if memory is writable and also check if address is in lower 8MB:
-	// See comments in StoreToAddr() for explanation of check.
-	// ---- Equivalent C code: ----
-	// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
-	//    goto label_hle_1;
-
-	LW(MIPSREG_A1, PERM_REG_1, off(writeok));
-
-#ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_3, MIPSREG_A0, 24, 4);
-#else
-	LUI(TEMP_3, 0x0f00);
-	AND(TEMP_3, TEMP_3, MIPSREG_A0);
-#endif
-	SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
-	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BEQZ(MIPSREG_A1, 0);
-	// NOTE: Branch delay slot contains next emitted instruction,
-	//       which should not write to MIPSREG_A1
-
-	// NOTE: emitAddrCalc() promises no writes to MIPSREG_A0, MIPSREG_A1, TEMP_3
-	emitAddrCalc(r1); // TEMP_2 == recalculated addr
-
-	icount = count;
 	u32 *backpatch_label_exit_1 = 0;
+	if (!force_indirect)
+	{
+		regPushState();
 
-	LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		s32 imm = _fImm_(opcode);
-		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+		// Check if memory is writable and also check if address is in lower 8MB:
+		// See comments in StoreToAddr() for explanation of check.
+		// ---- Equivalent C code: ----
+		// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+		//    goto label_hle_1;
 
-		/* Invalidate recRAM[addr+imm16] pointer */
-		if (icount != count) {
-			// No need to do this for the first store of the series,
-			//  as it was already done for us during initial checks.
-			ADDIU(MIPSREG_A0, r1, imm);
-		}
+		LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+		EXT(TEMP_3, MIPSREG_A0, 24, 4);
 #else
-		SLL(TEMP_1, MIPSREG_A0, 11);
-		SRL(TEMP_1, TEMP_1, 11);
+		LUI(TEMP_3, 0x0f00);
+		AND(TEMP_3, TEMP_3, MIPSREG_A0);
+#endif
+		SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
+		u32 *backpatch_label_hle_1 = (u32 *)recMem;
+		BEQZ(MIPSREG_A1, 0);
+		// NOTE: Branch delay slot contains next emitted instruction,
+		//       which should not write to MIPSREG_A1
+
+		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
+		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+
+		LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
+		icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+			/* Invalidate recRAM[addr+imm16] pointer */
+			if (icount != count) {
+				// No need to do this for the first store of the series,
+				//  as it was already done for us during initial checks.
+				ADDIU(MIPSREG_A0, r1, imm);
+			}
+
+#ifdef HAVE_MIPS32R2_EXT_INS
+			EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
+#else
+			SLL(TEMP_1, MIPSREG_A0, 11);
+			SRL(TEMP_1, TEMP_1, 11);
 #endif
 
 #ifdef HAVE_MIPS32R2_EXT_INS
-		INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
+			INS(TEMP_1, 0, 0, 2); // clear 2 lower bits
 #else
-		SRL(TEMP_1, TEMP_1, 2);
-		SLL(TEMP_1, TEMP_1, 2);
+			SRL(TEMP_1, TEMP_1, 2);
+			SLL(TEMP_1, TEMP_1, 2);
 #endif
-		ADDU(TEMP_1, TEMP_1, TEMP_3);
+			ADDU(TEMP_1, TEMP_1, TEMP_3);
 
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+			OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
-		if (icount == 1) {
-			// This is the end of the loop
-			backpatch_label_exit_1 = (u32 *)recMem;
-			B(0); // b label_exit
-			// NOTE: Branch delay slot will contain the instruction below
-		}
-		// Important: this should be the last instruction in the loop (is BD slot of exit branch)
-		SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
+			if (icount == 1) {
+				// This is the end of the loop
+				backpatch_label_exit_1 = (u32 *)recMem;
+				B(0); // b label_exit
+				// NOTE: Branch delay slot will contain the instruction below
+			}
+			// Important: this should be the last instruction in the loop (is BD slot of exit branch)
+			SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
 
-		PC += 4;
+			PC += 4;
 
-		regUnlock(r2);
-	} while (--icount);
+			regUnlock(r2);
+		} while (--icount);
 
-	PC = pc - 4;
+		PC = pc - 4;
 
-	regPopState();
+		regPopState();
 
-	// label_hle:
-	fixup_branch(backpatch_label_hle_1);
+		// label_hle:
+		fixup_branch(backpatch_label_hle_1);
+	}
 #endif // USE_DIRECT_MEM_ACCESS
 
 	icount = count;
@@ -1131,11 +1133,11 @@ static void gen_SWL_SWR(int count)
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
-	fixup_branch(backpatch_label_exit_1);
+	if (!force_indirect)
+		fixup_branch(backpatch_label_exit_1);
 #endif
 
 	pc = PC;
-
 	regUnlock(r1);
 }
 
@@ -1253,44 +1255,96 @@ static void recSWL()
 {
 	int count = calc_wl_wr(0x2a, 0x2e);
 
+	bool const_addr = false;
 #ifdef USE_CONST_ADDRESSES
-	if (IsConst(_Rs_)) {
-		u32 addr = iRegs[_Rs_].r + imm_min;
-		// Is address in lower 8MB region? (2MB mirrored x4)
-		if ((addr & 0x1fffffff) < 0x800000) {
-			u32 r2 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-			u32 PC = pc - 4;
-
-			#ifdef WITH_DISASM
-			for (int i = 0; i < count-1; i++)
-				DISASM_PSX(pc + i * 4);
-			#endif
-
-			emitAddrCalc(r2); // TEMP_2 == recalculated addr
-
-			do {
-				u32 opcode = *(u32 *)((char *)PSXM(PC));
-				s32 imm = _fImm_(opcode);
-				u32 rt = _fRt_(opcode);
-				u32 r1 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-
-				OPCODE(opcode & 0xfc000000, r1, TEMP_2, imm);
-
-				regUnlock(r1);
-				PC += 4;
-			} while (--count);
-
-			pc = PC;
-			regUnlock(r2);
-			return;
-		}
+	const_addr = IsConst(_Rs_);
+#endif
+	if (!const_addr) {
+		// Call general-case emitter for non-const addr
+		gen_SWL_SWR(count, false);
+		return;
 	}
-#endif // USE_CONST_ADDRESSES
 
-	gen_SWL_SWR(count);
+	// Is address in lower 8MB region? (2MB mirrored x4)
+	u32 addr_max = iRegs[_Rs_].r + imm_max;
+	if ((addr_max & 0x1fffffff) >= 0x800000) {
+		// Call general-case emitter, but force indirect access since
+		//  known-const address is outside lower 8MB RAM.
+		gen_SWL_SWR(count, true);
+		return;
+	}
+
+	//////////////////////////////
+	// Handle const RAM address //
+	//////////////////////////////
+
+#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+#endif
+
+	u32 PC = pc - 4;
+
+	LW(TEMP_1, PERM_REG_1, off(writeok));
+
+	// Keep upper half of last code block and RAM addresses in regs,
+	// tracking current values so we can avoid loading same val repeatedly.
+	u16 mem_addr_hi = 0;
+	u16 code_addr_hi = 0;
+
+	u32 last_code_addr = 0;
+
+	int icount = count;
+	do {
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+		u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+		u32 code_addr = (u32)recRAM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+		code_addr &= ~3;  // Align code block ptr address
+
+		if ((icount == count) || (ADR_HI(code_addr) != code_addr_hi)) {
+			code_addr_hi = ADR_HI(code_addr);
+			LUI(TEMP_3, ADR_HI(code_addr));
+		}
+
+		if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
+			mem_addr_hi = ADR_HI(mem_addr);
+			LUI(TEMP_2, ADR_HI(mem_addr));
+		}
+
+		// Skip RAM write if psxRegs.writeok == 0
+		u32 *backpatch_label_no_write = (u32 *)recMem;
+		BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
+		// NOTE: Branch delay slot contains next instruction emitted below
+
+		if (code_addr != last_code_addr) {
+			// Set code block ptr to NULL
+			last_code_addr = code_addr;
+			SW(0, TEMP_3, ADR_LO(code_addr));  // <BD slot>
+		} else {
+			// Last code address is same. Rather than spam store buffer
+			//  with duplicate write, put NOP() in branch delay slot.
+			NOP();  // <BD slot>
+		}
+
+		// Write to RAM
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+
+		// label_no_write:
+		fixup_branch(backpatch_label_no_write);
+
+		regUnlock(r2);
+		PC += 4;
+	} while (--count);
+
+	pc = PC;
+	return;
 }
 
 static void recSWR()
 {
-	gen_SWL_SWR(1);
+	recSWL();
 }
