@@ -57,120 +57,90 @@ static void emitAddrCalc(u32 r1)
 
 s32 imm_max, imm_min;
 
-static int LoadFromConstAddr(int count)
+static int calc_loads()
 {
-#ifndef USE_CONST_ADDRESSES
-	return 0;
-#endif
+	int count = 0;
+	u32 PC = pc;
+	u32 opcode = psxRegs.code;
+	u32 rs = _Rs_;
 
-	if (!IsConst(_Rs_))
-		return 0;
+	imm_min = imm_max = _fImm_(opcode);
 
-	bool direct = false;
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
 
-#ifdef USE_DIRECT_MEM_ACCESS
-	u32 addr_max = iRegs[_Rs_].r + imm_max;
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	if ((addr_max & 0x1fffffff) < 0x800000)
-		direct = true;
-#endif
+	/* Allow LB, LBU, LH, LHU and LW */
+	/* rs should be the same, imm and rt could be different */
+	while ((_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||
+	        _fOp_(opcode) == 0x21 || _fOp_(opcode) == 0x25 ||
+	        _fOp_(opcode) == 0x23) && (rs == _fRs_(opcode))) {
 
-	#ifdef WITH_DISASM
-	for (int i = 0; i < count-1; i++)
-		DISASM_PSX(pc + i * 4);
-	#endif
+		/* Update min and max immediate values */
+		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
+		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
 
-	u32 PC = pc - 4;
+		opcode = *(u32 *)((char *)PSXM(PC));
 
-	if (direct)  /* DIRECT */
-	{
-		// Keep upper mem address in a register, but track its
-		// current value so we avoid unnecessarily loading it repeatedly
-		u16 mem_addr_hi = 0;
+		PC += 4;
+		count++;
 
-		int icount = count;
-		do {
-			u32 opcode = *(u32 *)((char *)PSXM(PC));
-			s32 imm = _fImm_(opcode);
-			u32 rt = _fRt_(opcode);
-			u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+		/* Extra paranoid check if rt == rs */
+		if (_fRt_(opcode) == _fRs_(opcode))
+			return count;
 
-			u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
-
-			if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
-				mem_addr_hi = ADR_HI(mem_addr);
-				LUI(TEMP_2, ADR_HI(mem_addr));
-			}
-
-			OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
-
-			SetUndef(rt);
-			regMipsChanged(rt);
-			regUnlock(r2);
-			PC += 4;
-		} while (--icount);
-
-	} else  /* INDIRECT - Pass everything off to C handler */
-	{
-		// Allocate base register common to series
-		u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-
-		do {
-			u32 opcode = *(u32 *)((char *)PSXM(PC));
-			s32 imm = _fImm_(opcode);
-			u32 rt = _fRt_(opcode);
-			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-
-			switch (opcode & 0xfc000000) {
-			case 0x80000000: // LB
-				JAL(psxMemRead8);
-				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
-#ifdef HAVE_MIPS32R2_SEB_SEH
-				SEB(r2, MIPSREG_V0);
-#else
-				SLL(r2, MIPSREG_V0, 24);
-				SRA(r2, r2, 24);
-#endif
-				break;
-			case 0x90000000: // LBU
-				JAL(psxMemRead8);
-				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
-				MOV(r2, MIPSREG_V0);
-				break;
-			case 0x84000000: // LH
-				JAL(psxMemRead16);
-				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
-#ifdef HAVE_MIPS32R2_SEB_SEH
-				SEH(r2, MIPSREG_V0);
-#else
-				SLL(r2, MIPSREG_V0, 16);
-				SRA(r2, r2, 16);
-#endif
-				break;
-			case 0x94000000: // LHU
-				JAL(psxMemRead16);
-				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
-				MOV(r2, MIPSREG_V0);
-				break;
-			case 0x8c000000: // LW
-				JAL(psxMemRead32);
-				ADDIU(MIPSREG_A0, r1, imm); // <BD slot> $a0 = eff. address
-				MOV(r2, MIPSREG_V0);
-				break;
-			}
-
-			SetUndef(rt);
-			regMipsChanged(rt);
-			regUnlock(r2);
-
-			PC += 4;
-		} while (--count);
-
-		regUnlock(r1);
 	}
 
-	pc = PC;
-	return 1;
+#ifdef LOG_LOADS
+	if (count) {
+		printf("\nFOUND %d loads, min: %d, max: %d\n", count, imm_min, imm_max);
+		u32 dpc = pc - 4;
+		for (; dpc < PC - 4; dpc += 4)
+			disasm_psx(dpc);
+	}
+#endif
+
+	return count;
+}
+
+static int calc_stores()
+{
+	int count = 0;
+	u32 PC = pc;
+	u32 opcode = psxRegs.code;
+	u32 rs = _Rs_;
+
+	imm_min = imm_max = _fImm_(opcode);
+
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
+
+	/* Allow SB, SH and SW */
+	/* rs should be the same, imm and rt could be different */
+	while (((_fOp_(opcode) == 0x28) || (_fOp_(opcode) == 0x29) ||
+	        (_fOp_(opcode) == 0x2b)) && (rs == _fRs_(opcode))) {
+
+		/* Update min and max immediate values */
+		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
+		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
+
+		opcode = *(u32 *)((char *)PSXM(PC));
+
+		PC += 4;
+		count++;
+	}
+
+#ifdef LOG_STORES
+	if (count) {
+		printf("\nFOUND %d stores, min: %d, max: %d\n", count, imm_min, imm_max);
+		u32 dpc = pc - 4;
+		for (; dpc < PC - 4; dpc += 4)
+			disasm_psx(dpc);
+	}
+#endif
+
+	return count;
 }
 
 static int StoreToConstAddr(int count)
@@ -296,96 +266,98 @@ static int StoreToConstAddr(int count)
 	return 1;
 }
 
-static void LoadFromAddr(int count)
+static void LoadFromAddr(int count, bool force_indirect)
 {
 	// Rt = [Rs + imm16]
 	u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 PC = pc - 4;
 
-	#ifdef WITH_DISASM
+#ifdef WITH_DISASM
 	for (int i = 0; i < count-1; i++)
 		DISASM_PSX(pc + i * 4);
-	#endif
+#endif
 
 #ifdef USE_DIRECT_MEM_ACCESS
-	regPushState();
-
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	//  We check only the effective address of first load in the series,
-	// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
-	// See comments in StoreToAddr().
-
-	// Get the effective address of first load in the series.
-	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
-	ADDIU(MIPSREG_A0, r1, _Imm_);
-
-#ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
-#else
-	LUI(MIPSREG_A1, 0x0f00);
-	AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
-#endif
-	u32 *backpatch_label_hle_1 = (u32 *)recMem;
-	BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
-
-	// NOTE: Branch delay slot contains next emitted instruction,
-	//       which should not write to MIPSREG_A1
-
-#ifndef SKIP_SAME_2MB_REGION_CHECK
-	/* Check if addr and addr+imm are in the same 2MB region */
-#ifdef HAVE_MIPS32R2_EXT_INS
-	EXT(TEMP_3, r1, 21, 3);             // <BD slot> TEMP_3 = (r1 >> 21) & 0x7
-	EXT(MIPSREG_A1, MIPSREG_A0, 21, 3); // MIPSREG_A1 = (MIPSREG_A0 >> 21) & 0x7
-#else
-	SRL(TEMP_3, r1, 21);                // <BD slot>
-	ANDI(TEMP_3, TEMP_3, 7);
-	SRL(MIPSREG_A1, MIPSREG_A0, 21);
-	ANDI(MIPSREG_A1, MIPSREG_A1, 7);
-#endif
-	u32 *backpatch_label_hle_2 = (u32 *)recMem;
-	BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-
-	// NOTE: Branch delay slot contains next emitted instruction,
-	//       which should not write to MIPSREG_A1, TEMP_3
-#endif
-
-	// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
-	emitAddrCalc(r1); // TEMP_2 == recalculated addr
-
-	int icount = count;
 	u32 *backpatch_label_exit_1 = 0;
-	do {
-		u32 opcode = *(u32 *)((char *)PSXM(PC));
-		s32 imm = _fImm_(opcode);
-		u32 rt = _fRt_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+	if (!force_indirect)
+	{
+		regPushState();
 
-		if (icount == 1) {
-			// This is the end of the loop
-			backpatch_label_exit_1 = (u32 *)recMem;
-			B(0); // b label_exit
-			// NOTE: Branch delay slot will contain the instruction below
-		}
-		// Important: this should be the last opcode in the loop (see note above)
-		OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+		// Is address in lower 8MB region? (2MB mirrored x4)
+		//  We check only the effective address of first load in the series,
+		// seeing if bits 27:24 are unset to determine if it is in lower 8MB.
+		// See comments in StoreToAddr().
 
-		SetUndef(rt);
-		regMipsChanged(rt);
-		regUnlock(r2);
+		// Get the effective address of first load in the series.
+		// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
+		ADDIU(MIPSREG_A0, r1, _Imm_);
 
-		PC += 4;
-	} while (--icount);
+#ifdef HAVE_MIPS32R2_EXT_INS
+		EXT(MIPSREG_A1, MIPSREG_A0, 24, 4);
+#else
+		LUI(MIPSREG_A1, 0x0f00);
+		AND(MIPSREG_A1, MIPSREG_A1, MIPSREG_A0);
+#endif
+		u32 *backpatch_label_hle_1 = (u32 *)recMem;
+		BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
 
-	PC = pc - 4;
+		// NOTE: Branch delay slot contains next emitted instruction,
+		//       which should not write to MIPSREG_A1
 
-	regPopState();
-
-	// label_hle:
-	fixup_branch(backpatch_label_hle_1);
 #ifndef SKIP_SAME_2MB_REGION_CHECK
-	fixup_branch(backpatch_label_hle_2);
+		/* Check if addr and addr+imm are in the same 2MB region */
+#ifdef HAVE_MIPS32R2_EXT_INS
+		EXT(TEMP_3, r1, 21, 3);             // <BD slot> TEMP_3 = (r1 >> 21) & 0x7
+		EXT(MIPSREG_A1, MIPSREG_A0, 21, 3); // MIPSREG_A1 = (MIPSREG_A0 >> 21) & 0x7
+#else
+		SRL(TEMP_3, r1, 21);                // <BD slot>
+		ANDI(TEMP_3, TEMP_3, 7);
+		SRL(MIPSREG_A1, MIPSREG_A0, 21);
+		ANDI(MIPSREG_A1, MIPSREG_A1, 7);
+#endif
+		u32 *backpatch_label_hle_2 = (u32 *)recMem;
+		BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
+
+		// NOTE: Branch delay slot contains next emitted instruction,
+		//       which should not write to MIPSREG_A1, TEMP_3
 #endif
 
+		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
+		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+
+		int icount = count;
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+			s32 imm = _fImm_(opcode);
+			u32 rt = _fRt_(opcode);
+			u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+			if (icount == 1) {
+				// This is the end of the loop
+				backpatch_label_exit_1 = (u32 *)recMem;
+				B(0); // b label_exit
+				// NOTE: Branch delay slot will contain the instruction below
+			}
+			// Important: this should be the last opcode in the loop (see note above)
+			OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+			SetUndef(rt);
+			regMipsChanged(rt);
+			regUnlock(r2);
+
+			PC += 4;
+		} while (--icount);
+
+		PC = pc - 4;
+
+		regPopState();
+
+		// label_hle:
+		fixup_branch(backpatch_label_hle_1);
+#ifndef SKIP_SAME_2MB_REGION_CHECK
+		fixup_branch(backpatch_label_hle_2);
+#endif
+	}
 #endif //USE_DIRECT_MEM_ACCESS
 
 	do {
@@ -441,12 +413,81 @@ static void LoadFromAddr(int count)
 
 #ifdef USE_DIRECT_MEM_ACCESS
 	// label_exit:
-	fixup_branch(backpatch_label_exit_1);
+	if (!force_indirect)
+		fixup_branch(backpatch_label_exit_1);
 #endif
 
 	pc = PC;
-
 	regUnlock(r1);
+}
+
+static void LoadFromConstAddr()
+{
+	int count = calc_loads();
+
+	bool const_addr = false;
+#ifdef USE_CONST_ADDRESSES
+	const_addr = IsConst(_Rs_);
+#endif
+
+	if (!const_addr) {
+		// Call general-case emitter for non-const addr
+		LoadFromAddr(count, false);
+		return;
+	}
+
+	// Is address in lower 8MB region? (2MB mirrored x4)
+	u32 addr_max = iRegs[_Rs_].r + imm_max;
+	if ((addr_max & 0x1fffffff) >= 0x800000) {
+		// Call general-case emitter, but force indirect access since
+		//  known-const address is outside lower 8MB RAM.
+		LoadFromAddr(count, true);
+		return;
+	}
+
+	//////////////////////////////
+	// Handle const RAM address //
+	//////////////////////////////
+
+#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+#endif
+
+	u32 PC = pc - 4;
+
+	// Keep upper mem address in a register, but track its current value
+	// so we avoid unnecessarily loading same value repeatedly
+	u16 mem_addr_hi = 0;
+
+	int icount = count;
+	do {
+		// Paranoia check: was base reg written to by last iteration?
+		if (!IsConst(_Rs_))
+			break;
+
+		u32 opcode = *(u32 *)((char *)PSXM(PC));
+		s32 imm = _fImm_(opcode);
+		u32 rt = _fRt_(opcode);
+		u32 r2 = regMipsToHost(rt, REG_FIND, REG_REGISTER);
+
+		u32 mem_addr = (u32)psxM + ((iRegs[_Rs_].r + imm) & 0x1fffff);
+
+		if ((icount == count) || (ADR_HI(mem_addr) != mem_addr_hi)) {
+			mem_addr_hi = ADR_HI(mem_addr);
+			LUI(TEMP_2, ADR_HI(mem_addr));
+		}
+
+		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+
+		SetUndef(rt);
+		regMipsChanged(rt);
+		regUnlock(r2);
+		PC += 4;
+	} while (--icount);
+
+	pc = PC;
+	return;
 }
 
 static void StoreToAddr(int count)
@@ -631,145 +672,34 @@ static void StoreToAddr(int count)
 	regUnlock(r1);
 }
 
-static int calc_loads()
-{
-	int count = 0;
-	u32 PC = pc;
-	u32 opcode = psxRegs.code;
-	u32 rs = _Rs_;
-
-	imm_min = imm_max = _fImm_(opcode);
-
-	/* If in delay slot, set count to 1 */
-	if (branch)
-		return 1;
-
-	/* Allow LB, LBU, LH, LHU and LW */
-	/* rs should be the same, imm and rt could be different */
-	while ((_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||
-	        _fOp_(opcode) == 0x21 || _fOp_(opcode) == 0x25 ||
-	        _fOp_(opcode) == 0x23) && (rs == _fRs_(opcode))) {
-
-		/* Update min and max immediate values */
-		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
-		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
-
-		opcode = *(u32 *)((char *)PSXM(PC));
-
-		PC += 4;
-		count++;
-
-		/* Extra paranoid check if rt == rs */
-		if (_fRt_(opcode) == _fRs_(opcode))
-			return count;
-
-	}
-
-#ifdef LOG_LOADS
-	if (count) {
-		printf("\nFOUND %d loads, min: %d, max: %d\n", count, imm_min, imm_max);
-		u32 dpc = pc - 4;
-		for (; dpc < PC - 4; dpc += 4)
-			disasm_psx(dpc);
-	}
-#endif
-
-	return count;
-}
-
-static int calc_stores()
-{
-	int count = 0;
-	u32 PC = pc;
-	u32 opcode = psxRegs.code;
-	u32 rs = _Rs_;
-
-	imm_min = imm_max = _fImm_(opcode);
-
-	/* If in delay slot, set count to 1 */
-	if (branch)
-		return 1;
-
-	/* Allow SB, SH and SW */
-	/* rs should be the same, imm and rt could be different */
-	while (((_fOp_(opcode) == 0x28) || (_fOp_(opcode) == 0x29) ||
-	        (_fOp_(opcode) == 0x2b)) && (rs == _fRs_(opcode))) {
-
-		/* Update min and max immediate values */
-		if (_fImm_(opcode) > imm_max) imm_max = _fImm_(opcode);
-		if (_fImm_(opcode) < imm_min) imm_min = _fImm_(opcode);
-
-		opcode = *(u32 *)((char *)PSXM(PC));
-
-		PC += 4;
-		count++;
-	}
-
-#ifdef LOG_STORES
-	if (count) {
-		printf("\nFOUND %d stores, min: %d, max: %d\n", count, imm_min, imm_max);
-		u32 dpc = pc - 4;
-		for (; dpc < PC - 4; dpc += 4)
-			disasm_psx(dpc);
-	}
-#endif
-
-	return count;
-}
-
 static void recLB()
 {
-	int count = calc_loads();
-
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(count))
-		return;
-
-	LoadFromAddr(count);
+	LoadFromConstAddr();
 }
 
 static void recLBU()
 {
-	int count = calc_loads();
-
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
-		return;
-
-	LoadFromAddr(count);
+	LoadFromConstAddr();
 }
 
 static void recLH()
 {
-	int count = calc_loads();
-
 	// Rt = mem[Rs + Im] (signed)
-	if (LoadFromConstAddr(count))
-		return;
-
-	LoadFromAddr(count);
+	LoadFromConstAddr();
 }
 
 static void recLHU()
 {
-	int count = calc_loads();
-
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
-		return;
-
-	LoadFromAddr(count);
+	LoadFromConstAddr();
 }
 
 static void recLW()
 {
-	int count = calc_loads();
-
 	// Rt = mem[Rs + Im] (unsigned)
-	if (LoadFromConstAddr(count))
-		return;
-
-	LoadFromAddr(count);
+	LoadFromConstAddr();
 }
 
 static void recSB()
