@@ -32,13 +32,24 @@
 #include <sys/mman.h>
 #endif
 
-#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
-// For Posix shared mem:
+
+/* This is used for direct writes in mips recompiler */
+#if defined(PSXREC) && \
+	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/shm.h>
+#ifdef SHMEM_MIRRORING
+#include <sys/shm.h>   // For Posix shared mem
 #endif
+bool psxM_mirrored = false;
+static bool psxM_mapped = false;
+static bool psxM_lower_mirror = false;
+static bool psxM_upper_mirror = false;
+static s8*  mmap_psxM();
+static void munmap_psxM();
+#endif
+
 
 s8 *psxM = NULL;
 s8 *psxP = NULL;
@@ -74,83 +85,26 @@ int psxMemInit() {
 	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
 	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
 
-#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
-	/* This is needed for direct writes in mips recompiler */
-
-	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
-	psxP = (s8 *)malloc(0x10000);
-	psxH = (s8 *)malloc(0x10000);
-
-	//NOTE: if your platform lacks POSIX shared memory, you could achieve the
-	// same effects here by mmap()ing against a tmpfs, memfd or SysV shm file.
-
-	bool shm_success = true;
-	// Get a POSIX shared memory object fd
-	int shfd = shm_open("/pcsx4all_psxmem", O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
-	if (shfd == -1) {
-		printf("Error acquiring POSIX shared memory file descriptor\n");
-		shm_success = false;
-	}
-
-	// We want 2MB of PSX RAM
-	if (shm_success && (ftruncate(shfd, 0x200000) == -1)) {
-		printf("Error in call to ftruncate() on POSIX shared memory fd\n");
-		shm_success = false;
-	}
-
-	// Map PSX RAM to start at fixed virtual address 0x1000_0000
-	if (shm_success) {
-		void* mmap_retval = mmap((void*)0x10000000, 0x200000,
-				PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
-		if (mmap_retval == MAP_FAILED || mmap_retval != (void*)0x10000000) {
-			printf("Error: mmap() to 0x10000000 of POSIX shared memory fd failed\n");
-			shm_success = false;
-		} else {
-			psxM = (s8*)mmap_retval;
-
-			// Mirror upper 64KB PSX RAM to the fixed virtual region before psxM[].
-			//  This allows recompiler to skip special-casing certain loads/stores
-			//  of/to immediate($reg) address, where $reg is a value near a RAM
-			//  mirror-region boundary and the immediate is a negative value large
-			//  enough to cross to the region before it, i.e. (-16)(0x8020_0000).
-			//  This occurs in games like Einhander. Normally, 0x8020_0000 on a PSX
-			//  would be referencing the beginning of a 2MB mirror in the KSEG0 cached
-			//  mirror region. After emu code masks the address, it maps to address
-			//  0, and accessing -16(&psxM[0]) would be out-of-bounds.
-			//  The mirror here maps it to &psxM[1ffff0], like a real PSX.
-
-			mmap_retval = mmap((void*)((u8*)psxM-0x10000), 0x10000,
-					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0x200000-0x10000);
-			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM-0x10000)) {
-				printf("Warning: creating lower mmap() mirror of POSIX shared memory fd failed\n");
-				shm_success = false;
-			}
-
-			// And, for correctness's sake, mirror lower 64K of PSX RAM to region after
-			//  psxM[], though in practice it's unknown if any games truly need this.
-			mmap_retval = mmap((void*)((u8*)psxM+0x200000), 0x10000,
-					PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, shfd, 0);
-			if (mmap_retval == MAP_FAILED || mmap_retval != (void*)((u8*)psxM+0x200000)) {
-				printf("Warning: creating upper mmap() mirror of POSIX shared memory fd failed\n");
-				shm_success = false;
-			}
-		}
-	}
-
-	// Remove object.. backing RAM is released when munmap()'ed or pid terminates
-	shm_unlink("/pcsx4all_psxmem");
-
-	if (shm_success)
-		printf("Mapped and mirrored PSX RAM using POSIX shared memory successfully.\n");
-#else
-	psxM = (s8 *)malloc(0x00220000);
-	psxP = &psxM[0x200000];
-	psxH = &psxM[0x210000];
+#if defined(PSXREC) && \
+	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
+	psxM = mmap_psxM();
 #endif
 
-	psxR = (s8 *)malloc(0x00080000);
+	if (psxM == NULL)
+		psxM = (s8 *)malloc(0x200000);
 
-	psxNULLread=(u8*)malloc(0x10000);
+	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
+	if (psxP == NULL)
+		psxP = (s8 *)malloc(0x10000);
+	if (psxH == NULL)
+		psxH = (s8 *)malloc(0x10000);
+
+	if (psxR == NULL)
+		psxR = (s8 *)malloc(0x80000);
+
+	if (psxNULLread == NULL)
+		psxNULLread=(u8*)malloc(0x10000);
+
 	memset(psxNULLread, 0, 0x10000);
 	
 	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
@@ -193,8 +147,8 @@ void psxMemReset() {
 	FILE *f = NULL;
 	char bios[MAXPATHLEN];
 
-	memset(psxM, 0, 0x00200000);
-	memset(psxP, 0, 0x00010000);
+	memset(psxM, 0, 0x200000);
+	memset(psxP, 0, 0x10000);
 	memset(psxR, 0, 0x80000);    // Bios memory
 
 	if (Config.HLE==FALSE) {
@@ -248,20 +202,20 @@ void psxMemReset() {
 }
 
 void psxMemShutdown() {
-	free(psxNULLread);
-#if defined(PSXREC) && defined(mips) && defined(SHMEM_MIRRORING)
-	munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap lower mirrored region
-	munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap upper mirrored region
-	munmap((void*)psxM, 0x200000);
-	// These are allocated separately to allow mirroring of psxM:
-	free(psxH);
-	free(psxP);
+
+#if defined(PSXREC) && \
+	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
+	munmap_psxM();
 #else
-	free(psxM);
+	free(psxM);         psxM = NULL;
 #endif
-	free(psxR);
-	free(psxMemRLUT);
-	free(psxMemWLUT);
+
+	free(psxMemRLUT);   psxMemRLUT = NULL;
+	free(psxMemWLUT);   psxMemWLUT = NULL;
+	free(psxP);         psxP = NULL;
+	free(psxH);         psxH = NULL;
+	free(psxR);         psxR = NULL;
+	free(psxNULLread);  psxNULLread = NULL;
 }
 
 u8 psxMemRead8(u32 mem)
@@ -439,6 +393,138 @@ void psxMemWrite32(u32 mem, u32 value)
 		}
 	}
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// -BEGIN- psxM allocation and mirroring via mmap()
+// This is used for direct writes in mips recompiler
+///////////////////////////////////////////////////////////////////////////////
+#if defined(PSXREC) && \
+	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
+
+s8* mmap_psxM()
+{
+	// Already mapped?
+	if (psxM_mapped)
+		return psxM;
+
+	psxM_mirrored = psxM_upper_mirror = psxM_lower_mirror = false;
+
+	bool  success = true;
+	int   memfd = -1;
+	s8*   ptr = NULL;
+	void* mmap_retval = NULL;
+
+#ifdef SHMEM_MIRRORING
+	// Get a POSIX shared memory object fd
+	printf("Mapping/mirroring 2MB PSX RAM using POSIX shared mem\n");
+	const char* mem_fname = "/pcsx4all_psxmem";
+	memfd = shm_open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+#else
+	// Use tmpfs file - TMPFS_DIR string literal should be defined in Makefile
+	//  CFLAGS with escaped backslashes (alter if needed): -DTMPFS_DIR=\"/tmp\"
+	const char* mem_fname = TMPFS_DIR "/pcsx4all_psxmem";
+	printf("Mapping/mirroring 2MB PSX RAM using tmpfs file %s\n", mem_fname);
+	memfd = open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+#endif
+
+	if (memfd < 0) {
+#ifdef SHMEM_MIRRORING
+		printf("Error acquiring POSIX shared memory file descriptor\n");
+#else
+		printf("Error creating tmpfs file: %s\n", mem_fname);
+#endif
+		success = false;
+		goto exit;
+	}
+
+	// We want 2MB of PSX RAM
+	if (success && (ftruncate(memfd, 0x200000) == -1)) {
+		printf("Error in call to ftruncate(), could not get 2MB of PSX RAM\n");
+		success = false;
+		goto exit;
+	}
+
+	// Map PSX RAM to start at fixed virtual address 0x1000_0000
+	mmap_retval = mmap((void*)0x10000000, 0x200000,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Warning: mmap() to 0x10000000 of 2MB PSX RAM mmap fd failed.\n"
+			   "Dynarec will emit slower code for direct writes.\n");
+		success = false;
+		goto exit;
+	}
+	psxM_mapped = true;
+	ptr = (s8*)mmap_retval;
+
+	// Mirror upper 64KB PSX RAM to the fixed virtual region before psxM[].
+	//  This allows recompiler to skip special-casing certain loads/stores
+	//  of/to immediate($reg) address, where $reg is a value near a RAM
+	//  mirror-region boundary and the immediate is a negative value large
+	//  enough to cross to the region before it, i.e. (-16)(0x8020_0000).
+	//  This occurs in games like Einhander. Normally, 0x8020_0000 on a PSX
+	//  would be referencing the beginning of a 2MB mirror in the KSEG0 cached
+	//  mirror region. After emu code masks the address, it maps to address
+	//  0, and accessing -16(&psxM[0]) would be out-of-bounds.
+	//  The mirror here maps it to &psxM[1ffff0], like a real PSX.
+
+	mmap_retval = mmap((void*)(ptr-0x10000), 0x10000,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0x200000-0x10000);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Warning: creating mmap() mirror of upper 64KB of PSX RAM failed.\n");
+	}
+	psxM_upper_mirror = true;
+
+	// And, for correctness's sake, mirror lower 64K of PSX RAM to region after
+	//  psxM[], though in practice it's unknown if any games truly need this.
+	mmap_retval = mmap((void*)(ptr+0x200000), 0x10000,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Warning: creating mmap() mirror of lower 64KB of PSX RAM failed.\n");
+	}
+	psxM_lower_mirror = true;
+
+exit:
+	if (success) {
+		psxM_mirrored = (psxM_lower_mirror && psxM_upper_mirror);
+		printf(" ..success!\n");
+	} else {
+		perror(__func__);
+		printf("ERROR: Failed to mmap() 2MB PSX RAM, falling back to malloc()\n");
+		munmap_psxM();
+		ptr = NULL;
+	}
+
+	// Close/unlink file: backing RAM is released when munmap()'ed or pid terminates
+#ifdef SHMEM_MIRRORING
+	shm_unlink(mem_fname);
+#else
+	if (memfd >= 0)
+		close(memfd);
+	unlink(mem_fname);
+#endif
+
+	psxM_mapped = success;
+	return ptr;
+}
+
+void munmap_psxM()
+{
+	if (psxM_upper_mirror)
+		munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap mirror of upper 64KB
+	if (psxM_lower_mirror)
+		munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap mirror of lower 64KB
+	if (psxM_mapped)
+		munmap((void*)psxM, 0x200000);
+
+	psxM_mapped = psxM_mirrored = psxM_upper_mirror = psxM_lower_mirror = false;
+	psxM = NULL;
+}
+
+#endif
+///////////////////////////////////////////////////////////////////////////////
+// -END- psxM allocation and mirroring via mmap()
+///////////////////////////////////////////////////////////////////////////////
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //NOTE: Following *_direct() are old funcs used by unmaintained ARM dynarecs

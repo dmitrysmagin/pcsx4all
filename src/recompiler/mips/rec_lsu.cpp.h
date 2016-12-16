@@ -5,8 +5,8 @@
 // Upper/lower 64K of PSX RAM (psxM[]) is now mirrored to virtual address
 //  regions surrounding psxM[]. This allows skipping mirror-region boundary
 //  check which special-cased loads/stores that crossed the boundary, the
-//  Einhander game fix. See notes in psxmem.cpp psxMemInit().
-#ifdef SHMEM_MIRRORING
+//  Einhander game fix. See notes in psxmem.cpp.
+#if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 #define SKIP_SAME_2MB_REGION_CHECK
 #endif
 
