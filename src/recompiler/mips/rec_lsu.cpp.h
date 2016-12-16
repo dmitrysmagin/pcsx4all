@@ -86,8 +86,7 @@ static int calc_loads()
 
 		/* Extra paranoid check if rt == rs */
 		if (_fRt_(opcode) == _fRs_(opcode))
-			return count;
-
+			break;
 	}
 
 #ifdef LOG_LOADS
@@ -1025,8 +1024,22 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 }
 
 /* Calculate number of lwl/lwr or swl/swr opcodes */
-static int calc_wl_wr(u32 op1, u32 op2)
+enum {
+	CALC_SWL_SWR,
+	CALC_LWL_LWR
+};
+
+static int calc_wl_wr(int type)
 {
+	u32 op1, op2;
+	if (type == CALC_LWL_LWR) {
+		op1 = 0x22; // LWL
+		op2 = 0x26; // LWR
+	} else {
+		op1 = 0x2a; // SWL
+		op2 = 0x2e; // SWR
+	}
+
 	int count = 0;
 	u32 PC = pc;
 	u32 opcode = psxRegs.code;
@@ -1047,6 +1060,10 @@ static int calc_wl_wr(u32 op1, u32 op2)
 		opcode = *(u32 *)((char *)PSXM(PC));
 		PC += 4;
 		count++;
+
+		/* Check if base reg overwritten by load, i.e. rt == rs */
+		if (type == CALC_LWL_LWR && _fRt_(opcode) == _fRs_(opcode))
+			break;
 	}
 
 #ifdef LOG_WL_WR
@@ -1063,7 +1080,7 @@ static int calc_wl_wr(u32 op1, u32 op2)
 
 static void recLWL()
 {
-	int count = calc_wl_wr(0x22, 0x26);
+	int count = calc_wl_wr(CALC_LWL_LWR);
 
 	bool const_addr = false;
 #ifdef USE_CONST_ADDRESSES
@@ -1135,7 +1152,7 @@ static void recLWR()
 
 static void recSWL()
 {
-	int count = calc_wl_wr(0x2a, 0x2e);
+	int count = calc_wl_wr(CALC_SWL_SWR);
 
 	bool const_addr = false;
 #ifdef USE_CONST_ADDRESSES
