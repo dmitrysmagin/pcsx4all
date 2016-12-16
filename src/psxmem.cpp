@@ -147,12 +147,8 @@ int psxMemInit() {
 	psxP = &psxM[0x200000];
 	psxH = &psxM[0x210000];
 #endif
-	psxRegs.psxM=psxM;
-	psxRegs.psxP=psxP;
-	psxRegs.psxH=psxH;
 
 	psxR = (s8 *)malloc(0x00080000);
-	psxRegs.psxR=psxR;
 
 	psxNULLread=(u8*)malloc(0x10000);
 	memset(psxNULLread, 0, 0x10000);
