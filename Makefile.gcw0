@@ -25,7 +25,7 @@ MCD1_FILE = \"mcd001.mcr\"
 MCD2_FILE = \"mcd002.mcr\"
 
 ifdef A320
-	C_ARCH = -mips32 -msoft-float
+	C_ARCH = -mips32 -msoft-float -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
 else
 	C_ARCH = -mips32r2 -DSHMEM_MIRRORING
 endif
