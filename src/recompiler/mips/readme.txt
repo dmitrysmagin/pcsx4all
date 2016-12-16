@@ -55,4 +55,6 @@ What's already done:
   - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
   - Next Tetris (gets stuck occasionally at start)
   - Mortal Kombat Trilogy (works with interpreter + HLE)
+  - Tomb Raider V Chronicles (J) (works with int+bios)
+    with recompiler the graphics go crazy
 
