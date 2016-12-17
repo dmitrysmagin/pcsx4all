@@ -54,6 +54,15 @@ static void SetupDitheringConstants()
 
 			u32 component = ((DitherMatrix[offset] + 1) << 4) / 65; //[5.5] -> [5]
 
+			// XXX - senquack - hack Dec 2016
+			//  Until JohnnyF gets the time to work further on dithering,
+			//   force lower bit of component to 0. This fixes grid pattern
+			//   affecting quality of dithered image, as well as loss of
+			//   detail in dark areas. With lower bit unset like this, existing
+			//   27-bit accuracy of dithering math is unneeded, could be 24-bit.
+			//   Is 8x8 matrix overkill as a result, can we use 4x4?
+			component &= ~1;
+
 			gpu_unai.DitherMatrix[offset] = (component)
 			                              | (component << 10)
 			                              | (component << 20);
