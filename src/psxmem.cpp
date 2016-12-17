@@ -201,20 +201,19 @@ void psxMemReset() {
 		printf("Using HLE emulated BIOS functions. Expect incompatibilities.\n");
 }
 
-void psxMemShutdown() {
-
+void psxMemShutdown()
+{
 #if defined(PSXREC) && \
 	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
 	munmap_psxM();
-#else
-	free(psxM);         psxM = NULL;
 #endif
 
-	free(psxMemRLUT);   psxMemRLUT = NULL;
-	free(psxMemWLUT);   psxMemWLUT = NULL;
+	free(psxM);         psxM = NULL;
 	free(psxP);         psxP = NULL;
 	free(psxH);         psxH = NULL;
 	free(psxR);         psxR = NULL;
+	free(psxMemRLUT);   psxMemRLUT = NULL;
+	free(psxMemWLUT);   psxMemWLUT = NULL;
 	free(psxNULLread);  psxNULLread = NULL;
 }
 
@@ -407,8 +406,6 @@ s8* mmap_psxM()
 	if (psxM_mapped)
 		return psxM;
 
-	psxM_mirrored = psxM_upper_mirror = psxM_lower_mirror = false;
-
 	bool  success = true;
 	int   memfd = -1;
 	s8*   ptr = NULL;
@@ -421,7 +418,7 @@ s8* mmap_psxM()
 	memfd = shm_open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
 #else
 	// Use tmpfs file - TMPFS_DIR string literal should be defined in Makefile
-	//  CFLAGS with escaped backslashes (alter if needed): -DTMPFS_DIR=\"/tmp\"
+	//  CFLAGS with escaped quotes (alter if needed): -DTMPFS_DIR=\"/tmp\"
 	const char* mem_fname = TMPFS_DIR "/pcsx4all_psxmem";
 	printf("Mapping/mirroring 2MB PSX RAM using tmpfs file %s\n", mem_fname);
 	memfd = open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
@@ -438,7 +435,7 @@ s8* mmap_psxM()
 	}
 
 	// We want 2MB of PSX RAM
-	if (success && (ftruncate(memfd, 0x200000) == -1)) {
+	if (ftruncate(memfd, 0x200000) < 0) {
 		printf("Error in call to ftruncate(), could not get 2MB of PSX RAM\n");
 		success = false;
 		goto exit;
@@ -453,8 +450,8 @@ s8* mmap_psxM()
 		success = false;
 		goto exit;
 	}
-	psxM_mapped = true;
 	ptr = (s8*)mmap_retval;
+	psxM_mapped = true;
 
 	// Mirror upper 64KB PSX RAM to the fixed virtual region before psxM[].
 	//  This allows recompiler to skip special-casing certain loads/stores
@@ -471,8 +468,9 @@ s8* mmap_psxM()
 			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0x200000-0x10000);
 	if (mmap_retval == MAP_FAILED) {
 		printf("Warning: creating mmap() mirror of upper 64KB of PSX RAM failed.\n");
+	} else {
+		psxM_upper_mirror = true;
 	}
-	psxM_upper_mirror = true;
 
 	// And, for correctness's sake, mirror lower 64K of PSX RAM to region after
 	//  psxM[], though in practice it's unknown if any games truly need this.
@@ -480,8 +478,9 @@ s8* mmap_psxM()
 			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
 	if (mmap_retval == MAP_FAILED) {
 		printf("Warning: creating mmap() mirror of lower 64KB of PSX RAM failed.\n");
+	} else {
+		psxM_lower_mirror = true;
 	}
-	psxM_lower_mirror = true;
 
 exit:
 	if (success) {
@@ -490,11 +489,10 @@ exit:
 	} else {
 		perror(__func__);
 		printf("ERROR: Failed to mmap() 2MB PSX RAM, falling back to malloc()\n");
-		munmap_psxM();
 		ptr = NULL;
 	}
 
-	// Close/unlink file: backing RAM is released when munmap()'ed or pid terminates
+	// Close/unlink file: RAM is released when munmap()'ed or pid terminates
 #ifdef SHMEM_MIRRORING
 	shm_unlink(mem_fname);
 #else
@@ -509,13 +507,14 @@ exit:
 
 void munmap_psxM()
 {
+	if (!psxM_mapped)
+		return;
+
 	if (psxM_upper_mirror)
 		munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap mirror of upper 64KB
 	if (psxM_lower_mirror)
 		munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap mirror of lower 64KB
-	if (psxM_mapped)
-		munmap((void*)psxM, 0x200000);
-
+	munmap((void*)psxM, 0x200000);
 	psxM_mapped = psxM_mirrored = psxM_upper_mirror = psxM_lower_mirror = false;
 	psxM = NULL;
 }
