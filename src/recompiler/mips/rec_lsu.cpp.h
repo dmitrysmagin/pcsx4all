@@ -404,7 +404,9 @@ static void StoreToAddr(int count, bool force_indirect)
 		// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
 		//    goto label_hle_1;
 
-		LW(MIPSREG_A1, PERM_REG_1, off(writeok));
+		u32 *backpatch_label_hle_1;
+		if (!Config.HLE)
+			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
@@ -412,9 +414,14 @@ static void StoreToAddr(int count, bool force_indirect)
 		LUI(TEMP_3, 0x0f00);
 		AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-		SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
-		u32 *backpatch_label_hle_1 = (u32 *)recMem;
-		BEQZ(MIPSREG_A1, 0);
+		if (!Config.HLE) {
+			SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
+			backpatch_label_hle_1 = (u32 *)recMem;
+			BEQZ(MIPSREG_A1, 0);
+		} else {
+			backpatch_label_hle_1 = (u32 *)recMem;
+			BNE(TEMP_3, 0, 0);
+		}
 		// NOTE: Branch delay slot contains next emitted instruction,
 		//       which should not write to MIPSREG_A1
 
@@ -579,7 +586,9 @@ static void StoreToConstAddr()
 
 	u32 PC = pc - 4;
 
-	LW(TEMP_1, PERM_REG_1, off(writeok));
+	u32 *backpatch_label_no_write = NULL;
+	if (!Config.HLE)
+		LW(TEMP_1, PERM_REG_1, off(writeok));
 
 	// Keep upper half of last code block and RAM addresses in regs,
 	// tracking current values so we can avoid loading same val repeatedly.
@@ -605,9 +614,11 @@ static void StoreToConstAddr()
 		}
 
 		// Skip RAM write if psxRegs.writeok == 0
-		u32 *backpatch_label_no_write = (u32 *)recMem;
-		BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
-		// NOTE: Branch delay slot contains next instruction emitted below
+		if (!Config.HLE) {
+			backpatch_label_no_write = (u32 *)recMem;
+			BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
+			// NOTE: Branch delay slot contains next instruction emitted below
+		}
 
 		if (code_addr != last_code_addr) {
 			// Set code block ptr to NULL
@@ -630,7 +641,8 @@ static void StoreToConstAddr()
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
 
 		// label_no_write:
-		fixup_branch(backpatch_label_no_write);
+		if (!Config.HLE)
+			fixup_branch(backpatch_label_no_write);
 
 		regUnlock(r2);
 		PC += 4;
@@ -872,7 +884,9 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
 		//    goto label_hle_1;
 
-		LW(MIPSREG_A1, PERM_REG_1, off(writeok));
+		u32 *backpatch_label_hle_1;
+		if (!Config.HLE)
+			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
@@ -880,9 +894,14 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		LUI(TEMP_3, 0x0f00);
 		AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-		SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
-		u32 *backpatch_label_hle_1 = (u32 *)recMem;
-		BEQZ(MIPSREG_A1, 0);
+		if (!Config.HLE) {
+			SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
+			backpatch_label_hle_1 = (u32 *)recMem;
+			BEQZ(MIPSREG_A1, 0);
+		} else {
+			backpatch_label_hle_1 = (u32 *)recMem;
+			BNE(TEMP_3, 0, 0);
+		}
 		// NOTE: Branch delay slot contains next emitted instruction,
 		//       which should not write to MIPSREG_A1
 
@@ -1184,7 +1203,9 @@ static void recSWL()
 
 	u32 PC = pc - 4;
 
-	LW(TEMP_1, PERM_REG_1, off(writeok));
+	u32 *backpatch_label_no_write = NULL;
+	if (!Config.HLE)
+		LW(TEMP_1, PERM_REG_1, off(writeok));
 
 	// Keep upper half of last code block and RAM addresses in regs,
 	// tracking current values so we can avoid loading same val repeatedly.
@@ -1215,9 +1236,11 @@ static void recSWL()
 		}
 
 		// Skip RAM write if psxRegs.writeok == 0
-		u32 *backpatch_label_no_write = (u32 *)recMem;
-		BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
-		// NOTE: Branch delay slot contains next instruction emitted below
+		if (!Config.HLE) {
+			backpatch_label_no_write = (u32 *)recMem;
+			BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
+			// NOTE: Branch delay slot contains next instruction emitted below
+		}
 
 		if (code_addr != last_code_addr) {
 			// Set code block ptr to NULL
@@ -1233,7 +1256,8 @@ static void recSWL()
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
 
 		// label_no_write:
-		fixup_branch(backpatch_label_no_write);
+		if (!Config.HLE)
+			fixup_branch(backpatch_label_no_write);
 
 		regUnlock(r2);
 		PC += 4;
