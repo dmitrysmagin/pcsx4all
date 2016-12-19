@@ -411,8 +411,13 @@ void gteRTPS(void) {
 	gteSX2 = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 	gteSY2 = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+	//senquack - Fix glitched drawing of road surface in 'Burning Road'..
+	// behavior now matches Mednafen. This also preserves the fix by Shalma
+	// from prior commit f916013 for missing elements in 'Legacy of Kain:
+	// Soul Reaver' (missing green plasma balls in first level).
+	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp) >> 12;
 }
 
 void gteRTPT(void) {
@@ -441,8 +446,11 @@ void gteRTPT(void) {
 		fSX(v) = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 		fSY(v) = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 	}
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+
+	// See note in gteRTPS()
+	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp) >> 12;
 }
 
 void gteMVMVA(void) {
