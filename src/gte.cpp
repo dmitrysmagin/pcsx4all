@@ -426,7 +426,7 @@ void gteRTPS(void) {
 	// Soul Reaver' (missing green plasma balls in first level).
 	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
 	gteMAC0 = F(tmp);
-	gteIR0 = limH(tmp) >> 12;
+	gteIR0 = limH(tmp >> 12);
 }
 
 void gteRTPT(void) {
@@ -459,7 +459,7 @@ void gteRTPT(void) {
 	// See note in gteRTPS()
 	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
 	gteMAC0 = F(tmp);
-	gteIR0 = limH(tmp) >> 12;
+	gteIR0 = limH(tmp >> 12);
 }
 
 void gteMVMVA(void) {
