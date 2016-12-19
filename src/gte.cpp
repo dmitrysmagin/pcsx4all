@@ -24,7 +24,7 @@
 
 // MIPS platforms have hardware divider, faster than 64KB LUT + UNR algo
 #if defined(__mips__)
-#define GTE_USE_HARDWARE_DIVIDE
+#define GTE_USE_NATIVE_DIVIDE
 #endif
 
 // (This is a backported optimization from PCSX Rearmed -senquack)
@@ -159,7 +159,15 @@
 #define gteBFC (((s32 *)psxRegs.CP2C.r)[23])
 #define gteOFX (((s32 *)psxRegs.CP2C.r)[24])
 #define gteOFY (((s32 *)psxRegs.CP2C.r)[25])
-#define gteH   (psxRegs.CP2C.p[26].sw.l)
+
+// senquack - gteH register is u16, not s16, and used in GTE that way.
+//  HOWEVER when read back by CPU using CFC2, it will be incorrectly
+//  sign-extended by bug in original hardware, according to Nocash docs
+//  GTE section 'Screen Offset and Distance'. The emulator does this
+//  sign extension when it is loaded to GTE by CTC2.
+//#define gteH   (psxRegs.CP2C.p[26].sw.l)
+#define gteH   (psxRegs.CP2C.p[26].w.l)
+
 #define gteDQA (psxRegs.CP2C.p[27].sw.l)
 #define gteDQB (((s32 *)psxRegs.CP2C.r)[28])
 #define gteZSF3 (psxRegs.CP2C.p[29].sw.l)
@@ -243,16 +251,17 @@ INLINE u32 limE(u32 result) {
 #define A3U(x) (x)
 #endif
 
-#ifdef GTE_USE_HARDWARE_DIVIDE
-INLINE u32 DIVIDE(s16 n, u16 d) {
-	if (n >= 0 && n < d * 2) {
+//senquack - n param should be unsigned (will be 'gteH' reg which is u16)
+#ifdef GTE_USE_NATIVE_DIVIDE
+INLINE u32 DIVIDE(u16 n, u16 d) {
+	if (n < d * 2) {
 		return ((u32)n << 16) / d;
 	}
 	return 0xffffffff;
 }
 #else
 #include "gte_divide.h"
-#endif // GTE_USE_HARDWARE_DIVIDE
+#endif // GTE_USE_NATIVE_DIVIDE
 
 //senquack - Applied fixes from PCSX Rearmed 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
 // Case 28 now falls through to case 29, and don't return 0 for case 30
@@ -411,8 +420,13 @@ void gteRTPS(void) {
 	gteSX2 = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 	gteSY2 = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+	//senquack - Fix glitched drawing of road surface in 'Burning Road'..
+	// behavior now matches Mednafen. This also preserves the fix by Shalma
+	// from prior commit f916013 for missing elements in 'Legacy of Kain:
+	// Soul Reaver' (missing green plasma balls in first level).
+	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp) >> 12;
 }
 
 void gteRTPT(void) {
@@ -441,8 +455,11 @@ void gteRTPT(void) {
 		fSX(v) = limG1(F((s64)gteOFX + ((s64)gteIR1 * quotient)) >> 16);
 		fSY(v) = limG2(F((s64)gteOFY + ((s64)gteIR2 * quotient)) >> 16);
 	}
-	gteMAC0 = F((s64)gteDQB + ((s64)gteDQA * quotient));
-	gteIR0 = limH(gteMAC0 >> 12);
+
+	// See note in gteRTPS()
+	s64 tmp = (s64)gteDQB + ((s64)gteDQA * quotient);
+	gteMAC0 = F(tmp);
+	gteIR0 = limH(tmp) >> 12;
 }
 
 void gteMVMVA(void) {

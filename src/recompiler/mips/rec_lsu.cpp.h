@@ -375,6 +375,15 @@ static void StoreToAddr(int count, bool force_indirect)
 		DISASM_PSX(pc + i * 4);
 #endif
 
+#ifdef USE_DIRECT_MEM_ACCESS
+	// Load psxRegs.writeok to see if RAM is writeable
+	// (load it early to reduce load stall at check below)
+	if (!force_indirect) {
+		if (!Config.HLE)
+			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
+	}
+#endif
+
 	// Get the effective address of first store in the series.
 	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
 	ADDIU(MIPSREG_A0, r1, _Imm_);
@@ -405,9 +414,6 @@ static void StoreToAddr(int count, bool force_indirect)
 		//    goto label_hle_1;
 
 		u32 *backpatch_label_hle_1;
-		if (!Config.HLE)
-			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
-
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
 #else
