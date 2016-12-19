@@ -4107,8 +4107,9 @@ static const u16 initial_guess[32768] = {
 };
 
 // note: returns 16.16 fixed-point
-static u32 DIVIDE(s16 n, u16 d) {
-	if (n >= 0 && n < d * 2) {
+//senquack - n param should be unsigned (will be 'gteH' reg which is u16)
+static u32 DIVIDE(u16 n, u16 d) {
+	if (n < d * 2) {
 		u32 offset = d;
 		int shift = 0;
 		u64 reciprocal;
