@@ -6,7 +6,8 @@
 #include "port.h"
 #include "r3000a.h"
 #include "plugins.h"
-#include "plugin_lib/perfmon.h"  // FPS / CPU performance monitoring
+#include "plugin_lib.h"
+#include "perfmon.h"
 #include <SDL.h>
 
 /* PATH_MAX inclusion */
@@ -234,6 +235,9 @@ void config_load()
 		} else if (!strcmp(line, "FrameLimit")) {
 			sscanf(arg, "%d", &value);
 			Config.FrameLimit = value;
+		} else if (!strcmp(line, "FrameSkip")) {
+			sscanf(arg, "%d", &value);
+			Config.FrameSkip = value;
 		}
 #ifdef SPU_PCSXREARMED
 		else if (!strcmp(line, "SpuUseInterpolation")) {
@@ -343,11 +347,12 @@ void config_save()
 		   "SyncAudio %d\n"
 		   "ForcedXAUpdates %d\n"
 		   "ShowFps %d\n"
-		   "FrameLimit %d\n",
+		   "FrameLimit %d\n"
+		   "FrameSkip %d\n",
 		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto,
 		   Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA,
 		   Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio,
-		   Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit);
+		   Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit, Config.FrameSkip);
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
@@ -516,7 +521,7 @@ void pad_update(void)
 		sioSyncMcds();
 
 		emu_running = false;
-		pmonPause();   // Pause performance monitor
+		pl_pause();    // Tell plugin_lib we're pausing emu
 		GameMenu();
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
@@ -528,8 +533,7 @@ void pad_update(void)
 		video_flip();
 		video_clear();
 #endif
-		pmonResume();   // Resume performance monitor
-		GPU_requestScreenRedraw(); // GPU plugin should redraw screen
+		pl_resume();    // Tell plugin_lib we're reentering emu
 	}
 #endif
 }
@@ -819,6 +823,26 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-framelimit") == 0) {
 			Config.FrameLimit = true;
 		}
+
+		// frame skip
+		if (strcmp(argv[i],"-frameskip") == 0) {
+			int val = -1;
+			if (++i < argc) {
+				val = atoi(argv[i]);
+				if (val >= -1 && val <= 3) {
+					Config.FrameSkip = val;
+				} else val = -1;
+			} else {
+				printf("ERROR: missing value for -frameskip\n");
+			}
+
+			if (val == -1) {
+				printf("ERROR: -frameskip value must be between -1..3 (-1 is AUTO)\n");
+				param_parse_error = true;
+				break;
+			}
+		}
+
 #ifdef GPU_UNAI
 		// Render only every other line (looks ugly but faster)
 		if (strcmp(argv[i],"-interlace") == 0) {
@@ -854,24 +878,6 @@ int main (int argc, char **argv)
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
 	#ifndef USE_GPULIB
-		if (strcmp(argv[i],"-skip") == 0) {
-			int val = -1;
-			if (++i < argc) {
-				val = atoi(argv[i]);
-				if (val >= 0 && val <= 7) {
-					gpu_unai_config_ext.frameskip_count = val;
-				} else val = -1;
-			} else {
-				printf("ERROR: missing value for -skip\n");
-			}
-
-			if (val == -1) {
-				printf("ERROR: -skip value must be between 0..8\n");
-				param_parse_error = true;
-				break;
-			}
-		}
-
 		// Progressive interlace option - See gpu_unai/gpu.h
 		// Old option left in from when PCSX4ALL ran on very slow devices.
 		if (strcmp(argv[i],"-progressive") == 0) {
@@ -989,10 +995,6 @@ int main (int argc, char **argv)
 		exit(1);
 	}
 
-#ifdef USE_GPULIB
-	gpulib_set_config(&gpulib_config);
-#endif
-
 	//NOTE: spu_pcsxrearmed will handle audio initialization
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 
@@ -1039,8 +1041,10 @@ int main (int argc, char **argv)
 	pcsx4all_initted = true;
 	emu_running = true;
 
+	// Initialize plugin_lib, gpulib
+	pl_init();
+
 	psxReset();
-	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
 
 	if (cdrfilename[0] != '\0') {
 		if (CheckCdrom() == -1) {

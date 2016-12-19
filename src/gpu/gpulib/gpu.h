@@ -87,7 +87,6 @@ struct psx_gpu {
     uint32_t active:1;
     uint32_t allow:1;
     uint32_t frame_ready:1;
-    const int *advice;
     uint32_t last_flip_frame;
     uint32_t pending_fill[3];
   } frameskip;
@@ -108,13 +107,6 @@ struct gpulib_config_t {
 	void *(*mmap)(unsigned int size);
 	void  (*munmap)(void *ptr, unsigned int size);
 #endif
-	// some stats, for display by some plugins
-	int flips_per_sec, cpu_usage;
-	float vsps_cur; // currect vsync/s
-	// gpu options
-	int   frameskip;
-	int   fskip_advice;
-	unsigned int flip_cnt;
 
 	struct {
 		int   iUseDither;
@@ -134,6 +126,7 @@ struct gpulib_config_t {
 
 extern gpulib_config_t gpulib_config;
 
+void gpulib_frameskip_prepare(void);
 void gpulib_set_config(const gpulib_config_t *config);
 
 int  renderer_init(void);

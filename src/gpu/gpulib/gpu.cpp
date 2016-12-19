@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include "plugins.h"    // For GPUFreeze_t
 #include "gpu.h"
+#include "plugin_lib.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #ifdef __GNUC__
@@ -97,7 +98,7 @@ static noinline void decide_frameskip(void)
     gpu.frameskip.frame_ready = 1;
   }
 
-  if (!gpu.frameskip.active && *gpu.frameskip.advice)
+  if (!gpu.frameskip.active && pl_frameskip_advice())
     gpu.frameskip.active = 1;
   else if (gpu.frameskip.set > 0 && gpu.frameskip.cnt < gpu.frameskip.set)
     gpu.frameskip.active = 1;
@@ -208,6 +209,8 @@ long GPU_init(void)
   extern uint32_t frame_counter;      // in psxcounters.cpp
   gpu.state.hcnt = &hSyncCount;
   gpu.state.frame_count = &frame_counter;
+
+  gpulib_frameskip_prepare();
 
   int ret;
   ret  = vout_init();
@@ -761,14 +764,16 @@ void GPU_requestScreenRedraw()
 	gpu.state.fb_dirty = 1;
 }
 
+void gpulib_frameskip_prepare(void)
+{
+  gpu.frameskip.set = Config.FrameSkip;
+  gpu.frameskip.active = 0;
+  gpu.frameskip.cnt = 0;
+  gpu.frameskip.frame_ready = 1;
+}
+
 void gpulib_set_config(const gpulib_config_t *config)
 {
-
-  gpu.frameskip.set = config->frameskip;
-  gpu.frameskip.advice = &config->fskip_advice;
-  gpu.frameskip.active = 0;
-  gpu.frameskip.frame_ready = 1;
-
 #ifdef GPULIB_USE_MMAP
   gpu.mmap = config->mmap;
   gpu.munmap = config->munmap;

@@ -40,7 +40,6 @@
 #include "psxcounters.h"
 #include "psxevents.h"
 #include "gpu.h"
-#include "plugin_lib/perfmon.h"
 
 /******************************************************************************/
 
@@ -355,14 +354,12 @@ void psxRcntUpdate()
             GPU_vBlank( 1, 0 );
 #endif
             setIrq( 0x01 );
+
+            // Do framelimit, frameskip, perf stats, controls, etc:
+            // NOTE: this is point of control transfer to frontend menu
+            EmuUpdate();
+
             GPU_updateLace();
-
-            // Update and display performance stats
-            pmonUpdate();
-
-            // Update controls
-            // NOTE: this is point of control transfer to frontend
-            pad_update();
 
             // If frontend called LoadState(), loading a savestate, do not
             //  proceed further: Rootcounter state has been altered.
@@ -374,7 +371,7 @@ void psxRcntUpdate()
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
             // frame. However, we target slower platforms like GCW Zero, and
             // lack auto-frameskip, so this would lead to audio dropouts. For
-            // now, we update SPU plugin twice per frame in psxevents.cpp
+            // now, we update SPU plugin twice per frame as a scheduled event.
             //SPU_async( cycle, 1 );
         }
 

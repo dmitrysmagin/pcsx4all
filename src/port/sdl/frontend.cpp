@@ -848,29 +848,47 @@ static char *framelimit_show()
 	return buf;
 }
 
-#ifdef GPU_UNAI
-#ifndef USE_GPULIB
+#ifdef USE_GPULIB
 static int frameskip_alter(u32 keys)
 {
+	// Config.FrameSkip is -1 for auto-frameskip, 0 for 'frameskip off'
+	//  or 1-3 for fixed frameskip. We want to have 'frameskip off' as
+	//  the first setting and 'auto-frameskip' as the second setting
+	//  in the gui settings, though.
+
+	int fs = Config.FrameSkip + 1;
+
+	if (fs == 0) fs = 1;
+	else if (fs == 1) fs = 0;
+
 	if (keys & KEY_RIGHT) {
-		if (gpu_unai_config_ext.frameskip_count < 7)
-			gpu_unai_config_ext.frameskip_count += 1;
+		if (fs < 4) fs++;
 	} else if (keys & KEY_LEFT) {
-		if (gpu_unai_config_ext.frameskip_count > 0)
-			gpu_unai_config_ext.frameskip_count -= 1;
+		if (fs > 0) fs--;
 	}
 
+	if (fs == 0) fs = 1;
+	else if (fs == 1) fs = 0;
+	fs--;
+	Config.FrameSkip = fs;
 	return 0;
 }
 
 static char *frameskip_show()
 {
 	static char buf[16] = "\0";
-	sprintf(buf, "%d", gpu_unai_config_ext.frameskip_count);
+	static const char* fskip_str[] = {
+		"auto", "off", "1", "2", "3"
+	};
+	int fs = Config.FrameSkip + 1;
+	if (fs < 0) fs = 0;
+	if (fs > 4) fs = 4;
+	strcpy(buf, fskip_str[fs]);
 	return buf;
 }
-#endif
+#endif //USE_GPULIB
 
+#ifdef GPU_UNAI
 static int interlace_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -996,6 +1014,7 @@ static int gpu_settings_defaults()
 {
 	Config.ShowFps = 0;
 	Config.FrameLimit = 0;
+	Config.FrameSkip = 0;
 
 #ifdef GPU_UNAI
 #ifndef USE_GPULIB
@@ -1018,12 +1037,12 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	/* Not working with gpulib yet */
 	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
 #endif
-	{(char *)"Frame Limit          ", NULL, &framelimit_alter, &framelimit_show},
-#ifdef GPU_UNAI
-#ifndef USE_GPULIB
-	/* Not working with gpulib yet */
+	{(char *)"Frame limit          ", NULL, &framelimit_alter, &framelimit_show},
+#ifdef USE_GPULIB
+	/* Only working with gpulib */
 	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show},
 #endif
+#ifdef GPU_UNAI
 	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show},
 	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show},
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show},
@@ -1186,7 +1205,7 @@ static MENUITEM gui_SPUSettingsItems[] = {
 	{0}
 };
 
-#define SET_SPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
+#define SET_SPUSIZE ((sizeof(gui_SPUSettingsItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 112, (MENUITEM *)&gui_SPUSettingsItems };
 
 static int gui_LoadIso()

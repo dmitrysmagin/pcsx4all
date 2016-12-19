@@ -39,6 +39,8 @@ static unsigned long timeGetTime(void)
  return tv.tv_sec * 100000 + tv.tv_usec/10;            // to do that, but at least it works
 }
 
+// Dec 2016: Frame limiting now handled by plugin_lib
+#if 0
 static void FrameCap (void)
 {
  static unsigned long curticks, lastticks, _ticks_since_last_update;
@@ -83,6 +85,10 @@ static void FrameCap (void)
       }
     }
   }
+}
+#endif //0
+static void FrameCap (void)
+{
 }
 
 static void calcfps(void)
@@ -268,6 +274,8 @@ static void FrameSkip(void)
 }
 
 
+// Dec 2016: Frame limiting now handled by plugin_lib
+#if 0
 static void PCFrameCap (void)
 {
  static unsigned long curticks, lastticks, _ticks_since_last_update;
@@ -286,6 +294,10 @@ static void PCFrameCap (void)
      TicksToWait = (TIMEBASE/ (unsigned long)fFrameRateHz);
     }
   }
+}
+#endif //0
+static void PCFrameCap (void)
+{
 }
 
 static void PCcalcfps(void)

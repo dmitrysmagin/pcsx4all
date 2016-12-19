@@ -27,6 +27,7 @@ CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
 	-Wno-format -Wno-format-extra-args \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
+	-Isrc/plugin_lib \
 	-DXA_HACK \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
@@ -51,6 +52,7 @@ all: maketree $(TARGET)
 OBJS = \
 	obj/r3000a.o obj/misc.o obj/plugins.o obj/psxmem.o obj/psxhw.o \
 	obj/psxcounters.o obj/psxdma.o obj/psxbios.o obj/psxhle.o obj/psxevents.o \
+	obj/psxcommon.o obj/plugin_lib/plugin_lib.o \
 	obj/psxinterpreter.o \
 	obj/mdec.o obj/decode_xa.o \
 	obj/cdriso.o obj/cdrom.o obj/ppf.o \

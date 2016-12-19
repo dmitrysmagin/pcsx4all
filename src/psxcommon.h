@@ -72,6 +72,11 @@ typedef uint8_t boolean;
 #define MAXPATHLEN 256
 #endif
 
+enum {
+	PSXTYPE_NTSC = 0,
+	PSXTYPE_PAL  = 1
+};
+
 typedef struct {
 	char Mcd1[MAXPATHLEN];
 	char Mcd2[MAXPATHLEN];
@@ -107,6 +112,8 @@ typedef struct {
 	// Options for performance monitor
 	boolean PerfmonConsoleOutput;
 	boolean PerfmonDetailedStats;
+
+	s8      FrameSkip;	// -1: AUTO  0: OFF  1-3: FIXED
 } PcsxConfig;
 
 extern PcsxConfig Config;
@@ -156,5 +163,6 @@ enum {
 	CPU_INTERPRETER
 }; // CPU Types
 
+void EmuUpdate();
 
 #endif /* __PSXCOMMON_H__ */
