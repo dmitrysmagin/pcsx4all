@@ -52,9 +52,10 @@ What's already done:
   - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
 
  Problematic games which get stuck with recompiler:
-  - Jackie Chan Stuntmaster (USA) (works with interpreter + bios)
+  - Jackie Chan Stuntmaster (USA) (works with int+bios)
   - Next Tetris (gets stuck occasionally at start)
-  - Mortal Kombat Trilogy (works with interpreter + HLE)
+  - Mortal Kombat Trilogy (works with int+hle)
+  - Tomb Raider II (U) (works with int+bios/hle)
   - Tomb Raider V Chronicles (J) (works with int+bios)
     with recompiler the graphics go crazy
 
