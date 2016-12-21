@@ -48,8 +48,8 @@ typedef struct {
 } iRegisters;
 
 #define IsConst(reg) (iRegs[reg].s)
-#define SetUndef(reg) do { iRegs[reg].s = 0; } while (0)
-#define SetConst(reg, val) do { iRegs[reg].s = 1; iRegs[reg].r = (val); } while (0)
+#define SetUndef(reg) do { if (reg != 0) iRegs[reg].s = 0; } while (0)
+#define SetConst(reg, val) do { if (reg != 0) { iRegs[reg].s = 1; iRegs[reg].r = (val); } } while (0)
 
 static iRegisters iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
@@ -210,6 +210,7 @@ static void recRecompile()
 
 	rec_recompile_start();
 	memset(iRegs, 0, sizeof(iRegs));
+	iRegs[0].s = 1;  // $r0 is always zero val
 
 	do {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
