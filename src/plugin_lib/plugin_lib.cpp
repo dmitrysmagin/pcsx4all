@@ -28,10 +28,10 @@
 
 #include <unistd.h>
 
+#include "psxcommon.h"
 #include "plugin_lib.h"
 #include "perfmon.h"
 #include "plugins.h"
-#include "psxcommon.h"
 
 #ifdef USE_GPULIB
 #include "gpu/gpulib/gpu.h"
@@ -46,7 +46,7 @@ struct pl_data_t pl_data;
 
 void pl_frameskip_prepare(void)
 {
-	pl_data.fskip_advice = 0;
+	pl_data.fskip_advice = false;
 	pl_data.frameskip = Config.FrameSkip;
 	pl_data.is_pal = (Config.PsxType == PSXTYPE_PAL);
 	pl_data.frame_interval = pl_data.is_pal ? 20000 : 16667;
@@ -108,10 +108,21 @@ void pl_frame_limit(void)
 	}
 
 	if (diff < -pl_data.frame_interval) {
-		pl_data.fskip_advice = 1;
+		pl_data.fskip_advice = true;
 	} else if (diff >= 0) {
-		pl_data.fskip_advice = 0;
+		pl_data.fskip_advice = false;
 	}
+
+	// recompilation is not that fast and may cause frame skip on
+	// loading screens and such, resulting in flicker or glitches
+	if (pl_data.dynarec_compiled) {
+		if (pl_data.dynarec_active_vsyncs < 32)
+			pl_data.fskip_advice = false;
+		pl_data.dynarec_active_vsyncs++;
+	} else {
+		pl_data.dynarec_active_vsyncs = 0;
+	}
+	pl_data.dynarec_compiled = false;
 }
 
 void pl_init(void)
@@ -125,6 +136,8 @@ void pl_init(void)
 
 void pl_reset(void)
 {
+	pl_data.dynarec_compiled = false;
+	pl_data.dynarec_active_vsyncs = 0;
 	pl_frameskip_prepare();
 
 	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)

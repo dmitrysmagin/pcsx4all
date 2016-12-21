@@ -30,11 +30,14 @@
 #define PLUGIN_LIB_H
 
 #include <sys/time.h>
+#include <stdint.h>
 
 struct pl_data_t {
-	int frameskip, fskip_advice;
-	int is_pal, frame_interval, frame_interval1024;
+	bool fskip_advice, dynarec_compiled, is_pal;
+	int8_t frameskip;
+	int frame_interval, frame_interval1024;
 	int vsync_usec_time;
+	unsigned int dynarec_active_vsyncs;
 	struct timeval tv_expect;
 };
 
@@ -47,9 +50,15 @@ void pl_reset(void);
 void pl_pause(void);
 void pl_resume(void);
 
-static inline int pl_frameskip_advice(void)
+static inline bool pl_frameskip_advice(void)
 {
 	return pl_data.fskip_advice;
+}
+
+// Dynamic recompilers call this to advise recompilation occurred
+static inline void pl_dynarec_notify(void)
+{
+	pl_data.dynarec_compiled = true;
 }
 
 #endif // PLUGIN_LIB_H
