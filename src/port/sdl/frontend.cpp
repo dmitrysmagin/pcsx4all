@@ -798,7 +798,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show},
 	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show},
 #endif
-	{(char *)"HLE                  ", NULL, &bios_alter, &bios_show},
+	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show},
 	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL},
 	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show},
@@ -1037,7 +1037,7 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	/* Not working with gpulib yet */
 	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
 #endif
-	{(char *)"Frame limit          ", NULL, &framelimit_alter, &framelimit_show},
+	{(char *)"Frame limiter        ", NULL, &framelimit_alter, &framelimit_show},
 #ifdef USE_GPULIB
 	/* Only working with gpulib */
 	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show},
