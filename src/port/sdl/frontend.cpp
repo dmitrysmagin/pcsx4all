@@ -798,7 +798,7 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show},
 	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show},
 #endif
-	{(char *)"HLE                  ", NULL, &bios_alter, &bios_show},
+	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show},
 	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL},
 	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show},
 	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show},
@@ -843,34 +843,53 @@ static int framelimit_alter(u32 keys)
 
 static char *framelimit_show()
 {
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.FrameLimit == true ? "on" : "off");
-	return buf;
+	int idx = Config.FrameLimit ? 1 : 0;
+	const char* str[] = { "off", "on" };
+	return (char*)str[idx];
 }
 
-#ifdef GPU_UNAI
-#ifndef USE_GPULIB
+#ifdef USE_GPULIB
 static int frameskip_alter(u32 keys)
 {
+	// Config.FrameSkip is -1 for auto-frameskip, 0 for 'frameskip off'
+	//  or 1-3 for fixed frameskip. We want to have 'frameskip off' as
+	//  the first setting and 'auto-frameskip' as the second setting
+	//  in the gui settings, though.
+
+	if (Config.FrameSkip < -1) Config.FrameSkip = -1;
+	if (Config.FrameSkip > 3)  Config.FrameSkip = 3;
+
+	int fs = Config.FrameSkip + 1;
+
+	if (fs == 0) fs = 1;
+	else if (fs == 1) fs = 0;
+
 	if (keys & KEY_RIGHT) {
-		if (gpu_unai_config_ext.frameskip_count < 7)
-			gpu_unai_config_ext.frameskip_count += 1;
+		if (fs < 4) fs++;
 	} else if (keys & KEY_LEFT) {
-		if (gpu_unai_config_ext.frameskip_count > 0)
-			gpu_unai_config_ext.frameskip_count -= 1;
+		if (fs > 0) fs--;
 	}
 
+	if (fs == 0) fs = 1;
+	else if (fs == 1) fs = 0;
+
+	Config.FrameSkip = fs - 1;
 	return 0;
 }
 
 static char *frameskip_show()
 {
-	static char buf[16] = "\0";
-	sprintf(buf, "%d", gpu_unai_config_ext.frameskip_count);
-	return buf;
-}
-#endif
+	const char* str[] = { "auto", "off", "1", "2", "3" };
 
+	// Config.FrameSkip val range is -1..3
+	int fs = Config.FrameSkip + 1;
+	if (fs < 0) fs = 0;
+	if (fs > 4) fs = 4;
+	return (char*)str[fs];
+}
+#endif //USE_GPULIB
+
+#ifdef GPU_UNAI
 static int interlace_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -995,7 +1014,8 @@ static char *pixel_skip_show()
 static int gpu_settings_defaults()
 {
 	Config.ShowFps = 0;
-	Config.FrameLimit = 0;
+	Config.FrameLimit = true;
+	Config.FrameSkip = FRAMESKIP_OFF;
 
 #ifdef GPU_UNAI
 #ifndef USE_GPULIB
@@ -1012,18 +1032,17 @@ static int gpu_settings_defaults()
 	return 0;
 }
 
-
 static MENUITEM gui_GPUSettingsItems[] = {
 #ifndef USE_GPULIB
 	/* Not working with gpulib yet */
 	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
 #endif
-	{(char *)"Frame Limit          ", NULL, &framelimit_alter, &framelimit_show},
-#ifdef GPU_UNAI
-#ifndef USE_GPULIB
-	/* Not working with gpulib yet */
+	{(char *)"Frame limiter        ", NULL, &framelimit_alter, &framelimit_show},
+#ifdef USE_GPULIB
+	/* Only working with gpulib */
 	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show},
 #endif
+#ifdef GPU_UNAI
 	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show},
 	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show},
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show},
@@ -1079,9 +1098,9 @@ static char *cdda_show()
 static int forcedxa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (Config.ForcedXAUpdates == 0) Config.ForcedXAUpdates = 1;
+		if (Config.ForcedXAUpdates < 7) Config.ForcedXAUpdates++;
 	} else if (keys & KEY_LEFT) {
-		if (Config.ForcedXAUpdates == 1) Config.ForcedXAUpdates = 0;
+		if (Config.ForcedXAUpdates > 0) Config.ForcedXAUpdates--;
 	}
 
 	return 0;
@@ -1089,9 +1108,11 @@ static int forcedxa_alter(u32 keys)
 
 static char *forcedxa_show()
 {
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.ForcedXAUpdates ? "on" : "off");
-	return buf;
+	if (Config.ForcedXAUpdates < 0) Config.ForcedXAUpdates = 0;
+	else if (Config.ForcedXAUpdates > 7) Config.ForcedXAUpdates = 7;
+
+	const char* str[] = { "off", "auto", "1", "2", "4", "8", "16", "32" };
+	return (char*)str[Config.ForcedXAUpdates];
 }
 
 static int syncaudio_alter(u32 keys)
@@ -1110,6 +1131,26 @@ static char *syncaudio_show()
 	static char buf[16] = "\0";
 	sprintf(buf, "%s", Config.SyncAudio ? "on" : "off");
 	return buf;
+}
+
+static int spuupdatefreq_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.SpuUpdateFreq < 5) Config.SpuUpdateFreq++;
+	} else if (keys & KEY_LEFT) {
+		if (Config.SpuUpdateFreq > 0) Config.SpuUpdateFreq--;
+	}
+
+	return 0;
+}
+
+static char *spuupdatefreq_show()
+{
+	if (Config.SpuUpdateFreq < 0) Config.SpuUpdateFreq = 0;
+	else if (Config.SpuUpdateFreq > 5) Config.SpuUpdateFreq = 5;
+
+	const char* str[] = { "1", "2", "4", "8", "16", "32" };
+	return (char*)str[Config.SpuUpdateFreq];
 }
 
 static int spuirq_alter(u32 keys)
@@ -1154,6 +1195,45 @@ static char *interpolation_show()
 	}
 	return buf;
 }
+
+static int reverb_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (spu_config.iUseReverb < 1) spu_config.iUseReverb = 1;
+	} else if (keys & KEY_LEFT) {
+		if (spu_config.iUseReverb > 0) spu_config.iUseReverb = 0;
+	}
+
+	return 0;
+}
+
+static char *reverb_show()
+{
+	int val = spu_config.iUseReverb ? 1 : 0;
+	const char* str[] = { "off", "on" };
+	return (char*)str[val];
+}
+
+static int volume_alter(u32 keys)
+{
+	// Convert volume range 0..1024 to 0..16
+	int val = spu_config.iVolume / 64;
+	if (keys & KEY_RIGHT) {
+		if (val < 16) val++;
+	} else if (keys & KEY_LEFT) {
+		if (val > 0) val--;
+	}
+	spu_config.iVolume = val * 64;
+	return 0;
+}
+
+static char *volume_show()
+{
+	int val = spu_config.iVolume / 64;
+	static char buf[16] = "\0";
+	sprintf(buf, "%d", val);
+	return buf;
+}
 #endif //SPU_PCSXREARMED
 
 static int spu_settings_defaults()
@@ -1161,12 +1241,14 @@ static int spu_settings_defaults()
 	/* Restores settings to default values. */
 	Config.Xa = 0;
 	Config.Cdda = 0;
-	Config.HLE = 1;
+	Config.SyncAudio = 0;
+	Config.SpuUpdateFreq = SPU_UPDATE_FREQ_DEFAULT;
+	Config.ForcedXAUpdates = FORCED_XA_UPDATES_DEFAULT;
 	Config.SpuIrq = 0;
-	Config.SyncAudio = 1;
-	Config.ForcedXAUpdates = 1;
 #ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
+	spu_config.iUseReverb = 0;
+	spu_config.iVolume = 1024;
 #endif
 	return 0;
 }
@@ -1174,11 +1256,14 @@ static int spu_settings_defaults()
 static MENUITEM gui_SPUSettingsItems[] = {
 	{(char *)"XA audio             ", NULL, &xa_alter, &xa_show},
 	{(char *)"CDDA audio           ", NULL, &cdda_alter, &cdda_show},
-	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"Audio sync           ", NULL, &syncaudio_alter, &syncaudio_show},
+	{(char *)"SPU updates per frame", NULL, &spuupdatefreq_alter, &spuupdatefreq_show},
+	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef SPU_PCSXREARMED
 	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show},
+	{(char *)"Reverb               ", NULL, &reverb_alter, &reverb_show},
+	{(char *)"Master volume        ", NULL, &volume_alter, &volume_show},
 #endif
 	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL},
 	{NULL, NULL, NULL, NULL},
@@ -1186,7 +1271,7 @@ static MENUITEM gui_SPUSettingsItems[] = {
 	{0}
 };
 
-#define SET_SPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
+#define SET_SPUSIZE ((sizeof(gui_SPUSettingsItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 112, (MENUITEM *)&gui_SPUSettingsItems };
 
 static int gui_LoadIso()

@@ -22,22 +22,19 @@
 * Handles all CD-ROM registers and functions.
 */
 
-//senquack - NOTE May 23 2016:
 // This file has been updated to use newer code of PCSX Reloaded/Rearmed.
 // New bug fixes/updates come with the code, and also things like CD
 // lid interrupt for better CD swapping support.
 //
 // Also included is a fix for stuttering XA audio on slower devices, see
-// my comment/changes in cdrReadInterrupt()
+// comment/changes in cdrReadInterrupt()
 //
 // See https://github.com/notaz/pcsx_rearmed/blob/master/libpcsxcore/cdrom.c
 // for the source of updates to this code.
-// Credit goes to Notaz / PCSX Rearmed
-//
-//senquack - NOTE Aug 2 2016:
-// Additional updates to use new event queue (see psxevents.h)
+// Credit goes to Notaz / PCSX Rearmed, senquack
 
 #include "cdrom.h"
+#include "plugin_lib.h"
 #include "ppf.h"
 #include "psxdma.h"
 #include "psxevents.h"
@@ -1207,11 +1204,22 @@ void cdrReadInterrupt() {
 		else
 			calls_since_playing_ADPCM = 0;
 
-		if ( Config.ForcedXAUpdates &&
+		if ( (Config.ForcedXAUpdates != FORCED_XA_UPDATES_OFF) &&
 				(!was_first_sector) && (cdr.FirstSector != -1) &&
 				(calls_since_playing_ADPCM < 32) &&
-				(SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) ) {
-			cdread_irq_cycles /= 2;
+				(SPU_getADPCMBufferRoom() >= CD_FRAMESIZE_RAW*4) )
+		{
+			// 'Auto' setting schedules read twice as soon as normal when
+			//  plugin_lib is advising next frame should be skipped.
+			//  Usually works well when platform can run games at > 40fps.
+			//  Does good job of syncing XA buffer to SPU buffer, reducing lag.
+			if (Config.ForcedXAUpdates == FORCED_XA_UPDATES_AUTO) {
+				if (pl_frameskip_advice()) cdread_irq_cycles /= 2;
+			} else {
+				// Don't use any advice from plugin_lib, just keep XA buffer
+				//  as full as possible. Will cause FMV/speech sound lag.
+				cdread_irq_cycles >>= (Config.ForcedXAUpdates - 1);
+			}
 		}
 #endif
 	}

@@ -23,17 +23,7 @@
 #include "spu_config.h"  // senquack - To get spu settings
 #include "psxcommon.h"   // senquack - To get emu settings
 
-//senquack - Original PCSX-Rearmed dfsound SPU variables (for reference):
-//#define BUFFER_SIZE		22050
-//short			*pSndBuffer = NULL;
-//int				iBufSize = 0;
-//volatile int	iReadPos = 0, iWritePos = 0;
-
-//senquack - in sdl/port.cpp, dsmagin was using SOUND_BUFFER_SIZE = 16384 bytes
-//		and I've used that here too as it seems to work well and taking modulus
-//		is fast bitwise-op. Perhaps make size a commandline option (enforcing
-//		power-of-two so we can do: (&=SOUND_BUFFER_SIZE-1) to modulus by variable?
-#define SOUND_BUFFER_SIZE 16384        // Size in bytes
+#define SOUND_BUFFER_SIZE 22050        // Size in bytes
 #define ROOM_IN_BUFFER (SOUND_BUFFER_SIZE - buffered_bytes)
 static unsigned *sound_buffer = NULL;  // Sample ring buffer
 static unsigned int buf_read_pos = 0;
@@ -82,7 +72,9 @@ static void SOUND_FillAudio(void *unused, Uint8 *stream, int len) {
 			memcpy(out_buf + tail, in_buf, bytes_to_copy - tail);
 		}
 
-		buf_read_pos = (buf_read_pos + bytes_to_copy) % SOUND_BUFFER_SIZE;
+		buf_read_pos = (buf_read_pos + bytes_to_copy);
+		if (buf_read_pos >= SOUND_BUFFER_SIZE)
+			buf_read_pos -= SOUND_BUFFER_SIZE;
 
 		// Atomically decrement 'buffered_bytes' by 'bytes_to_copy'
 		// TODO: If ever ported to SDL2.0, its API offers portable atomics:
@@ -188,7 +180,11 @@ static int sdl_busy(void) {
 }
 #endif //0
 static int sdl_busy(void) {
-	if ((ROOM_IN_BUFFER < SOUND_BUFFER_SIZE/2) || sound_buffer == NULL)
+	// We use the same buffer size as PCSX Rearmed, but don't keep it quite
+	//  as full on average, to reduce sound lag. We instead offer flexibly
+	//  scheduled SPU updates. (Rearmed tries to keep it 1/2 full)
+	//if ((ROOM_IN_BUFFER < SOUND_BUFFER_SIZE/2) || sound_buffer == NULL)
+	if ((ROOM_IN_BUFFER < SOUND_BUFFER_SIZE*5/8) || sound_buffer == NULL)
 		return 1;
 
 	return 0;

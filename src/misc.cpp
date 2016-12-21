@@ -29,6 +29,7 @@
 #include "cdrom.h"
 #include "mdec.h"
 #include "gpu.h"
+#include "plugin_lib.h"
 #include "ppf.h"
 #include "psxevents.h"
 #include <fcntl.h>
@@ -881,7 +882,7 @@ int LoadState(const char *file) {
 skip_missing_data_hack:
 
 	SaveFuncs.close(f);
-
+	pl_reset();  // Reset plugin_lib
 	return 0;
 
 error:

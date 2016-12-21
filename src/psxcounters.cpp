@@ -40,7 +40,6 @@
 #include "psxcounters.h"
 #include "psxevents.h"
 #include "gpu.h"
-#include "plugin_lib/perfmon.h"
 
 /******************************************************************************/
 
@@ -355,14 +354,10 @@ void psxRcntUpdate()
             GPU_vBlank( 1, 0 );
 #endif
             setIrq( 0x01 );
-            GPU_updateLace();
 
-            // Update and display performance stats
-            pmonUpdate();
-
-            // Update controls
-            // NOTE: this is point of control transfer to frontend
-            pad_update();
+            // Do framelimit, frameskip, perf stats, controls, etc:
+            // NOTE: this is point of control transfer to frontend menu
+            EmuUpdate();
 
             // If frontend called LoadState(), loading a savestate, do not
             //  proceed further: Rootcounter state has been altered.
@@ -371,11 +366,13 @@ void psxRcntUpdate()
                 return;
             }
 
+            GPU_updateLace();
+
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
-            // frame. However, we target slower platforms like GCW Zero, and
-            // lack auto-frameskip, so this would lead to audio dropouts. For
-            // now, we update SPU plugin twice per frame in psxevents.cpp
-            //SPU_async( cycle, 1 );
+            // frame. However, we target slower platforms and update SPU plugin
+            // at flexible interval (scheduled event) to avoid audio dropouts.
+            if (Config.SpuUpdateFreq == SPU_UPDATE_FREQ_1)
+                SPU_async(cycle, 1);
         }
 
         // Update lace. (with InuYasha fix)

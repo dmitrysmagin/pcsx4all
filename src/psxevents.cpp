@@ -31,6 +31,7 @@
 
 #include "psxevents.h"
 #include "r3000a.h"
+#include "plugin_lib.h"
 
 // To get event-handler functions:
 #include "cdrom.h"
@@ -271,33 +272,37 @@ void psxEvqueueDispatchAndRemoveFront(psxRegisters *pr)
 	//  psxRegs.io_cycle_counter after all pending events are dispatched.
 }
 
-// Should be called if Config.PsxType is changed
+// Should be called if Config.PsxType, Config.SpuUpdateFreq is changed
 void SPU_resetUpdateInterval(void)
 {
-	// PCSX Rearmed only updates SPU once per frame, but we target slower
-	//  platforms that might not run all games at 60FPS. Until we have good
-	//  auto-frameskip, we update SPU plugin twice per frame to avoid dropouts.
-	//  If this interval is changed, be sure to check cutscenes in Metal Gear
-	//  Solid or the intro to Chrono Cross, as they use SPU HW IRQ and are
-	//  highly sensitive to timing.
-	evqueue.spuUpdateInterval = PSXCLK / (FrameRate[Config.PsxType] * 2);
+	evqueue.spuUpdateInterval = PSXCLK / (FrameRate[Config.PsxType]);
 
-	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
+	// If flexible SPU updates are configured, schedule first event,
+	//  subsequent events will be scheduled automatically.
+	//  If update frequency is 1, SPU updated directly in psxcounters.cpp
+	if (Config.SpuUpdateFreq > SPU_UPDATE_FREQ_1) {
+		evqueue.spuUpdateInterval >>= Config.SpuUpdateFreq;
+		psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
+	}
 }
 
 // SPU_update() is a wrapper function around SPU_async(),
 // allowing handling as a generic event
-static void SPU_update(void)
+void SPU_update(void)
 {
-#ifndef SPU_NULL
 	//Clear any scheduled SPUIRQ, as HW SPU IRQ will end up handled with
 	// this call to SPU_async(), and new SPUIRQ scheduled if necessary.
 	psxEvqueueRemove(PSXINT_SPUIRQ);
-#endif
 
 	SPU_async(psxRegs.cycle, 1);
 
-	psxEvqueueAdd(PSXINT_SPU_UPDATE, evqueue.spuUpdateInterval);
+	// If frameskip is advised, update SPU more frequently to avoid dropouts
+	if (Config.SpuUpdateFreq > SPU_UPDATE_FREQ_1) {
+		u32 interval = evqueue.spuUpdateInterval;
+		if (pl_frameskip_advice() && Config.SpuUpdateFreq < SPU_UPDATE_FREQ_MAX)
+			interval /= 2;
+		psxEvqueueAdd(PSXINT_SPU_UPDATE, interval);
+	}
 }
 
 // SPU_handleIRQ() is a wrapper function around SPU_async(),

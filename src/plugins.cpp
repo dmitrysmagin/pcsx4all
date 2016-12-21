@@ -24,6 +24,7 @@
 
 #include "plugins.h"
 #include "psxevents.h"
+#include "plugin_lib.h"
 
 #ifdef SPU_PCSXREARMED
 #include "spu/spu_pcsxrearmed/spu_config.h"
@@ -83,6 +84,14 @@ void CALLBACK Trigger_SPU_IRQ(void) {
 // (This is used by games that use the actual hardware SPU IRQ like
 //  Need for Speed 3, Metal Gear Solid, Chrono Cross, etc.)
 void CALLBACK Schedule_SPU_IRQ(unsigned int cycles_after) {
+	if (Config.SpuUpdateFreq > 0 &&
+	    Config.SpuUpdateFreq <= SPU_UPDATE_FREQ_MAX)
+		cycles_after >>= Config.SpuUpdateFreq;
+
+	// If frameskip is advised, do SPU IRQ more frequently to avoid dropouts
+	if (pl_frameskip_advice())
+		cycles_after >>= 1;
+
 	psxEvqueueAdd(PSXINT_SPUIRQ, cycles_after);
 }
 

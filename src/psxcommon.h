@@ -72,6 +72,54 @@ typedef uint8_t boolean;
 #define MAXPATHLEN 256
 #endif
 
+enum {
+	PSXTYPE_NTSC = 0,
+	PSXTYPE_PAL  = 1
+};
+
+
+// SPU update frequency  (accomodates slow devices)
+// Values used for Config.SpuUpdateFreq
+enum {
+	SPU_UPDATE_FREQ_MIN = 0,
+	SPU_UPDATE_FREQ_1   = 0,
+	SPU_UPDATE_FREQ_2   = 1,
+	SPU_UPDATE_FREQ_4   = 2,
+	SPU_UPDATE_FREQ_8   = 3,
+	SPU_UPDATE_FREQ_16  = 4,
+	SPU_UPDATE_FREQ_32  = 5,
+	SPU_UPDATE_FREQ_MAX = SPU_UPDATE_FREQ_32
+};
+
+#ifndef SPU_UPDATE_FREQ_DEFAULT
+#define SPU_UPDATE_FREQ_DEFAULT SPU_UPDATE_FREQ_1
+#endif
+
+// Forced XA audio update frequency (accomodates slow devices)
+// Values used for Config.ForcedXAUpdates
+enum {
+	FORCED_XA_UPDATES_MIN     = 0,
+	FORCED_XA_UPDATES_OFF     = 0,
+	FORCED_XA_UPDATES_AUTO    = 1,
+	FORCED_XA_UPDATES_2       = 2,
+	FORCED_XA_UPDATES_4       = 3,
+	FORCED_XA_UPDATES_8       = 4,
+	FORCED_XA_UPDATES_16      = 5,
+	FORCED_XA_UPDATES_32      = 6,
+	FORCED_XA_UPDATES_MAX     = FORCED_XA_UPDATES_32
+};
+
+#ifndef FORCED_XA_UPDATES_DEFAULT
+#define FORCED_XA_UPDATES_DEFAULT FORCED_XA_UPDATES_OFF
+#endif
+
+enum {
+	FRAMESKIP_MIN  = -1,
+	FRAMESKIP_AUTO = -1,
+	FRAMESKIP_OFF  = 0,
+	FRAMESKIP_MAX  = 3
+};
+
 typedef struct {
 	char Mcd1[MAXPATHLEN];
 	char Mcd2[MAXPATHLEN];
@@ -96,17 +144,24 @@ typedef struct {
 	//           main thread blocks
 	boolean SyncAudio;
 
+	s8      SpuUpdateFreq; // Frequency of SPU updates
+	                       // 0: once per frame  1: twice per frame etc
+	                       // (Use SPU_UPDATE_FREQ_* enum to set)
+
 	//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
 	//           than they'd normally be issued when SPU's XA buffer is not
 	//           full. This fixes droupouts in music/speech on slow devices.
-	boolean ForcedXAUpdates; 
+	s8      ForcedXAUpdates;
 
 	boolean ShowFps;     // Show FPS
 	boolean FrameLimit;  // Limit to NTSC/PAL framerate
 
+	s8      FrameSkip;	// -1: AUTO  0: OFF  1-3: FIXED
+
 	// Options for performance monitor
 	boolean PerfmonConsoleOutput;
 	boolean PerfmonDetailedStats;
+
 } PcsxConfig;
 
 extern PcsxConfig Config;
@@ -156,5 +211,6 @@ enum {
 	CPU_INTERPRETER
 }; // CPU Types
 
+void EmuUpdate();
 
 #endif /* __PSXCOMMON_H__ */

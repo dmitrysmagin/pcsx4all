@@ -25,6 +25,7 @@
  *
  */
 
+#include "plugin_lib.h"
 #include "psxcommon.h"
 #include "psxhle.h"
 #include "psxmem.h"
@@ -191,6 +192,9 @@ void clear_insn_cache(void *start, void *end, int flags)
 
 static void recRecompile()
 {
+	// Notify plugin_lib that we're recompiling (affects frameskip timing)
+	pl_dynarec_notify();
+
 	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
 		recReset();
 

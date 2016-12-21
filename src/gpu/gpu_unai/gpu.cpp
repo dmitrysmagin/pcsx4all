@@ -802,21 +802,6 @@ static void GPU_frameskip (bool show)
 			case 5: if (spd<90) gpu_unai.frameskip.skipFrame=true; else gpu_unai.frameskip.skipFrame=false; break; // frameskip on (spd<90%)
 		}
 	}
-
-	// Limit FPS
-	if (Config.FrameLimit)
-	{
-		static u32 next=now; // next frame
-#ifdef GCW_ZERO
-		if (show) {
-			while (now < next)
-				now = get_ticks(); // busy loop
-		}
-#else
-		if (show) { if (now<next) wait_ticks(next-now); }
-#endif
-		next+=(IS_PAL?(TPS/50):((u32)(((double)TPS)/59.94)));
-	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
