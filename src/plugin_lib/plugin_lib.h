@@ -1,6 +1,6 @@
 /***************************************************************************
  * (C) notaz, 2010-2011                                                    *
- * (C) senquack, PCSX4ALL team 2016                                        *
+ * (C) PCSX4ALL team 2016                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,20 +18,38 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
+/*
+ * Plugin library to assist with frameskip, controls, etc.
+ * Largely taken/based on Notaz's PCSX Rearmed.
+ *
+ * Added Dec 2016 by senquack (Daniel Silsby)
+ *
+ */
+
 #ifndef PLUGIN_LIB_H
 #define PLUGIN_LIB_H
 
-extern int pl_fskip_advice;
+#include <sys/time.h>
+
+struct pl_data_t {
+	int frameskip, fskip_advice;
+	int is_pal, frame_interval, frame_interval1024;
+	int vsync_usec_time;
+	struct timeval tv_expect;
+};
+
+extern struct pl_data_t pl_data;
 
 void pl_frameskip_prepare(void);
 void pl_frame_limit(void);
 void pl_init(void);
+void pl_reset(void);
 void pl_pause(void);
 void pl_resume(void);
 
 static inline int pl_frameskip_advice(void)
 {
-	return pl_fskip_advice;
+	return pl_data.fskip_advice;
 }
 
 #endif // PLUGIN_LIB_H

@@ -226,8 +226,15 @@ void config_load()
 		} else if (!strcmp(line, "SyncAudio")) {
 			sscanf(arg, "%d", &value);
 			Config.SyncAudio = value;
+		} else if (!strcmp(line, "SpuUpdateFreq")) {
+			sscanf(arg, "%d", &value);
+			if (value < SPU_UPDATE_FREQ_MIN || value > SPU_UPDATE_FREQ_MAX)
+				value = SPU_UPDATE_FREQ_DEFAULT;
+			Config.SpuUpdateFreq = value;
 		} else if (!strcmp(line, "ForcedXAUpdates")) {
 			sscanf(arg, "%d", &value);
+			if (value < FORCED_XA_UPDATES_MIN || value > FORCED_XA_UPDATES_MAX)
+				value = FORCED_XA_UPDATES_DEFAULT;
 			Config.ForcedXAUpdates = value;
 		} else if (!strcmp(line, "ShowFps")) {
 			sscanf(arg, "%d", &value);
@@ -237,6 +244,8 @@ void config_load()
 			Config.FrameLimit = value;
 		} else if (!strcmp(line, "FrameSkip")) {
 			sscanf(arg, "%d", &value);
+			if (value < FRAMESKIP_MIN || value > FRAMESKIP_MAX)
+				value = FRAMESKIP_OFF;
 			Config.FrameSkip = value;
 		}
 #ifdef SPU_PCSXREARMED
@@ -345,6 +354,7 @@ void config_save()
 		   "PsxType %d\n"
 		   "SpuIrq %d\n"
 		   "SyncAudio %d\n"
+		   "SpuUpdateFreq %d\n"
 		   "ForcedXAUpdates %d\n"
 		   "ShowFps %d\n"
 		   "FrameLimit %d\n"
@@ -352,7 +362,8 @@ void config_save()
 		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto,
 		   Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA,
 		   Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio,
-		   Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit, Config.FrameSkip);
+		   Config.SpuUpdateFreq, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit,
+		   Config.FrameSkip);
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
@@ -627,16 +638,22 @@ int main (int argc, char **argv)
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
 	Config.SpuIrq=0; /* 1=SPU IRQ always on, fixes some games */
 
-	//senquack - Added config var SyncAudio and default setting is 1 (sync)
-	Config.SyncAudio=1;	/* 1=emu waits if audio output buffer is full */
+	Config.SyncAudio=0;	/* 1=emu waits if audio output buffer is full
+	                       (happens seldom with new auto frame limit) */
+
+	// Number of times per frame to update SPU. Rearmed default is once per
+	//  frame, but we are more flexible (for slower devices).
+	//  Valid values: SPU_UPDATE_FREQ_1 .. SPU_UPDATE_FREQ_32
+	Config.SpuUpdateFreq = SPU_UPDATE_FREQ_DEFAULT;
 
 	//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
 	//           than they'd normally be issued when SPU's XA buffer is not
 	//           full. This fixes droupouts in music/speech on slow devices.
-	Config.ForcedXAUpdates=1;  /* default is 1=allow forced XA updates */
+	Config.ForcedXAUpdates = FORCED_XA_UPDATES_DEFAULT;
 
 	Config.ShowFps=0;    // 0=don't show FPS
-	Config.FrameLimit=0; // 0=no frame limiting
+	Config.FrameLimit = true;
+	Config.FrameSkip = FRAMESKIP_OFF;
 
 	//zear - Added option to store the last visited directory.
 	strncpy(Config.LastDir, home, MAXPATHLEN); /* Defaults to home directory. */
@@ -792,18 +809,54 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-file") == 0)
 			strcpy(filename, argv[i + 1]);
 
-		//senquack - Added audio syncronization option: if audio buffer full, main thread waits.
-		//           If -nosyncaudio is used, SPU will just drop samples if buffer is full.
-		//           TODO: adapt all spu plugins to use this?
-		if (strcmp(argv[i],"-nosyncaudio") == 0)
+		// Audio synchronization option: if audio buffer full, main thread
+		//  blocks. Otherwise, just drop the samples.
+		if (strcmp(argv[i],"-syncaudio") == 0)
 			Config.SyncAudio = 0;
+
+		// Number of times per frame to update SPU. PCSX Rearmed default is once
+		//  per frame, but we are more flexible. Valid value is 0..5, where
+		//  0 is once per frame, 5 is 32 times per frame (2^5)
+		if (strcmp(argv[i],"-spuupdatefreq") == 0) {
+			int val = -1;
+			if (++i < argc) {
+				val = atoi(argv[i]);
+				if (val >= SPU_UPDATE_FREQ_MIN && val <= SPU_UPDATE_FREQ_MAX) {
+					Config.SpuUpdateFreq = val;
+				} else val = -1;
+			} else {
+				printf("ERROR: missing value for -spuupdatefreq\n");
+			}
+
+			if (val == -1) {
+				printf("ERROR: -spuupdatefreq value must be between %d..%d\n"
+				       "(%d is once per frame)\n",
+					   SPU_UPDATE_FREQ_MIN, SPU_UPDATE_FREQ_MAX, SPU_UPDATE_FREQ_1);
+				param_parse_error = true;
+				break;
+			}
+		}
 
 		//senquack - Added option to allow queuing CDREAD_INT interrupts sooner
 		//           than they'd normally be issued when SPU's XA buffer is not
 		//           full. This fixes droupouts in music/speech on slow devices.
-		if (strcmp(argv[i],"-noforcedxaupdates") == 0) {
-			printf("Forced XA audio updates are disabled.\n");
-			Config.ForcedXAUpdates = 0;
+		if (strcmp(argv[i],"-forcedxaupdates") == 0) {
+			int val = -1;
+			if (++i < argc) {
+				val = atoi(argv[i]);
+				if (val >= FORCED_XA_UPDATES_MIN && val <= FORCED_XA_UPDATES_MAX) {
+					Config.ForcedXAUpdates = val;
+				} else val = -1;
+			} else {
+				printf("ERROR: missing value for -forcedxaupdates\n");
+			}
+
+			if (val == -1) {
+				printf("ERROR: -forcedxaupdates value must be between %d..%d\n",
+					   FORCED_XA_UPDATES_MIN, FORCED_XA_UPDATES_MAX);
+				param_parse_error = true;
+				break;
+			}
 		}
 
 		// Performance monitoring options
@@ -820,23 +873,23 @@ int main (int argc, char **argv)
 		}
 
 		// frame limit
-		if (strcmp(argv[i],"-framelimit") == 0) {
-			Config.FrameLimit = true;
+		if (strcmp(argv[i],"-noframelimit") == 0) {
+			Config.FrameLimit = 0;
 		}
 
 		// frame skip
 		if (strcmp(argv[i],"-frameskip") == 0) {
-			int val = -1;
+			int val = -1000;
 			if (++i < argc) {
 				val = atoi(argv[i]);
 				if (val >= -1 && val <= 3) {
 					Config.FrameSkip = val;
-				} else val = -1;
+				}
 			} else {
 				printf("ERROR: missing value for -frameskip\n");
 			}
 
-			if (val == -1) {
+			if (val == -1000) {
 				printf("ERROR: -frameskip value must be between -1..3 (-1 is AUTO)\n");
 				param_parse_error = true;
 				break;

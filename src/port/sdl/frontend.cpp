@@ -843,9 +843,9 @@ static int framelimit_alter(u32 keys)
 
 static char *framelimit_show()
 {
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.FrameLimit == true ? "on" : "off");
-	return buf;
+	int idx = Config.FrameLimit ? 1 : 0;
+	const char* str[] = { "off", "on" };
+	return (char*)str[idx];
 }
 
 #ifdef USE_GPULIB
@@ -855,6 +855,9 @@ static int frameskip_alter(u32 keys)
 	//  or 1-3 for fixed frameskip. We want to have 'frameskip off' as
 	//  the first setting and 'auto-frameskip' as the second setting
 	//  in the gui settings, though.
+
+	if (Config.FrameSkip < -1) Config.FrameSkip = -1;
+	if (Config.FrameSkip > 3)  Config.FrameSkip = 3;
 
 	int fs = Config.FrameSkip + 1;
 
@@ -869,22 +872,20 @@ static int frameskip_alter(u32 keys)
 
 	if (fs == 0) fs = 1;
 	else if (fs == 1) fs = 0;
-	fs--;
-	Config.FrameSkip = fs;
+
+	Config.FrameSkip = fs - 1;
 	return 0;
 }
 
 static char *frameskip_show()
 {
-	static char buf[16] = "\0";
-	static const char* fskip_str[] = {
-		"auto", "off", "1", "2", "3"
-	};
+	const char* str[] = { "auto", "off", "1", "2", "3" };
+
+	// Config.FrameSkip val range is -1..3
 	int fs = Config.FrameSkip + 1;
 	if (fs < 0) fs = 0;
 	if (fs > 4) fs = 4;
-	strcpy(buf, fskip_str[fs]);
-	return buf;
+	return (char*)str[fs];
 }
 #endif //USE_GPULIB
 
@@ -1013,8 +1014,8 @@ static char *pixel_skip_show()
 static int gpu_settings_defaults()
 {
 	Config.ShowFps = 0;
-	Config.FrameLimit = 0;
-	Config.FrameSkip = 0;
+	Config.FrameLimit = true;
+	Config.FrameSkip = FRAMESKIP_OFF;
 
 #ifdef GPU_UNAI
 #ifndef USE_GPULIB
@@ -1030,7 +1031,6 @@ static int gpu_settings_defaults()
 
 	return 0;
 }
-
 
 static MENUITEM gui_GPUSettingsItems[] = {
 #ifndef USE_GPULIB
@@ -1098,9 +1098,9 @@ static char *cdda_show()
 static int forcedxa_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
-		if (Config.ForcedXAUpdates == 0) Config.ForcedXAUpdates = 1;
+		if (Config.ForcedXAUpdates < 7) Config.ForcedXAUpdates++;
 	} else if (keys & KEY_LEFT) {
-		if (Config.ForcedXAUpdates == 1) Config.ForcedXAUpdates = 0;
+		if (Config.ForcedXAUpdates > 0) Config.ForcedXAUpdates--;
 	}
 
 	return 0;
@@ -1108,9 +1108,11 @@ static int forcedxa_alter(u32 keys)
 
 static char *forcedxa_show()
 {
-	static char buf[16] = "\0";
-	sprintf(buf, "%s", Config.ForcedXAUpdates ? "on" : "off");
-	return buf;
+	if (Config.ForcedXAUpdates < 0) Config.ForcedXAUpdates = 0;
+	else if (Config.ForcedXAUpdates > 7) Config.ForcedXAUpdates = 7;
+
+	const char* str[] = { "off", "auto", "1", "2", "4", "8", "16", "32" };
+	return (char*)str[Config.ForcedXAUpdates];
 }
 
 static int syncaudio_alter(u32 keys)
@@ -1129,6 +1131,26 @@ static char *syncaudio_show()
 	static char buf[16] = "\0";
 	sprintf(buf, "%s", Config.SyncAudio ? "on" : "off");
 	return buf;
+}
+
+static int spuupdatefreq_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.SpuUpdateFreq < 5) Config.SpuUpdateFreq++;
+	} else if (keys & KEY_LEFT) {
+		if (Config.SpuUpdateFreq > 0) Config.SpuUpdateFreq--;
+	}
+
+	return 0;
+}
+
+static char *spuupdatefreq_show()
+{
+	if (Config.SpuUpdateFreq < 0) Config.SpuUpdateFreq = 0;
+	else if (Config.SpuUpdateFreq > 5) Config.SpuUpdateFreq = 5;
+
+	const char* str[] = { "1", "2", "4", "8", "16", "32" };
+	return (char*)str[Config.SpuUpdateFreq];
 }
 
 static int spuirq_alter(u32 keys)
@@ -1180,10 +1202,10 @@ static int spu_settings_defaults()
 	/* Restores settings to default values. */
 	Config.Xa = 0;
 	Config.Cdda = 0;
-	Config.HLE = 1;
+	Config.SyncAudio = 0;
+	Config.SpuUpdateFreq = SPU_UPDATE_FREQ_DEFAULT;
+	Config.ForcedXAUpdates = FORCED_XA_UPDATES_DEFAULT;
 	Config.SpuIrq = 0;
-	Config.SyncAudio = 1;
-	Config.ForcedXAUpdates = 1;
 #ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
 #endif
@@ -1193,8 +1215,9 @@ static int spu_settings_defaults()
 static MENUITEM gui_SPUSettingsItems[] = {
 	{(char *)"XA audio             ", NULL, &xa_alter, &xa_show},
 	{(char *)"CDDA audio           ", NULL, &cdda_alter, &cdda_show},
-	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"Audio sync           ", NULL, &syncaudio_alter, &syncaudio_show},
+	{(char *)"SPU updates per frame", NULL, &spuupdatefreq_alter, &spuupdatefreq_show},
+	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
 	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef SPU_PCSXREARMED
 	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show},

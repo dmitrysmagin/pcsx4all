@@ -1,6 +1,6 @@
 /***************************************************************************
  * (C) notaz, 2010-2011                                                    *
- * (C) senquack, PCSX4ALL team 2016                                        *
+ * (C) PCSX4ALL team 2016                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,7 +18,14 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02111-1307 USA.           *
  ***************************************************************************/
 
-#include <sys/time.h>
+/*
+ * Plugin library to assist with frameskip, controls, etc.
+ * Largely taken/based on Notaz's PCSX Rearmed.
+ *
+ * Added Dec 2016 by senquack (Daniel Silsby)
+ *
+ */
+
 #include <unistd.h>
 
 #include "plugin_lib.h"
@@ -30,25 +37,16 @@
 #include "gpu/gpulib/gpu.h"
 #endif
 
-// Used by GPU plugins to decide when to frameskip
-int pl_fskip_advice;
-
-static struct {
-	int frameskip;
-	int is_pal, frame_interval, frame_interval1024;
-	int vsync_usec_time;
-	struct timeval tv_expect;
-} pl_data;
-
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \
 	((tv.tv_sec - tv_old.tv_sec) * 1000000 + tv.tv_usec - tv_old.tv_usec)
 
+struct pl_data_t pl_data;
+
 void pl_frameskip_prepare(void)
 {
-	pl_fskip_advice = 0;
-
+	pl_data.fskip_advice = 0;
 	pl_data.frameskip = Config.FrameSkip;
 	pl_data.is_pal = (Config.PsxType == PSXTYPE_PAL);
 	pl_data.frame_interval = pl_data.is_pal ? 20000 : 16667;
@@ -109,24 +107,27 @@ void pl_frame_limit(void)
 		usleep(diff - pl_data.frame_interval);
 	}
 
-	if (Config.FrameSkip) {
-		if (diff < -pl_data.frame_interval) {
-			pl_fskip_advice = 1;
-		} else if (diff >= 0) {
-			pl_fskip_advice = 0;
-		}
+	if (diff < -pl_data.frame_interval) {
+		pl_data.fskip_advice = 1;
+	} else if (diff >= 0) {
+		pl_data.fskip_advice = 0;
 	}
 }
 
 void pl_init(void)
 {
-	pl_frameskip_prepare();
-
-	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
+	pl_reset();
 
 #ifdef USE_GPULIB
 	gpulib_set_config(&gpulib_config);
 #endif
+}
+
+void pl_reset(void)
+{
+	pl_frameskip_prepare();
+
+	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
 }
 
 // Called when emu paused and frontend is active

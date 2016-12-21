@@ -359,8 +359,6 @@ void psxRcntUpdate()
             // NOTE: this is point of control transfer to frontend menu
             EmuUpdate();
 
-            GPU_updateLace();
-
             // If frontend called LoadState(), loading a savestate, do not
             //  proceed further: Rootcounter state has been altered.
             if (rcntFreezeLoaded) {
@@ -368,11 +366,13 @@ void psxRcntUpdate()
                 return;
             }
 
+            GPU_updateLace();
+
             //senquack - PCSX Rearmed updates its SPU plugin once per emulated
-            // frame. However, we target slower platforms like GCW Zero, and
-            // lack auto-frameskip, so this would lead to audio dropouts. For
-            // now, we update SPU plugin twice per frame as a scheduled event.
-            //SPU_async( cycle, 1 );
+            // frame. However, we target slower platforms and update SPU plugin
+            // at flexible interval (scheduled event) to avoid audio dropouts.
+            if (Config.SpuUpdateFreq == SPU_UPDATE_FREQ_1)
+                SPU_async(cycle, 1);
         }
 
         // Update lace. (with InuYasha fix)

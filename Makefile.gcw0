@@ -99,6 +99,32 @@ OBJS += obj/plugin_lib/perfmon.o
 #******************************************
 # spu_pcsxrearmed section BEGIN
 #******************************************
+
+##########
+# Use a non-default SPU update frequency for these slower devices
+#  to avoid audio dropouts. 0: once-per-frame (default)   5: 32-times-per-frame
+#
+#  On slower Dingoo A320, update 8 times per frame
+ifdef A320
+CFLAGS += -DSPU_UPDATE_FREQ_DEFAULT=3
+else
+#  On faster GCW Zero platform, update 4 times per frame
+CFLAGS += -DSPU_UPDATE_FREQ_DEFAULT=2
+endif
+##########
+
+##########
+# Similarly, set higher XA audio update frequency for slower devices
+#
+#  On slower Dingoo A320, force XA to update 8 times per frame (val 4)
+ifdef A320
+CFLAGS += -DFORCED_XA_UPDATES_DEFAULT=4
+else
+#  On faster GCW Zero platform, use auto-update
+CFLAGS += -DFORCED_XA_UPDATES_DEFAULT=1
+endif
+##########
+
 ifeq ($(SPU),spu_pcsxrearmed)
 # Specify which audio backend to use:
 SOUND_DRIVERS=sdl
