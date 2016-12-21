@@ -252,6 +252,14 @@ void config_load()
 		else if (!strcmp(line, "SpuUseInterpolation")) {
 			sscanf(arg, "%d", &value);
 			spu_config.iUseInterpolation = value;
+		} else if (!strcmp(line, "SpuUseReverb")) {
+			sscanf(arg, "%d", &value);
+			spu_config.iUseReverb = value;
+		} else if (!strcmp(line, "SpuVolume")) {
+			sscanf(arg, "%d", &value);
+			if (value > 1024) value = 1024;
+			if (value < 0) value = 0;
+			spu_config.iVolume = value;
 		}
 #endif
 		else if (!strcmp(line, "LastDir")) {
@@ -367,6 +375,8 @@ void config_save()
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
+	fprintf(f, "SpuUseReverb %d\n", spu_config.iUseReverb);
+	fprintf(f, "SpuVolume %d\n", spu_config.iVolume);
 #endif
 
 #ifdef PSXREC
@@ -659,15 +669,8 @@ int main (int argc, char **argv)
 	strncpy(Config.LastDir, home, MAXPATHLEN); /* Defaults to home directory. */
 	Config.LastDir[MAXPATHLEN-1] = '\0';
 
-	// spu_dfxsound
-#ifdef spu_dfxsound
-	extern int iDisStereo; iDisStereo=0; // 0=stereo, 1=mono
-	extern int iUseInterpolation; iUseInterpolation=0; // 0=disabled, 1=enabled
-	extern int iUseReverb; iUseReverb=0; // 0=disabled, 1=enabled
-#endif
-
 	// senquack - added spu_pcsxrearmed plugin:
-#ifdef spu_pcsxrearmed
+#ifdef SPU_PCSXREARMED
 	//ORIGINAL PCSX ReARMed SPU defaults (put here for reference):
 	//	spu_config.iUseReverb = 1;
 	//	spu_config.iUseInterpolation = 1;
@@ -690,7 +693,7 @@ int main (int argc, char **argv)
 	spu_config.iUseReverb = 0;
 	spu_config.iUseInterpolation = 0;
 	spu_config.iXAPitch = 0;
-	spu_config.iVolume = 768;             // 1024 is max volume (1.0)
+	spu_config.iVolume = 1024;            // 1024 is max volume
 	spu_config.iUseThread = 0;            // no effect if only 1 core is detected
 	spu_config.iUseFixedUpdates = 1;      // This is always set to 1 in libretro's pcsxReARMed
 	spu_config.iTempo = 1;                // see note below
@@ -996,7 +999,7 @@ int main (int argc, char **argv)
 			spu_config.iUseInterpolation = val;
 		}
 
-		// Set volume level of SPU, 0-1024, default is 768.
+		// Set volume level of SPU, 0-1024
 		//  If value is 0, sound will be disabled.
 		if (strcmp(argv[i],"-volume") == 0) {
 			int val = -1;

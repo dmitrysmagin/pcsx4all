@@ -1195,6 +1195,45 @@ static char *interpolation_show()
 	}
 	return buf;
 }
+
+static int reverb_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (spu_config.iUseReverb < 1) spu_config.iUseReverb = 1;
+	} else if (keys & KEY_LEFT) {
+		if (spu_config.iUseReverb > 0) spu_config.iUseReverb = 0;
+	}
+
+	return 0;
+}
+
+static char *reverb_show()
+{
+	int val = spu_config.iUseReverb ? 1 : 0;
+	const char* str[] = { "off", "on" };
+	return (char*)str[val];
+}
+
+static int volume_alter(u32 keys)
+{
+	// Convert volume range 0..1024 to 0..16
+	int val = spu_config.iVolume / 64;
+	if (keys & KEY_RIGHT) {
+		if (val < 16) val++;
+	} else if (keys & KEY_LEFT) {
+		if (val > 0) val--;
+	}
+	spu_config.iVolume = val * 64;
+	return 0;
+}
+
+static char *volume_show()
+{
+	int val = spu_config.iVolume / 64;
+	static char buf[16] = "\0";
+	sprintf(buf, "%d", val);
+	return buf;
+}
 #endif //SPU_PCSXREARMED
 
 static int spu_settings_defaults()
@@ -1208,6 +1247,8 @@ static int spu_settings_defaults()
 	Config.SpuIrq = 0;
 #ifdef SPU_PCSXREARMED
 	spu_config.iUseInterpolation = 0;
+	spu_config.iUseReverb = 0;
+	spu_config.iVolume = 1024;
 #endif
 	return 0;
 }
@@ -1221,6 +1262,8 @@ static MENUITEM gui_SPUSettingsItems[] = {
 	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show},
 #ifdef SPU_PCSXREARMED
 	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show},
+	{(char *)"Reverb               ", NULL, &reverb_alter, &reverb_show},
+	{(char *)"Master volume        ", NULL, &volume_alter, &volume_show},
 #endif
 	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL},
 	{NULL, NULL, NULL, NULL},
