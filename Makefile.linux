@@ -1,6 +1,10 @@
 TARGET = pcsx4all
 PORT   = sdl
 
+# Using 'gpulib' adapted from PCSX Rearmed is default, specify
+#  USE_GPULIB=0 as param to 'make' when building to disable it.
+USE_GPULIB ?= 1
+
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
 #GPU    = gpu_null
@@ -51,9 +55,8 @@ OBJS = \
 	obj/cdriso.o obj/cdrom.o obj/ppf.o \
 	obj/sio.o obj/pad.o
 
-#*********************************************************************
-# Compile with new 'gpulib' adapted from PCSX Rearmed?
-#  Experimental as of Oct 2016 (Will eventually become default)
+######################################################################
+#  GPULIB from PCSX Rearmed:
 #  Fixes many game incompatibilities and centralizes/improves many
 #  things that once were the responsibility of individual GPU plugins.
 #  NOTE: For now, only GPU Unai has been adapted.
@@ -65,7 +68,7 @@ OBJS += obj/gpu/gpulib/gpu.o obj/gpu/gpulib/vout_port.o
 else
 OBJS += obj/gpu/$(GPU)/gpu.o
 endif
-#*********************************************************************
+######################################################################
 
 OBJS += obj/gte.o
 OBJS += obj/spu/$(SPU)/spu.o
