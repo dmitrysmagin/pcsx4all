@@ -46,6 +46,12 @@ typedef struct {
 	unsigned char psxVRam[1024*512*2];
 } GPUFreeze_t;
 
+typedef struct {
+	uint8_t *vram;
+	uint16_t x, y, w, h, hres, vres;
+	bool depth24;
+} GPUScreenInfo_t;
+
 /// GPU functions
 
 long GPU_init(void);
@@ -60,6 +66,7 @@ long GPU_dmaChain(uint32_t *,uint32_t);
 void GPU_updateLace(void);
 long GPU_freeze(uint32_t, GPUFreeze_t *);
 void GPU_requestScreenRedraw(void);
+void GPU_getScreenInfo(GPUScreenInfo_t *sinfo);
 
 #ifdef USE_GPULIB
 void GPU_vBlank(int is_vblank, int lcf);

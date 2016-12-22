@@ -20,6 +20,7 @@
 ***************************************************************************/
 
 #include <stddef.h>
+#include "plugins.h"
 #include "psxcommon.h"
 #include "port.h"
 #include "gpu_unai.h"
@@ -35,15 +36,6 @@
 #endif
 
 #define IS_PAL (gpu_unai.GPU_GP1&(0x08<<17))
-
-//TODO: Have gpu_unai use GPUFreeze_t declared in plugins.h
-typedef struct {
-	u32 Version;
-	u32 GPU_gp1;
-	u32 Control[256];
-	unsigned char FrameBuffer[1024*512*2];
-} GPUFreeze_t;
-
 
 //senquack - Original 512KB of guard space seems not to be enough, as Xenogears
 // accesses outside this range and crashes in town intro fight sequence.
@@ -116,7 +108,7 @@ static void gpuReset(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool  GPU_init(void)
+long GPU_init(void)
 {
 	gpuReset();
 
@@ -134,38 +126,39 @@ bool  GPU_init(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_shutdown(void)
+long GPU_shutdown(void)
 {
+	return 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-long  GPU_freeze(unsigned int bWrite, GPUFreeze_t* p2)
+long GPU_freeze(u32 bWrite, GPUFreeze_t* p2)
 {
 	if (!p2) return (0);
-	if (p2->Version != 1) return (0);
+	if (p2->ulFreezeVersion != 1) return (0);
 
 	if (bWrite)
 	{
-		p2->GPU_gp1 = gpu_unai.GPU_GP1;
-		memset(p2->Control, 0, sizeof(p2->Control));
+		p2->ulStatus = gpu_unai.GPU_GP1;
+		memset(p2->ulControl, 0, sizeof(p2->ulControl));
 		// save resolution and registers for P.E.Op.S. compatibility
-		p2->Control[3] = (3 << 24) | ((gpu_unai.GPU_GP1 >> 23) & 1);
-		p2->Control[4] = (4 << 24) | ((gpu_unai.GPU_GP1 >> 29) & 3);
-		p2->Control[5] = (5 << 24) | (gpu_unai.DisplayArea[0] | (gpu_unai.DisplayArea[1] << 10));
-		p2->Control[6] = (6 << 24) | (2560 << 12);
-		p2->Control[7] = (7 << 24) | (gpu_unai.DisplayArea[4] | (gpu_unai.DisplayArea[5] << 10));
-		p2->Control[8] = (8 << 24) | ((gpu_unai.GPU_GP1 >> 17) & 0x3f) | ((gpu_unai.GPU_GP1 >> 10) & 0x40);
-		memcpy((void*)p2->FrameBuffer, (void*)gpu_unai.vram, FRAME_BUFFER_SIZE);
+		p2->ulControl[3] = (3 << 24) | ((gpu_unai.GPU_GP1 >> 23) & 1);
+		p2->ulControl[4] = (4 << 24) | ((gpu_unai.GPU_GP1 >> 29) & 3);
+		p2->ulControl[5] = (5 << 24) | (gpu_unai.DisplayArea[0] | (gpu_unai.DisplayArea[1] << 10));
+		p2->ulControl[6] = (6 << 24) | (2560 << 12);
+		p2->ulControl[7] = (7 << 24) | (gpu_unai.DisplayArea[4] | (gpu_unai.DisplayArea[5] << 10));
+		p2->ulControl[8] = (8 << 24) | ((gpu_unai.GPU_GP1 >> 17) & 0x3f) | ((gpu_unai.GPU_GP1 >> 10) & 0x40);
+		memcpy((void*)p2->psxVRam, (void*)gpu_unai.vram, FRAME_BUFFER_SIZE);
 		return (1);
 	}
 	else
 	{
 		extern void GPU_writeStatus(u32 data);
-		gpu_unai.GPU_GP1 = p2->GPU_gp1;
-		memcpy((void*)gpu_unai.vram, (void*)p2->FrameBuffer, FRAME_BUFFER_SIZE);
-		GPU_writeStatus((5 << 24) | p2->Control[5]);
-		GPU_writeStatus((7 << 24) | p2->Control[7]);
-		GPU_writeStatus((8 << 24) | p2->Control[8]);
+		gpu_unai.GPU_GP1 = p2->ulStatus;
+		memcpy((void*)gpu_unai.vram, (void*)p2->psxVRam, FRAME_BUFFER_SIZE);
+		GPU_writeStatus((5 << 24) | p2->ulControl[5]);
+		GPU_writeStatus((7 << 24) | p2->ulControl[7]);
+		GPU_writeStatus((8 << 24) | p2->ulControl[8]);
 		gpuSetTexture(gpu_unai.GPU_GP1);
 		return (1);
 	}
@@ -220,7 +213,7 @@ INLINE void gpuCheckPacket(u32 uData)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_writeDataMem(u32* dmaAddress, s32 dmaCount)
+void GPU_writeDataMem(u32* dmaAddress, int dmaCount)
 {
 	#ifdef ENABLE_GPU_LOG_SUPPORT
 		fprintf(stdout,"GPU_writeDataMem(%d)\n",dmaCount);
@@ -333,7 +326,7 @@ long GPU_dmaChain(u32 *rambase, u32 start_addr)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_writeData(u32 data)
+void GPU_writeData(u32 data)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef ENABLE_GPU_LOG_SUPPORT
@@ -382,7 +375,7 @@ void  GPU_writeData(u32 data)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
+void GPU_readDataMem(u32* dmaAddress, int dmaCount)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef ENABLE_GPU_LOG_SUPPORT
@@ -432,7 +425,7 @@ void  GPU_readDataMem(u32* dmaAddress, s32 dmaCount)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-u32  GPU_readData(void)
+u32 GPU_readData(void)
 {
 	const u16 *VIDEO_END = (u16*)gpu_unai.vram+(FRAME_BUFFER_SIZE/2)-1;
 	#ifdef ENABLE_GPU_LOG_SUPPORT
@@ -473,7 +466,7 @@ u32  GPU_readData(void)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-u32     GPU_readStatus(void)
+u32 GPU_readStatus(void)
 {
 	return gpu_unai.GPU_GP1;
 }
@@ -805,7 +798,7 @@ static void GPU_frameskip (bool show)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-void  GPU_updateLace(void)
+void GPU_updateLace(void)
 {
 	// Interlace bit toggle
 	gpu_unai.GPU_GP1 ^= 0x80000000;
@@ -836,4 +829,26 @@ void  GPU_updateLace(void)
 void GPU_requestScreenRedraw()
 {
 	gpu_unai.fb_dirty = true;
+}
+
+void GPU_getScreenInfo(GPUScreenInfo_t *sinfo)
+{
+	bool depth24 = (gpu_unai.GPU_GP1 & 0x00200000 ? true : false);
+	int16_t hres = (uint16_t)gpu_unai.DisplayArea[2];
+	int16_t vres = (uint16_t)gpu_unai.DisplayArea[3];
+	int16_t w = hres; // Original gpu_unai doesn't support width < 100%
+	int16_t h = gpu_unai.DisplayArea[5] - gpu_unai.DisplayArea[4];
+	if (vres == 480)
+		h *= 2;
+	if (h <= 0 || h > vres)
+		h = vres;
+
+	sinfo->vram    = (uint8_t*)gpu_unai.vram;
+	sinfo->x       = (uint16_t)gpu_unai.DisplayArea[0];
+	sinfo->y       = (uint16_t)gpu_unai.DisplayArea[1];
+	sinfo->w       = w;
+	sinfo->h       = h;
+	sinfo->hres    = hres;
+	sinfo->vres    = vres;
+	sinfo->depth24 = depth24;
 }

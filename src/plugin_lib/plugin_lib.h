@@ -29,6 +29,7 @@
 #ifndef PLUGIN_LIB_H
 #define PLUGIN_LIB_H
 
+#include "plugins.h"
 #include <sys/time.h>
 #include <stdint.h>
 

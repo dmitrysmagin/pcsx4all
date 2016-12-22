@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "plugins.h"    // For GPUFreeze_t
+#include "plugins.h"    // For GPUFreeze_t, GPUScreenInfo_t
 #include "gpu.h"
 #include "plugin_lib.h"
 
@@ -762,6 +762,18 @@ void GPU_vBlank(int is_vblank, int lcf)
 void GPU_requestScreenRedraw()
 {
 	gpu.state.fb_dirty = 1;
+}
+
+void GPU_getScreenInfo(GPUScreenInfo_t *sinfo)
+{
+	sinfo->vram    = (uint8_t*)gpu.vram;
+	sinfo->x       = (uint16_t)gpu.screen.x;
+	sinfo->y       = (uint16_t)gpu.screen.y;
+	sinfo->w       = (uint16_t)gpu.screen.w;
+	sinfo->h       = (uint16_t)gpu.screen.h;
+	sinfo->hres    = (uint16_t)gpu.screen.hres;
+	sinfo->vres    = (uint16_t)gpu.screen.vres;
+	sinfo->depth24 = gpu.status.rgb24;
 }
 
 void gpulib_frameskip_prepare(void)
