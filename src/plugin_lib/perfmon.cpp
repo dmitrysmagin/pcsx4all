@@ -24,7 +24,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/time.h>
 
 // We only support CPU stats on UNIX platforms
 #ifndef _WIN32
@@ -109,13 +108,11 @@ void pmonReset()
 	gettimeofday(&pmon.tv_last, 0);
 }
 
-bool pmonUpdate()
+bool pmonUpdate(struct timeval *tv_now)
 {
 	bool ret = false;
 	pmon.frame_ctr++;
-	struct timeval tv_now;
-	gettimeofday(&tv_now, 0);
-	suseconds_t diff = tvdiff_usec(tv_now, pmon.tv_last);
+	suseconds_t diff = tvdiff_usec(*tv_now, pmon.tv_last);
 
 	if (diff >= 1000000) {
 		ret = true;
@@ -123,7 +120,7 @@ bool pmonUpdate()
 #ifdef PERFMON_CPU_STATS
 		pmon.cpu_cur = pmonGetCpuUsage(diff);
 #endif
-		pmon.tv_last = tv_now;
+		pmon.tv_last = *tv_now;
 		pmon.frame_ctr = 0;
 
 		bool new_detailed_stats = false;
@@ -207,6 +204,16 @@ void pmonResume()
 	gettimeofday(&pmon.tv_last, 0);
 #ifdef PERFMON_CPU_STATS
 	pmonInitCpuUsage();
+#endif
+}
+
+void pmonGetStats(float *fps_cur, float *cpu_cur)
+{
+	*fps_cur = pmon.fps_cur;
+#ifdef PERFMON_CPU_STATS
+	*cpu_cur = pmon.cpu_cur;
+#else
+	*cpu_cur = 0;
 #endif
 }
 

@@ -741,32 +741,9 @@ static void gpuVideoOutput(void)
 // Update frames-skip each second>>3 (8 times per second)
 #define GPU_FRAMESKIP_UPDATE 3
 
-char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
-
 static void GPU_frameskip (bool show)
 {
 	u32 now=get_ticks(); // current frame
-
-	// Show FPS
-	if (Config.ShowFps)
-	{
-		static u32 frames_fps=0; // frames counter
-		static u32 prev_fps=now; // previous fps calculation
-		frames_fps++;
-		if ((now-prev_fps)>=TPS)
-		{
-			if (IS_PAL)	sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/50 SPD=%3d%%",gpu_unai.DisplayArea[2],gpu_unai.DisplayArea[3],(gpu_unai.GPU_GP1&0x00200000?24:15),frames_fps,(frames_fps<<1));
-			else 		sprintf(msg,"RES=%3dx%3dx%2d FPS=%3d/60 SPD=%3d%%",gpu_unai.DisplayArea[2],gpu_unai.DisplayArea[3],(gpu_unai.GPU_GP1&0x00200000?24:15),frames_fps,((frames_fps*1001)/600));
-			frames_fps=0;
-			prev_fps=now;
-#ifndef __arm__
-			port_printf(5,5,msg);
-#endif
-		}
-#ifdef __arm__
-		port_printf(5,5,msg);
-#endif
-	}
 
 	// Update frameskip
 	if (gpu_unai.frameskip.skipCount==0) gpu_unai.frameskip.skipFrame=false; // frameskip off
@@ -851,4 +828,5 @@ void GPU_getScreenInfo(GPUScreenInfo_t *sinfo)
 	sinfo->hres    = hres;
 	sinfo->vres    = vres;
 	sinfo->depth24 = depth24;
+	sinfo->pal     = IS_PAL;
 }

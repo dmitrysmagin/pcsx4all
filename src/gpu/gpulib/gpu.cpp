@@ -774,6 +774,7 @@ void GPU_getScreenInfo(GPUScreenInfo_t *sinfo)
 	sinfo->hres    = (uint16_t)gpu.screen.hres;
 	sinfo->vres    = (uint16_t)gpu.screen.vres;
 	sinfo->depth24 = gpu.status.rgb24;
+	sinfo->pal     = gpu.status.video;
 }
 
 void gpulib_frameskip_prepare(void)

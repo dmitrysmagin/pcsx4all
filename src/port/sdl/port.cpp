@@ -52,15 +52,6 @@ enum {
 static SDL_Surface *screen;
 unsigned short *SCREEN;
 
-#ifdef GPU_UNAI
-/* FPS showing */
-extern char msg[36];
-#endif
-
-#ifdef GPU_DFXVIDEO
-extern float fps_cur;
-#endif
-
 static bool pcsx4all_initted = false;
 static bool emu_running = false;
 
@@ -567,13 +558,7 @@ unsigned short pad_read(int num)
 void video_flip(void)
 {
 	if (emu_running && Config.ShowFps) {
-#ifdef GPU_UNAI
-		port_printf(5,5,msg);
-#elif GPU_DFXVIDEO
-		char msg[256];
-		sprintf(msg, "FPS: %02.02f", fps_cur);
-		port_printf(5,5,msg);
-#endif
+		port_printf(5, 5, pl_data.stats_msg);
 	}
 
 	if (SDL_MUSTLOCK(screen))

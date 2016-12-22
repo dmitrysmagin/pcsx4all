@@ -30,11 +30,6 @@
 
 #define GPU_INLINE static inline __attribute__((always_inline))
 
-//TODO - overhaul FPS reporting, remove this
-char msg[36]="RES=000x000x00 FPS=000/00 SPD=000%"; // fps information
-
-///////////////////////////////////////////////////////////////////////////////
-
 // GPU fixed point math
 #include "gpu_fixedpoint.h"
 

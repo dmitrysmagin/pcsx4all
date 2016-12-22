@@ -37,6 +37,9 @@
 #include "gpu/gpulib/gpu.h"
 #endif
 
+static void pl_frameskip_prepare(void);
+static void pl_stats_update(void);
+
 #define MAX_LAG_FRAMES 3
 
 #define tvdiff(tv, tv_old) \
@@ -44,7 +47,7 @@
 
 struct pl_data_t pl_data;
 
-void pl_frameskip_prepare(void)
+static void pl_frameskip_prepare(void)
 {
 	pl_data.fskip_advice = false;
 	pl_data.frameskip = Config.FrameSkip;
@@ -71,8 +74,14 @@ void pl_frame_limit(void)
 
 	gettimeofday(&now, 0);
 
+	GPU_getScreenInfo(&pl_data.sinfo);
+
 	// Update performance monitor
-	pmonUpdate();
+	bool new_stats = pmonUpdate(&now);
+	if (new_stats) {
+		pmonGetStats(&pl_data.fps_cur, &pl_data.cpu_cur);
+		pl_stats_update();
+	}
 
 	// If cfg settings change, catch it here
 	if (pl_data.frameskip != Config.FrameSkip ||
@@ -136,10 +145,11 @@ void pl_init(void)
 
 void pl_reset(void)
 {
+	pl_data.fps_cur = pl_data.cpu_cur = 0;
 	pl_data.dynarec_compiled = false;
 	pl_data.dynarec_active_vsyncs = 0;
 	pl_frameskip_prepare();
-
+	sprintf(pl_data.stats_msg, "000x000x00 CPU=000%% FPS=000/00");
 	pmonReset(); // Reset performance monitor (FPS,CPU usage,etc)
 }
 
@@ -155,4 +165,17 @@ void pl_resume(void)
 	pmonResume();
 	pl_frameskip_prepare();
 	GPU_requestScreenRedraw(); // GPU plugin should redraw screen
+}
+
+static void pl_stats_update(void)
+{
+	// TODO: show skipped frames in stats message
+
+	sprintf(pl_data.stats_msg, "%3ux%3ux%s CPU=%3u%% FPS=%3u/%u",
+			pl_data.sinfo.hres,
+			pl_data.sinfo.vres,
+			pl_data.sinfo.depth24 ? "24" : "15",
+			(unsigned int)(pl_data.cpu_cur + 0.5f),
+			(unsigned int)(pl_data.fps_cur + 0.5f),
+			pl_data.sinfo.pal ? 50 : 60);
 }

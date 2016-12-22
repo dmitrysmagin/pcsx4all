@@ -39,12 +39,15 @@ struct pl_data_t {
 	int frame_interval, frame_interval1024;
 	int vsync_usec_time;
 	unsigned int dynarec_active_vsyncs;
+	float fps_cur, cpu_cur;
 	struct timeval tv_expect;
+
+	GPUScreenInfo_t sinfo, sinfo_last;
+	char stats_msg[80]; // Short msg showing screen res, FPS, CPU usage, etc
 };
 
 extern struct pl_data_t pl_data;
 
-void pl_frameskip_prepare(void);
 void pl_frame_limit(void);
 void pl_init(void);
 void pl_reset(void);

@@ -811,7 +811,6 @@ static MENUITEM gui_SettingsItems[] = {
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_SettingsMenu = { SET_SIZE, 0, 56, 112, (MENUITEM *)&gui_SettingsItems };
 
-#ifndef USE_GPULIB
 static int fps_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -828,7 +827,6 @@ static char *fps_show()
 	sprintf(buf, "%s", Config.ShowFps == true ? "on" : "off");
 	return buf;
 }
-#endif
 
 static int framelimit_alter(u32 keys)
 {
@@ -1033,10 +1031,8 @@ static int gpu_settings_defaults()
 }
 
 static MENUITEM gui_GPUSettingsItems[] = {
-#ifndef USE_GPULIB
 	/* Not working with gpulib yet */
 	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
-#endif
 	{(char *)"Frame limiter        ", NULL, &framelimit_alter, &framelimit_show},
 #ifdef USE_GPULIB
 	/* Only working with gpulib */

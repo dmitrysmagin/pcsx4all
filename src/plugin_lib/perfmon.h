@@ -24,12 +24,17 @@
 #ifndef PERFMON_H
 #define PERFMON_H
 
+#include <sys/time.h>
+
 // Called when (re)starting a game, before first call to pmonUpdate()
 void pmonReset();
 
 // Called once per frame, updating the stats.
 // Returns true if new stats were generated.
-bool pmonUpdate();
+bool pmonUpdate(struct timeval *tv_now);
+
+// Return current FPS, CPU%
+void pmonGetStats(float *fps_cur, float *cpu_cur);
 
 // Output stats to console
 void pmonPrintStats(bool print_detailed_stats);
