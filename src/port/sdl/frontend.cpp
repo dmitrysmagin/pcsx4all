@@ -377,6 +377,7 @@ typedef struct {
 	int (*on_press_a)();
 	int (*on_press)(u32 keys);
 	char *(*showval)();
+	void (*hint)();
 } MENUITEM;
 
 typedef struct {
@@ -461,12 +462,12 @@ static int gui_Credits()
 }
 
 static MENUITEM gui_MainMenuItems[] = {
-	{(char *)"Load game", &gui_LoadIso, NULL, NULL},
-	{(char *)"Core settings", &gui_Settings, NULL, NULL},
-	{(char *)"GPU settings", &gui_GPUSettings, NULL, NULL},
-	{(char *)"SPU settings", &gui_SPUSettings, NULL, NULL},
-	{(char *)"Credits", &gui_Credits, NULL, NULL},
-	{(char *)"Quit", &gui_Quit, NULL, NULL},
+	{(char *)"Load game", &gui_LoadIso, NULL, NULL, NULL},
+	{(char *)"Core settings", &gui_Settings, NULL, NULL, NULL},
+	{(char *)"GPU settings", &gui_GPUSettings, NULL, NULL, NULL},
+	{(char *)"SPU settings", &gui_SPUSettings, NULL, NULL, NULL},
+	{(char *)"Credits", &gui_Credits, NULL, NULL, NULL},
+	{(char *)"Quit", &gui_Quit, NULL, NULL, NULL},
 	{0}
 };
 
@@ -651,10 +652,10 @@ static int gui_swap_cd(void)
 }
 
 static MENUITEM gui_GameMenuItems[] = {
-	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL},
-	{(char *)"Load state", &gui_state_load, &state_alter, &state_show},
-	{(char *)"Save state", &gui_state_save, &state_alter, &state_show},
-	{(char *)"Quit", &gui_Quit, NULL, NULL},
+	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL, NULL},
+	{(char *)"Load state", &gui_state_load, &state_alter, &state_show, NULL},
+	{(char *)"Save state", &gui_state_save, &state_alter, &state_show, NULL},
+	{(char *)"Quit", &gui_Quit, NULL, NULL, NULL},
 	{0}
 };
 
@@ -750,6 +751,11 @@ static char *RCntFix_show()
 	return buf;
 }
 
+static void RCntFix_hint()
+{
+	port_printf(2 * 8 - 4, 10 * 8, "Parasite Eve 2, Vandal Hearts 1/2 Fix");
+}
+
 static int VSyncWA_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -759,6 +765,11 @@ static int VSyncWA_alter(u32 keys)
 	}
 
 	return 0;
+}
+
+static void VSyncWA_hint()
+{
+	port_printf(6 * 8, 10 * 8, "InuYasha Sengoku Battle Fix");
 }
 
 static char *VSyncWA_show()
@@ -795,16 +806,16 @@ static int settings_defaults()
 
 static MENUITEM gui_SettingsItems[] = {
 #ifdef PSXREC
-	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show},
-	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show},
+	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show, NULL},
+	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show, NULL},
 #endif
-	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show},
-	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL},
-	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show},
-	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show},
-	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL},
-	{NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
+	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show, NULL},
+	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL, NULL},
+	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
+	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
+	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL, NULL},
+	{NULL, NULL, NULL, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1032,23 +1043,23 @@ static int gpu_settings_defaults()
 
 static MENUITEM gui_GPUSettingsItems[] = {
 	/* Not working with gpulib yet */
-	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show},
-	{(char *)"Frame limiter        ", NULL, &framelimit_alter, &framelimit_show},
+	{(char *)"Show FPS             ", NULL, &fps_alter, &fps_show, NULL},
+	{(char *)"Frame limiter        ", NULL, &framelimit_alter, &framelimit_show, NULL},
 #ifdef USE_GPULIB
 	/* Only working with gpulib */
-	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show},
+	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show, NULL},
 #endif
 #ifdef GPU_UNAI
-	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show},
-	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show},
-	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show},
-	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show},
-	{(char *)"Blending             ", NULL, &blending_alter, &blending_show},
-	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show},
+	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show, NULL},
+	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show, NULL},
+	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show, NULL},
+	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show, NULL},
+	{(char *)"Blending             ", NULL, &blending_alter, &blending_show, NULL},
+	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
 #endif
-	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL},
-	{NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
+	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL, NULL},
+	{NULL, NULL, NULL, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1250,20 +1261,20 @@ static int spu_settings_defaults()
 }
 
 static MENUITEM gui_SPUSettingsItems[] = {
-	{(char *)"XA audio             ", NULL, &xa_alter, &xa_show},
-	{(char *)"CDDA audio           ", NULL, &cdda_alter, &cdda_show},
-	{(char *)"Audio sync           ", NULL, &syncaudio_alter, &syncaudio_show},
-	{(char *)"SPU updates per frame", NULL, &spuupdatefreq_alter, &spuupdatefreq_show},
-	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show},
-	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show},
+	{(char *)"XA audio             ", NULL, &xa_alter, &xa_show, NULL},
+	{(char *)"CDDA audio           ", NULL, &cdda_alter, &cdda_show, NULL},
+	{(char *)"Audio sync           ", NULL, &syncaudio_alter, &syncaudio_show, NULL},
+	{(char *)"SPU updates per frame", NULL, &spuupdatefreq_alter, &spuupdatefreq_show, NULL},
+	{(char *)"Forced XA updates    ", NULL, &forcedxa_alter, &forcedxa_show, NULL},
+	{(char *)"IRQ fix              ", NULL, &spuirq_alter, &spuirq_show, NULL},
 #ifdef SPU_PCSXREARMED
-	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show},
-	{(char *)"Reverb               ", NULL, &reverb_alter, &reverb_show},
-	{(char *)"Master volume        ", NULL, &volume_alter, &volume_show},
+	{(char *)"Interpolation        ", NULL, &interpolation_alter, &interpolation_show, NULL},
+	{(char *)"Reverb               ", NULL, &reverb_alter, &reverb_show, NULL},
+	{(char *)"Master volume        ", NULL, &volume_alter, &volume_show, NULL},
 #endif
-	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL},
-	{NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL},
+	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL, NULL},
+	{NULL, NULL, NULL, NULL, NULL},
+	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1335,6 +1346,9 @@ static void ShowMenu(MENU *menu)
 	// show menu lines
 	for(int i = 0; i < menu->num; i++, mi++) {
 		ShowMenuItem(menu->x, menu->y + i * 10, mi);
+		// show hint if available
+		if (mi->hint && i == menu->cur)
+			mi->hint();
 	}
 
 	// show cursor
