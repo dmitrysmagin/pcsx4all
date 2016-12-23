@@ -40,6 +40,11 @@ enum  {
 	KEY_A=1<<12,	KEY_B=1<<13,		KEY_X=1<<14,	KEY_Y=1<<15,
 };
 
+extern char sstatesdir[PATH_MAX];
+static int saveslot = -1;
+static uint16_t* sshot_img; // Ptr to active image in savestate menu
+static int sshot_img_num;   // Which slot above image is loaded for
+
 static u32 ret = 0;
 
 static inline void key_reset() { ret = 0; }
@@ -395,27 +400,6 @@ static int gui_GPUSettings();
 static int gui_SPUSettings();
 static int gui_Quit();
 
-static int state_alter(u32 keys)
-{
-	extern int saveslot;
-
-	if (keys & KEY_RIGHT) {
-		if (saveslot < 9) saveslot++;
-	} else if (keys & KEY_LEFT) {
-		if (saveslot > 0) saveslot--;
-	}
-
-	return 0;
-}
-
-static char *state_show()
-{
-	extern int saveslot;
-	static char buf[16];
-	sprintf(buf, "%d", saveslot);
-	return buf;
-}
-
 static int gui_Credits()
 {
 	for (;;) {
@@ -474,24 +458,21 @@ static MENUITEM gui_MainMenuItems[] = {
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 140, (MENUITEM *)&gui_MainMenuItems };
 
-static int gui_state_load()
+static int gui_state_save(int slot)
 {
-	if (state_load() < 0) {
-		// Load failure
-		// TODO: Add user interaction to handle gracefully, improve interface
-		return 0;
+	if (sshot_img) {
+		free(sshot_img);
+		sshot_img = NULL;
 	}
 
-	return 1;
-}
+	// Remember which saveslot was accessed last
+	saveslot = slot;
 
-static int gui_state_save()
-{
 	video_clear();
 	port_printf(160-(6*8/2), 120-(8/2), "SAVING");
 	video_flip();
 
-	if (state_save() < 0) {
+	if (state_save(slot) < 0) {
 		// Error saving
 
 		for (;;) {
@@ -510,7 +491,375 @@ static int gui_state_save()
 		}
 	}
 
+	// Return -1 to gui_StateSave() caller menu, so it knows
+	//  to tell main menu to return back to main menu.
+	return -1;
+}
+
+#define GUI_STATE_SAVE(slot) \
+static int gui_state_save##slot() \
+{ \
+	return gui_state_save(slot); \
+}
+
+GUI_STATE_SAVE(0)
+GUI_STATE_SAVE(1)
+GUI_STATE_SAVE(2)
+GUI_STATE_SAVE(3)
+GUI_STATE_SAVE(4)
+GUI_STATE_SAVE(5)
+GUI_STATE_SAVE(6)
+GUI_STATE_SAVE(7)
+GUI_STATE_SAVE(8)
+GUI_STATE_SAVE(9)
+
+static void gui_state_save_hint(int slot)
+{
+	int x, y, len;
+	char filename[128];
+	char fullpath[512];
+	sprintf(filename, "%s.%d.sav", CdromId, slot);
+	sprintf(fullpath, "%s/%s", sstatesdir, filename);
+
+	// If file doesn't exist, there's no info to display
+	if (!FileExists(fullpath))
+		return;
+
+	// Allocate/get 160x120 rgb565 screenshot image data
+	if (!sshot_img || sshot_img_num != slot) {
+		free(sshot_img);
+		sshot_img = (uint16_t*)malloc(160*120*2);
+		if (!sshot_img) {
+			printf("Warning: malloc failed for sshot image in %s\n", __func__);
+			return;
+		}
+		CheckState(fullpath, NULL, true, sshot_img);
+		sshot_img_num = slot;
+	}
+
+	// Display screenshot image
+	x = 160-8;
+	y = 70;
+	int dst_stride = 320;
+	uint16_t *dst = (uint16_t*)SCREEN + y * dst_stride + x;
+	for (int j=0; j < 120; ++j) {
+		memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
+		dst += dst_stride;
+	}
+
+	// Display date of last modification
+	char date_str[128];
+	date_str[0] = '\0';
+	if (FileDate(fullpath, date_str, NULL) >= 0) {
+		len = strlen(date_str);
+		x = 320 - 8 - len * 8;
+		y = 70 - 22;
+		port_printf(x, y, date_str);
+	}
+
+	// Display name of save file
+	len = strlen(filename);
+	if (len > 25)
+		filename[25] = '\0';
+	x = 320 - 8 - len * 8;
+	y = 70 - 11;
+	port_printf(x, y, filename);
+}
+
+#define GUI_STATE_SAVE_HINT(slot) \
+static void gui_state_save_hint##slot() \
+{ \
+	gui_state_save_hint(slot); \
+}
+
+GUI_STATE_SAVE_HINT(0)
+GUI_STATE_SAVE_HINT(1)
+GUI_STATE_SAVE_HINT(2)
+GUI_STATE_SAVE_HINT(3)
+GUI_STATE_SAVE_HINT(4)
+GUI_STATE_SAVE_HINT(5)
+GUI_STATE_SAVE_HINT(6)
+GUI_STATE_SAVE_HINT(7)
+GUI_STATE_SAVE_HINT(8)
+GUI_STATE_SAVE_HINT(9)
+
+static int gui_state_save_back()
+{
+	if (sshot_img) {
+		free(sshot_img);
+		sshot_img = NULL;
+	}
+
 	return 1;
+}
+
+// In-game savestate save sub-menu, called from GameMenu() menu
+static int gui_StateSave()
+{
+	const char* str_slot[10];
+	const char* str_slot_unused[10] = {
+		"Empty slot 0", "Empty slot 1", "Empty slot 2", "Empty slot 3", "Empty slot 4",
+		"Empty slot 5", "Empty slot 6", "Empty slot 7", "Empty slot 8", "Empty slot 9",
+	};
+	const char* str_slot_used[10] = {
+		"Used  slot 0", "Used  slot 1", "Used  slot 2", "Used  slot 3", "Used  slot 4",
+		"Used  slot 5", "Used  slot 6", "Used  slot 7", "Used  slot 8", "Used  slot 9",
+	};
+
+	// Restore last accessed position
+	int initial_pos = saveslot;
+	if (initial_pos > 9)
+		initial_pos = 9;
+
+	for (int i=0; i < 10; ++i) {
+		char savename[512];
+		sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, i);
+		if (FileExists(savename)) {
+			str_slot[i] = str_slot_used[i];
+		} else {
+			str_slot[i] = str_slot_unused[i];
+			// Initial position points to a file that doesn't exist?
+			if (initial_pos == i)
+				initial_pos = -1;
+		}
+	}
+
+	MENUITEM gui_StateSaveItems[] = {
+		{(char *)str_slot[0], &gui_state_save0, NULL, NULL, &gui_state_save_hint0},
+		{(char *)str_slot[1], &gui_state_save1, NULL, NULL, &gui_state_save_hint1},
+		{(char *)str_slot[2], &gui_state_save2, NULL, NULL, &gui_state_save_hint2},
+		{(char *)str_slot[3], &gui_state_save3, NULL, NULL, &gui_state_save_hint3},
+		{(char *)str_slot[4], &gui_state_save4, NULL, NULL, &gui_state_save_hint4},
+		{(char *)str_slot[5], &gui_state_save5, NULL, NULL, &gui_state_save_hint5},
+		{(char *)str_slot[6], &gui_state_save6, NULL, NULL, &gui_state_save_hint6},
+		{(char *)str_slot[7], &gui_state_save7, NULL, NULL, &gui_state_save_hint7},
+		{(char *)str_slot[8], &gui_state_save8, NULL, NULL, &gui_state_save_hint8},
+		{(char *)str_slot[9], &gui_state_save9, NULL, NULL, &gui_state_save_hint9},
+		{NULL, NULL, NULL, NULL, NULL},
+		{NULL, NULL, NULL, NULL, NULL},
+		{NULL, NULL, NULL, NULL, NULL},
+		{(char *)"Back to main menu    ", &gui_state_save_back, NULL, NULL, NULL},
+		{0}
+	};
+
+	const int menu_size = (sizeof(gui_StateSaveItems) / sizeof(MENUITEM)) - 1;
+
+	// If no files were present, select last menu entry as initial position
+	if (initial_pos < 0)
+		initial_pos = menu_size-1;
+
+	MENU gui_StateSaveMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateSaveItems };
+
+	int ret = gui_RunMenu(&gui_StateSaveMenu);
+	if (ret >= 0) {
+		// User wants to go back to main menu
+		return 0;
+	} else {
+		// State was saved by gui_state_save() and returned -1 to
+		//  indicate main menu should return back to emu.
+		return 1;
+	}
+}
+
+static int gui_state_load(int slot)
+{
+	if (sshot_img) {
+		free(sshot_img);
+		sshot_img = NULL;
+	}
+
+	// Remember which saveslot was accessed last
+	saveslot = slot;
+	if (state_load(slot) < 0) {
+		/* Load failure */
+		return 0;
+	}
+
+	// Return -1 to gui_StateLoad() caller menu, so it knows
+	//  to tell main menu to return back to main menu.
+	return -1;
+}
+
+#define GUI_STATE_LOAD(slot) \
+static int gui_state_load##slot() \
+{ \
+	return gui_state_load(slot); \
+}
+
+GUI_STATE_LOAD(0)
+GUI_STATE_LOAD(1)
+GUI_STATE_LOAD(2)
+GUI_STATE_LOAD(3)
+GUI_STATE_LOAD(4)
+GUI_STATE_LOAD(5)
+GUI_STATE_LOAD(6)
+GUI_STATE_LOAD(7)
+GUI_STATE_LOAD(8)
+GUI_STATE_LOAD(9)
+
+static void gui_state_load_hint(int slot)
+{
+	int x, y, len;
+	char filename[128];
+	char fullpath[512];
+	sprintf(filename, "%s.%d.sav", CdromId, slot);
+	sprintf(fullpath, "%s/%s", sstatesdir, filename);
+
+	int checkstate = CheckState(fullpath, NULL, true, NULL);
+
+	// Allocate/get 160x120 rgb565 screenshot image data
+	if (checkstate == CHECKSTATE_SUCCESS) {
+		if (!sshot_img || sshot_img_num != slot) {
+			free(sshot_img);
+			sshot_img = (uint16_t*)malloc(160*120*2);
+			if (!sshot_img)
+				printf("Warning: malloc failed for sshot image in %s\n", __func__);
+			// Fetch the image data
+			CheckState(fullpath, NULL, true, sshot_img);
+			sshot_img_num = slot;
+		}
+	} else {
+		// Savestate is too old to have embedded sshot, or read error
+		free(sshot_img);
+		sshot_img = NULL;
+	}
+
+	// Display screenshot image
+	if (sshot_img) {
+		x = 160-8;
+		y = 70;
+		const int dst_stride = 320;
+		uint16_t *dst = (uint16_t*)SCREEN + y * dst_stride + x;
+		for (int j=0; j < 120; ++j) {
+			memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
+			dst += dst_stride;
+		}
+	} else {
+		port_printf(320-135, 125 - 10, "No screenshot");
+		port_printf(320-135, 125,      "  available  ");
+	}
+
+	// Display date of last modification
+	char date_str[128];
+	date_str[0] = '\0';
+	if (FileDate(fullpath, date_str, NULL) >= 0) {
+		len = strlen(date_str);
+		x = 320 - 8 - len * 8;
+		y = 70 - 22;
+		port_printf(x, y, date_str);
+	}
+
+	// Display name of save file
+	len = strlen(filename);
+	if (len > 25)
+		filename[25] = '\0';
+	x = 320 - 8 - len * 8;
+	y = 70 - 11;
+	port_printf(x, y, filename);
+}
+
+#define GUI_STATE_LOAD_HINT(slot) \
+static void gui_state_load_hint##slot() \
+{ \
+	gui_state_load_hint(slot); \
+}
+
+GUI_STATE_LOAD_HINT(0)
+GUI_STATE_LOAD_HINT(1)
+GUI_STATE_LOAD_HINT(2)
+GUI_STATE_LOAD_HINT(3)
+GUI_STATE_LOAD_HINT(4)
+GUI_STATE_LOAD_HINT(5)
+GUI_STATE_LOAD_HINT(6)
+GUI_STATE_LOAD_HINT(7)
+GUI_STATE_LOAD_HINT(8)
+GUI_STATE_LOAD_HINT(9)
+
+static int gui_state_load_back()
+{
+	if (sshot_img) {
+		free(sshot_img);
+		sshot_img = NULL;
+	}
+
+	return 1;
+}
+
+// In-game savestate load sub-menu, called from GameMenu() menu
+static int gui_StateLoad()
+{
+	const char* str_slot[10] = {
+		"Load slot 0", "Load slot 1", "Load slot 2", "Load slot 3", "Load slot 4",
+		"Load slot 5", "Load slot 6", "Load slot 7", "Load slot 8", "Load slot 9",
+	};
+
+	// Restore last accessed position
+	int initial_pos = saveslot;
+	if (initial_pos > 9)
+		initial_pos = 9;
+
+	int newest_file_pos = -1;
+
+	time_t newest_mtime = 0;
+	for (int i=0; i < 10; ++i) {
+		char savename[512];
+		sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, i);
+		if (FileExists(savename)) {
+			time_t mtime;
+			if (FileDate(savename, NULL, &mtime) >= 0) {
+				if (mtime > newest_mtime) {
+					newest_file_pos = i;
+					newest_mtime = mtime;
+				}
+			}
+		} else {
+			str_slot[i] = NULL;
+			// Initial position points to a file that doesn't exist?
+			if (initial_pos == i)
+				initial_pos = -1;
+		}
+	}
+
+	// If a save hasn't been loaded before for the current game, choose
+	//  the file with the newest modification date as initial position
+	if (initial_pos < 0 && newest_file_pos >= 0)
+		initial_pos = newest_file_pos;
+
+	MENUITEM gui_StateLoadItems[] = {
+		{(char *)str_slot[0], &gui_state_load0, NULL, NULL, &gui_state_load_hint0},
+		{(char *)str_slot[1], &gui_state_load1, NULL, NULL, &gui_state_load_hint1},
+		{(char *)str_slot[2], &gui_state_load2, NULL, NULL, &gui_state_load_hint2},
+		{(char *)str_slot[3], &gui_state_load3, NULL, NULL, &gui_state_load_hint3},
+		{(char *)str_slot[4], &gui_state_load4, NULL, NULL, &gui_state_load_hint4},
+		{(char *)str_slot[5], &gui_state_load5, NULL, NULL, &gui_state_load_hint5},
+		{(char *)str_slot[6], &gui_state_load6, NULL, NULL, &gui_state_load_hint6},
+		{(char *)str_slot[7], &gui_state_load7, NULL, NULL, &gui_state_load_hint7},
+		{(char *)str_slot[8], &gui_state_load8, NULL, NULL, &gui_state_load_hint8},
+		{(char *)str_slot[9], &gui_state_load9, NULL, NULL, &gui_state_load_hint9},
+		{NULL, NULL, NULL, NULL, NULL},
+		{NULL, NULL, NULL, NULL, NULL},
+		{NULL, NULL, NULL, NULL, NULL},
+		{(char *)"Back to main menu    ", &gui_state_load_back, NULL, NULL, NULL},
+		{0}
+	};
+
+	const int menu_size = (sizeof(gui_StateLoadItems) / sizeof(MENUITEM)) - 1;
+
+	// If no files were present, select last menu entry as initial position
+	if (initial_pos < 0)
+		initial_pos = menu_size-1;
+
+	MENU gui_StateLoadMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateLoadItems };
+
+	int ret = gui_RunMenu(&gui_StateLoadMenu);
+	if (ret >= 0) {
+		// User wants to go back to main menu
+		return 0;
+	} else {
+		// State was loaded by gui_state_load() and returned -1 to
+		//  indicate main menu should return back to emu.
+		return 1;
+	}
 }
 
 //To choose which of a multi-CD image should be used. Can be called
@@ -575,6 +924,8 @@ static int gui_select_multicd(bool swapping_cd)
 			cdrIsoMultidiskSelect = cursor_pos;
 			video_clear();
 			video_flip();
+			// Forget last used save slot
+			saveslot = -1;
 			return 1;
 		}
 
@@ -653,8 +1004,8 @@ static int gui_swap_cd(void)
 
 static MENUITEM gui_GameMenuItems[] = {
 	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL, NULL},
-	{(char *)"Load state", &gui_state_load, &state_alter, &state_show, NULL},
-	{(char *)"Save state", &gui_state_save, &state_alter, &state_show, NULL},
+	{(char *)"Load state", &gui_StateLoad, NULL, NULL, NULL},
+	{(char *)"Save state", &gui_StateSave, NULL, NULL, NULL},
 	{(char *)"Quit", &gui_Quit, NULL, NULL, NULL},
 	{0}
 };
@@ -1355,8 +1706,8 @@ static void ShowMenu(MENU *menu)
 	port_printf(menu->x - 3 * 8, menu->y + menu->cur * 10, "-->");
 
 	// general copyrights info
-	port_printf( 8 * 8, 30, "pcsx4all 2.4 for GCW-Zero");
-	port_printf( 4 * 8, 40, "Built on " __DATE__ " at " __TIME__);
+	port_printf( 8 * 8, 10, "pcsx4all 2.4 for GCW-Zero");
+	port_printf( 4 * 8, 20, "Built on " __DATE__ " at " __TIME__);
 }
 
 static int gui_RunMenu(MENU *menu)
@@ -1425,5 +1776,8 @@ int SelectGame()
 
 int GameMenu()
 {
+	//NOTE: TODO - reset 'saveslot' var to -1 if a new game is loaded.
+	// currently, we don't support loading a different game during a running game.
+
 	return gui_RunMenu(&gui_GameMenu);
 }

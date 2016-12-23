@@ -71,7 +71,17 @@ int Load(const char *ExePath);
 
 int SaveState(const char *file);
 int LoadState(const char *file);
-int CheckState(const char *file);
+int CheckState(const char *file, bool *uses_hle, bool get_sshot, u16 *sshot_image);
+
+enum {
+	CHECKSTATE_SUCCESS        = 0,
+	CHECKSTATE_ERR_OPEN       = -1,
+	CHECKSTATE_ERR_HEADER     = -2,
+	CHECKSTATE_ERR_VERSION    = -3,
+	CHECKSTATE_ERR_NO_SSHOT   = -4,
+	CHECKSTATE_ERR_READ       = -5
+};
 
 bool FileExists(const char* filename);
+int FileDate(const char* filename, char *date_str, time_t *m_time);
 #endif /* __MISC_H__ */

@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <zlib.h>
 #if !defined(O_BINARY)
 #define O_BINARY 0
@@ -687,7 +688,7 @@ static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment value below.
-static const u32 SaveVersion = 0x8b410005;
+static const u32 SaveVersion = 0x8b410006;
 static const u32 SaveVersionEarliestSupported = 0x8b410004;
 // Versions supported: (NOTE: this only includes versions after 2016
 //  adoption of PCSX4ALL 2.3 codebase by MIPS / GCW Zero port team)
@@ -698,16 +699,19 @@ static const u32 SaveVersionEarliestSupported = 0x8b410004;
 //                 and zlib was incorrectly used w/ libc fd to write all data
 //                 after. Doing so silently dropped all data after SPU.
 //                 Somehow, miraculously, savestates still kind of worked.
-//                 Embedded screenshot data area was present but unused.
-//
-// 0x8b410005    - Dec 2016
+//                 Embedded screenshot data area was present but unused, sized
+//                 oddly at 128*96*3 (36864 bytes).
+// 0x8b410005    - Dec 5th 2016
 //                 Uses same format as 0xb410004, but zlib is used to write
 //                 all data. If 0xb410004 savestate is detected, no data
 //                 past SPU data will be loaded. This also marks the point
 //                 that 'gpulib' was backported from PCSX Rearmed. It handles
 //                 GPU state-saving across all GPU plugins, and happens to use
 //                 the same format as old gpu_unai sstate, so older saves work.
-//                 Embedded screenshot data area contains 156*117 rgb565 image.
+// 0x8b410006    - Dec 23th 2016
+//                 DATA LAYOUT CHANGE:
+//                 * Embedded screenshot data area is expanded a bit and now
+//                   used for rgb565 160x120x2 image (38400 bytes)
 
 int SaveState(const char *file) {
 	void* f;
@@ -727,13 +731,16 @@ int SaveState(const char *file) {
 	     freeze_rw(f, FREEZE_SAVE, (void*)&Config.HLE, sizeof(boolean)) )
 		goto error;
 
-	// senquack - This is used for a small embedded screenshot in PCSX Rearmed,
-	//  but here and in original PCSX4ALL code is just an unused placeholder.
-	if ( (pMem = (unsigned char *)calloc(128*96*3, 1)) == NULL ||
-	     freeze_rw(f, FREEZE_SAVE, pMem, 128*96*3) )
-		goto error;
-	free(pMem);
-	pMem = NULL;
+	// Create/write embedded screenshot
+	if ((pMem = (unsigned char *)malloc(160*120*2)) != NULL) {
+		pl_screenshot_160x120_rgb565((u16*)pMem);
+		if (freeze_rw(f, FREEZE_SAVE, pMem, 160*120*2))
+			goto error;
+		free(pMem);
+		pMem = NULL;
+	} else {
+		printf("Warning: could not allocate memory for embedded screenshot.\n");
+	}
 
 	if (Config.HLE)
 		psxBiosFreeze(1);
@@ -801,6 +808,9 @@ int LoadState(const char *file) {
 	u32 version;
 	boolean hle;
 
+	// 160x120 rgb565 screenshot image
+	int sshot_image_size = 160*120*2;
+
 	if ((f = SaveFuncs.open(file, false)) == NULL) {
 		printf("Error opening savestate file for reading: %s\n", file);
 		return -1;
@@ -818,8 +828,17 @@ int LoadState(const char *file) {
 
 	psxCpu->Reset();
 
-	if ( SaveFuncs.seek(f, 128*96*3, SEEK_CUR) == -1 ||
-	     freeze_rw(f, FREEZE_LOAD, psxM, 0x00200000) ||
+	// XXX - Save versions before 0x8b410006 had smaller area
+	//       reserved for screenshot data, which was unused.
+	if (version <= 0x8b410005) {
+		sshot_image_size = 128*96*3;
+	}
+
+	// Skip past data we don't use when loading a state:
+	if (SaveFuncs.seek(f, sshot_image_size, SEEK_CUR) == -1)
+		goto error;
+
+	if ( freeze_rw(f, FREEZE_LOAD, psxM, 0x00200000) ||
 	     freeze_rw(f, FREEZE_LOAD, psxR, 0x00080000) ||
 	     freeze_rw(f, FREEZE_LOAD, psxH, 0x00010000) )
 		goto error;
@@ -892,33 +911,78 @@ error:
 	return -1;
 }
 
-int CheckState(const char *file) {
-	void* f;
+// Checks if sstate 'file' contains a valid header and version.
+// If 'get_sshot' is true, it will check if it contains screenshot data.
+// If 'get_sshot' is true and 'sshot_image' is not NULL, it will copy
+//  the 160*120 rgb565 sshot data at sshot_image ptr.
+// Returns 0 for success, negative CHECKSTATE_ERR_* value for errors (misc.h)
+int CheckState(const char *file, bool *uses_hle, bool get_sshot, u16 *sshot_image)
+{
+	if (!file || file[0] == '\0') {
+		printf("Error in %s(): NULL ptr or empty savestate filename string\n", __func__);
+		return -1;
+	}
+
+	void *f = NULL;
 	char header[32];
 	u32 version;
-	boolean hle;
+	bool hle;
 
 	if ((f = SaveFuncs.open(file, false)) == NULL) {
-		printf("Error in CheckState() loading file: %s\n", file);
-		return -1;
+		printf("Error in %s() opening savestate file: %s\n", __func__, file);
+		perror(__func__);
+		return CHECKSTATE_ERR_OPEN;
 	}
 
 	if ( freeze_rw(f, FREEZE_LOAD, header, sizeof(header)) ||
 	     freeze_rw(f, FREEZE_LOAD, &version, sizeof(u32))  ||
 	     freeze_rw(f, FREEZE_LOAD, &hle, sizeof(boolean)) )   {
-		printf("Error in CheckState() reading file %s\n", file);
+		printf("Error in %s reading file %s\n", __func__, file);
+		perror(__func__);
 		SaveFuncs.close(f);
-		return -1;
+		return CHECKSTATE_ERR_READ;
+	}
+
+	if (strncmp("STv4 PCSX", header, 9) != 0) {
+		SaveFuncs.close(f);
+		return CHECKSTATE_ERR_HEADER;
+	}
+
+	if (version < SaveVersionEarliestSupported) {
+		printf("Error in %s(): file %s is too old, no longer supported.\n"
+		       "Version detected: %x  Minimum supported: %x\n",
+			   __func__, file, version, SaveVersionEarliestSupported);
+		SaveFuncs.close(f);
+		return CHECKSTATE_ERR_VERSION;
+	}
+
+	// Specify whether sstate used HLE BIOS (if ptr param is non-NULL)
+	if (uses_hle)
+		*uses_hle = hle;
+
+	// Load embedded screenshot (if ptr param is non-NULL)
+	if (get_sshot) {
+		if (version <= 0x8b410005) {
+			// XXX - Save version is too old, contains no sshot image
+			SaveFuncs.close(f);
+			return CHECKSTATE_ERR_NO_SSHOT;
+		}
+
+		if (!sshot_image) {
+			SaveFuncs.close(f);
+			return CHECKSTATE_SUCCESS;
+		}
+
+		if (freeze_rw(f, FREEZE_LOAD, sshot_image, 160*120*2)) {
+			printf("Warning: %s() failed reading embedded screenshot in %s\n",
+					__func__, file);
+			SaveFuncs.close(f);
+			return CHECKSTATE_ERR_READ;
+		}
 	}
 
 	SaveFuncs.close(f);
-
-	if (strncmp("STv4 PCSX", header, 9) != 0    ||
-	    version < SaveVersionEarliestSupported  ||
-	    hle != Config.HLE)
-		return -1;
-
-	return 0;
+	return CHECKSTATE_SUCCESS;
 }
 
 ////////////////////////////
@@ -932,4 +996,35 @@ bool FileExists(const char* filename)
 	struct stat st;
 	int result = stat(filename, &st);
 	return result == 0;
+}
+
+// Get date string and/or seconds-since-epoch for given file 'filename',
+//  If either 'date_str' or 'm_time' is NULL, nothing is done for them.
+// Returns -1 on error;
+int FileDate(const char* filename, char *date_str, time_t *m_time)
+{
+	if (!filename || *filename == '\0')
+		return -1;
+	struct stat st;
+	if (stat(filename, &st) < 0)
+		return -1;
+
+	if (date_str) {
+#ifdef _WIN32
+		char *tmp = ctime(&st.st_mtime);
+		if (tmp)
+			strcpy(date_str, tmp);
+		else
+			date_str[0] = '\0';
+#else
+		ctime_r(&st.st_mtime, date_str);
+#endif
+		// Strip newline char
+		int len = strlen(date_str);
+		if (len)
+			date_str[len-1] = '\0';
+	}
+
+	if (m_time) *m_time = st.st_mtime;
+	return 0;
 }

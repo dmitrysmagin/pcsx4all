@@ -36,8 +36,8 @@ void port_printf(int x, int y, const char *text);
 
 extern unsigned short *SCREEN;
 
-int state_load();
-int state_save();
+int state_load(int slot);
+int state_save(int slot);
 
 int SelectGame();
 int GameMenu();

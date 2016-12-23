@@ -76,10 +76,10 @@ static void pcsx4all_exit(void)
 
 static char *home = NULL;
 static char homedir[PATH_MAX] =		"./.pcsx4all";
-static char sstatesdir[PATH_MAX] =	"./.pcsx4all/sstates";
 static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
 static char biosdir[PATH_MAX] =		"./.pcsx4all/bios";
 static char patchesdir[PATH_MAX] =	"./.pcsx4all/patches";
+char sstatesdir[PATH_MAX] = "./.pcsx4all/sstates";
 
 #ifdef __WIN32__
 	#define MKDIR(A) mkdir(A)
@@ -109,8 +109,6 @@ static void setup_paths()
 	MKDIR(biosdir);
 	MKDIR(patchesdir);
 }
-
-int saveslot = 0;
 
 void probe_lastdir()
 {
@@ -407,10 +405,10 @@ void config_save()
 }
 
 // Returns 0: success, -1: failure
-int state_load()
+int state_load(int slot)
 {
 	char savename[512];
-	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
+	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, slot);
 
 	if (FileExists(savename)) {
 		return LoadState(savename);
@@ -420,10 +418,10 @@ int state_load()
 }
 
 // Returns 0: success, -1: failure
-int state_save()
+int state_save(int slot)
 {
 	char savename[512];
-	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, saveslot);
+	sprintf(savename, "%s/%s.%d.sav", sstatesdir, CdromId, slot);
 
 	return SaveState(savename);
 }
