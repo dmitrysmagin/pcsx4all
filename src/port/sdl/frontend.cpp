@@ -525,26 +525,46 @@ static void gui_state_save_hint(int slot)
 	if (!FileExists(fullpath))
 		return;
 
+	int checkstate = CheckState(fullpath, NULL, true, NULL);
+
+	// If file doesn't exist or has header/version mismatch, abort.
+	// If CheckState() indicates file is ok except lacking screenshot,
+	//  i.e. an old version number , we'll display a info msg for that.
+	if (checkstate < 0 && checkstate != CHECKSTATE_ERR_NO_SSHOT)
+		return;
+
 	// Allocate/get 160x120 rgb565 screenshot image data
-	if (!sshot_img || sshot_img_num != slot) {
-		free(sshot_img);
-		sshot_img = (uint16_t*)malloc(160*120*2);
-		if (!sshot_img) {
-			printf("Warning: malloc failed for sshot image in %s\n", __func__);
-			return;
+	if (checkstate == CHECKSTATE_SUCCESS) {
+		if (!sshot_img || sshot_img_num != slot) {
+			free(sshot_img);
+			sshot_img = (uint16_t*)malloc(160*120*2);
+			if (sshot_img) {
+				// Fetch the image data
+				CheckState(fullpath, NULL, true, sshot_img);
+				sshot_img_num = slot;
+			} else {
+				printf("Warning: malloc failed for sshot image in %s\n", __func__);
+			}
 		}
-		CheckState(fullpath, NULL, true, sshot_img);
-		sshot_img_num = slot;
+	} else {
+		// Savestate is too old to have embedded sshot, or read error
+		free(sshot_img);
+		sshot_img = NULL;
 	}
 
 	// Display screenshot image
-	x = 160-8;
-	y = 70;
-	int dst_stride = 320;
-	uint16_t *dst = (uint16_t*)SCREEN + y * dst_stride + x;
-	for (int j=0; j < 120; ++j) {
-		memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
-		dst += dst_stride;
+	if (sshot_img) {
+		x = 160-8;
+		y = 70;
+		int dst_stride = 320;
+		uint16_t *dst = (uint16_t*)SCREEN + y * dst_stride + x;
+		for (int j=0; j < 120; ++j) {
+			memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
+			dst += dst_stride;
+		}
+	} else {
+		port_printf(320-135, 125 - 10, "No screenshot");
+		port_printf(320-135, 125,      "  available  ");
 	}
 
 	// Display date of last modification
@@ -651,6 +671,11 @@ static int gui_StateSave()
 	MENU gui_StateSaveMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateSaveItems };
 
 	int ret = gui_RunMenu(&gui_StateSaveMenu);
+
+	// Free memory for screenshot image
+	free(sshot_img);
+	sshot_img = NULL;
+
 	if (ret >= 0) {
 		// User wants to go back to main menu
 		return 0;
@@ -705,18 +730,30 @@ static void gui_state_load_hint(int slot)
 	sprintf(filename, "%s.%d.sav", CdromId, slot);
 	sprintf(fullpath, "%s/%s", sstatesdir, filename);
 
+	// If file doesn't exist, there's no info to display
+	if (!FileExists(fullpath))
+		return;
+
 	int checkstate = CheckState(fullpath, NULL, true, NULL);
+
+	// If file doesn't exist or has header/version mismatch, abort.
+	// If CheckState() indicates file is ok except lacking screenshot,
+	//  i.e. an old version number , we'll display a info msg for that.
+	if (checkstate < 0 && checkstate != CHECKSTATE_ERR_NO_SSHOT)
+		return;
 
 	// Allocate/get 160x120 rgb565 screenshot image data
 	if (checkstate == CHECKSTATE_SUCCESS) {
 		if (!sshot_img || sshot_img_num != slot) {
 			free(sshot_img);
 			sshot_img = (uint16_t*)malloc(160*120*2);
-			if (!sshot_img)
+			if (sshot_img) {
+				// Fetch the image data
+				CheckState(fullpath, NULL, true, sshot_img);
+				sshot_img_num = slot;
+			} else {
 				printf("Warning: malloc failed for sshot image in %s\n", __func__);
-			// Fetch the image data
-			CheckState(fullpath, NULL, true, sshot_img);
-			sshot_img_num = slot;
+			}
 		}
 	} else {
 		// Savestate is too old to have embedded sshot, or read error
@@ -852,6 +889,11 @@ static int gui_StateLoad()
 	MENU gui_StateLoadMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateLoadItems };
 
 	int ret = gui_RunMenu(&gui_StateLoadMenu);
+
+	// Free memory for screenshot image
+	free(sshot_img);
+	sshot_img = NULL;
+
 	if (ret >= 0) {
 		// User wants to go back to main menu
 		return 0;
