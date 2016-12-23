@@ -65,4 +65,7 @@ static inline void pl_dynarec_notify(void)
 	pl_data.dynarec_compiled = true;
 }
 
+// In pl_sshot.cpp
+void pl_screenshot_160x120_rgb565(u16 *dst);
+
 #endif // PLUGIN_LIB_H
