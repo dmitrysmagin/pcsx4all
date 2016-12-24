@@ -69,17 +69,25 @@ static noinline void do_reset(void)
 
 static noinline void update_width(void)
 {
+  int old_width = gpu.screen.w;
+
   int sw = gpu.screen.x2 - gpu.screen.x1;
   if (sw <= 0 || sw >= 2560)
     // full width
     gpu.screen.w = gpu.screen.hres;
   else
     gpu.screen.w = sw * gpu.screen.hres / 2560;
+
+  if (gpu.screen.w < old_width) {
+	  // Must clear borders of screen
+	  pl_clear_borders();
+  }
 }
 
 static noinline void update_height(void)
 {
   // TODO: emulate this properly..
+  int old_height = gpu.screen.h;
   int sh = gpu.screen.y2 - gpu.screen.y1;
   if (gpu.status.dheight)
     sh *= 2;
@@ -87,6 +95,11 @@ static noinline void update_height(void)
     sh = gpu.screen.vres;
 
   gpu.screen.h = sh;
+
+  if (gpu.screen.h < old_height) {
+	  // Must clear borders of screen
+	  pl_clear_borders();
+  }
 }
 
 static noinline void decide_frameskip(void)
@@ -762,6 +775,7 @@ void GPU_vBlank(int is_vblank, int lcf)
 void GPU_requestScreenRedraw()
 {
 	gpu.state.fb_dirty = 1;
+	pl_clear_borders();
 }
 
 void GPU_getScreenInfo(GPUScreenInfo_t *sinfo)

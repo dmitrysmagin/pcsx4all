@@ -47,6 +47,20 @@ static void pl_stats_update(void);
 
 struct pl_data_t pl_data;
 
+void pl_clear_screen()
+{
+	u16 *dst = SCREEN;
+	memset((void*)dst, 0, 320*240*2);
+}
+
+void pl_clear_borders()
+{
+	gettimeofday(&pl_data.tv_last_clear, 0);
+	pl_clear_screen();
+
+	pl_data.clear_ctr = 4;
+}
+
 static void pl_frameskip_prepare(void)
 {
 	pl_data.fskip_advice = false;
@@ -75,6 +89,16 @@ void pl_frame_limit(void)
 	gettimeofday(&now, 0);
 
 	GPU_getScreenInfo(&pl_data.sinfo);
+
+	if (pl_data.clear_ctr > 0) {
+		diff = tvdiff(now, pl_data.tv_last_clear);
+		if (diff > 166667) {
+			pl_data.clear_ctr--;
+			pl_data.tv_last_clear = now;
+			pl_clear_screen();
+		}
+
+	}
 
 	// Update performance monitor
 	bool new_stats = pmonUpdate(&now);
@@ -145,6 +169,7 @@ void pl_init(void)
 
 void pl_reset(void)
 {
+	pl_data.clear_ctr = 0;
 	pl_data.fps_cur = pl_data.cpu_cur = 0;
 	pl_data.dynarec_compiled = false;
 	pl_data.dynarec_active_vsyncs = 0;

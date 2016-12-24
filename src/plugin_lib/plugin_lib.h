@@ -42,6 +42,9 @@ struct pl_data_t {
 	float fps_cur, cpu_cur;
 	struct timeval tv_expect;
 
+	struct timeval tv_last_clear;
+	int clear_ctr;
+
 	GPUScreenInfo_t sinfo, sinfo_last;
 	char stats_msg[80]; // Short msg showing screen res, FPS, CPU usage, etc
 };
@@ -53,6 +56,9 @@ void pl_init(void);
 void pl_reset(void);
 void pl_pause(void);
 void pl_resume(void);
+
+void pl_clear_screen();
+void pl_clear_borders();
 
 static inline bool pl_frameskip_advice(void)
 {
