@@ -70,6 +70,7 @@ static void pl_frameskip_prepare(void)
 	pl_data.frame_interval1024 = pl_data.is_pal ? 20000*1024 : 17066667;
 
 	struct timeval now;
+	gettimeofday(&pl_data.tv_last_clear, 0);
 	gettimeofday(&now, 0);
 	pl_data.vsync_usec_time = now.tv_usec;
 	while (pl_data.vsync_usec_time >= pl_data.frame_interval)
