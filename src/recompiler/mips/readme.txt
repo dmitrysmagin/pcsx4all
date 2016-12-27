@@ -54,8 +54,11 @@ What's already done:
  Problematic games which get stuck with recompiler:
   - Jackie Chan Stuntmaster (USA) (works with int+bios)
   - Next Tetris (gets stuck occasionally at start)
+  - Mortal Kombat 3 (works with int+bios)
   - Mortal Kombat Trilogy (works with int+hle)
   - Tomb Raider II (U) (works with int+bios/hle)
+  - Tomb Raider IV - The Last Revelation (G) (works with int+bios)
+    heavy gfx glitches with rec, missing polygons
   - Tomb Raider V Chronicles (J) (works with int+bios)
     with recompiler the graphics go crazy
 
