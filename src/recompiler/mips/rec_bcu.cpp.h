@@ -235,22 +235,22 @@ static void iJumpAL(u32 bpc, u32 nbpc)
 	u32 dt = DelayTest(pc, bpc);
 #endif
 
-	recDelaySlot();
+	u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+	LI32(ra, nbpc);
+	SetConst(31, nbpc);
+	regMipsChanged(31);
+
+	int dt = DelayTest(pc, bpc);
+	if (dt == 2) {
+		recRevDelaySlot(pc, bpc);
+		bpc += 4;
+	} else if (dt == 3 || dt == 0) {
+		recDelaySlot();
+	}
 
 	rec_recompile_end_part1();
 	regClearJump();
-
-	if ((bpc >> 16) == (nbpc >> 16)) {
-		// Both PCs share an upper half, can save an instruction:
-		LUI(MIPSREG_V0, (bpc >> 16));
-		ORI(TEMP_1, MIPSREG_V0, (nbpc & 0xffff));
-		ORI(MIPSREG_V0, MIPSREG_V0, (bpc & 0xffff)); // Block retval $v0 = new PC val
-	} else {
-		LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
-		LI32(TEMP_1, nbpc);
-	}
-
-	SW(TEMP_1, PERM_REG_1, offGPR(31));
+	LI32(MIPSREG_V0, bpc);     // Block retval $v0 = new PC val
 	rec_recompile_end_part2();
 
 	end_block = 1;
