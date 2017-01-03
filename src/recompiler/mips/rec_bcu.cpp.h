@@ -298,10 +298,6 @@ static void recBLTZAL()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
-		return;
-	}
-
 	if (!(_Rs_)) {
 		recDelaySlot();
 		return;
@@ -315,10 +311,6 @@ static void recBGEZAL()
 // Branch if Rs >= 0
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
-
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
-		return;
-	}
 
 	if (!(_Rs_)) {
 		iJumpAL(bpc, (pc + 4));
