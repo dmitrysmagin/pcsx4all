@@ -438,6 +438,7 @@ static void recJALR()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 	LI32(rd, pc + 4);
+	SetConst(_Rd_, pc + 4);
 	regMipsChanged(_Rd_);
 	recDelaySlot();
 
