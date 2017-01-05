@@ -30,8 +30,12 @@ What's already done:
  - Implemented partially load delays in branch delay slots:
    BGTZ: Tekken 2
    JR: Tekken 3, Skullmonkeys
+   JAL (iJumpAL): Tomb Raider 2/4/5, Mortal Kombat Trilogy,
+                  Mortal Kombat 3 (needed additional fix to BLTZAL/BGEZAL)
  - Added check if RAM is valid for writing for writes to constant addresses [senquack],
    this fixes R-Types and Cart World Series freezes at start.
+ - Add check for software-generated exceptions in MTC0 [senquack], this
+   fixes Jackie Chan Stuntmaster.
 
  TODO list
 
@@ -52,13 +56,4 @@ What's already done:
   - Maybe allocate more regs like t4-t7 and save them across calls to HLE?
 
  Problematic games which get stuck with recompiler:
-  - Jackie Chan Stuntmaster (USA) (works with int+bios)
   - Next Tetris (gets stuck occasionally at start)
-  - Mortal Kombat 3 (works with int+bios)
-  - Mortal Kombat Trilogy (works with int+hle)
-  - Tomb Raider II (U) (works with int+bios/hle)
-  - Tomb Raider IV - The Last Revelation (G) (works with int+bios)
-    heavy gfx glitches with rec, missing polygons
-  - Tomb Raider V Chronicles (J) (works with int+bios)
-    with recompiler the graphics go crazy
-
