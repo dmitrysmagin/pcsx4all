@@ -121,9 +121,8 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 
 	int dt = DelayTest(pc, bpc);
-	if (dt == 2) {
-		regClearJump();
-	} else if (dt == 3 || dt == 0) {
+
+	if (dt == 3 || dt == 0) {
 		recDelaySlot();
 	}
 
@@ -142,8 +141,21 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 		exit(1);
 	}
 
+	regPushState();
+	u32 ra = 0;
+
 	if (dt == 2) {
 		NOP(); /* <BD> */
+
+		// Instruction at target PC should see ra reg write
+		if (andlink) {
+			ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+			LI32(ra, nbpc);
+			regMipsChanged(31);
+			// Cannot set const because branch-not-taken path wouldn't see it:
+			SetUndef(31);
+		}
+
 		recRevDelaySlot(pc, bpc);
 		bpc += 4;
 	}
@@ -154,25 +166,24 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	regClearBranch();
 	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
-	if (andlink) {
+	if (andlink && dt != 2) {
 		if ((bpc >> 16) == (nbpc >> 16)) {
 			// Both PCs share an upper half, can save an instruction:
-			ORI(TEMP_2, TEMP_1, (nbpc & 0xffff));
+			ORI(TEMP_1, TEMP_1, (nbpc & 0xffff));
 		} else {
-			LI32(TEMP_2, nbpc);
+			LI32(TEMP_1, nbpc);
 		}
-		SW(TEMP_2, PERM_REG_1, offGPR(31));
+		SW(TEMP_1, PERM_REG_1, offGPR(31));
 	}
 
 	rec_recompile_end_part2();
 
+	regPopState();
+
 	fixup_branch(backpatch);
 	regUnlock(br1);
 
-	if (dt == 2) {
-		regReset(); // FIXME: Maybe not needed
-		recDelaySlot();
-	} else if (dt == 1) {
+	if (dt != 3 && dt != 0) {
 		recDelaySlot();
 	}
 }
