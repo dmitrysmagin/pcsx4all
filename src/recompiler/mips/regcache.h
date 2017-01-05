@@ -38,6 +38,11 @@ typedef struct {
 
 RecRegisters regcache;
 
+// Stack for regPushState()/regPopState()
+static int          regcache_bak_idx  = 0;
+static const int    regcache_bak_size = 8; // Abitrary size choice (overkill?)
+static RecRegisters regcache_bak[regcache_bak_size];
+
 /* Spill regs to psxRegs if they are in host regs and were modified */
 static void regClearJump(void)
 {
@@ -264,6 +269,7 @@ static void regReset()
 	}
 
 	regcache.reglist[i2] = 0xFF;
+	regcache_bak_idx = 0; // Empty regcache stack
 	//DEBUGF("reglist len %d", i2);
 }
 
@@ -279,14 +285,23 @@ static void regUpdate(void)
 	}
 }
 
-static RecRegisters regcache_bak;
-
 static void regPushState()
 {
-	memcpy(&regcache_bak, &regcache, sizeof(regcache));
+	if (regcache_bak_idx >= (regcache_bak_size-1)) {
+		printf("Error in %s(): regcache state array full (max entries %d)\n",
+				__func__, regcache_bak_size);
+		exit(1);
+	}
+
+	regcache_bak[regcache_bak_idx++] = regcache;
 }
 
 static void regPopState()
 {
-	memcpy(&regcache, &regcache_bak, sizeof(regcache));
+	if (regcache_bak_idx <= 0) {
+		printf("Error in %s(): regcache state array empty\n", __func__);
+		exit(1);
+	}
+
+	regcache = regcache_bak[--regcache_bak_idx];
 }
