@@ -86,9 +86,11 @@ static void recMTC0()
 			//  enables HW irqs/exceptions. Reset psxRegs.io_cycle_counter
 			//  if so, so that psxBranchTest() is called as soon as possible.
 
-			if (IsConst(_Rt_) && ((iRegs[_Rt_].r & 0x401) == 0x401)) {
+			if (IsConst(_Rt_)) {
 				SW(rt, PERM_REG_1, offCP0(12)); // Store new CP0 Status reg val
-				SW(0, PERM_REG_1, off(io_cycle_counter));
+				if ((iRegs[_Rt_].r & 0x401) == 0x401) {
+					SW(0, PERM_REG_1, off(io_cycle_counter));
+				}
 			} else {
 				ANDI(TEMP_1, rt, 0x401);
 				LI16(TEMP_2, 0x401);
