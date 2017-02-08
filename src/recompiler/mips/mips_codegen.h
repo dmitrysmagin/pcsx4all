@@ -163,11 +163,11 @@ do { \
 	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff))
 
 #define LI16(reg, imm16) \
-	write32(0x34000000 | ((reg) << 16) | (short)(imm16)) /* ori reg, zero, imm16 */
+	write32(0x34000000 | ((reg) << 16) | ((imm16) & 0xffff)) /* ori reg, zero, imm16 */
 
 #define LI32(reg, imm32) \
 do { \
-	write32(0x3c000000 | (reg << 16) | ((imm32) >> 16)); /* lui */ \
+	write32(0x3c000000 | (reg << 16) | ((u32)(imm32) >> 16)); /* lui */ \
 	write32(0x34000000 | (reg << 21) | (reg << 16) | ((imm32) & 0xffff)); /* ori */ \
 } while (0)
 
