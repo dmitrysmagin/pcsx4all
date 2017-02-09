@@ -300,6 +300,9 @@ u32 gtecalcMFC2(int reg) {
 	return psxRegs.CP2D.r[reg];
 }
 
+//senquack - Applied fixes from PCSX Rearmed 7384197d8a5fd20a4d94f3517a6462f7fe86dd4c
+// Don't block writing to regs 7,29 despite Nocash listing them as read-only.
+// Fixes disappearing elements in 'Motor Toon' game series.
 void gtecalcMTC2(u32 value, int reg) {
 	switch (reg) {
 		case 15:
@@ -337,8 +340,6 @@ void gtecalcMTC2(u32 value, int reg) {
 			}
 			break;
 
-		case 7:
-		case 29:
 		case 31:
 			return;
 
