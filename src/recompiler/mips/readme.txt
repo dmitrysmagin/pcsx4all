@@ -57,3 +57,11 @@ What's already done:
 
  Problematic games which get stuck with recompiler:
   - Next Tetris (gets stuck occasionally at start)
+  - Soul Blade (start game in Edge Master mode, go to 'Book' menu entry,
+    press Start on last page when asked, game will freeze). This occurs
+    even when using interpreter. PCSX Rearmed suffers same problem with
+    interpreter. Newer versions of PCSX Reloaded somehow fixed issue
+    with interpreter, but their X64 dynarec freezes as well.
+    Game is jumping to code with thousands of NOPs at head of block.
+    Apparently even epsxe suffered from this bug for a long time.
+    Problem can be bypassed by exiting book and starting game from prior menu.
