@@ -56,6 +56,41 @@ const char *mips_function_special_names[] =
   "???",  "???",   "slt",  "sltu", "???",   "???",  "???",  "???"
 };
 
+// Special3 instructions introduced in MIPS32r2
+const char *mips_function_special3_names[] =
+{
+  // 0     1        2       3       4       5        6       7
+  "ext",  "???",   "???",  "???",  "ins",  "???",   "???",  "???",
+  // 8     9        a       b       c       d        e       f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 10    11       12      13      14      15       16      17
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 18    19       1a      1b      1c      1d       1e      1f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 20    21       22      23      24      25       26      27
+  "bshfl","???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 28    29       2a      2b      2c      2d       2e      2f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 30    31       31      33      34      35       36      37
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 38    39       3a      3b      3c      3d       3e      3f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???"
+};
+
+// Special3 instruction entry 'bshfl' points to a further group of MIPS32r2
+//  instructions. Bits 10:6 of opcode specify which entry here.
+const char *mips_function_special3_bshfl_names[] =
+{
+  // 0     1      2       3      4       5      6       7
+  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+  // 8     9      a       b      c       d      e      f
+  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+  // 10    11     12      13     14      15     16     17
+  "seb",  "???", "???",  "???", "???",  "???", "???",  "???",
+  // 18    19     1a      1b     1c      1d     1e     1f
+  "seh",  "???", "???",  "???", "???",  "???", "???",  "???"
+};
+
 const char *mips_function_regimm_names[] =
 {
   // 0       1         2          3          4      5      6      7
@@ -107,6 +142,20 @@ typedef enum
   MIPS_SPECIAL_FUNCTION_UNKNOWN
 } mips_function_special_type;
 
+typedef enum
+{
+  MIPS_SPECIAL3_FUNCTION_EXT,
+  MIPS_SPECIAL3_FUNCTION_INS,
+  MIPS_SPECIAL3_FUNCTION_BSHFL,       // BSHFL points to group of instructions below
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN
+} mips_function_special3_type;
+
+typedef enum
+{
+  MIPS_SPECIAL3_BSHFL_FUNCTION_SEB,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_SEH,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN
+} mips_function_special3_bshfl_type;
 
 mips_opcode_type mips_opcode_types[] =
 {
@@ -231,6 +280,77 @@ mips_function_special_type mips_function_special_types[] =
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
+};
+
+mips_function_special3_type mips_function_special3_types[] =
+{
+  // ext
+  MIPS_SPECIAL3_FUNCTION_EXT,     MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  // ins
+  MIPS_SPECIAL3_FUNCTION_INS,     MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  // 'bshfl' instruction group
+  MIPS_SPECIAL3_FUNCTION_BSHFL,   MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_FUNCTION_UNKNOWN, MIPS_SPECIAL3_FUNCTION_UNKNOWN,
+};
+
+mips_function_special3_bshfl_type mips_function_special3_bshfl_types[] =
+{
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+
+  // seb
+  MIPS_SPECIAL3_BSHFL_FUNCTION_SEB,     MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+
+  // seh
+  MIPS_SPECIAL3_BSHFL_FUNCTION_SEH,     MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN, MIPS_SPECIAL3_BSHFL_FUNCTION_UNKNOWN
 };
 
 // Change these to whatever you want.
@@ -421,6 +541,58 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
           sprintf(buffer, "%s %s, %s, %d",
            mips_function_special_names[function], reg_op(reg_rd),
            reg_op(reg_rt), op_bits(6, 0x1F));
+          break;
+        }
+
+        default:
+        {
+          sprintf(buffer, "unknown");
+          break;
+        }
+      }
+      break;
+    }
+
+    case MIPS_OPCODE_SPECIAL3:
+    {
+      mips_function_special3_type function = (mips_function_special3_type)op_bits(0, 0x3F);
+
+      switch(mips_function_special3_types[function])
+      {
+        case MIPS_SPECIAL3_FUNCTION_EXT:
+        case MIPS_SPECIAL3_FUNCTION_INS:
+        {
+          unsigned int pos = op_bits(6, 0x1F);
+          unsigned int size = op_bits(11, 0x1F) + 1;
+          if (mips_function_special3_types[function] == MIPS_SPECIAL3_FUNCTION_INS)
+            size -= pos;
+          sprintf(buffer, "%s %s, %s, %u, %u",
+              mips_function_special3_names[function], reg_op(reg_rt),
+              reg_op(reg_rs), pos, size);
+          break;
+        }
+
+        // BSHFL points to further group of instructions encoded in bits 10:6
+        case MIPS_SPECIAL3_FUNCTION_BSHFL:
+        {
+          mips_function_special3_bshfl_type function = (mips_function_special3_bshfl_type)op_bits(6, 0x1F);
+          const char *name = mips_function_special3_bshfl_names[function];
+
+          switch(mips_function_special3_bshfl_types[function])
+          {
+            case MIPS_SPECIAL3_BSHFL_FUNCTION_SEB:
+            case MIPS_SPECIAL3_BSHFL_FUNCTION_SEH:
+            {
+              sprintf(buffer, "%s %s, %s", name, reg_op(reg_rd), reg_op(reg_rt));
+              break;
+            }
+
+            default:
+            {
+              sprintf(buffer, "unknown");
+              break;
+            }
+          }
           break;
         }
 
