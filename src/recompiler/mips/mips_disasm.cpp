@@ -37,7 +37,11 @@ const char *mips_opcode_names[] =
   // 20    21       22      23       24      25     26      27
   "lb",   "lh",    "lwl",  "lw",    "lbu",  "lhu", "lwr",  "???",
   // 28    29       2a      2b       2c      2d     2e      2f
-  "sb",   "sh",    "swl",  "sw",    "???",  "???", "swr",  "???"
+  "sb",   "sh",    "swl",  "sw",    "???",  "???", "swr",  "???",
+  // 30    31       32      33      34      35       36      37
+  "???",  "???",   "lwc2", "???",  "???",  "???",   "???",   "???",
+  // 38    39       3a      3b      3c      3d       3e      3f
+  "???",  "???",   "swc2", "???",  "???",  "???",   "???",   "???"
 };
 
 const char *mips_function_special_names[] =
@@ -71,7 +75,7 @@ const char *mips_function_special3_names[] =
   "bshfl","???",   "???",  "???",  "???",  "???",   "???",   "???",
   // 28    29       2a      2b      2c      2d       2e      2f
   "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
-  // 30    31       31      33      34      35       36      37
+  // 30    31       32      33      34      35       36      37
   "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
   // 38    39       3a      3b      3c      3d       3e      3f
   "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???"
@@ -112,17 +116,39 @@ const char *mips_cop0_rs_names[] =
   // 10    11     12     13     14     15     16     17
   "rfe",  "???", "???", "???", "???", "???", "???",  "???",
   // 18    19     1a     1b     1c     1d     1e     1f
-  "???",  "???", "???", "???", "???", "???", "???",  "???",
+  "???",  "???", "???", "???", "???", "???", "???",  "???"
 };
 
 const char *mips_cop2_rs_names[] =
 {
-  // 0     1      2       3      4       5      6       7
-  "mfc2", "???", "cfc2", "???", "mtc2", "???", "ctc2", "???",
-  // 8     9      a       b      c       d      e      f
-  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
-  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
-  "???",  "???", "???",  "???", "???",  "???", "???",  "???",
+  // 0     1      2      3      4      5      6      7
+  "mfc2", "???", "cfc2","???", "mtc2","???", "ctc2","???",
+  // 8     9      a      b      c      d      e      f
+  "???",  "???", "???", "???", "???", "???", "???",  "???",
+  // 10    11     12     13     14     15     16     17
+  "cop2","cop2","cop2","cop2","cop2", "cop2","cop2", "cop2",
+  // 18    19     1a     1b     1c     1d     1e     1f
+  "cop2","cop2","cop2","cop2","cop2", "cop2","cop2", "cop2"
+};
+
+const char *mips_cop2_gte_names[] =
+{
+  // 0     1       2       3       4       5       6       7
+  "???",  "RTPS", "???",  "???",  "???",  "???",  "NCLIP","???",
+  // 8     9       a       b       c       d       e       f
+  "???",  "???",  "???",  "???",  "OP",   "???",  "???",   "???",
+  // 10    11      12      13      14      15      16      17
+  "DPCS", "INTPL","MVMVA","NCDS", "CDP",  "???",  "NCDT",  "???",
+  // 18    19      1a      1b      1c      1d      1e      1f
+  "???",  "???",  "???",  "NCCS", "CC",   "???",  "NCS",   "???",
+  // 20    21      22      23      24      25      26      27
+  "NCT",  "???",  "???",  "???",  "???",  "???",  "???",   "???",
+  // 28    29      2a      2b      2c      2d      2e      2f
+  "SQR",  "DCPL", "DPCT", "???",  "???",  "AVSZ3","AVSZ4", "???",
+  // 30    31      32      33      34      35      36      37
+  "RTPT", "???",  "???",  "???",  "???",  "???",  "???",   "???",
+  // 38    39      3a      3b      3c      3d      3e      3f
+  "???",  "???",  "???",  "???",  "???",  "GPF",  "GPL",   "NCCT"
 };
 
 typedef enum
@@ -140,6 +166,8 @@ typedef enum
   MIPS_OPCODE_MEM,
   MIPS_OPCODE_CP0,
   MIPS_OPCODE_CP2,
+  MIPS_OPCODE_LWC2,
+  MIPS_OPCODE_SWC2,
   MIPS_OPCODE_UNKNOWN
 } mips_opcode_type;
 
@@ -226,20 +254,17 @@ mips_opcode_type mips_opcode_types[] =
   MIPS_OPCODE_MEM,      MIPS_OPCODE_MEM,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
   // swr
-	MIPS_OPCODE_MEM,      MIPS_OPCODE_UNKNOWN,
+  MIPS_OPCODE_MEM,      MIPS_OPCODE_UNKNOWN,
 
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
+  // lwc2
+  MIPS_OPCODE_LWC2,     MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
 
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
+  // swc2
+  MIPS_OPCODE_SWC2,     MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN
 };
@@ -735,6 +760,26 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
       break;
     }
 
+    case MIPS_OPCODE_LWC2:
+    case MIPS_OPCODE_SWC2:
+    {
+      s32 offset = signed_offset();
+
+      if(offset < 0)
+      {
+        sprintf(buffer, "%s reg(%u), [%s - %d]",
+         mips_opcode_names[opcode_type], op_bits(reg_rt, 0x1f), reg_op(reg_rs),
+         (int)-offset);
+      }
+      else
+      {
+        sprintf(buffer, "%s reg(%u), [%s + %d]",
+         mips_opcode_names[opcode_type], op_bits(reg_rt, 0x1f), reg_op(reg_rs),
+         (int)offset);
+      }
+      break;
+    }
+
     case MIPS_OPCODE_CP0:
     {
       mips_function_cp0_type function = (mips_function_cp0_type)op_bits(reg_rs, 0x1F);
@@ -776,7 +821,11 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
                  op_bits(reg_rd, 0x1f)
                 );
         } else {
-            sprintf(buffer, "unknown");
+            // GTE command
+            sprintf(buffer, "cop2 0x%x (GTE %s)",
+                 op_bits(0, 0x3f),
+                 mips_cop2_gte_names[op_bits(0, 0x3f)]
+                );
         }
         break;
     }
