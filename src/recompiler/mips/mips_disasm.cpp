@@ -103,6 +103,18 @@ const char *mips_function_regimm_names[] =
   "???",    "???",    "???",     "???",     "???", "???", "???", "???",
 };
 
+const char *mips_cop0_rs_names[] =
+{
+  // 0     1      2      3      4       5      6       7
+  "mfc0", "???", "???", "???", "mtc0","???", "???",  "???",
+  // 8     9      a      b      c      d      e      f
+  "???",  "???", "???", "???", "???", "???", "???",  "???",
+  // 10    11     12     13     14     15     16     17
+  "rfe",  "???", "???", "???", "???", "???", "???",  "???",
+  // 18    19     1a     1b     1c     1d     1e     1f
+  "???",  "???", "???", "???", "???", "???", "???",  "???",
+};
+
 const char *mips_cop2_rs_names[] =
 {
   // 0     1      2       3      4       5      6       7
@@ -126,9 +138,18 @@ typedef enum
   MIPS_OPCODE_SPECIAL2,
   MIPS_OPCODE_SPECIAL3,
   MIPS_OPCODE_MEM,
+  MIPS_OPCODE_CP0,
   MIPS_OPCODE_CP2,
   MIPS_OPCODE_UNKNOWN
 } mips_opcode_type;
+
+typedef enum
+{
+  MIPS_CP0_FUNCTION_MFC0,
+  MIPS_CP0_FUNCTION_MTC0,
+  MIPS_CP0_FUNCTION_RFE,
+  MIPS_CP0_FUNCTION_UNKNOWN
+} mips_function_cp0_type;
 
 typedef enum
 {
@@ -139,6 +160,7 @@ typedef enum
   MIPS_SPECIAL_FUNCTION_HI_LO,
   MIPS_SPECIAL_FUNCTION_SHIFT,
   MIPS_SPECIAL_FUNCTION_SYSCALL,
+  MIPS_SPECIAL_FUNCTION_BREAK,
   MIPS_SPECIAL_FUNCTION_UNKNOWN
 } mips_function_special_type;
 
@@ -177,7 +199,7 @@ mips_opcode_type mips_opcode_types[] =
   // xori                lui
   MIPS_OPCODE_ALU_IMMU, MIPS_OPCODE_ALU2_IMMU,
 
-  MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
+  MIPS_OPCODE_CP0,      MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_CP2,      MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN,
@@ -222,6 +244,31 @@ mips_opcode_type mips_opcode_types[] =
   MIPS_OPCODE_UNKNOWN,  MIPS_OPCODE_UNKNOWN
 };
 
+mips_function_cp0_type mips_function_cp0_types[] =
+{
+  // mfc0
+  MIPS_CP0_FUNCTION_MFC0,    MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  // mtc0
+  MIPS_CP0_FUNCTION_MTC0,    MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+
+  // rfe
+  MIPS_CP0_FUNCTION_RFE,     MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN,
+  MIPS_CP0_FUNCTION_UNKNOWN, MIPS_CP0_FUNCTION_UNKNOWN
+};
 
 mips_function_special_type mips_function_special_types[] =
 {
@@ -238,7 +285,7 @@ mips_function_special_type mips_function_special_types[] =
   MIPS_SPECIAL_FUNCTION_JR,      MIPS_SPECIAL_FUNCTION_JALR,
   // movz                         movn
   MIPS_SPECIAL_FUNCTION_ALU,     MIPS_SPECIAL_FUNCTION_ALU,
-  MIPS_SPECIAL_FUNCTION_SYSCALL, MIPS_SPECIAL_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL_FUNCTION_SYSCALL, MIPS_SPECIAL_FUNCTION_BREAK,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
 
   // mfhi                         mthi
@@ -496,6 +543,12 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
           break;
         }
         
+        case MIPS_SPECIAL_FUNCTION_BREAK:
+        {
+          sprintf(buffer,"break 0x%x", op_bits(6, 0xFFFFF));
+          break;
+        }
+
         case MIPS_SPECIAL_FUNCTION_MUL_DIV:
         {
           sprintf(buffer, "%s %s, %s",
@@ -682,6 +735,37 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
       break;
     }
 
+    case MIPS_OPCODE_CP0:
+    {
+      mips_function_cp0_type function = (mips_function_cp0_type)op_bits(reg_rs, 0x1F);
+      const char *name = mips_cop0_rs_names[function];
+
+      switch(mips_function_cp0_types[function])
+      {
+        case MIPS_CP0_FUNCTION_MFC0:
+        case MIPS_CP0_FUNCTION_MTC0:
+        {
+          // check func field
+          sprintf(buffer, "%s %s, reg(%d)",
+              name, reg_op(reg_rt), op_bits(reg_rd, 0x1f));
+          break;
+        }
+
+        case MIPS_CP0_FUNCTION_RFE:
+        {
+          sprintf(buffer, name);
+          break;
+        }
+
+        default:
+        {
+          sprintf(buffer, "unknown");
+          break;
+        }
+      }
+      break;
+    }
+
     case MIPS_OPCODE_CP2:
     {
         // check func field
@@ -690,7 +774,7 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
                  mips_cop2_rs_names[op_bits(reg_rs, 0x1f)],
                  reg_op(reg_rt),
                  op_bits(reg_rd, 0x1f)
-		);
+                );
         } else {
             sprintf(buffer, "unknown");
         }
