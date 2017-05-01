@@ -75,6 +75,7 @@ static s8 recROM[0x080000] __attribute__((aligned(4))); /* and here */
 static u32 pc;					/* recompiler pc */
 static u32 oldpc;
 static u32 branch = 0;
+static u8  block_ra_loaded;  /* Non-zero when block return address is loaded in host $ra reg */
 
 #ifdef WITH_DISASM
 char	disasm_buffer[512];
@@ -271,7 +272,7 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
 	/* Focus here is on clarity, not speed. This is the bare minimum needed to */
 	/*  call blocks from within C code, which is:                              */
 	/* Blocks expect $fp to be set to &psxRegs.                                */
-	/* Blocks expect return address to be stored at 16($sp).                   */
+	/* Blocks expect return address to be stored at 16($sp) and in $ra.        */
 	/* Stack should have 16 bytes free at 0($sp) for use by called functions.  */
 	/* Stack should be 8-byte aligned to satisfy MIPS ABI.                     */
 	/*                                                                         */
@@ -281,8 +282,8 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
 	__asm__ __volatile__ (
 		"addiu  $sp, $sp, -24                   \n"
 		"la     $fp, %[psxRegs]                 \n" // $fp = &psxRegs
-		"la     $t0, block_return_addr%=        \n"
-		"sw     $t0, 16($sp)                    \n" // Put 'block_return_addr' on stack
+		"la     $ra, block_return_addr%=        \n" // Load $ra with block_return_addr
+		"sw     $ra, 16($sp)                    \n" // Put 'block_return_addr' on stack
 		"jr     %[fn]                           \n" // Execute block
 
 		"block_return_addr%=:                   \n"
@@ -367,6 +368,7 @@ __asm__ __volatile__ (
 // psxRegs.pc = $v0
 // if ($t0 == 0)
 //    goto recompile_block;
+// $ra = block return address
 // goto $t0;
 // /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
 // /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
@@ -399,7 +401,7 @@ __asm__ __volatile__ (
 // Execute already-compiled block. It will return at top of loop.
 "execute_block%=:                             \n"
 "jr    $t0                                    \n"
-"nop                                          \n" // <BD>
+"lw    $ra, 16($sp)                           \n" // <BD> Load block return address
 
 ////////////////////////////
 //     NON-LOOP CODE:     //
@@ -518,6 +520,7 @@ __asm__ __volatile__ (
 //    goto call_psxBranchTest;
 // if ($t0 == 0)
 //    goto recompile_block;
+// $ra = block return address
 // goto $t0;
 // /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
 // /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
@@ -552,10 +555,9 @@ __asm__ __volatile__ (
 "beqz  $t0, recompile_block%=                 \n"
 "nop                                          \n" // <BD>
 
-// Execute already-compiled block.
 "execute_block%=:                             \n"
-"jr    $t0                                    \n"
-"nop                                          \n" // <BD>
+"jalr  $ra, $t0                               \n" // Block is returning here, so safe to
+"nop                                          \n" // <BD> set $ra using 'jalr'
 
 "return_from_block%=:                         \n"
 // Return point for all executed blocks, which will have set:

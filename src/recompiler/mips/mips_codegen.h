@@ -92,7 +92,6 @@ typedef enum {
 
 #define off(field)	offsetof(psxRegisters, field)
 
-
 /* ADR_HI, ADR_LO are the equivalents of MIPS GAS %hi(), %lo()
  * They are always used as a pair, and allow converting an address to an
  * upper/lower pair, with lower half interpreted as a signed offset.
@@ -250,7 +249,11 @@ do { \
 	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
 
 #define JAL(func) \
-	write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2))
+do { \
+    /* JAL and/or C code overwrites $ra block return addr */                      \
+    block_ra_loaded = 0;                                                          \
+    write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2));                      \
+} while (0)
 
 #define JR(rs) \
 	write32(0x00000008 | ((rs) << 21))
@@ -311,20 +314,23 @@ static inline u32 ADJUST_CLOCK(u32 cycles)
 
 /* start of the recompiled block
  */
-#define rec_recompile_start() \
-do { \
+#define rec_recompile_start()                                                  \
+do {                                                                           \
+    /* On entry, $ra is already loaded with block return address */            \
+    block_ra_loaded = 1;                                                       \
 } while (0)
 
 /* end of the recompiled block
  *
  * The idea behind having a part1 and part2 is to minimize load stalls by
  *  interleaving unrelated code between their calls.
- * Currently, only the load of $ra benefits from this, saving a 4-cycle stall.
+ * Currently, only the load of $ra benefits from this, saving a 3-cycle stall.
  */
 #define rec_recompile_end_part1()                                              \
 do {                                                                           \
     /* Load $ra from stack at 16($sp) */                                       \
-    LW(MIPSREG_RA, MIPSREG_SP, 16);                                            \
+    if (!block_ra_loaded)                                                      \
+        LW(MIPSREG_RA, MIPSREG_SP, 16);                                        \
 } while (0)
 
 #define rec_recompile_end_part2()                                              \
@@ -343,13 +349,6 @@ do {                                                                           \
         JR(MIPSREG_RA);                                                        \
         ORI(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */           \
     }                                                                          \
-} while (0)
-
-/* call func (JAL wrapper with NOP in BD slot) */
-#define CALLFunc(func) \
-do { \
-	JAL(func); \
-	NOP(); /* <BD> */ \
 } while (0)
 
 #define mips_relative_offset(source, offset, next) \
