@@ -328,7 +328,16 @@ do {                                                                           \
  */
 #define rec_recompile_end_part1()                                              \
 do {                                                                           \
-    /* Load $ra from stack at 16($sp) */                                       \
+    /* Load $ra from stack at 16($sp), if it is not already.                */ \
+    /* NOTE: This should be the first instruction emitted in part1,         */ \
+    /*       as branch emitters will often use this in branch delay         */ \
+    /*       slot, allowing code in either branch path to benefit from      */ \
+    /*       the load. It is their responsibility, however, to set          */ \
+    /*       block_ra_loaded=1 when this is the case.                       */ \
+    /* NOTE: This macro will often not emit an instruction!                 */ \
+    /* NOTE: emitBxxZ() sometimes calls this macro *twice*, when it needs   */ \
+    /*        to emit code for the instruction at the branch target PC,     */ \
+    /*        which might include a JAL that would overwrite $ra.           */ \
     if (!block_ra_loaded)                                                      \
         LW(MIPSREG_RA, MIPSREG_SP, 16);                                        \
 } while (0)

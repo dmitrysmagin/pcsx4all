@@ -141,15 +141,22 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 		exit(1);
 	}
 
+	// Load host $ra with block return address using BD slot. Code emitted
+	//  in either branch path after this point can assume it is now loaded.
+	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
+	//       is not already loaded, so ensure that next instruction emitted
+	//       after part1() is also safe to put in BD slot.
+	rec_recompile_end_part1(); /* <BD (MAYBE)> */
+	block_ra_loaded = 1;
+
 	regPushState();
-	u32 ra = 0;
 
 	if (dt == 2) {
 		NOP(); /* <BD> */
 
 		// Instruction at target PC should see ra reg write
 		if (andlink) {
-			ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+			u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
 			LI32(ra, nbpc);
 			regMipsChanged(31);
 			// Cannot set const because branch-not-taken path wouldn't see it:
@@ -158,11 +165,16 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 
 		recRevDelaySlot(pc, bpc);
 		bpc += 4;
+
+		// NOTE: Because the instruction at target PC might have emitted a JAL and
+		//       wiped out host $ra, load it again if necessary.
+		rec_recompile_end_part1();
+		block_ra_loaded = 1;
 	}
 
-	LUI(TEMP_1, (bpc >> 16)); /* <BD> */
+	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
+	LUI(TEMP_1, (bpc >> 16));  /* <BD (MAYBE)> */
 
-	rec_recompile_end_part1();
 	regClearBranch();
 	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
@@ -211,9 +223,17 @@ static void emitBxx(u32 bpc)
 		exit(1);
 	}
 
-	LUI(TEMP_1, (bpc >> 16)); /* <BD> */
+	// Load host $ra with block return address using BD slot. Code emitted
+	//  in either branch path after this point can assume it is now loaded.
+	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
+	//       is not already loaded, so ensure that next instruction emitted
+	//       after part1() is also safe to put in BD slot.
+	rec_recompile_end_part1(); /* <BD (MAYBE)> */
+	block_ra_loaded = 1;
 
-	rec_recompile_end_part1();
+	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
+	LUI(TEMP_1, (bpc >> 16));  /* <BD (MAYBE) */
+
 	regClearBranch();
 	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
