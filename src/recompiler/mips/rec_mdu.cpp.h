@@ -43,36 +43,49 @@ static void recMULTU() {
 static void recDIV()
 {
 // Hi, Lo = rs / rt signed
-	u32 *backpatch1, *backpatch2;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
-	backpatch1 = (u32*)recMem;
-	BEQZ(rt, 0);
-	NOP();
+	// Test if divisor is 0, emulating correct results for PS1 CPU.
+	// NOTE: we don't bother checking for signed division overflow (the
+	//       last entry in this list), as it seems to work the same on
+	//       modern MIPS32 CPUs like the jz4770 of GCW Zero. Unfortunately,
+	//       division-by-zero results only match PS1 in the 'hi' reg.
+	//  Rs              Rt       Hi/Remainder  Lo/Result
+	//  0..+7FFFFFFFh   0   -->  Rs            -1
+	//  -80000000h..-1  0   -->  Rs            +1
+	//  -80000000h      -1  -->  0             -80000000h
 
-	DIV(rs, rt);
-	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+	if (IsConst(_Rt_) && iRegs[_Rt_].r != 0) {
+		DIV(rs, rt);
+		MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+		MFHI(TEMP_2);
+	} else {
+		u32 *backpatch1, *backpatch2;
+		backpatch1 = (u32*)recMem;
+		BEQZ(rt, 0);
+		ADDIU(TEMP_2, 0, -1);  // $t1 = -1  <BD slot>
+
+		DIV(rs, rt);
+		MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+
+		backpatch2 = (u32*)recMem;
+		B(0);
+		MFHI(TEMP_2);  // <BD slot>
+
+		// division by zero
+		fixup_branch(backpatch1);
+
+		SLT(TEMP_1, rs, 0); // $t0 = (rs < 0 ? 1 : 0)
+		MOVZ(TEMP_1, TEMP_2, TEMP_1); // if $t0 == 0 then $t0 = $t1
+		MOV(TEMP_2, rs);
+
+		// exit
+		fixup_branch(backpatch2);
+	}
+
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
-	MFHI(TEMP_1);
-	SW(TEMP_1, PERM_REG_1, offGPR(33));
-
-	backpatch2 = (u32*)recMem;
-	B(0);
-	NOP();
-
-	// division by zero
-	fixup_branch(backpatch1);
-
-	SLT(TEMP_1, rs, 0); // $t0 = (rs < 0 ? 1 : 0)
-	ADDIU(TEMP_2, 0, -1); // $t1 = -1
-	MOVZ(TEMP_1, TEMP_2, TEMP_1); // if $t0 == 0 then $t0 = $t1
-	SW(TEMP_1, PERM_REG_1, offGPR(32));
-	SW(rs, PERM_REG_1, offGPR(33));
-
-	// exit
-	fixup_branch(backpatch2);
-
+	SW(TEMP_2, PERM_REG_1, offGPR(33));
 	regUnlock(rs);
 	regUnlock(rt);
 }
@@ -80,34 +93,47 @@ static void recDIV()
 static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
-	u32 *backpatch1, *backpatch2;
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
-	backpatch1 = (u32*)recMem;
-	BEQZ(rt, 0);
-	NOP();
+	// Test if divisor is 0, emulating correct results for PS1 CPU.
+	// NOTE: we don't bother checking for signed division overflow (the
+	//       last entry in this list), as it seems to work the same on
+	//       modern MIPS32 CPUs like the jz4770 of GCW Zero. Unfortunately,
+	//       division-by-zero results only match PS1 in the 'hi' reg.
+	//  Rs              Rt       Hi/Remainder  Lo/Result
+	//  0..+7FFFFFFFh   0   -->  Rs            -1
+	//  -80000000h..-1  0   -->  Rs            +1
+	//  -80000000h      -1  -->  0             -80000000h
 
-	DIVU(rs, rt);
-	MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+	if (IsConst(_Rt_) && iRegs[_Rt_].r != 0) {
+		DIVU(rs, rt);
+		MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+		MFHI(TEMP_2);
+	} else {
+		u32 *backpatch1, *backpatch2;
+		backpatch1 = (u32*)recMem;
+		BEQZ(rt, 0);
+		ADDIU(TEMP_1, 0, -1);  // $t0 = -1  <BD slot>
+
+		DIVU(rs, rt);
+		MFLO(TEMP_1); /* NOTE: Hi/Lo can't be cached for now, so spill them */
+
+		backpatch2 = (u32*)recMem;
+		B(0);
+		MFHI(TEMP_2);  // <BD slot>
+
+		// division by zero
+		fixup_branch(backpatch1);
+
+		MOV(TEMP_2, rs);
+
+		// exit
+		fixup_branch(backpatch2);
+	}
+
 	SW(TEMP_1, PERM_REG_1, offGPR(32));
-	MFHI(TEMP_1);
-	SW(TEMP_1, PERM_REG_1, offGPR(33));
-
-	backpatch2 = (u32*)recMem;
-	B(0);
-	NOP();
-
-	// division by zero
-	fixup_branch(backpatch1);
-
-	ADDIU(TEMP_1, 0, -1); // $t1 = -1
-	SW(TEMP_1, PERM_REG_1, offGPR(32));
-	SW(rs, PERM_REG_1, offGPR(33));
-
-	// exit
-	fixup_branch(backpatch2);
-
+	SW(TEMP_2, PERM_REG_1, offGPR(33));
 	regUnlock(rs);
 	regUnlock(rt);
 }
