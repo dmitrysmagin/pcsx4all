@@ -320,6 +320,7 @@ static void recExecute()
 #else
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
+".set push                                    \n"
 ".set noreorder                               \n"
 
 // $fp/$s8 remains set to &psxRegs across all calls to blocks
@@ -344,12 +345,13 @@ __asm__ __volatile__ (
 "move  $v1, $0                                \n"
 
 // Align loop on cache-line boundary
-".balign 32, 0, 31                            \n"
+".balign 32                                   \n"
 
 ////////////////////////////
 //       LOOP CODE:       //
 ////////////////////////////
 
+// NOTE: Blocks return to top of loop.
 // NOTE: Loop expects following values to be set:
 // $v0 = new value for psxRegs.pc
 // $v1 = # of cycles to increment psxRegs.cycle by
@@ -368,7 +370,6 @@ __asm__ __volatile__ (
 // goto $t0;
 // /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
 // /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
-// goto loop;
 
 // Infinite loop, blocks return here
 "loop%=:                                      \n"
@@ -381,7 +382,7 @@ __asm__ __volatile__ (
 "lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 "andi  $t0, $v0, 0xffff                       \n"
-"addu  $t2, $t0, $t1                          \n" // 1-cycle load stall on $t1 here
+"addu  $t2, $t0, $t1                          \n"
 "lw    $t0, 0($t2)                            \n" // $t0 now points to beginning of recompiled
                                                   //  block, or is 0 if block needs recompiling
 
@@ -392,8 +393,7 @@ __asm__ __volatile__ (
                                                   //  whether or not we are branching here
 
 // Recompile block, if necessary
-"recompile_block_check%=:                     \n"
-"beqz  $t0, recompile_block%=                 \n" // 1-cycle load stall on $t0 here
+"beqz  $t0, recompile_block%=                 \n"
 "sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val
 
 // Execute already-compiled block. It will return at top of loop.
@@ -404,14 +404,6 @@ __asm__ __volatile__ (
 ////////////////////////////
 //     NON-LOOP CODE:     //
 ////////////////////////////
-
-// Recompile block and return to normal codepath.
-"recompile_block%=:                           \n"
-"jal   %[recRecompile]                        \n"
-"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
-"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
-"b     execute_block%=                        \n" // Resume normal code path, but first we must..
-"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 
 // Call psxBranchTest() and go back to top of loop
 "call_psxBranchTest%=:                        \n"
@@ -425,6 +417,14 @@ __asm__ __volatile__ (
 "move  $v1, $0                                \n" // <BD> ..using BD slot to set $v1 to 0, since
                                                   //  psxRegs.cycle shouldn't be incremented again.
 
+// Recompile block and return to normal codepath.
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"b     execute_block%=                        \n" // Resume normal code path, but first we must..
+"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
+
 // Destroy stack frame, exiting inlined ASM block
 // NOTE: We'd never reach this point because the block dispatch loop is
 //  currently infinite. This could change in the future.
@@ -435,7 +435,7 @@ __asm__ __volatile__ (
 //  exit the loop, to ensure that stack frame is adjusted before return!
 "exit%=:                                      \n"
 "addiu $sp, $sp, frame_size                   \n"
-".set reorder                                 \n"
+".set pop                                     \n"
 
 : // Output
 : // Input
@@ -469,6 +469,7 @@ static void recExecuteBlock(unsigned target_pc)
 #else
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
+".set push                                    \n"
 ".set noreorder                               \n"
 
 // $fp/$s8 remains set to &psxRegs across all calls to blocks
@@ -497,7 +498,7 @@ __asm__ __volatile__ (
 "move  $v1, $0                                \n"
 
 // Align loop on cache-line boundary
-".balign 32, 0, 31                            \n"
+".balign 32                                   \n"
 
 ////////////////////////////
 //       LOOP CODE:       //
@@ -537,7 +538,7 @@ __asm__ __volatile__ (
 "lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
 "addu  $t3, $t3, $v1                          \n" // $t3 = new psxRegs.cycle val
 "andi  $t0, $v0, 0xffff                       \n"
-"addu  $t2, $t0, $t1                          \n" // 1-cycle load stall on $t1 here
+"addu  $t2, $t0, $t1                          \n"
 "lw    $t0, 0($t2)                            \n" // $t0 now points to beginning of recompiled
                                                   //  block, or is 0 if block needs compiling
 
@@ -548,8 +549,7 @@ __asm__ __volatile__ (
                                                   //  whether or not we are branching here
 
 // Recompile block, if necessary
-"recompile_block_check%=:                     \n"
-"beqz  $t0, recompile_block%=                 \n" // 1-cycle load stall on $t0 here
+"beqz  $t0, recompile_block%=                 \n"
 "nop                                          \n" // <BD>
 
 // Execute already-compiled block.
@@ -577,14 +577,6 @@ __asm__ __volatile__ (
 //     NON-LOOP CODE:     //
 ////////////////////////////
 
-// Recompile block and return to normal codepath
-"recompile_block%=:                           \n"
-"jal   %[recRecompile]                        \n"
-"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
-"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
-"b     execute_block%=                        \n" // Resume normal code path, but first we must..
-"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
-
 // Call psxBranchTest() and go back to top of loop
 "call_psxBranchTest%=:                        \n"
 "jal   %[psxBranchTest]                       \n"
@@ -596,10 +588,18 @@ __asm__ __volatile__ (
 "move  $v1, $0                                \n" // <BD> ..using BD slot to set $v1 to 0, since
                                                   //  psxRegs.cycle shouldn't be incremented again.
 
+// Recompile block and return to normal codepath
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"b     execute_block%=                        \n" // Resume normal code path, but first we must..
+"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
+
 // Destroy stack frame, exiting inlined ASM block
 "exit%=:                                      \n"
 "addiu $sp, $sp, frame_size                   \n"
-".set reorder                                 \n"
+".set pop                                     \n"
 
 : // Output
 : // Input
