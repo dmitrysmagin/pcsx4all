@@ -2,7 +2,7 @@
  * mips_codegen.h
  *
  * Copyright (c) 2009 Ulrich Hecht
- * Copyright (c) 2016 modified by Dmitry Smagin
+ * Copyright (c) 2017 modified by Dmitry Smagin / Daniel Silsby
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -166,8 +166,18 @@ do { \
 
 #define LI32(reg, imm32) \
 do { \
-	write32(0x3c000000 | (reg << 16) | ((u32)(imm32) >> 16)); /* lui */ \
-	write32(0x34000000 | (reg << 21) | (reg << 16) | ((imm32) & 0xffff)); /* ori */ \
+	if ((u32)(imm32) > 0xffff) { \
+		if ((s32)(imm32) < 0 && (s32)(imm32) >= -32768) { \
+			ADDIU(reg, 0, (s16)(imm32)); \
+		} else { \
+			LUI(reg, ((u32)(imm32) >> 16)); \
+			if ((u32)(imm32) & 0xffff) { \
+				ORI(reg, reg, (u16)(imm32)); \
+			} \
+		} \
+	} else { \
+		LI16(reg, (u16)(imm32)); \
+	} \
 } while (0)
 
 #define MOV(rd, rs) \
