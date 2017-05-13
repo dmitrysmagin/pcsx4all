@@ -231,15 +231,14 @@ static void emitBxx(u32 bpc)
 	//  in either branch path after this point can assume it is now loaded.
 	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
 	//       is not already loaded, so ensure that next instruction emitted
-	//       after part1() is also safe to put in BD slot.
-	rec_recompile_end_part1(); /* <BD (MAYBE)> */
+	//       after rec_recompile_end_part1() is also safe to put in BD slot.
+	rec_recompile_end_part1(); /* <BD> (MAYBE) */
 	block_ra_loaded = 1;
 
 	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
-	LUI(TEMP_1, (bpc >> 16));  /* <BD (MAYBE) */
+	LI32(MIPSREG_V0, bpc);  /* <BD> (MAYBE) */
 
 	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
 	rec_recompile_end_part2();
 
