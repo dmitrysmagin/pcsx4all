@@ -145,8 +145,8 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	//  in either branch path after this point can assume it is now loaded.
 	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
 	//       is not already loaded, so ensure that next instruction emitted
-	//       after part1() is also safe to put in BD slot.
-	rec_recompile_end_part1(); /* <BD (MAYBE)> */
+	//       after rec_recompile_end_part1() is also safe to put in BD slot.
+	rec_recompile_end_part1(); /* <BD> (MAYBE) */
 	block_ra_loaded = 1;
 
 	regPushState();
@@ -173,13 +173,17 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	}
 
 	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
-	LUI(TEMP_1, (bpc >> 16));  /* <BD (MAYBE)> */
+	if (bpc > 0xffff) {
+		LUI(TEMP_1, (bpc >> 16));  /* <BD> (MAYBE) */
+		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
+	} else {
+		LI16(MIPSREG_V0, (bpc & 0xffff));  /* <BD> (MAYBE) */
+	}
 
 	regClearBranch();
-	ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
 
 	if (andlink && dt != 2) {
-		if ((bpc >> 16) == (nbpc >> 16)) {
+		if (bpc > 0xffff && ((bpc >> 16) == (nbpc >> 16))) {
 			// Both PCs share an upper half, can save an instruction:
 			ORI(TEMP_1, TEMP_1, (nbpc & 0xffff));
 		} else {
