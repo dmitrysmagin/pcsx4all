@@ -388,6 +388,9 @@ static void StoreToAddr(int count, bool force_indirect)
 	}
 #endif
 
+	// Preload first register to be written (prevents stalls)
+	u32 r2 = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
 	// Get the effective address of first store in the series.
 	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
 	ADDIU(MIPSREG_A0, r1, _Imm_);
@@ -396,6 +399,9 @@ static void StoreToAddr(int count, bool force_indirect)
 	u32 *backpatch_label_exit_1 = 0;
 	if (!force_indirect)
 	{
+		// Save original val of r2; indirect loop will need it later
+		u32 r2_bak = r2;
+
 		regPushState();
 
 		// Check if memory is writable and also check if address is in lower 8MB:
@@ -470,7 +476,12 @@ static void StoreToAddr(int count, bool force_indirect)
 				u32 opcode = *(u32 *)((char *)PSXM(PC));
 				s32 imm = _fImm_(opcode);
 				u32 rt = _fRt_(opcode);
-				u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+				// No need to do this for first store of the series,
+				//  as it was already done for us during initial checks.
+				if (icount != count) {
+					r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+				}
 
 				backpatch_label_exit_1 = 0;
 				if (icount == 1) {
@@ -494,16 +505,15 @@ static void StoreToAddr(int count, bool force_indirect)
 				u32 opcode = *(u32 *)((char *)PSXM(PC));
 				s32 imm = _fImm_(opcode);
 				u32 rt = _fRt_(opcode);
-				u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-				OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+				// No need to do this for first store of the series,
+				//  as it was already done for us during initial checks.
+				if (icount != count) {
+					r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+					ADDIU(MIPSREG_A0, r1, imm);  // Code invalidation needs eff addr
+				}
 
 				/* Invalidate recRAM[addr+imm16] pointer */
-				if (icount != count) {
-					// No need to do this for the first store of the series,
-					//  as it was already done for us during initial checks.
-					ADDIU(MIPSREG_A0, r1, imm);
-				}
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 				EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
@@ -522,6 +532,8 @@ static void StoreToAddr(int count, bool force_indirect)
 #endif
 				}
 				ADDU(TEMP_1, TEMP_1, TEMP_3);
+
+				OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
 
 				backpatch_label_exit_1 = 0;
 				if (icount == 1) {
@@ -543,6 +555,9 @@ static void StoreToAddr(int count, bool force_indirect)
 
 		regPopState();
 
+		// Restore original val of r2 for first iteration of indirect loop below
+		r2 = r2_bak;
+
 		// label_hle:
 		fixup_branch(backpatch_label_hle_1);
 #ifndef SKIP_SAME_2MB_REGION_CHECK
@@ -556,11 +571,11 @@ static void StoreToAddr(int count, bool force_indirect)
 		u32 opcode = *(u32 *)((char *)PSXM(PC));
 		u32 rt = _fRt_(opcode);
 		s32 imm = _fImm_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
+		// No need to do this for the first store of the series,
+		//  as it was already done for us during initial checks.
 		if (icount != count) {
-			// No need to do this for the first store of the series,
-			//  as it was already done for us during initial checks.
+			r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
 
