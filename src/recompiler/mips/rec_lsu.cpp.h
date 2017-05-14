@@ -2,6 +2,10 @@
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
 
+// Assume that stores using $k0,$k1,$sp as base registers aren't used
+//  to modify code. Code invalidation is skipped for these.
+#define SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
+
 // Upper/lower 64K of PSX RAM (psxM[]) is now mirrored to virtual address
 //  regions surrounding psxM[]. This allows skipping mirror-region boundary
 //  check which special-cased loads/stores that crossed the boundary, the
@@ -451,55 +455,89 @@ static void StoreToAddr(int count, bool force_indirect)
 		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
 		emitAddrCalc(r1); // TEMP_2 == recalculated addr
 
-		icount = count;
-		LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
-		do {
-			u32 opcode = *(u32 *)((char *)PSXM(PC));
-			s32 imm = _fImm_(opcode);
-			u32 rt = _fRt_(opcode);
-			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
-
-			OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
-
-			/* Invalidate recRAM[addr+imm16] pointer */
-			if (icount != count) {
-				// No need to do this for the first store of the series,
-				//  as it was already done for us during initial checks.
-				ADDIU(MIPSREG_A0, r1, imm);
-			}
-
-#ifdef HAVE_MIPS32R2_EXT_INS
-			EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
-#else
-			SLL(TEMP_1, MIPSREG_A0, 11);
-			SRL(TEMP_1, TEMP_1, 11);
+		bool skip_code_invalidation = false;
+#ifdef SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
+		// Skip code invalidation when base register in use is obviously not
+		//  involved in code modification ($k0,$k1,$sp).
+		if (_Rs_ == 26 || _Rs_ == 27 || _Rs_ == 29)
+			skip_code_invalidation = true;
 #endif
 
-			if ((opcode & 0xfc000000) != 0xac000000) {
-				// Not a SW, clear lower 2 bits to ensure addr is aligned:
+		if (skip_code_invalidation)
+		{
+			icount = count;
+			do {
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+				backpatch_label_exit_1 = 0;
+				if (icount == 1) {
+					// This is the end of the loop
+					backpatch_label_exit_1 = (u32 *)recMem;
+					B(0); // b label_exit
+					// NOTE: Branch delay slot will contain the instruction below
+				}
+				// Important: this should be the last opcode in the loop (see note above)
+				OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+				PC += 4;
+
+				regUnlock(r2);
+			} while (--icount);
+		} else
+		{
+			LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
+			icount = count;
+			do {
+				u32 opcode = *(u32 *)((char *)PSXM(PC));
+				s32 imm = _fImm_(opcode);
+				u32 rt = _fRt_(opcode);
+				u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+
+				OPCODE(opcode & 0xfc000000, r2, TEMP_2, imm);
+
+				/* Invalidate recRAM[addr+imm16] pointer */
+				if (icount != count) {
+					// No need to do this for the first store of the series,
+					//  as it was already done for us during initial checks.
+					ADDIU(MIPSREG_A0, r1, imm);
+				}
+
 #ifdef HAVE_MIPS32R2_EXT_INS
-				INS(TEMP_1, 0, 0, 2);
+				EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
 #else
-				SRL(TEMP_1, TEMP_1, 2);
-				SLL(TEMP_1, TEMP_1, 2);
+				SLL(TEMP_1, MIPSREG_A0, 11);
+				SRL(TEMP_1, TEMP_1, 11);
 #endif
-			}
-			ADDU(TEMP_1, TEMP_1, TEMP_3);
 
-			backpatch_label_exit_1 = 0;
-			if (icount == 1) {
-				// This is the end of the loop
-				backpatch_label_exit_1 = (u32 *)recMem;
-				B(0); // b label_exit
-				// NOTE: Branch delay slot will contain the instruction below
-			}
-			// Important: this should be the last opcode in the loop (see note above)
-			SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
+				if ((opcode & 0xfc000000) != 0xac000000) {
+					// Not a SW, clear lower 2 bits to ensure addr is aligned:
+#ifdef HAVE_MIPS32R2_EXT_INS
+					INS(TEMP_1, 0, 0, 2);
+#else
+					SRL(TEMP_1, TEMP_1, 2);
+					SLL(TEMP_1, TEMP_1, 2);
+#endif
+				}
+				ADDU(TEMP_1, TEMP_1, TEMP_3);
 
-			PC += 4;
+				backpatch_label_exit_1 = 0;
+				if (icount == 1) {
+					// This is the end of the loop
+					backpatch_label_exit_1 = (u32 *)recMem;
+					B(0); // b label_exit
+					// NOTE: Branch delay slot will contain the instruction below
+				}
+				// Important: this should be the last opcode in the loop (see note above)
+				SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
 
-			regUnlock(r2);
-		} while (--icount);
+				PC += 4;
+
+				regUnlock(r2);
+			} while (--icount);
+		}
 
 		PC = pc - 4;
 
