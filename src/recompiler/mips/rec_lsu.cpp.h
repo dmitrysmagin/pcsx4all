@@ -927,6 +927,18 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
+#ifdef USE_DIRECT_MEM_ACCESS
+	// Load psxRegs.writeok to see if RAM is writeable
+	// (load it early to reduce load stall at check below)
+	if (!force_indirect) {
+		if (!Config.HLE)
+			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
+	}
+#endif
+
+	// Preload first register to be written (prevents stalls)
+	u32 r2 = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
 	// Get the effective address of first store in the series.
 	// ---> NOTE: leave value in MIPSREG_A0, it will be used later!
 	ADDIU(MIPSREG_A0, r1, _Imm_);
@@ -935,6 +947,9 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 	u32 *backpatch_label_exit_1 = 0;
 	if (!force_indirect)
 	{
+		// Save original val of r2; indirect loop will need it later
+		u32 r2_bak = r2;
+
 		regPushState();
 
 		// Check if memory is writable and also check if address is in lower 8MB:
@@ -944,8 +959,6 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		//    goto label_hle_1;
 
 		u32 *backpatch_label_hle_1;
-		if (!Config.HLE)
-			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
@@ -973,14 +986,15 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 			u32 opcode = *(u32 *)((char *)PSXM(PC));
 			s32 imm = _fImm_(opcode);
 			u32 rt = _fRt_(opcode);
-			u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
-			/* Invalidate recRAM[addr+imm16] pointer */
 			if (icount != count) {
 				// No need to do this for the first store of the series,
 				//  as it was already done for us during initial checks.
-				ADDIU(MIPSREG_A0, r1, imm);
+				r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
+				ADDIU(MIPSREG_A0, r1, imm);  // Code invalidation needs eff addr
 			}
+
+			/* Invalidate recRAM[addr+imm16] pointer */
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 			EXT(TEMP_1, MIPSREG_A0, 0, 0x15); // and 0x1fffff
@@ -1017,6 +1031,9 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 
 		regPopState();
 
+		// Restore original val of r2 for first iteration of indirect loop below
+		r2 = r2_bak;
+
 		// label_hle:
 		fixup_branch(backpatch_label_hle_1);
 	}
@@ -1028,11 +1045,11 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		u32 insn = opcode & 0xfc000000;
 		u32 rt = _fRt_(opcode);
 		s32 imm = _fImm_(opcode);
-		u32 r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 
+		// No need to do this for the first store of the series,
+		//  as it was already done for us during initial checks.
 		if (icount != count) {
-			// No need to do this for the first store of the series, as value
-			//  is already in $a0 from earlier direct-mem address range check.
+			r2 = regMipsToHost(rt, REG_LOAD, REG_REGISTER);
 			ADDIU(MIPSREG_A0, r1, imm);
 		}
 
