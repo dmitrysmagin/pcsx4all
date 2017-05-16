@@ -78,8 +78,7 @@ u16 psxHwRead16(u32 add) {
 #endif
 
 		case 0x1f801040:
-			hard = sioRead8();
-			hard|= sioRead8() << 8;
+			hard = sioRead16();
 #ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
 #endif
@@ -196,10 +195,7 @@ u32 psxHwRead32(u32 add) {
 
 	switch (add) {
 		case 0x1f801040:
-			hard = sioRead8();
-			hard |= sioRead8() << 8;
-			hard |= sioRead8() << 16;
-			hard |= sioRead8() << 24;
+			hard = sioRead32();
 #ifdef PAD_LOG
 			PAD_LOG("sio read32 ;ret = %x\n", hard);
 #endif
@@ -358,14 +354,14 @@ void psxHwWrite8(u32 add, u8 value) {
 void psxHwWrite16(u32 add, u16 value) {
 	switch (add) {
 		case 0x1f801040:
-			sioWrite8((unsigned char)value);
-			sioWrite8((unsigned char)(value>>8));
+			sioWrite16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
 			return;
 		case 0x1f801044:
-			sioWriteStat16(value);
+			// Function is empty, disabled -senquack
+			//sioWriteStat16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
@@ -516,10 +512,7 @@ void psxHwWrite16(u32 add, u16 value) {
 void psxHwWrite32(u32 add, u32 value) {
 	switch (add) {
 	    case 0x1f801040:
-			sioWrite8((unsigned char)value);
-			sioWrite8((unsigned char)((value&0xff) >>  8));
-			sioWrite8((unsigned char)((value&0xff) >> 16));
-			sioWrite8((unsigned char)((value&0xff) >> 24));
+			sioWrite32(value);
 #ifdef PAD_LOG
 			PAD_LOG("sio write32 %x\n", value);
 #endif
