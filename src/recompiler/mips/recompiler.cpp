@@ -2,7 +2,7 @@
  * Mips-to-mips recompiler for pcsx4all
  *
  * Copyright (c) 2009 Ulrich Hecht
- * Copyright (c) 2016 modified by Dmitry Smagin
+ * Copyright (c) 2017 modified by Dmitry Smagin, Daniel Silsby
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -35,6 +35,9 @@
 
 /* Use inlined-asm version of block dispatcher: */
 #define ASM_EXECUTE_LOOP
+
+/* Scan for and skip useless code in PS1 executable: */
+#define USE_CODE_DISCARD
 
 //#define WITH_DISASM
 //#define DEBUGG printf
@@ -175,11 +178,14 @@ do { \
 	printf("\n"); \
 } while (0)
 
+#define DISASM_MSG printf
+
 #else
 
 #define DISASM_PSX(_PC_)
 #define DISASM_HOST()
 #define DISASM_INIT()
+#define DISASM_MSG(...)
 
 #endif
 
@@ -213,10 +219,38 @@ static void recRecompile()
 	memset(iRegs, 0, sizeof(iRegs));
 	iRegs[0].s = 1;  // $r0 is always zero val
 
+#ifdef USE_CODE_DISCARD
+	int discard_cnt = 0;
+#endif
+
 	do {
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
+
+#ifdef USE_CODE_DISCARD
+		// If we are not already skipping past discardable code, scan
+		//  for PS1 code sequence we can discard.
+		if (discard_cnt == 0) {
+			int discard_type = 0;
+			discard_cnt = rec_discard_scan(pc, &discard_type);
+			if (discard_cnt > 0)
+				DISASM_MSG(" ->BEGIN code discard: %s\n", rec_discard_type_str(discard_type));
+		}
+#endif
+
 		DISASM_PSX(pc);
 		pc += 4;
+
+#ifdef USE_CODE_DISCARD
+		// Skip next discardable instruction in any sequence found.
+		if (discard_cnt > 0) {
+			--discard_cnt;
+			if (discard_cnt == 0)
+				DISASM_MSG(" ->END code discard.\n");
+			continue;
+		}
+#endif
+
+		// Recompile next instruction.
 		recBSC[psxRegs.code>>26]();
 		regUpdate();
 		branch = 0;

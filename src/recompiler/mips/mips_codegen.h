@@ -378,5 +378,11 @@ do { \
 	*( u32*)(BACKPATCH) |= mips_relative_offset(BACKPATCH, (u32)recMem, 4); \
 } while (0)
 
-#endif /* MIPS_CG_H */
 
+/* Defined in mips_codegen.cpp */
+int rec_scan_for_div_by_zero_check_sequence(u32 code_loc);
+int rec_scan_for_MFHI_MFLO_sequence(u32 code_loc);
+int rec_discard_scan(u32 code_loc, int *discard_type);
+const char* rec_discard_type_str(int discard_type);
+
+#endif /* MIPS_CG_H */
