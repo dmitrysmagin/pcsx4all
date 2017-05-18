@@ -270,6 +270,9 @@ do { \
 #define JR(rs) \
 	write32(0x00000008 | ((rs) << 21))
 
+#define J(addr) \
+    write32(0x08000000 | (((u32)(addr) & 0x0fffffff) >> 2))
+
 #define BEQ(rs, rt, offset) \
 	write32(0x10000000 | (rs << 21) | (rt << 16) | (offset >> 2))
 
@@ -337,37 +340,48 @@ do {                                                                           \
  * The idea behind having a part1 and part2 is to minimize load stalls by
  *  interleaving unrelated code between their calls.
  * Currently, only the load of $ra benefits from this, saving a 3-cycle stall.
+ * Load $ra from stack at 16($sp), if it is not already.
+ * NOTE: This macro only assists blocks returning indirectly.
+ * NOTE: This macro will often not emit an instruction!
+ * NOTE: This should be the first instruction emitted in part1,
+ *       as branch emitters will often use this in branch delay
+ *       slot, allowing code in either branch path to benefit from
+ *       the load. It is their responsibility, however, to set
+ *       block_ra_loaded=1 when this is the case.
+ * NOTE: emitBxxZ() sometimes calls this macro *twice*, when it needs
+ *        to emit code for the instruction at the branch target PC,
+ *        which might include a JAL that would overwrite $ra.
  */
 #define rec_recompile_end_part1()                                              \
 do {                                                                           \
-    /* Load $ra from stack at 16($sp), if it is not already.                */ \
-    /* NOTE: This should be the first instruction emitted in part1,         */ \
-    /*       as branch emitters will often use this in branch delay         */ \
-    /*       slot, allowing code in either branch path to benefit from      */ \
-    /*       the load. It is their responsibility, however, to set          */ \
-    /*       block_ra_loaded=1 when this is the case.                       */ \
-    /* NOTE: This macro will often not emit an instruction!                 */ \
-    /* NOTE: emitBxxZ() sometimes calls this macro *twice*, when it needs   */ \
-    /*        to emit code for the instruction at the branch target PC,     */ \
-    /*        which might include a JAL that would overwrite $ra.           */ \
-    if (!block_ra_loaded)                                                      \
+    if (!block_ret_addr && !block_ra_loaded)                                   \
         LW(MIPSREG_RA, MIPSREG_SP, 16);                                        \
 } while (0)
 
+/* Two methods of returning from blocks, both use BD slot to set return
+ *  value $v1 with number of cycles block has taken.
+ * 1.) INDIRECT BLOCK RETURNS (block_ret_addr == 0):
+ *  Jump to $ra, which prior call to rec_recompile_end_part1() loaded.
+ * 2.) DIRECT BLOCK RETURNS   (block_ret_addr != 0):
+ *  Jump directly to value in block_ret_addr.
+ * NOTE: Somewhere between calls to ..part1() and ..part2(), calling
+ *  code places new value for psxRegs.pc in $v0.
+ */
 #define rec_recompile_end_part2()                                              \
 do {                                                                           \
-    /* Jump to $ra, using BD slot to fill $v1 return value with number of   */ \
-    /*  cycles block has taken. $ra will have been loaded in prior call     */ \
-    /*  to rec_recompile_end_part1().                                       */ \
-    /* Somewhere between calls to ..part1() and ..part2(), calling code     */ \
-    /*  places new value for psxRegs.pc in $v0.                             */ \
     u32 __cycles = ADJUST_CLOCK((pc-oldpc)/4);                                 \
     if (__cycles <= 0xffff) {                                                  \
-        JR(MIPSREG_RA);                                                        \
+        if (block_ret_addr)                                                    \
+            J(block_ret_addr);                                                 \
+        else                                                                   \
+            JR(MIPSREG_RA);                                                    \
         LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
     } else {                                                                   \
         LUI(MIPSREG_V1, (__cycles >> 16));                                     \
-        JR(MIPSREG_RA);                                                        \
+        if (block_ret_addr)                                                    \
+            J(block_ret_addr);                                                 \
+        else                                                                   \
+            JR(MIPSREG_RA);                                                    \
         ORI(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */           \
     }                                                                          \
 } while (0)
