@@ -76,21 +76,23 @@ typedef enum {
 /* PERM_REG_1 is used to store psxRegs struct address */
 #define PERM_REG_1 			MIPSREG_S8
 
-/* Crazy macro to calculate offset of the field in the structure */
-#ifndef offsetof
-#define offsetof(T,F) ((unsigned int)((char *)&((T *)0L)->F - (char *)0L))
+/* Crazy macro to calculate offset of the field in the structure.
+ *  (Can't use standard offsetof() with non-const expressions)
+ */
+#ifndef OFFSET_OF
+#define OFFSET_OF(T,F) ((unsigned int)((char *)&((T *)0L)->F - (char *)0L))
 #endif
 
 /* GPR offset */
-#define offGPR(rx)	offsetof(psxRegisters, GPR.r[rx])
+#define offGPR(rx)	OFFSET_OF(psxRegisters, GPR.r[rx])
 
 /* CP0 offset */
-#define offCP0(rx)	offsetof(psxRegisters, CP0.r[rx])
+#define offCP0(rx)	OFFSET_OF(psxRegisters, CP0.r[rx])
 
 /* CP2C offset */
-#define offCP2C(rx)	offsetof(psxRegisters, CP2C.r[rx])
+#define offCP2C(rx)	OFFSET_OF(psxRegisters, CP2C.r[rx])
 
-#define off(field)	offsetof(psxRegisters, field)
+#define off(field)	OFFSET_OF(psxRegisters, field)
 
 /* ADR_HI, ADR_LO are the equivalents of MIPS GAS %hi(), %lo()
  * They are always used as a pair, and allow converting an address to an
