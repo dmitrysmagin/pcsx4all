@@ -43,6 +43,18 @@
 /* If HLE emulated BIOS is not in use, blocks return to dispatch loop directly */
 #define USE_DIRECT_BLOCK_RETURN_JUMPS
 
+/* If a block jumps backwards to the top of itself, use fast dispatch path.
+ *  Every block's recompiled start address is saved before entry. To
+ *  return to the dispatch loop, it jumps to a shorter version of dispatch
+ *  loop that skips code table lookups and code invalidation checks.
+ * This could *theoretically* cause a problem  with poorly-behaved
+ *  self-modifying code, but so far no issues have been found.
+ * NOTE: Option only has effect if USE_DIRECT_BLOCK_RETURN_JUMPS is enabled,
+ *  which itself only has effect when HLE emulated BIOS is not in use.
+ */
+#define USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+
+
 //#define WITH_DISASM
 //#define DEBUGG printf
 
@@ -80,10 +92,13 @@ static u32 *recMem; /* the recompiled blocks will be here */
 static s8 recRAM[0x200000] __attribute__((aligned(4))); /* and the ptr to the blocks here */
 static s8 recROM[0x080000] __attribute__((aligned(4))); /* and here */
 static u32 pc;					/* recompiler pc */
-static u32 oldpc;
+static u32 oldpc;               /* recompiler pc at start of block */
 static u32 branch = 0;
-static uintptr_t block_ret_addr; /* Non-zero when blocks are using direct return jumps */
 static u8  block_ra_loaded;      /* Non-zero when block return address is loaded in host $ra reg */
+
+static uintptr_t block_ret_addr;      /* Non-zero when blocks are using direct return jumps */
+static uintptr_t block_fast_ret_addr; /* Non-zero when blocks are using direct return jumps &
+                                         dispatch loop fastpath is enabled */
 
 #ifdef WITH_DISASM
 char	disasm_buffer[512];
@@ -350,7 +365,7 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
 static void recExecuteIndirectReturn()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
-	block_ret_addr = 0;
+	block_ret_addr = block_fast_ret_addr = 0;
 
 #ifndef ASM_EXECUTE_LOOP
 	for (;;) {
@@ -515,10 +530,26 @@ __asm__ __volatile__ (
 
 // Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
 // empty at 0($sp) for use by functions called from within recompiled code.
-".equ  frame_size,                  24        \n"
-".equ  f_off_temp_var1,             20        \n"
+".equ  frame_size,                        32  \n"
+".equ  f_off_branchtest_fastpath_ra,      28  \n"
+".equ  f_off_temp_var1,                   24  \n"
+".equ  f_off_block_start_addr,            16  \n"
 "addiu $sp, $sp, -frame_size                  \n"
 
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+// Set the global var 'block_fast_ret_addr'.
+"la    $t0, fastpath_loop%=                   \n"
+"lui   $t1, %%hi(%[block_fast_ret_addr])      \n"
+"sw    $t0, %%lo(%[block_fast_ret_addr])($t1) \n"
+
+// We need a stack var to hold a return address for a 'fastpath' call to
+//  psxBranchTest. This helps reduce size of code through sharing.
+"la    $t0, branchtest_fastpath_retaddr%=     \n"
+"sw    $t0, f_off_branchtest_fastpath_ra($sp) \n"
+#endif
+
+// Set the global var 'block_ret_addr'.
+// If parameter 'query_ret_addr' is non-zero, return to caller.
 "la    $t0, loop%=                            \n"
 "lui   $t1, %%hi(%[block_ret_addr])           \n"
 "bnez  %[query_ret_addr], exit%=              \n"
@@ -587,26 +618,76 @@ __asm__ __volatile__ (
 "beqz  $t0, recompile_block%=                 \n"
 "sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val
 
-// Execute already-compiled block. It will return at top of loop.
+// Execute already-compiled block. It returns to top of 'fastpath' loop if it
+//  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
 "execute_block%=:                             \n"
 "jr    $t0                                    \n"
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+"sw    $t0, f_off_block_start_addr($sp)       \n" // <BD> Save code address, in case block jumps back
+                                                  //      to its beginning and takes 'fastpath'
+#else
 "nop                                          \n" // <BD>
+#endif
 
 ////////////////////////////
-//     NON-LOOP CODE:     //
+//   BRANCH-TEST CODE:    //
 ////////////////////////////
 
 // Call psxBranchTest() and go back to top of loop
 "call_psxBranchTest%=:                        \n"
 "jal   %[psxBranchTest]                       \n"
-"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val,
-                                                  //  as psxBranchTest() might issue an exception.
+"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Store new psxRegs.pc val before calling C
+"branchtest_fastpath_retaddr%=:               \n" // Next 3 instructions shared with 'fastpath' code..
 "lw    $v0, %[psxRegs_pc_off]($fp)            \n" // After psxBranchTest() returns, load psxRegs.pc
                                                   //  back into $v0, which could be different than
                                                   //  before the call if an exception was issued.
-"b     loop%=                                 \n" // Go back to top to process psxRegs.pc again..
+"b     loop%=                                 \n" // Go back to top to process new psxRegs.pc value..
 "move  $v1, $0                                \n" // <BD> ..using BD slot to set $v1 to 0, since
                                                   //  psxRegs.cycle shouldn't be incremented again.
+
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+////////////////////////////
+//   FASTPATH LOOP CODE:  //
+////////////////////////////
+
+// When a block's new PC (jump target) is the same as its own beginning PC,
+//  i.e. it branches back to its own top, it will return to this 'fast path'
+//  version of above loop. It assumes that the block is already compiled and
+//  unmodified, saving cycles versus the general loop. The main loop was
+//  careful to save the block start address at location in stack frame.
+//  NOTE: Blocks returning this way don't bother to set $v0 to any PC value.
+"fastpath_loop%=:                             \n"
+"lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
+"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $t0, f_off_block_start_addr($sp)       \n" // Load block code addr saved in main loop
+"addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
+
+// Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
+"sltu  $t4, $t3, $t4                          \n"
+"beqz  $t4, call_psxBranchTest_fastpath%=     \n"
+"sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
+                                                  //  whether or not we are branching here
+
+// Execute already-compiled block. It returns to top of 'fastpath' loop if it
+//  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
+"jr    $t0                                    \n"
+"nop                                          \n" // <BD>
+
+////////////////////////////
+//   BRANCH-TEST CODE:    //
+////////////////////////////
+
+// Call psxBranchTest(). We don't have a new PC in $v0 to store, so call it
+//  directly, and have it return to code shared with main 'call_psxBranchTest'.
+"call_psxBranchTest_fastpath%=:               \n"
+"j     %[psxBranchTest]                       \n"
+"lw    $ra, f_off_branchtest_fastpath_ra($sp) \n" // <BD>
+
+#endif // USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+
+////////////////////////////
+// RECOMPILE BLOCK CODE:  //
+////////////////////////////
 
 // Recompile block and return to normal codepath.
 "recompile_block%=:                           \n"
@@ -615,6 +696,7 @@ __asm__ __volatile__ (
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
+
 
 // Destroy stack frame, exiting inlined ASM block
 // NOTE: We'd never reach this point because the block dispatch loop is
@@ -632,6 +714,7 @@ __asm__ __volatile__ (
 : // Input
   [query_ret_addr]             "r" (query_ret_addr),
   [block_ret_addr]             "i" (&block_ret_addr),
+  [block_fast_ret_addr]        "i" (&block_fast_ret_addr),
   [psxRegs]                    "i" (&psxRegs),
   [psxRegs_pc_off]             "i" (off(pc)),
   [psxRegs_cycle_off]          "i" (off(cycle)),
@@ -651,7 +734,7 @@ __asm__ __volatile__ (
 static void recExecuteBlock(unsigned target_pc)
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
-	block_ret_addr = 0;
+	block_ret_addr = block_fast_ret_addr = 0;
 
 #ifndef ASM_EXECUTE_LOOP
 	do {
@@ -823,7 +906,7 @@ static void recExecute()
 	//  loops. All blocks load $ra off stack and jump to it when returning.
 	// Var 'block_ret_addr' should remain set to zero throughout.
 	bool use_indirect_return_dispatch_loop = true;
-	block_ret_addr = 0;
+	block_ret_addr = block_fast_ret_addr = 0;
 
 #if defined(ASM_EXECUTE_LOOP) && defined(USE_DIRECT_BLOCK_RETURN_JUMPS)
 	if (!Config.HLE) {
@@ -859,7 +942,7 @@ static void recExecute()
 				printf("%s() WARNING: distance of %td too great for\n"
 					   "direct block returns. Falling back to indirect returns.\n", __func__, max_diff);
 				// Set block_ret_addr to 0, so generated code uses indirect returns
-				block_ret_addr = 0;
+				block_ret_addr = block_fast_ret_addr = 0;
 			}
 		}
 	}

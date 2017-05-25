@@ -9,9 +9,14 @@ static void recSYSCALL()
 	JAL(psxException);
 	LI16(MIPSREG_A0, 0x20); // <BD> Load first param using BD slot of JAL()
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath_return = false;
+
 	rec_recompile_end_part1();
+
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // Block retval $v0 = new PC set by psxException()
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -141,6 +146,13 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 		exit(1);
 	}
 
+	// Remember location of branch delay slot so we can be sure it was filled
+	const u32 *bd_slot_loc = (u32 *)recMem;
+
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
+	// If indirect block returns are in use:
 	// Load host $ra with block return address using BD slot. Code emitted
 	//  in either branch path after this point can assume it is now loaded.
 	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
@@ -152,7 +164,7 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	regPushState();
 
 	if (dt == 2) {
-		NOP(); /* <BD> */
+		NOP(); /* <BD> (MAYBE) */
 
 		// Instruction at target PC should see ra reg write
 		if (andlink) {
@@ -172,27 +184,37 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 		block_ra_loaded = 1;
 	}
 
-	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
-	if (bpc > 0xffff) {
-		LUI(TEMP_1, (bpc >> 16));  /* <BD> (MAYBE) */
-		ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
-	} else {
-		LI16(MIPSREG_V0, (bpc & 0xffff));  /* <BD> (MAYBE) */
+	// If rec_recompile_end_part1() did not emit an instruction,
+	//  next instruction emitted here is BD slot:
+
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		if (bpc > 0xffff) {
+			LUI(TEMP_1, (bpc >> 16));  /* <BD> (MAYBE) */
+			ORI(MIPSREG_V0, TEMP_1, (bpc & 0xffff));
+		} else {
+			LI16(MIPSREG_V0, (bpc & 0xffff));  /* <BD> (MAYBE) */
+		}
 	}
 
-	regClearBranch();
-
 	if (andlink && dt != 2) {
-		if (bpc > 0xffff && ((bpc >> 16) == (nbpc >> 16))) {
+		if (!use_fastpath_return && (bpc > 0xffff) && ((bpc >> 16) == (nbpc >> 16))) {
 			// Both PCs share an upper half, can save an instruction:
 			ORI(TEMP_1, TEMP_1, (nbpc & 0xffff));
 		} else {
-			LI32(TEMP_1, nbpc);
+			LI32(TEMP_1, nbpc);  /* <BD> (MAYBE) */
 		}
 		SW(TEMP_1, PERM_REG_1, offGPR(31));
 	}
 
-	rec_recompile_end_part2();
+	regClearBranch();
+
+	// Rarely, the branch delay slot is still empty at this point. Fill if so.
+	if (bd_slot_loc == recMem) {
+		NOP();  /* <BD> */
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	regPopState();
 
@@ -227,6 +249,13 @@ static void emitBxx(u32 bpc)
 		exit(1);
 	}
 
+	// Remember location of branch delay slot so we can be sure it was filled
+	const u32 *bd_slot_loc = (u32 *)recMem;
+
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
+	// If indirect block returns are in use:
 	// Load host $ra with block return address using BD slot. Code emitted
 	//  in either branch path after this point can assume it is now loaded.
 	// NOTE: rec_recompile_end_part1() will only emit an instruction if $ra
@@ -235,12 +264,19 @@ static void emitBxx(u32 bpc)
 	rec_recompile_end_part1(); /* <BD> (MAYBE) */
 	block_ra_loaded = 1;
 
-	// If rec_recompile_end_part1() did not emit an instruction, this is BD slot:
-	LI32(MIPSREG_V0, bpc);  /* <BD> (MAYBE) */
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		LI32(MIPSREG_V0, bpc);  /* <BD> (MAYBE) */
+	}
 
-	regClearBranch();
+	regClearBranch(); /* <BD> (MAYBE) */
 
-	rec_recompile_end_part2();
+	// Rarely, the branch delay slot is still empty at this point. Fill if so.
+	if (bd_slot_loc == recMem) {
+		NOP();  /* <BD> */
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	fixup_branch(backpatch);
 	regUnlock(br1);
@@ -255,10 +291,18 @@ static void iJumpNormal(u32 bpc)
 
 	recDelaySlot();
 
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
-	rec_recompile_end_part2();
+
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -282,10 +326,18 @@ static void iJumpAL(u32 bpc, u32 nbpc)
 		recDelaySlot();
 	}
 
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
 	rec_recompile_end_part1();
 	regClearJump();
-	LI32(MIPSREG_V0, bpc);     // Block retval $v0 = new PC val
-	rec_recompile_end_part2();
+
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		LI32(MIPSREG_V0, bpc);     // Block retval $v0 = new PC val
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -426,10 +478,14 @@ static void recJR_load_delay()
 
 	// $v0 here contains jump address returned from execBranchLoadDelay()
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath_return = false;
+
 	rec_recompile_end_part1();
 	pc += 4;
 	regUnlock(br1);
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -449,11 +505,16 @@ static void recJR()
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	recDelaySlot();
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath_return = false;
+
 	rec_recompile_end_part1();
+
 	regClearJump();
 	MOV(MIPSREG_V0, br1); // Block retval $v0 = new PC val
 	regUnlock(br1);
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -468,11 +529,16 @@ static void recJALR()
 	regMipsChanged(_Rd_);
 	recDelaySlot();
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath_return = false;
+
 	rec_recompile_end_part1();
+
 	regClearJump();
 	MOV(MIPSREG_V0, br1); // Block retval $v0 = new PC val
 	regUnlock(br1);
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }
@@ -563,9 +629,14 @@ static void recHLE()
 	JAL(((u32)psxHLEt[psxRegs.code & 0x7]));
 	SW(TEMP_1, PERM_REG_1, off(pc));        // <BD> BD slot of JAL() above
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath_return = false;
+
 	rec_recompile_end_part1();
+
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // <BD> Block retval $v0 = psxRegs.pc
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath_return);
 
 	end_block = 1;
 }

@@ -66,9 +66,14 @@ static void emitTestSWInts()
 	// Use JAL's BD slot to set arg telling if instruction lied in BD slot :)
 	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0)); // <BD slot>
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath = false;
+
 	rec_recompile_end_part1();
+
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // Block retval $v0 = new PC set by psxException()
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath);
 
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch2);

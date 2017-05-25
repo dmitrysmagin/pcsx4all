@@ -338,16 +338,16 @@ do {                                                                           \
 /* end of the recompiled block
  *
  * The idea behind having a part1 and part2 is to minimize load stalls by
- *  interleaving unrelated code between their calls.
- * Currently, only the load of $ra benefits from this, saving a 3-cycle stall.
- * Load $ra from stack at 16($sp), if it is not already.
- * NOTE: This macro only assists blocks returning indirectly.
+ *  interleaving unrelated code between their calls. part1 loads $ra from
+ *  stack at 16($sp), if it is not already.
+ * NOTE: This macro only assists blocks returning indirectly, as direct
+ *        returns don't use or need to load $ra.
  * NOTE: This macro will often not emit an instruction!
  * NOTE: This should be the first instruction emitted in part1,
- *       as branch emitters will often use this in branch delay
- *       slot, allowing code in either branch path to benefit from
- *       the load. It is their responsibility, however, to set
- *       block_ra_loaded=1 when this is the case.
+ *        as branch emitters will often use this in branch delay
+ *        slot, allowing code in either branch path to benefit from
+ *        the load. It is their responsibility, however, to set
+ *        block_ra_loaded=1 when this is the case.
  * NOTE: emitBxxZ() sometimes calls this macro *twice*, when it needs
  *        to emit code for the instruction at the branch target PC,
  *        which might include a JAL that would overwrite $ra.
@@ -361,27 +361,48 @@ do {                                                                           \
 /* Two methods of returning from blocks, both use BD slot to set return
  *  value $v1 with number of cycles block has taken.
  * 1.) INDIRECT BLOCK RETURNS (block_ret_addr == 0):
- *  Jump to $ra, which prior call to rec_recompile_end_part1() loaded.
+ *     Jump to $ra, which prior call to rec_recompile_end_part1() loaded.
  * 2.) DIRECT BLOCK RETURNS   (block_ret_addr != 0):
- *  Jump directly to value in block_ret_addr.
- * NOTE: Somewhere between calls to ..part1() and ..part2(), calling
- *  code places new value for psxRegs.pc in $v0.
+ *     Jump directly to value in block_ret_addr.
+ *
+ *     Direct block returns can use a 'fastpath' return method. If a block
+ *      branches backward to its beginning PC, it returns to a 'fastpath'
+ *      address inside the dispatch loop. There is no need to set $v0.
+ *      Block emitter should call rec_recompile_use_fastpath() below to see
+ *      when a given PC is eligible for this method.
+ *
+ * NOTE: If block is not using 'fastpath' return, somewhere between calls to
+ *       part1() and part2(), caller places new value for psxRegs.pc in $v0.
+ *
  */
-#define rec_recompile_end_part2()                                              \
+#define rec_recompile_use_fastpath_return(__newpc)                             \
+    (block_fast_ret_addr && ((__newpc) == oldpc))
+
+#define rec_recompile_end_part2(use_fastpath_return)                           \
 do {                                                                           \
     u32 __cycles = ADJUST_CLOCK((pc-oldpc)/4);                                 \
     if (__cycles <= 0xffff) {                                                  \
-        if (block_ret_addr)                                                    \
-            J(block_ret_addr);                                                 \
-        else                                                                   \
+        if (block_ret_addr) {                                                  \
+            if (use_fastpath_return) {                                         \
+                J(block_fast_ret_addr);                                        \
+            } else {                                                           \
+                J(block_ret_addr);                                             \
+            }                                                                  \
+        } else {                                                               \
             JR(MIPSREG_RA);                                                    \
+        }                                                                      \
         LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
     } else {                                                                   \
         LUI(MIPSREG_V1, (__cycles >> 16));                                     \
-        if (block_ret_addr)                                                    \
-            J(block_ret_addr);                                                 \
-        else                                                                   \
+        if (block_ret_addr) {                                                  \
+            if (use_fastpath_return) {                                         \
+                J(block_fast_ret_addr);                                        \
+            } else {                                                           \
+                J(block_ret_addr);                                             \
+            }                                                                  \
+        } else {                                                               \
             JR(MIPSREG_RA);                                                    \
+        }                                                                      \
         ORI(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */           \
     }                                                                          \
 } while (0)
