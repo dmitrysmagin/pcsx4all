@@ -158,14 +158,28 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 		regcache.host[regnum].ismapped = false;
 		regcache.host[regnum].mappedto = 0;
 
-		LW(regnum, PERM_REG_1, offGPR(regpsx));
+		// If reg value is known-const, see if it can be loaded with just one ALU op
+		if (IsConst(regpsx) && ( (((u32)iRegs[regpsx].r <= 0xffff) || !(iRegs[regpsx].r & 0xffff)) ||
+		                         (((s32)iRegs[regpsx].r < 0) && ((s32)iRegs[regpsx].r >= -32768))    ))
+		{
+			LI32(regnum, iRegs[regpsx].r);
+		} else {
+			LW(regnum, PERM_REG_1, offGPR(regpsx));
+		}
 
 		//DEBUGF("regnum 3 %d", regnum);
 		return regnum;
 	}
 
 	if (action == REG_LOAD) {
-		LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
+		// If reg value is known-const, see if it can be loaded with just one ALU op
+		if (IsConst(regpsx) && ( (((u32)iRegs[regpsx].r <= 0xffff) || !(iRegs[regpsx].r & 0xffff)) ||
+		                         (((s32)iRegs[regpsx].r < 0) && ((s32)iRegs[regpsx].r >= -32768))    ))
+		{
+			LI32(regcache.psx[regpsx].mappedto, iRegs[regpsx].r);
+		} else {
+			LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
+		}
 	}
 
 	return regnum;
