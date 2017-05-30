@@ -34,6 +34,11 @@
 #include "r3000a.h"
 #include "gte.h"
 
+/* For direct HW I/O */
+#include "mdec.h"
+#include "cdrom.h"
+#include "gpu.h"
+
 /* Use inlined-asm version of block dispatcher: */
 #define ASM_EXECUTE_LOOP
 
@@ -53,7 +58,6 @@
  *  which itself only has effect when HLE emulated BIOS is not in use.
  */
 #define USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
-
 
 //#define WITH_DISASM
 //#define DEBUGG printf
@@ -167,6 +171,40 @@ disasm_label stub_labels[] =
   make_stub_label(psxHwWrite16),
   make_stub_label(psxHwWrite32),
   make_stub_label(psxException),
+  // Direct HW I/O:
+  make_stub_label(cdrRead0),
+  make_stub_label(cdrRead1),
+  make_stub_label(cdrRead2),
+  make_stub_label(cdrRead3),
+  make_stub_label(cdrWrite0),
+  make_stub_label(cdrWrite1),
+  make_stub_label(cdrWrite2),
+  make_stub_label(cdrWrite3),
+  make_stub_label(GPU_writeData),
+  make_stub_label(mdecRead0),
+  make_stub_label(mdecRead1),
+  make_stub_label(mdecWrite0),
+  make_stub_label(mdecWrite1),
+  make_stub_label(psxRcntRcount),
+  make_stub_label(psxRcntRmode),
+  make_stub_label(psxRcntRtarget),
+  make_stub_label(psxRcntWcount),
+  make_stub_label(psxRcntWmode),
+  make_stub_label(psxRcntWtarget),
+  make_stub_label(sioRead8),
+  make_stub_label(sioRead16),
+  make_stub_label(sioRead32),
+  make_stub_label(sioReadBaud16),
+  make_stub_label(sioReadCtrl16),
+  make_stub_label(sioReadMode16),
+  make_stub_label(sioReadStat16),
+  make_stub_label(sioWrite8),
+  make_stub_label(sioWrite16),
+  make_stub_label(sioWrite32),
+  make_stub_label(sioWriteBaud16),
+  make_stub_label(sioWriteCtrl16),
+  make_stub_label(sioWriteMode16),
+  make_stub_label(SPU_writeRegister),
 };
 
 const u32 num_stub_labels = sizeof(stub_labels) / sizeof(disasm_label);

@@ -30,7 +30,6 @@
 #define MIPS_CG_H
 
 // Mips32r2 introduced useful instructions:
-//TODO: Update all code that uses EXT/INS/SEB/SEH to use these guards.
 #if (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
 #define HAVE_MIPS32R2_EXT_INS

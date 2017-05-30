@@ -22,6 +22,19 @@
 * Functions for PSX hardware control.
 */
 
+///////////////////////////////////////////////////////////////////////////////
+// May 30 2017                                                               //
+//       NOTE: MIPS dynarec implements inlined versions of some cases of     //
+//       psxHwWrite8/16/32() and psxHwRead8/16/32(). Any updates of these    //
+//       functions should be accompanied by updates to MIPS dynarec HW I/O.  //
+//       IF YOU DON'T UPDATE MIPSREC: uncomment the #error line here to      //
+//       at least provide a compile-time error for future MIPS users:        //
+///////////////////////////////////////////////////////////////////////////////
+#if defined(PSXREC) && defined(mips)
+//#error "Updates to psxhw.cpp have been made, but MIPS recompiler has not been updated. You must update rec_lsu_hw.cpp.h to match psxhw.cpp, or ensure that inlined direct HW I/O is disabled in dynarec."
+#endif
+
+
 #include "psxhw.h"
 #include "mdec.h"
 #include "cdrom.h"

@@ -2,6 +2,9 @@
 #define USE_DIRECT_MEM_ACCESS
 #define USE_CONST_ADDRESSES
 
+// Generate inline HW I/O port reads/writes (see rec_lsu_hw.cpp.h)
+#define USE_DIRECT_HW_ACCESS
+
 // Assume that stores using $k0,$k1,$sp as base registers aren't used
 //  to modify code. Code invalidation is skipped for these.
 #define SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
@@ -16,6 +19,8 @@
 
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+
+#include "rec_lsu_hw.cpp.h"  // Direct HW I/O
 
 //#define LOG_WL_WR
 //#define LOG_LOADS
@@ -325,12 +330,28 @@ static void LoadFromConstAddr()
 		return;
 	}
 
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	u32 addr_max = iRegs[_Rs_].r + imm_max;
-	if ((addr_max & 0x1fffffff) >= 0x800000) {
-		// Call general-case emitter, but force indirect access since
-		//  known-const address is outside lower 8MB RAM.
-		LoadFromAddr(count, true);
+	// Is address outside lower 8MB RAM region? (2MB mirrored x4)
+	u32 base_reg_constval = iRegs[_Rs_].r;
+	u32 addr_max = base_reg_constval + imm_max;
+	if ((addr_max & 0x1fffffff) >= 0x800000)
+	{
+		bool is_hw_address = false;
+#ifdef USE_DIRECT_HW_ACCESS
+		{
+			u16 upper = addr_max >> 16;
+			if (upper == 0x1f80 || upper == 0x9f80 || upper == 0xbf80)
+				is_hw_address = true;
+		}
+#endif
+
+		if (is_hw_address) {
+			// Address is in 64KB HW I/O port / scratchpad range
+			LoadFromConstHwAddr(count, base_reg_constval);
+		} else {
+			// Call general-case emitter, but force indirect access since
+			//  known-const address is outside lower 8MB RAM.
+			LoadFromAddr(count, true);
+		}
 		return;
 	}
 
@@ -635,12 +656,28 @@ static void StoreToConstAddr()
 		return;
 	}
 
-	// Is address in lower 8MB region? (2MB mirrored x4)
-	u32 addr_max = iRegs[_Rs_].r + imm_max;
-	if ((addr_max & 0x1fffffff) >= 0x800000) {
-		// Call general-case emitter, but force indirect access since
-		//  known-const address is outside lower 8MB RAM.
-		StoreToAddr(count, true);
+	// Is address outside lower 8MB RAM region? (2MB mirrored x4)
+	u32 base_reg_constval = iRegs[_Rs_].r;
+	u32 addr_max = base_reg_constval + imm_max;
+	if ((addr_max & 0x1fffffff) >= 0x800000)
+	{
+		bool is_hw_address = false;
+#ifdef USE_DIRECT_HW_ACCESS
+		{
+			u16 upper = addr_max >> 16;
+			if (upper == 0x1f80 || upper == 0x9f80 || upper == 0xbf80)
+				is_hw_address = true;
+		}
+#endif
+
+		if (is_hw_address) {
+			// Address is in 64KB HW I/O port range
+			StoreToConstHwAddr(count, base_reg_constval);
+		} else {
+			// Call general-case emitter, but force indirect access since
+			//  known-const address is outside lower 8MB RAM.
+			StoreToAddr(count, true);
+		}
 		return;
 	}
 
