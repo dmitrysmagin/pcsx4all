@@ -64,6 +64,7 @@
 
 #include "mips_codegen.h"
 #include "disasm.h"
+#include "host_asm.h"
 
 typedef struct {
 	u32 s;
@@ -248,11 +249,28 @@ do { \
 #endif
 
 #include "opcodes.h"
-#include <sys/cachectl.h>
 
-void clear_insn_cache(void *start, void *end, int flags)
+#ifndef HAVE_MIPS32R2_CACHE_OPS
+#include <sys/cachectl.h>
+#endif
+
+static inline void clear_insn_cache(void *start, void *end, int flags)
 {
-	cacheflush(start, (char *)end - (char *)start, ICACHE);
+#ifdef HAVE_MIPS32R2_CACHE_OPS
+	// MIPS32r2 added fine-grained usermode cache flush ability (yes, please!)
+	MIPS32R2_MakeCodeVisible(start, (char *)end - (char *)start);
+#else
+	// Use Linux system call (ends up flushing entire cache)
+	#ifdef DYNAREC_SKIP_DCACHE_FLUSH
+		// Faster, but only works if host's ICACHE pulls from DCACHE, not RAM
+		int cache_to_flush = ICACHE;
+	#else
+		// Slower, but most compatible (flush both caches)
+		int cache_to_flush = BCACHE; // ICACHE|DCACHE
+	#endif
+
+	cacheflush(start, (char *)end - (char *)start, cache_to_flush);
+#endif
 }
 
 static void recRecompile()

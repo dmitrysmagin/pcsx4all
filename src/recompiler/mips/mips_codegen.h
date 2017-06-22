@@ -34,6 +34,7 @@
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
 #define HAVE_MIPS32R2_EXT_INS
 #define HAVE_MIPS32R2_SEB_SEH
+#define HAVE_MIPS32R2_CACHE_OPS
 #endif
 
 typedef enum {
