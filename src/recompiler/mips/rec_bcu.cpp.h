@@ -1,3 +1,9 @@
+/* Optional defines (for debugging) */
+
+// Detect conditional branches on known-const reg vals, eliminating
+//  dead code and unnecessary branches.
+#define USE_CONST_BRANCH_OPTIMIZATIONS
+
 static void recSYSCALL()
 {
 	regClearJump();
@@ -119,13 +125,122 @@ static void recDelaySlot()
 	branch = 0;
 }
 
+static void iJumpNormal(u32 bpc)
+{
+#ifdef LOG_BRANCHLOADDELAYS
+	u32 dt = DelayTest(pc, bpc);
+#endif
+
+	recDelaySlot();
+
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
+	rec_recompile_end_part1();
+	regClearJump();
+
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
+
+	end_block = 1;
+}
+
+static void iJumpAL(u32 bpc, u32 nbpc)
+{
+#ifdef LOG_BRANCHLOADDELAYS
+	u32 dt = DelayTest(pc, bpc);
+#endif
+
+	u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+	LI32(ra, nbpc);
+	SetConst(31, nbpc);
+	regMipsChanged(31);
+
+	int dt = DelayTest(pc, bpc);
+	if (dt == 2) {
+		recRevDelaySlot(pc, bpc);
+		bpc += 4;
+	} else if (dt == 3 || dt == 0) {
+		recDelaySlot();
+	}
+
+	// Can block use 'fastpath' return? (branches backward to its beginning)
+	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
+
+	rec_recompile_end_part1();
+	regClearJump();
+
+	// Only need to set $v0 to new PC when not returning to 'fastpath'
+	if (!use_fastpath_return) {
+		LI32(MIPSREG_V0, bpc);     // Block retval $v0 = new PC val
+	}
+
+	rec_recompile_end_part2(use_fastpath_return);
+
+	end_block = 1;
+}
+
 /* Used for BLTZ, BGTZ, BLTZAL, BGEZAL, BLEZ, BGEZ */
 static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 {
 	u32 code = psxRegs.code;
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-
 	int dt = DelayTest(pc, bpc);
+
+#ifdef USE_CONST_BRANCH_OPTIMIZATIONS
+	// If test register is known-const, we can eliminate the branch:
+	//  If branch is taken, block will end here.
+	//  If not taken, we skip over it and continue emitting at delay slot.
+
+	// Only do const-propagated branch shortcuts if no delay-slot
+	//  trickery is detected.
+	if (IsConst(_Rs_) && ((dt == 3) || dt == 0))
+	{
+		// NOTE: Unlike normally-emitted branch code, we don't execute the delay
+		//  slot before doing branch tests when branch operands are known-const.
+		//  The way it's done here seems it'd be the correct way to do it in all
+		//  cases, but anything different causes immediate problems either way.
+		s32 val = iRegs[_Rs_].r;
+		bool branch_taken = false;
+
+		switch (code & 0xfc1f0000) {
+			case 0x04000000: /* BLTZ */
+			case 0x04100000: /* BLTZAL */
+				branch_taken = (val < 0);
+				break;
+			case 0x04010000: /* BGEZ */
+			case 0x04110000: /* BGEZAL */
+				branch_taken = (val >= 0);
+				break;
+			case 0x1c000000: /* BGTZ */
+				branch_taken = (val > 0);
+				break;
+			case 0x18000000: /* BLEZ */
+				branch_taken = (val <= 0);
+				break;
+			default:
+				printf("Error opcode=%08x\n", code);
+				exit(1);
+		}
+
+		if (branch_taken) {
+			if (andlink)
+				iJumpAL(bpc, nbpc);
+			else
+				iJumpNormal(bpc);
+		} else {
+			recDelaySlot();
+		}
+
+		// We're done here, stop emitting code
+		return;
+	}
+#endif // USE_CONST_BRANCH_OPTIMIZATIONS
+
+	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 
 	if (dt == 3 || dt == 0) {
 		recDelaySlot();
@@ -234,11 +349,48 @@ static void emitBxx(u32 bpc)
 #endif
 
 	u32 code = psxRegs.code;
+
+#ifdef USE_CONST_BRANCH_OPTIMIZATIONS
+	// If test registers are known-const, we can eliminate the branch:
+	//  If taken, block will end here.
+	//  If not taken, we skip over it and continue emitting at delay slot.
+
+	if (IsConst(_Rs_) && IsConst(_Rt_))
+	{
+		// NOTE: Unlike normally-emitted branch code, we don't execute the delay
+		//  slot before doing branch tests when branch operands are known-const.
+		//  The way it's done here seems it'd be the correct way to do it in all
+		//  cases, but anything different causes immediate problems either way.
+		s32 val1 = iRegs[_Rs_].r;
+		s32 val2 = iRegs[_Rt_].r;
+		bool branch_taken = false;
+
+		switch (code & 0xfc000000) {
+			case 0x10000000: /* BEQ */
+				branch_taken = (val1 == val2);
+				break;
+			case 0x14000000: /* BNE */
+				branch_taken = (val1 != val2);
+				break;
+			default:
+				printf("Error opcode=%08x\n", code);
+				exit(1);
+		}
+
+		if (branch_taken)
+			iJumpNormal(bpc);
+		else
+			recDelaySlot();
+
+		// We're done here, stop emitting code
+		return;
+	}
+#endif // USE_CONST_BRANCH_OPTIMIZATIONS
+
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	recDelaySlot();
 	u32 *backpatch = (u32 *)recMem;
-
 
 	// Check opcode and emit branch with REVERSED logic!
 	switch (code & 0xfc000000) {
@@ -281,65 +433,6 @@ static void emitBxx(u32 bpc)
 	fixup_branch(backpatch);
 	regUnlock(br1);
 	regUnlock(br2);
-}
-
-static void iJumpNormal(u32 bpc)
-{
-#ifdef LOG_BRANCHLOADDELAYS
-	u32 dt = DelayTest(pc, bpc);
-#endif
-
-	recDelaySlot();
-
-	// Can block use 'fastpath' return? (branches backward to its beginning)
-	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
-
-	rec_recompile_end_part1();
-	regClearJump();
-
-	// Only need to set $v0 to new PC when not returning to 'fastpath'
-	if (!use_fastpath_return) {
-		LI32(MIPSREG_V0, bpc); // Block retval $v0 = new PC val
-	}
-
-	rec_recompile_end_part2(use_fastpath_return);
-
-	end_block = 1;
-}
-
-static void iJumpAL(u32 bpc, u32 nbpc)
-{
-#ifdef LOG_BRANCHLOADDELAYS
-	u32 dt = DelayTest(pc, bpc);
-#endif
-
-	u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
-	LI32(ra, nbpc);
-	SetConst(31, nbpc);
-	regMipsChanged(31);
-
-	int dt = DelayTest(pc, bpc);
-	if (dt == 2) {
-		recRevDelaySlot(pc, bpc);
-		bpc += 4;
-	} else if (dt == 3 || dt == 0) {
-		recDelaySlot();
-	}
-
-	// Can block use 'fastpath' return? (branches backward to its beginning)
-	bool use_fastpath_return = rec_recompile_use_fastpath_return(bpc);
-
-	rec_recompile_end_part1();
-	regClearJump();
-
-	// Only need to set $v0 to new PC when not returning to 'fastpath'
-	if (!use_fastpath_return) {
-		LI32(MIPSREG_V0, bpc);     // Block retval $v0 = new PC val
-	}
-
-	rec_recompile_end_part2(use_fastpath_return);
-
-	end_block = 1;
 }
 
 static void recBLTZ()
