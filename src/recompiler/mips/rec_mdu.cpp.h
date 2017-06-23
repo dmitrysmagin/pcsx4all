@@ -8,46 +8,241 @@
 // See notes in recDIV()/recDIVU (disable for debugging purposes)
 #define OMIT_DIV_BY_ZERO_FIXUP_IF_EXCEPTION_SEQUENCE_FOUND
 
-static void recMULT() {
+// See recMULT()/recMULTU (disable for debugging purposes)
+#define USE_CONST_MULT_OPTIMIZATIONS
+
+// See recDIV()/recDIVU (disable for debugging purposes)
+#define USE_CONST_DIV_OPTIMIZATIONS
+
+
+static void recMULT()
+{
 // Lo/Hi = Rs * Rt (signed)
-	if (!(_Rs_) || !(_Rt_)) {
-		// If either operand is $r0, just store 0 in both LO/HI regs
-		SW(0, PERM_REG_1, offGPR(32)); // LO
-		SW(0, PERM_REG_1, offGPR(33)); // HI
-	} else {
-		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
-		MULT(rs, rt);
-		MFLO(TEMP_1);
-		MFHI(TEMP_2);
+#ifdef USE_CONST_MULT_OPTIMIZATIONS
+	// First, check if either or both operands are const values
+	bool rs_const = IsConst(_Rs_);
+	bool rt_const = IsConst(_Rt_);
 
-		SW(TEMP_1, PERM_REG_1, offGPR(32));
-		SW(TEMP_2, PERM_REG_1, offGPR(33));
-		regUnlock(rs);
-		regUnlock(rt);
+	if (rs_const || rt_const)
+	{
+		// Check rs_const or rt_const before using either value here!
+		s32 rs_val = iRegs[_Rs_].r;
+		s32 rt_val = iRegs[_Rt_].r;
+
+		bool const_res = false;
+		s32 lo_res = 0;
+		s32 hi_res = 0;
+
+		if ((rs_const && !rs_val) || (rt_const && !rt_val)) {
+			// If either operand is 0, both LO/HI result is 0
+			const_res = true;
+			lo_res = 0;
+			hi_res = 0;
+		} else if (rs_const && rt_const) {
+			// If both operands are known-const, compute result statically
+			s64 res = (s64)rs_val * (s64)rt_val;
+			const_res = true;
+			lo_res = (s32)res;
+			hi_res = (s32)(res >> 32);
+		} else if ((rs_const && (abs(rs_val) == 1)) || (rt_const && (abs(rt_val) == 1))) {
+			// If one of the operands is known to be const-val '+/-1', result is identity
+			//  (with negation if val is -1)
+
+			u32 ident_reg_psx = rs_const ? _Rt_ : _Rs_;
+			u32 ident_reg = regMipsToHost(ident_reg_psx, REG_LOAD, REG_REGISTER);
+
+			u32 work_reg = ident_reg;
+			bool negate_res = rs_const ? (rs_val < 0) : (rt_val < 0);
+
+			if (negate_res) {
+				SUBU(TEMP_1, 0, work_reg);
+				work_reg = TEMP_1;
+			}
+
+			SW(work_reg, PERM_REG_1, offGPR(32)); // LO
+			// Upper word is all 0s or 1s depending on sign of LO result
+			SRA(TEMP_1, work_reg, 31);
+			SW(TEMP_1, PERM_REG_1, offGPR(33));   // HI
+
+			regUnlock(ident_reg);
+
+			// We're done
+			return;
+		} else {
+			// If one of the operands is a const power-of-two, we can get result by shifting
+
+			// Determine which operand is const power-of-two value, if any
+			bool rs_pot = rs_const && (rs_val != 0x80000000) && ((abs(rs_val) & (abs(rs_val) - 1)) == 0);
+			bool rt_pot = rt_const && (rt_val != 0x80000000) && ((abs(rt_val) & (abs(rt_val) - 1)) == 0);
+
+			if (rs_pot || rt_pot) {
+				u32 npot_reg_psx = rs_pot ? _Rt_ : _Rs_;
+				u32 npot_reg = regMipsToHost(npot_reg_psx, REG_LOAD, REG_REGISTER);
+
+				// Count trailing 0s of const power-of-two operand to get left-shift amount
+				u32 pot_val = rs_pot ? (u32)abs(rs_val) : (u32)abs(rt_val);
+				u32 shift_amt = __builtin_ctz(pot_val);
+
+				u32 work_reg = npot_reg;
+				bool negate_res = rs_pot ? (rs_val < 0) : (rt_val < 0);
+				if (negate_res) {
+					SUBU(TEMP_2, 0, npot_reg);
+					work_reg = TEMP_2;
+				}
+
+				SLL(TEMP_1, work_reg, shift_amt);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+				// Sign-extend here when computing upper word of result
+				SRA(TEMP_1, work_reg, (32 - shift_amt));
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+
+				regUnlock(npot_reg);
+
+				// We're done
+				return;
+			}
+		}
+
+		if (const_res) {
+			if (lo_res) {
+				LI32(TEMP_1, (u32)lo_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			} else {
+				SW(0, PERM_REG_1, offGPR(32)); // LO
+			}
+
+			if (hi_res) {
+				LI32(TEMP_1, (u32)hi_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+			} else {
+				SW(0, PERM_REG_1, offGPR(33)); // HI
+			}
+
+			// We're done
+			return;
+		}
+
+		// We couldn't emit faster code, so fall-through here
 	}
+#endif // USE_CONST_MULT_OPTIMIZATIONS
+
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
+	MULT(rs, rt);
+	MFLO(TEMP_1);
+	MFHI(TEMP_2);
+	SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+	SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
+
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
-static void recMULTU() {
+static void recMULTU()
+{
 // Lo/Hi = Rs * Rt (unsigned)
-	if (!(_Rs_) || !(_Rt_)) {
-		// If either operand is $r0, just store 0 in both LO/HI regs
-		SW(0, PERM_REG_1, offGPR(32)); // LO
-		SW(0, PERM_REG_1, offGPR(33)); // HI
-	} else {
-		u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-		u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
-		MULTU(rs, rt);
-		MFLO(TEMP_1);
-		MFHI(TEMP_2);
+	// First, check if either or both operands are const values
+#ifdef USE_CONST_MULT_OPTIMIZATIONS
+	bool rs_const = IsConst(_Rs_);
+	bool rt_const = IsConst(_Rt_);
 
-		SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
-		SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
-		regUnlock(rs);
-		regUnlock(rt);
+	if (rs_const || rt_const)
+	{
+		// Check rs_const or rt_const before using either value here!
+		u32 rs_val = iRegs[_Rs_].r;
+		u32 rt_val = iRegs[_Rt_].r;
+
+		bool const_res = false;
+		u32 lo_res = 0;
+		u32 hi_res = 0;
+
+		if ((rs_const && !rs_val) || (rt_const && !rt_val)) {
+			// If either operand is 0, both LO/HI result is 0
+			const_res = true;
+			lo_res = 0;
+			hi_res = 0;
+		} else if (rs_const && rt_const) {
+			// If both operands are known-const, compute result statically
+			u64 res = (u64)rs_val * (u64)rt_val;
+			const_res = true;
+			lo_res = (u32)res;
+			hi_res = (u32)(res >> 32);
+		} else if ((rs_const && (rs_val == 1)) || (rt_const && (rt_val == 1))) {
+			// If one of the operands is known to be const-val '1', result is identity
+			u32 ident_reg_psx = rs_const ? _Rt_ : _Rs_;
+			u32 ident_reg = regMipsToHost(ident_reg_psx, REG_LOAD, REG_REGISTER);
+
+			SW(0, PERM_REG_1, offGPR(33));         // HI
+			SW(ident_reg, PERM_REG_1, offGPR(32)); // LO
+
+			regUnlock(ident_reg);
+
+			// We're done
+			return;
+		} else {
+			// If one of the operands is a const power-of-two, we can get result by shifting
+
+			// Determine which operand is const power-of-two value, if any
+			bool rs_pot = rs_const && ((rs_val & (rs_val - 1)) == 0);
+			bool rt_pot = rt_const && ((rt_val & (rt_val - 1)) == 0);
+
+			if (rs_pot || rt_pot) {
+				u32 npot_reg_psx = rs_pot ? _Rt_ : _Rs_;
+				u32 npot_reg = regMipsToHost(npot_reg_psx, REG_LOAD, REG_REGISTER);
+
+				// Count trailing 0s of const power-of-two operand to get left-shift amount
+				u32 pot_val = rs_pot ? rs_val : rt_val;
+				u32 shift_amt = __builtin_ctz(pot_val);
+
+				SLL(TEMP_1, npot_reg, shift_amt);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+				SRL(TEMP_1, npot_reg, (32 - shift_amt));
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+
+				regUnlock(npot_reg);
+
+				// We're done
+				return;
+			}
+		}
+
+		if (const_res) {
+			if (lo_res) {
+				LI32(TEMP_1, lo_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			} else {
+				SW(0, PERM_REG_1, offGPR(32)); // LO
+			}
+
+			if (hi_res) {
+				LI32(TEMP_1, hi_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+			} else {
+				SW(0, PERM_REG_1, offGPR(33)); // HI
+			}
+
+			// We're done
+			return;
+		}
+
+		// We couldn't emit faster code, so fall-through here
 	}
+#endif // USE_CONST_MULT_OPTIMIZATIONS
+
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
+	MULTU(rs, rt);
+	MFLO(TEMP_1);
+	MFHI(TEMP_2);
+	SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+	SW(TEMP_2, PERM_REG_1, offGPR(33)); // HI
+
+	regUnlock(rs);
+	regUnlock(rt);
 }
 
 static void recDIV()
