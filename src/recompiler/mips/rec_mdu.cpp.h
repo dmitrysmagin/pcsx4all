@@ -5,7 +5,7 @@
 	#define OMIT_DIV_BY_ZERO_HI_FIXUP
 #endif
 
-// See notes in recDIV()/recDIVU (disable for debugging purposes)
+// See recDIV()/recDIVU (disable for debugging purposes)
 #define OMIT_DIV_BY_ZERO_FIXUP_IF_EXCEPTION_SEQUENCE_FOUND
 
 // See recMULT()/recMULTU (disable for debugging purposes)
@@ -248,6 +248,109 @@ static void recMULTU()
 static void recDIV()
 {
 // Hi, Lo = rs / rt signed
+
+#ifdef USE_CONST_DIV_OPTIMIZATIONS
+	bool rs_const = IsConst(_Rs_);
+	bool rt_const = IsConst(_Rt_);
+
+	// First, check if divisor operand is const value
+	if (rt_const)
+	{
+		// Check rs_const before using rs_val value here!
+		u32 rs_val = iRegs[_Rs_].r;
+		u32 rt_val = iRegs[_Rt_].r;
+
+		if (!rt_val) {
+			// If divisor operand is const 0:
+			//  LO result is -1 if dividend is positive or zero,
+			//               +1 if dividend is negative
+			//  HI result is Rs val
+			u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+			ADDIU(TEMP_2, 0, -1);
+			SLT(TEMP_1, rs, 0);           // TEMP_1 = dividend < 0
+			MOVN(TEMP_1, TEMP_2, TEMP_1); // if (TEMP_1 != 0) TEMP_1 = TEMP_2
+			SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			SW(rs, PERM_REG_1, offGPR(33));     // HI
+
+			regUnlock(rs);
+
+			// We're done
+			return;
+		} else if (rt_val == 1) {
+			// If divisor is const-val '1', result is identity
+			u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+			SW(0, PERM_REG_1, offGPR(33));  // HI
+			SW(rs, PERM_REG_1, offGPR(32)); // LO
+
+			regUnlock(rs);
+
+			// We're done
+			return;
+		} else if (rs_const) {
+			// If both operands are known-const, compute result statically
+			u32 lo_res = rs_val / rt_val;
+			u32 hi_res = rs_val % rt_val;
+
+			if (lo_res) {
+				LI32(TEMP_1, lo_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			} else {
+				SW(0, PERM_REG_1, offGPR(32)); // LO
+			}
+
+			if (hi_res) {
+				LI32(TEMP_1, hi_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+			} else {
+				SW(0, PERM_REG_1, offGPR(33)); // HI
+			}
+
+			// We're done
+			return;
+		} else {
+			// If divisor is a const power-of-two, we can get result by shifting
+			bool rt_pot = (rt_val != 0x80000000) && ((abs(rt_val) & (abs(rt_val) - 1)) == 0);
+
+			if (rt_pot) {
+				u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+				// Count trailing 0s of const power-of-two divisor to get right-shift amount
+				u32 pot_val = (u32)abs(rt_val);
+				u32 shift_amt = __builtin_ctz(pot_val);
+
+				u32 work_reg = rs;
+				bool negate_res = (rt_val < 0);
+
+				if (negate_res) {
+					SUBU(TEMP_2, 0, rs);
+					work_reg = TEMP_2;
+				}
+
+				SRA(TEMP_1, work_reg, shift_amt);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+
+				// Subtract one from pot divisor to get remainder modulo mask
+				if ((pot_val-1) > 0xffff) {
+					LI32(TEMP_1, (pot_val-1));
+					AND(TEMP_1, rs, TEMP_1);
+				} else {
+					ANDI(TEMP_1, rs, (pot_val-1));
+				}
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+
+				regUnlock(rs);
+
+				// We're done
+				return;
+			}
+		}
+
+		// We couldn't emit faster code, so fall-through here
+	}
+#endif // USE_CONST_DIV_OPTIMIZATIONS
+
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -314,6 +417,99 @@ static void recDIV()
 static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
+
+	// First, check if divisor operand is const value
+#ifdef USE_CONST_DIV_OPTIMIZATIONS
+	bool rt_const = IsConst(_Rt_);
+
+	if (rt_const)
+	{
+		bool rs_const = IsConst(_Rs_);
+
+		// Check rs_const before using rs_val value here!
+		u32 rs_val = iRegs[_Rs_].r;
+		u32 rt_val = iRegs[_Rt_].r;
+
+		if (!rt_val) {
+			// If divisor operand is const 0:
+			//  LO result is 0xffff_ffff
+			//  HI result is Rs val
+			u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+			ADDIU(TEMP_1, 0, -1);
+			SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			SW(rs, PERM_REG_1, offGPR(33));     // HI
+
+			regUnlock(rs);
+
+			// We're done
+			return;
+		} else if (rt_val == 1) {
+			// If divisor is const-val '1', result is identity
+			u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+			SW(0, PERM_REG_1, offGPR(33));  // HI
+			SW(rs, PERM_REG_1, offGPR(32)); // LO
+
+			regUnlock(rs);
+
+			// We're done
+			return;
+		} else if (rs_const) {
+			// If both operands are known-const, compute result statically
+			u32 lo_res = rs_val / rt_val;
+			u32 hi_res = rs_val % rt_val;
+
+			if (lo_res) {
+				LI32(TEMP_1, lo_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+			} else {
+				SW(0, PERM_REG_1, offGPR(32)); // LO
+			}
+
+			if (hi_res) {
+				LI32(TEMP_1, hi_res);
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+			} else {
+				SW(0, PERM_REG_1, offGPR(33)); // HI
+			}
+
+			// We're done
+			return;
+		} else {
+			// If divisor is a const power-of-two, we can get result by shifting
+			bool rt_pot = (rt_val & (rt_val - 1)) == 0;
+
+			if (rt_pot) {
+				u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+
+				// Count trailing 0s of const power-of-two divisor to get right-shift amount
+				u32 pot_val = rt_val;
+				u32 shift_amt = __builtin_ctz(pot_val);
+
+				SRL(TEMP_1, rs, shift_amt);
+				SW(TEMP_1, PERM_REG_1, offGPR(32)); // LO
+
+				// Subtract one from pot divisor to get remainder modulo mask
+				if ((pot_val-1) > 0xffff) {
+					LI32(TEMP_1, (pot_val-1));
+					AND(TEMP_1, rs, TEMP_1);
+				} else {
+					ANDI(TEMP_1, rs, (pot_val-1));
+				}
+				SW(TEMP_1, PERM_REG_1, offGPR(33)); // HI
+
+				regUnlock(rs);
+
+				// We're done
+				return;
+			}
+		}
+
+		// We couldn't emit faster code, so fall-through here
+	}
+#endif // USE_CONST_DIV_OPTIMIZATIONS
+
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
