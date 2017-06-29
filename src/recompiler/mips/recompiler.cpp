@@ -281,7 +281,6 @@ static void recRecompile()
 	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
 		recReset();
 
-	recMem = (u32*)(((u32)recMem + 64) & ~(63));
 	recMemStart = recMem;
 
 	regReset();
