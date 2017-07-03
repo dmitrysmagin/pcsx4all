@@ -5,7 +5,7 @@
 // Generate inline HW I/O port reads/writes (see rec_lsu_hw.cpp.h)
 #define USE_DIRECT_HW_ACCESS
 
-// Assume that stores using $k0,$k1,$sp as base registers aren't used
+// Assume that stores using $k0,$k1,$gp,$sp as base registers aren't used
 //  to modify code. Code invalidation is skipped for these.
 #define SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
 
@@ -495,8 +495,8 @@ static void StoreToAddr(int count, bool force_indirect)
 		bool skip_code_invalidation = false;
 #ifdef SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
 		// Skip code invalidation when base register in use is obviously not
-		//  involved in code modification ($k0,$k1,$sp).
-		if (_Rs_ == 26 || _Rs_ == 27 || _Rs_ == 29)
+		//  involved in code modification ($k0,$k1,$gp,$sp).
+		if (_Rs_ >= 26 && _Rs_ <= 29)
 			skip_code_invalidation = true;
 #endif
 
