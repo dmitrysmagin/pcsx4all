@@ -197,6 +197,9 @@ void config_load()
 		} else if (!strcmp(line, "HLE")) {
 			sscanf(arg, "%d", &value);
 			Config.HLE = value;
+		} else if (!strcmp(line, "SlowBoot")) {
+			sscanf(arg, "%d", &value);
+			Config.SlowBoot = value;
 		} else if (!strcmp(line, "RCntFix")) {
 			sscanf(arg, "%d", &value);
 			Config.RCntFix = value;
@@ -345,6 +348,7 @@ void config_save()
 		   "PsxAuto %d\n"
 		   "Cdda %d\n"
 		   "HLE %d\n"
+		   "SlowBoot %d\n"
 		   "RCntFix %d\n"
 		   "VSyncWA %d\n"
 		   "Cpu %d\n"
@@ -357,7 +361,7 @@ void config_save()
 		   "FrameLimit %d\n"
 		   "FrameSkip %d\n",
 		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto,
-		   Config.Cdda, Config.HLE, Config.RCntFix, Config.VSyncWA,
+		   Config.Cdda, Config.HLE, Config.SlowBoot, Config.RCntFix, Config.VSyncWA,
 		   Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio,
 		   Config.SpuUpdateFreq, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit,
 		   Config.FrameSkip);
@@ -627,6 +631,7 @@ int main (int argc, char **argv)
 #else
 	Config.Cpu=1; /* 0=recompiler, 1=interpreter */
 #endif
+	Config.SlowBoot=0; /* 0=skip bios logo sequence on boot  1=show sequence (does not apply to HLE) */
 	Config.RCntFix=0; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	Config.VSyncWA=0; /* 1=InuYasha Sengoku Battle Fix */
 	Config.SpuIrq=0; /* 1=SPU IRQ always on, fixes some games */
@@ -774,6 +779,10 @@ int main (int argc, char **argv)
 		// Interpreter enabled
 		if (strcmp(argv[i],"-interpreter") == 0)
 			Config.Cpu = 1;
+
+		// Show BIOS logo sequence at BIOS startup (doesn't apply to HLE)
+		if (strcmp(argv[i],"-slowboot") == 0)
+			Config.SlowBoot = 1;
 
 		// Parasite Eve 2, Vandal Hearts 1/2 Fix
 		if (strcmp(argv[i],"-rcntfix") == 0)

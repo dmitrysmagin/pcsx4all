@@ -132,6 +132,7 @@ typedef struct {
 	boolean PsxAuto; /* 1=autodetect system (pal or ntsc) */
 	boolean Cdda; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	boolean HLE; /* 1=HLE, 0=bios */
+	boolean SlowBoot; /* 0=skip bios logo sequence on boot  1=show sequence (does not apply to HLE) */
 	boolean RCntFix; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
 	u8 Cpu; /* 0=recompiler, 1=interpreter */
