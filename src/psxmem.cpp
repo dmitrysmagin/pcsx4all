@@ -51,6 +51,28 @@ static void munmap_psxM();
 #endif
 
 
+/* Memory statistics (for development purposes) */
+
+//#define DEBUG_MEM_STATS
+
+enum MemstatType   { MEMSTAT_TYPE_READ, MEMSTAT_TYPE_WRITE, MEMSTAT_TYPE_COUNT };
+enum MemstatWidth  { MEMSTAT_WIDTH_8, MEMSTAT_WIDTH_16, MEMSTAT_WIDTH_32, MEMSTAT_WIDTH_COUNT };
+enum MemstatRegion { MEMSTAT_REGION_ANY, MEMSTAT_REGION_RAM, MEMSTAT_REGION_BLOCKED,
+                     MEMSTAT_REGION_PPORT, MEMSTAT_REGION_SCRATCHPAD, MEMSTAT_REGION_HW,
+                     MEMSTAT_REGION_ROM, MEMSTAT_REGION_CACHE, MEMSTAT_REGION_COUNT };
+#ifdef DEBUG_MEM_STATS
+static void memstats_reset();
+static void memstats_print();
+static void memstats_add_read(u32 addr, MemstatWidth width);
+static void memstats_add_write(u32 addr, MemstatWidth width);
+#else
+static inline void memstats_reset() {}
+static inline void memstats_print() {}
+static inline void memstats_add_read(u32 addr, MemstatWidth width) {}
+static inline void memstats_add_write(u32 addr, MemstatWidth width) {}
+#endif // DEBUG_MEM_STATS
+
+
 s8 *psxM = NULL;
 s8 *psxP = NULL;
 s8 *psxR = NULL;
@@ -147,6 +169,8 @@ void psxMemReset() {
 	FILE *f = NULL;
 	char bios[MAXPATHLEN];
 
+	memstats_reset();
+
 	memset(psxM, 0, 0x200000);
 	memset(psxP, 0, 0x10000);
 	memset(psxR, 0, 0x80000);    // Bios memory
@@ -215,10 +239,13 @@ void psxMemShutdown()
 	free(psxMemRLUT);   psxMemRLUT = NULL;
 	free(psxMemWLUT);   psxMemWLUT = NULL;
 	free(psxNULLread);  psxNULLread = NULL;
+
+	memstats_print();
 }
 
 u8 psxMemRead8(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_8);
 	u8 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -244,6 +271,7 @@ u8 psxMemRead8(u32 mem)
 
 u16 psxMemRead16(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_16);
 	u16 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -269,6 +297,7 @@ u16 psxMemRead16(u32 mem)
 
 u32 psxMemRead32(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_32);
 	u32 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -294,6 +323,7 @@ u32 psxMemRead32(u32 mem)
 
 void psxMemWrite8(u32 mem, u8 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_8);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -318,6 +348,7 @@ void psxMemWrite8(u32 mem, u8 value)
 
 void psxMemWrite16(u32 mem, u16 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_16);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -342,6 +373,7 @@ void psxMemWrite16(u32 mem, u16 value)
 
 void psxMemWrite32(u32 mem, u32 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_32);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -615,3 +647,112 @@ void psxMemWrite32_direct(u32 mem, u32 value,void *_regs) {
 			*((u32 *)&regs->psxP[m]) = value;
 	}
 }
+
+
+#ifdef DEBUG_MEM_STATS
+///////////////////////////////////////////////////////////////////////////////
+// -BEGIN- Memory statistics (for development purposes)
+///////////////////////////////////////////////////////////////////////////////
+long long unsigned int memstats[MEMSTAT_TYPE_COUNT][MEMSTAT_REGION_COUNT][MEMSTAT_WIDTH_COUNT];
+
+static void memstats_reset()
+{
+	memset((void*)memstats, 0, sizeof(memstats));
+}
+
+static void memstats_region_print(const char *region_description, MemstatRegion region)
+{
+	char separator_line[81];
+	strncpy(separator_line, region_description, 80);
+	separator_line[80] = '\0';
+	int i = strlen(separator_line);
+	if (i < (sizeof(separator_line)-1))
+		memset(separator_line+i, '-', sizeof(separator_line)-1-i);
+
+	printf("%s\n"
+	       "  reads:%23llu %23llu %23llu\n"
+	       " writes:%23llu %23llu %23llu\n",
+	       separator_line,
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_8],
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_16],
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_32],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_8],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_16],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_32]);
+}
+
+static void memstats_print()
+{
+	printf("MEMORY STATS:              byte                   short                    word\n");
+	memstats_region_print("BLOCKED RAM (ISOLATED CACHE)", MEMSTAT_REGION_BLOCKED);
+	memstats_region_print("PPORT (ROM EXPANSION)",        MEMSTAT_REGION_PPORT);
+	memstats_region_print("ROM",                          MEMSTAT_REGION_ROM);
+	memstats_region_print("CACHE CTRL PORT",              MEMSTAT_REGION_CACHE);
+	memstats_region_print("RAM",                          MEMSTAT_REGION_RAM);
+	memstats_region_print("SCRATCHPAD",                   MEMSTAT_REGION_SCRATCHPAD);
+	memstats_region_print("HW I/O",                       MEMSTAT_REGION_HW);
+	memstats_region_print("TOTAL",                        MEMSTAT_REGION_ANY);
+}
+
+static inline void memstats_add_read(u32 addr, MemstatWidth width)
+{
+	MemstatRegion region;
+	addr &= 0xfffffff;
+	switch (addr >> 16) {
+		case 0x0000 ... 0x007f:
+			region = MEMSTAT_REGION_RAM;
+			break;
+		case 0x0f00 ... 0x0f7f:
+			region = MEMSTAT_REGION_PPORT;
+			break;
+		case 0x0f80:
+			if ((addr & 0xffff) < 0x0400)
+				region = MEMSTAT_REGION_SCRATCHPAD;
+			else
+				region = MEMSTAT_REGION_HW;
+			break;
+		case 0x0ffe:
+			region = MEMSTAT_REGION_CACHE;
+			break;
+		default:
+			region = MEMSTAT_REGION_ROM;
+			break;
+	}
+	memstats[MEMSTAT_TYPE_READ][region][width]++;
+	memstats[MEMSTAT_TYPE_READ][MEMSTAT_REGION_ANY][width]++;
+}
+
+static inline void memstats_add_write(u32 addr, MemstatWidth width)
+{
+	MemstatRegion region;
+	addr &= 0xfffffff;
+	switch (addr >> 16) {
+		case 0x0000 ... 0x007f:
+			if (psxRegs.writeok)
+				region = MEMSTAT_REGION_RAM;
+			else
+				region = MEMSTAT_REGION_BLOCKED;
+			break;
+		case 0x0f00 ... 0x0f7f:
+			region = MEMSTAT_REGION_PPORT;
+			break;
+		case 0x0f80:
+			if ((addr & 0xffff) < 0x0400)
+				region = MEMSTAT_REGION_SCRATCHPAD;
+			else
+				region = MEMSTAT_REGION_HW;
+			break;
+		case 0x0ffe:
+			region = MEMSTAT_REGION_CACHE;
+			break;
+		default:
+			region = MEMSTAT_REGION_ROM;
+			break;
+	}
+	memstats[MEMSTAT_TYPE_WRITE][region][width]++;
+	memstats[MEMSTAT_TYPE_WRITE][MEMSTAT_REGION_ANY][width]++;
+}
+///////////////////////////////////////////////////////////////////////////////
+// -END- Memory statistics (for development purposes)
+///////////////////////////////////////////////////////////////////////////////
+#endif // DEBUG_MEM_STATS
