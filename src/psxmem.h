@@ -46,12 +46,6 @@
 
 #endif
 
-/* This is used for direct writes in mips recompiler */
-#if defined(PSXREC) && \
-	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-extern bool psxM_mirrored;
-#endif
-
 extern s8 *psxM;
 #define psxMs8(mem)		psxM[(mem) & 0x1fffff]
 #define psxMs16(mem)	(SWAP16(*(s16*)&psxM[(mem) & 0x1fffff]))

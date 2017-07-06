@@ -75,6 +75,7 @@ ifdef RECOMPILER
 OBJS += \
 	obj/recompiler/mips/recompiler.o \
 	obj/recompiler/mips/host_asm.o \
+	obj/recompiler/mips/mem_mapping.o \
 	obj/recompiler/mips/mips_codegen.o \
 	obj/recompiler/mips/mips_disasm.o
 endif

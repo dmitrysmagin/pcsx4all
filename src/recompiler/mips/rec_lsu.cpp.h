@@ -9,10 +9,10 @@
 //  to modify code. Code invalidation is skipped for these.
 #define SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
 
-// Upper/lower 64K of PSX RAM (psxM[]) is now mirrored to virtual address
-//  regions surrounding psxM[]. This allows skipping mirror-region boundary
-//  check which special-cased loads/stores that crossed the boundary, the
-//  Einhander game fix. See notes in psxmem.cpp.
+// 2MB of PSX RAM (psxM) is now mirrored four times in virtual address
+//  space, like a real PS1. This allows skipping mirror-region boundary
+//  checks which special-cased loads/stores that crossed the boundary,
+//  the 'Einhander' game fix. See notes in mem_mapping.cpp.
 #if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 #define SKIP_SAME_2MB_REGION_CHECK
 #endif

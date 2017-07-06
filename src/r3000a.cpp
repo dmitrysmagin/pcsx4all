@@ -50,9 +50,11 @@ int psxInit() {
 	psxCpu = &psxInt;
 #endif
 
-	if (psxMemInit() == -1) return -1;
-
-	return psxCpu->Init();
+	// Initialize CPU *before* calling psxMemInit(), so it can make any
+	//  memory mappings it needs for psxM,psxH etc.
+	if (psxCpu->Init() < 0)
+		return -1;
+	return psxMemInit();
 }
 
 void psxReset() {
@@ -84,10 +86,13 @@ void psxReset() {
 }
 
 void psxShutdown() {
+	// Shutdown CPU *before* calling psxMemShutdown(), to allow it to unmap
+	//  psxM,psxH etc, if it has done so.
+	psxCpu->Shutdown();
+
 	psxMemShutdown();
 	psxBiosShutdown();
 
-	psxCpu->Shutdown();
 }
 
 void psxException(u32 code, u32 bd) {

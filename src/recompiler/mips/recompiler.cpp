@@ -62,6 +62,7 @@
 //#define WITH_DISASM
 //#define DEBUGG printf
 
+#include "mem_mapping.h"
 #include "mips_codegen.h"
 #include "disasm.h"
 #include "host_asm.h"
@@ -358,10 +359,16 @@ static int recInit()
 	for (i = 0; i < 0x08; i++)
 		psxRecLUT[i + 0xbfc0] = (u32)&recROM[i << 16];
 
+	// Map/mirror PSX RAM, other regions
+	rec_mmap_psx_mem();
+
 	return 0;
 }
 
-static void recShutdown() { }
+static void recShutdown()
+{
+	rec_munmap_psx_mem();
+}
 
 /* It seems there's no way to tell GCC that something is being called inside
  * asm() blocks and GCC doesn't bother to save temporaries to stack.
