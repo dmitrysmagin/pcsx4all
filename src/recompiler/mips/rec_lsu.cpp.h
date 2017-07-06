@@ -1,8 +1,7 @@
-// Generate inline psxMemRead/Write or call them as-is
-#define USE_DIRECT_MEM_ACCESS
+// Const propagation is applied to addresses
 #define USE_CONST_ADDRESSES
 
-// Generate inline HW I/O port reads/writes (see rec_lsu_hw.cpp.h)
+// Inline access to known-const HW,Scratchpad addresses (see rec_lsu_hw.cpp.h)
 #define USE_DIRECT_HW_ACCESS
 
 // Assume that stores using $k0,$k1,$gp,$sp as base registers aren't used
@@ -13,7 +12,7 @@
 //  space, like a real PS1. This allows skipping mirror-region boundary
 //  checks which special-cased loads/stores that crossed the boundary,
 //  the 'Einhander' game fix. See notes in mem_mapping.cpp.
-#if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
+#ifdef PSX_MEM_MAPPED_AND_MIRRORED
 #define SKIP_SAME_2MB_REGION_CHECK
 #endif
 
@@ -35,33 +34,6 @@ static void disasm_psx(u32 pc)
 	printf("%08x: %08x %s\n", pc, opcode, buffer);
 }
 #endif
-
-/* Emit address calculation and store to TEMP_2 */
-static void emitAddrCalc(u32 r1)
-{
-	// IMPORTANT: emitAddrCalc() promises to only write to TEMP_1,TEMP_2
-
-	if ((u32)psxM == 0x10000000) {
-		// psxM base is mmap'd at virtual address 0x10000000
-		LUI(TEMP_2, 0x1000);
-#ifdef HAVE_MIPS32R2_EXT_INS
-		INS(TEMP_2, r1, 0, 0x15); // TEMP_2 = 0x10000000 | (r1 & 0x1fffff)
-#else
-		SLL(TEMP_1, r1, 11);
-		SRL(TEMP_1, TEMP_1, 11);
-		OR(TEMP_2, TEMP_2, TEMP_1);
-#endif
-	} else {
-		LW(TEMP_2, PERM_REG_1, off(psxM));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, r1, 0, 0x15);
-#else
-		SLL(TEMP_1, r1, 11);
-		SRL(TEMP_1, TEMP_1, 11);
-#endif
-		ADDU(TEMP_2, TEMP_2, TEMP_1);
-	}
-}
 
 s32 imm_max, imm_min;
 
@@ -185,8 +157,7 @@ static void LoadFromAddr(int count, bool force_indirect)
 		u32 *backpatch_label_hle_1 = (u32 *)recMem;
 		BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
 
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1
+		// NOTE: Branch delay slot contains next emitted instruction
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 		/* Check if addr and addr+imm are in the same 2MB region */
@@ -198,16 +169,16 @@ static void LoadFromAddr(int count, bool force_indirect)
 		ANDI(TEMP_3, TEMP_3, 7);
 		SRL(MIPSREG_A1, MIPSREG_A0, 21);
 		ANDI(MIPSREG_A1, MIPSREG_A1, 7);
-#endif
+#endif // !SKIP_SAME_2MB_REGION_CHECK
+
 		u32 *backpatch_label_hle_2 = (u32 *)recMem;
 		BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
+		// NOTE: Branch delay slot contains next emitted instruction
 
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1, TEMP_3
-#endif
+#endif // !SKIP_SAME_2MB_REGION_CHECK
 
-		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
-		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
+		emitAddressConversion(TEMP_2, r1, TEMP_1);
 
 		int icount = count;
 		do {
@@ -447,7 +418,7 @@ static void StoreToAddr(int count, bool force_indirect)
 		//  on a real PS1, so no need to worry about imm offsets reaching them.
 		//  Base addresses with offsets wrapping to next/prior mirror region are
 		//  handled either with masking further below, or by emulation of mirrors
-		//  using mmap'd virtual mem (SKIP_SAME_2MB_REGION_CHECK, see psxmem.cpp).
+		//  using mmap'd virtual mem (see mem_mapping.cpp)
 		//    MIPSREG_A0 is left set to the eff address of first store in series,
 		//  saving emitting an instruction in first loop iterations further below.
 		// ---- Equivalent C code: ----
@@ -469,8 +440,7 @@ static void StoreToAddr(int count, bool force_indirect)
 			backpatch_label_hle_1 = (u32 *)recMem;
 			BNE(TEMP_3, 0, 0);
 		}
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1
+		// NOTE: Branch delay slot contains next emitted instruction
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 		/* Check if addr and addr+imm are in the same 2MB region */
@@ -482,15 +452,15 @@ static void StoreToAddr(int count, bool force_indirect)
 		ANDI(TEMP_3, TEMP_3, 7);
 		SRL(MIPSREG_A1, MIPSREG_A0, 21);
 		ANDI(MIPSREG_A1, MIPSREG_A1, 7);
-#endif
+#endif // !SKIP_SAME_2MB_REGION_CHECK
+
 		u32 *backpatch_label_hle_2 = (u32 *)recMem;
 		BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1, TEMP_3
+		// NOTE: Branch delay slot contains next emitted instruction
 #endif
 
-		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
-		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
+		emitAddressConversion(TEMP_2, r1, TEMP_1);
 
 		bool skip_code_invalidation = false;
 #ifdef SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
@@ -845,11 +815,10 @@ static void gen_LWL_LWR(int count, bool force_indirect)
 		u32 *backpatch_label_hle_1 = (u32 *)recMem;
 		BGTZ(MIPSREG_A1, 0); // beqz MIPSREG_A1, label_hle
 
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1
+		// NOTE: Branch delay slot contains next emitted instruction
 
-		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
-		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
+		emitAddressConversion(TEMP_2, r1, TEMP_1);
 
 		icount = count;
 		do {
@@ -1021,11 +990,10 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 			backpatch_label_hle_1 = (u32 *)recMem;
 			BNE(TEMP_3, 0, 0);
 		}
-		// NOTE: Branch delay slot contains next emitted instruction,
-		//       which should not write to MIPSREG_A1
+		// NOTE: Branch delay slot contains next emitted instruction
 
-		// NOTE: emitAddrCalc() promises to only write to TEMP_1, TEMP_2
-		emitAddrCalc(r1); // TEMP_2 == recalculated addr
+		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
+		emitAddressConversion(TEMP_2, r1, TEMP_1);
 
 		LUI(TEMP_3, ADR_HI(recRAM)); // temp_3 = upper code block ptr array addr
 		icount = count;

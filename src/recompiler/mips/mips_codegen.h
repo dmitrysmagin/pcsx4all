@@ -37,6 +37,8 @@
 #define HAVE_MIPS32R2_CACHE_OPS
 #endif
 
+extern u32 *recMem;
+
 typedef enum {
 	MIPSREG_V0 = 2,
 	MIPSREG_V1,
@@ -417,6 +419,7 @@ do { \
 
 
 /* Defined in mips_codegen.cpp */
+void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg);
 int rec_scan_for_div_by_zero_check_sequence(u32 code_loc);
 int rec_scan_for_MFHI_MFLO_sequence(u32 code_loc);
 int rec_discard_scan(u32 code_loc, int *discard_type);

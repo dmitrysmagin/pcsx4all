@@ -59,6 +59,18 @@
  */
 #define USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
 
+/* Generate inline memory access or call psxMemRead/Write C functions */
+#define USE_DIRECT_MEM_ACCESS
+
+/* 2MB of PSX RAM (psxM) is now mirrored four times in virtual address space,
+ *  like a real PS1. This allows skipping mirror-region checks, the 'Einhander'
+ *  game fix, and eliminates need to mask RAM addresses. We also map 0x1fxx_xxxx
+ *  regions (psxP,psxH) into this virtual space, optimizing scratchpad access.
+ */
+#if defined(USE_DIRECT_MEM_ACCESS) && (defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
+#define PSX_MEM_MAPPED_AND_MIRRORED
+#endif
+
 //#define WITH_DISASM
 //#define DEBUGG printf
 
@@ -94,7 +106,7 @@ static u32 psxRecLUT[0x010000];
 #define REC_MAX_OPCODES		80
 
 static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
-static u32 *recMem; /* the recompiled blocks will be here */
+u32 *recMem; /* the recompiled blocks will be here */
 static s8 recRAM[0x200000] __attribute__((aligned(4))); /* and the ptr to the blocks here */
 static s8 recROM[0x080000] __attribute__((aligned(4))); /* and here */
 static u32 pc;					/* recompiler pc */
