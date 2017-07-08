@@ -1,3 +1,11 @@
+/* Compile-time options (disable for debugging) */
+
+// Skip unnecessary write-back of GTE regs in emitMFC2(). The interpreter does
+//  this in its MFC2, and from review of GTE code it seems pointless and just
+//  creates load stalls.
+#define SKIP_MFC2_WRITEBACK
+
+
 #define CP2_FUNC(f) \
 extern void gte##f(); \
 void rec##f() \
@@ -82,22 +90,13 @@ static void recCTC2()
 	regUnlock(rt);
 }
 
-/* Limit rt to [0 .. 0x1f] */
-static void emitLIM(u32 rt)
+/* Limit rt to [min_reg .. max_reg], tmp_reg is overwritten  */
+static void emitLIM(u32 rt, u32 min_reg, u32 max_reg, u32 tmp_reg)
 {
-	u32 *patch;
-
-	SLT(1, rt, 0);			// $at = (rt < 0 ? 1 : 0)
-	patch = (u32 *)recMem;
-	BNE(1, 0, 0);			// if ($at != 0) goto end
-	MOVN(rt, 0, 1);			// <BD> if ($at != 0) rt = 0
-
-	LI16(MIPSREG_V0, 0x1f);		// $v0 = 0x1f
-	SLTI(1, rt, 0x20);		// $at = (rt < 0x20 ? 1 : 0)
-	MOVZ(rt, MIPSREG_V0, 1);	// if ($at == 0) rt = $v0
-
-	// end:
-	fixup_branch(patch);
+	SLT(tmp_reg, rt, min_reg);    // tmp_reg = (rt < min_reg ? 1 : 0)
+	MOVN(rt, min_reg, tmp_reg);   // if (tmp_reg) rt = min_reg
+	SLT(tmp_reg, max_reg, rt);    // tmp_reg = (max_reg < rt ? 1 : 0)
+	MOVN(rt, max_reg, tmp_reg);   // if (tmp_reg) rt = max_reg
 }
 
 /* move from cp2 reg to host rt */
@@ -106,48 +105,68 @@ static void emitMFC2(u32 rt, u32 reg)
 	switch (reg) {
 	case 1: case 3: case 5: case 8: case 9: case 10: case 11:
 		LH(rt, PERM_REG_1, off(CP2D.r[reg]));
+#ifndef SKIP_MFC2_WRITEBACK
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+#endif
 		break;
 
 	case 7: case 16: case 17: case 18: case 19:
 		LHU(rt, PERM_REG_1, off(CP2D.r[reg]));
+#ifndef SKIP_MFC2_WRITEBACK
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+#endif
 		break;
 
 	case 15:
 		LW(rt, PERM_REG_1, off(CP2D.r[14])); // gteSXY2
+#ifndef SKIP_MFC2_WRITEBACK
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
+#endif
 		break;
 
 	//senquack - Applied fix, see comment in gte.cpp gtecalcMFC2()
 	case 28: case 29:
-		LH(rt, PERM_REG_1, off(CP2D.p[9].sw.l)); // gteIR1
-		SRA(rt, rt, 7);
-		emitLIM(rt);
+		/* NOTE: We skip the reg assignment here and just return result.
+		psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
+		                     (LIM(gteIR2 >> 7, 0x1f, 0, 0) << 5) |
+		                     (LIM(gteIR3 >> 7, 0x1f, 0, 0) << 10);
+		*/
+
+		LH(rt,     PERM_REG_1, off(CP2D.p[9].sw.l)); // gteIR1
 		LH(TEMP_1, PERM_REG_1, off(CP2D.p[10].sw.l)); // gteIR2
+		LH(TEMP_2, PERM_REG_1, off(CP2D.p[11].sw.l)); // gteIR3
+
+		// After the right-shift, we clamp the components to 0..1f
+		LI16(MIPSREG_V0, 0x1f);                     // MIPSREG_V0 is upper limit
+
+		// gteIR1:
+		SRA(rt, rt, 7);
+		emitLIM(rt, 0, MIPSREG_V0, MIPSREG_V1);     // MIPSREG_V1 is overwritten temp reg
+
+		// gteIR2:
 		SRA(TEMP_1, TEMP_1, 7);
-		emitLIM(TEMP_1);
+		emitLIM(TEMP_1, 0, MIPSREG_V0, MIPSREG_V1); // MIPSREG_V1 is overwritten temp reg
 #ifdef HAVE_MIPS32R2_EXT_INS
 		INS(rt, TEMP_1, 5, 5);
 #else
 		SLL(TEMP_1, TEMP_1, 5);
 		OR(rt, rt, TEMP_1);
 #endif
-		LH(TEMP_1, PERM_REG_1, off(CP2D.p[11].sw.l)); // gteIR3
-		SRA(TEMP_1, TEMP_1, 7);
-		emitLIM(TEMP_1);
+
+		//gteIR3:
+		SRA(TEMP_2, TEMP_2, 7);
+		emitLIM(TEMP_2, 0, MIPSREG_V0, MIPSREG_V1); // MIPSREG_V1 is overwritten temp reg
 #ifdef HAVE_MIPS32R2_EXT_INS
-		INS(rt, TEMP_1, 10, 5);
+		INS(rt, TEMP_2, 10, 5);
 #else
-		SLL(TEMP_1, TEMP_1, 10);
-		OR(rt, rt, TEMP_1);
+		SLL(TEMP_2, TEMP_2, 10);
+		OR(rt, rt, TEMP_2);
 #endif
+
+#ifndef SKIP_MFC2_WRITEBACK
 		SW(rt, PERM_REG_1, off(CP2D.r[29]));
-		/*
-		psxRegs.CP2D.r[reg] = LIM(gteIR1 >> 7, 0x1f, 0, 0) |
-				(LIM(gteIR2 >> 7, 0x1f, 0, 0) << 5) |
-				(LIM(gteIR3 >> 7, 0x1f, 0, 0) << 10);
-		*/
+#endif
+
 		break;
 	default:
 		LW(rt, PERM_REG_1, off(CP2D.r[reg]));
