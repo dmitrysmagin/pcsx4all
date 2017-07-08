@@ -1,5 +1,13 @@
 /* Compile-time options (disable for debugging) */
 
+// Generate inline memory access for LWC2/SWC2 or call psxMemRead/Write C
+//  functions. This feature assumes that all addresses accessed are in PS1
+//  RAM or scratchpad, which should be safe. It depends on a mapped and
+//  mirrored virtual address space.
+#ifdef PSX_MEM_MAPPED_AND_MIRRORED
+#define USE_GTE_DIRECT_MEM_ACCESS
+#endif
+
 // Skip unnecessary write-back of GTE regs in emitMFC2(). The interpreter does
 //  this in its MFC2, and from review of GTE code it seems pointless and just
 //  creates load stalls.
@@ -102,6 +110,11 @@ static void emitLIM(u32 rt, u32 min_reg, u32 max_reg, u32 tmp_reg)
 /* move from cp2 reg to host rt */
 static void emitMFC2(u32 rt, u32 reg)
 {
+	// IMPORTANT: Don't overwrite these regs in this function, as they are
+	//            reserved for use by LWC2/SWC2 emitter which calls here.
+	//            (MIPSREG_V0 is OK to use, unlike emitMTC2())
+	// TEMP_3, MIPSREG_A1
+
 	switch (reg) {
 	case 1: case 3: case 5: case 8: case 9: case 10: case 11:
 		LH(rt, PERM_REG_1, off(CP2D.r[reg]));
@@ -177,6 +190,10 @@ static void emitMFC2(u32 rt, u32 reg)
 /* move from host rt to cp2 reg */
 static void emitMTC2(u32 rt, u32 reg)
 {
+	//IMPORTANT: Don't overwrite these regs in this function, as they are
+	//           reserved for use by LWC2/SWC2 emitter which calls here.
+	// TEMP_3, MIPSREG_A1, MIPSREG_V0
+
 	switch (reg) {
 	case 15:
 		LW(TEMP_1, PERM_REG_1, off(CP2D.p[13])); // tmp_gteSXY1 = gteSXY1
@@ -247,26 +264,94 @@ static void recMTC2()
 	regUnlock(rt);
 }
 
+static int count_LWC2_SWC2()
+{
+	int count = 0;
+	u32 PC = pc;
+	u32 opcode = psxRegs.code;
+	u32 rs = _Rs_;
+
+	/* If in delay slot, set count to 1 */
+	if (branch)
+		return 1;
+
+	/* rs should be the same, imm and rt could be different */
+	while ((_fOp_(opcode) == 0x32 || _fOp_(opcode) == 0x3a) && rs == _fRs_(opcode)) {
+		opcode = *(u32 *)((char *)PSXM(PC));
+		PC += 4;
+		count++;
+	}
+
+	return count;
+}
+
+static void gen_LWC2_SWC2()
+{
+	int count = count_LWC2_SWC2();
+
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 PC = pc - 4;
+
+#ifdef WITH_DISASM
+	for (int i = 0; i < count-1; i++)
+		DISASM_PSX(pc + i * 4);
+#endif
+
+	bool direct_mem = false;
+#ifdef USE_GTE_DIRECT_MEM_ACCESS
+	direct_mem = psx_mem_mapped;
+#endif
+
+	if (direct_mem)
+	{
+		// TEMP_3 = converted 'rs' base reg, TEMP_1 used as temp reg
+		emitAddressConversion(TEMP_3, rs, TEMP_1);
+
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+
+			if (_fOp_(opcode) == 0x32) {
+				// LWC2
+				LW(MIPSREG_A1, TEMP_3, _fImm_(opcode));
+				emitMTC2(MIPSREG_A1, _fRt_(opcode));
+
+			} else {
+				// SWC2
+				emitMFC2(MIPSREG_A1, _fRt_(opcode));
+				SW(MIPSREG_A1, TEMP_3, _fImm_(opcode));
+			}
+			PC += 4;
+		} while (--count);
+	} else
+	{
+		do {
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+
+			if (_fOp_(opcode) == 0x32) {
+				// LWC2
+				JAL(psxMemRead32);                     // Read value from memory
+				ADDIU(MIPSREG_A0, rs, _fImm_(opcode)); // <BD>
+				emitMTC2(MIPSREG_V0, _fRt_(opcode));   // Move value read to GTE reg
+			} else {
+				// SWC2
+				emitMFC2(MIPSREG_A1, _fRt_(opcode));   // Get GTE reg value
+				JAL(psxMemWrite32);                    // Write GTE reg to memory
+				ADDIU(MIPSREG_A0, rs, _fImm_(opcode)); // <BD>
+			}
+			PC += 4;
+		} while (--count);
+	}
+
+	pc = PC;
+	regUnlock(rs);
+}
+
 static void recLWC2()
 {
-	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-
-	JAL(psxMemRead32);
-	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
-
-	emitMTC2(MIPSREG_V0, _Rt_);
-
-	regUnlock(rs);
+	gen_LWC2_SWC2();
 }
 
 static void recSWC2()
 {
-	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
-
-	emitMFC2(MIPSREG_A1, _Rt_);
-
-	JAL(psxMemWrite32);
-	ADDIU(MIPSREG_A0, rs, _Imm_); /* <BD> Branch delay slot of JAL() */
-
-	regUnlock(rs);
+	gen_LWC2_SWC2();
 }
