@@ -179,55 +179,38 @@ static void emitMTC2(u32 rt, u32 reg)
 {
 	switch (reg) {
 	case 15:
-		LW(TEMP_1, PERM_REG_1, off(CP2D.p[13]));
-		SW(TEMP_1, PERM_REG_1, off(CP2D.p[12])); // gteSXY0 = gteSXY1;
-		LW(TEMP_1, PERM_REG_1, off(CP2D.p[14]));
-		SW(TEMP_1, PERM_REG_1, off(CP2D.p[13])); // gteSXY1 = gteSXY2;
-
+		LW(TEMP_1, PERM_REG_1, off(CP2D.p[13])); // tmp_gteSXY1 = gteSXY1
+		LW(TEMP_2, PERM_REG_1, off(CP2D.p[14])); // tmp_gteSXY2 = gteSXY2
 		SW(rt, PERM_REG_1, off(CP2D.p[14])); // gteSXY2 = value;
 		SW(rt, PERM_REG_1, off(CP2D.p[15])); // gteSXYP = value;
+		SW(TEMP_1, PERM_REG_1, off(CP2D.p[12])); // gteSXY0 = tmp_gteSXY1;
+		SW(TEMP_2, PERM_REG_1, off(CP2D.p[13])); // gteSXY1 = tmp_gteSXY2;
 		break;
 
 	case 28:
 		SW(rt, PERM_REG_1, off(CP2D.r[reg]));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, rt, 0, 5);
-#else
+
 		ANDI(TEMP_1, rt, 0x1f);
-#endif
 		SLL(TEMP_1, TEMP_1, 7);
 		// gteIR1 = ((value      ) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[9]));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, rt, 5, 5);
-		SLL(TEMP_1, TEMP_1, 7);
-#else
+
 		ANDI(TEMP_1, rt, 0x1f << 5);
 		SLL(TEMP_1, TEMP_1, 2);
-#endif
 		// gteIR2 = ((value >>  5) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[10]));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, rt, 10, 5);
-		SLL(TEMP_1, TEMP_1, 7);
-#else
+
 		ANDI(TEMP_1, rt, 0x1f << 10);
 		SRL(TEMP_1, TEMP_1, 3);
-#endif
 		// gteIR3 = ((value >> 10) & 0x1f) << 7;
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[11]));
 		break;
 
 	case 30:
-		u32 *backpatch;
 		SW(rt, PERM_REG_1, off(CP2D.r[30]));
-		SLT(1, rt, 0);
-		backpatch = (u32 *)recMem;
-		BEQZ(1, 0);
-		MOV(TEMP_1, rt); // delay slot
-
+		SLT(TEMP_2, rt, 0);
 		NOR(TEMP_1, 0, rt); // temp_1 = rt ^ -1
-		fixup_branch(backpatch);
+		MOVZ(TEMP_1, rt, TEMP_2); // if (temp_2 == 0) temp_1 = rt
 		CLZ(TEMP_1, TEMP_1);
 		SW(TEMP_1, PERM_REG_1, off(CP2D.r[31]));
 		break;
