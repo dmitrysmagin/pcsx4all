@@ -4,9 +4,12 @@
 //  functions. This feature assumes that all addresses accessed are in PS1
 //  RAM or scratchpad, which should be safe. It depends on a mapped and
 //  mirrored virtual address space.
-#ifdef PSX_MEM_MAPPED_AND_MIRRORED
+#if defined(PSX_MEM_MAPPED_AND_MIRRORED) && defined(USE_DIRECT_MEM_ACCESS)
 #define USE_GTE_DIRECT_MEM_ACCESS
 #endif
+
+// Emit pipeline-friendly code for LWC2/SWC2 that avoids load stalls.
+#define USE_GTE_MEM_PIPELINING
 
 // Skip unnecessary write-back of GTE regs in emitMFC2(). The interpreter does
 //  this in its MFC2, and from review of GTE code it seems pointless and just
@@ -21,7 +24,7 @@ void rec##f() \
 	LI32(TEMP_1, psxRegs.code); \
 	JAL(gte##f); \
 	SW(TEMP_1, PERM_REG_1, off(code)); /* <BD> Branch delay slot of JAL() */ \
-} \
+}
 
 CP2_FUNC(DCPL);
 CP2_FUNC(RTPS);
@@ -113,7 +116,7 @@ static void emitMFC2(u32 rt, u32 reg)
 	// IMPORTANT: Don't overwrite these regs in this function, as they are
 	//            reserved for use by LWC2/SWC2 emitter which calls here.
 	//            (MIPSREG_V0 is OK to use, unlike emitMTC2())
-	// TEMP_3, MIPSREG_A1
+	// TEMP_3, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3
 
 	switch (reg) {
 	case 1: case 3: case 5: case 8: case 9: case 10: case 11:
@@ -192,8 +195,7 @@ static void emitMTC2(u32 rt, u32 reg)
 {
 	//IMPORTANT: Don't overwrite these regs in this function, as they are
 	//           reserved for use by LWC2/SWC2 emitter which calls here.
-	// TEMP_3, MIPSREG_A1, MIPSREG_V0
-
+	// TEMP_3, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3, MIPSREG_V0
 	switch (reg) {
 	case 15:
 		LW(TEMP_1, PERM_REG_1, off(CP2D.p[13])); // tmp_gteSXY1 = gteSXY1
@@ -264,10 +266,14 @@ static void recMTC2()
 	regUnlock(rt);
 }
 
+/* Count successive LWC2 and/or SWC2 opcodes that share a base reg, including
+ *  any NOPs found lying between them, which will be skipped by emitter.
+ */
 static int count_LWC2_SWC2()
 {
 	int count = 0;
 	u32 PC = pc;
+	u32 nops_at_end = 0;
 	u32 opcode = psxRegs.code;
 	u32 rs = _Rs_;
 
@@ -276,17 +282,45 @@ static int count_LWC2_SWC2()
 		return 1;
 
 	/* rs should be the same, imm and rt could be different */
-	while ((_fOp_(opcode) == 0x32 || _fOp_(opcode) == 0x3a) && rs == _fRs_(opcode)) {
+	while (opcode == 0 ||
+	       ((_fOp_(opcode) == 0x32 || _fOp_(opcode) == 0x3a) && rs == _fRs_(opcode)))
+	{
+		if (opcode == 0)
+			nops_at_end++;
+		else
+			nops_at_end = 0;
+
 		opcode = *(u32 *)((char *)PSXM(PC));
 		PC += 4;
 		count++;
 	}
 
+	/* Don't include any NOPs at the end of sequence in the reported count..
+	    only count ones lying between the LWC2/SWC2 opcodes */
+	count -= nops_at_end;
+
 	return count;
+}
+
+static bool skip_base_reg_conversion_LWC2_SWC2(u32 psx_reg)
+{
+#if defined(USE_GTE_DIRECT_MEM_ACCESS) && defined(USE_CONST_ADDRESSES)
+	// Since we assume all LWC2/SWC2 ops address only RAM or scratchpad,
+	//  check if the base reg is a known-const value near the scratchpad.
+	//  If our virtual mapping allows it, we can use it unmodified.
+	return PSX_MEM_VADDR == 0x10000000 &&
+	       IsConst(psx_reg) &&
+	       iRegs[psx_reg].r >= (0x1f800000 - 32767) &&
+	       iRegs[psx_reg].r <= (0x1f8003fc + 32768);
+#else
+	return false;
+#endif
 }
 
 static void gen_LWC2_SWC2()
 {
+	// Get a count of the number of sequential LWC2 and/or SWC2 ops that all
+	//  share the same base register. We can handle mixed LWC2s and SWC2s.
 	int count = count_LWC2_SWC2();
 
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
@@ -304,26 +338,229 @@ static void gen_LWC2_SWC2()
 
 	if (direct_mem)
 	{
-		// TEMP_3 = converted 'rs' base reg, TEMP_1 used as temp reg
-		emitAddressConversion(TEMP_3, rs, TEMP_1);
+		// Converted base register stays in this reg (if used)
+		u32 base_reg = TEMP_3;
 
+#ifdef USE_GTE_MEM_PIPELINING
+		// ---------------------------------------------------------
+		//  Emit pipeline-friendly code that avoids load-use stalls
+		// ---------------------------------------------------------
+		//
+		//   Examine the non-pipelined version first to understand the
+		//  basics of LWC2/SWC2 operations. We use 4 temp regs to form a
+		//  queue, which hold values from the first halves of each LWC2/SWC2
+		//  operation. These values are either loads from RAM/scratchpad
+		//  or loads of a GTE reg from the emu's register file. We wait as
+		//  as long as possible to emit the second half of each operation.
+		//   Base address conversion is deferred until needed, which helps too.
+		//
+		// EXAMPLE OF A SERIES OF 4 LWC2 OR SWC2 OPCODES SHARING BASE REG:
+		//  'mr/mw' : memory read/write
+		//  'rr/rw' : GTE reg read/write (in psxRegisters struct)
+		//  '---'   : load-use pipeline stall (3 cycles on jz4770 MIPS CPU)
+		//
+		// NON-PIPELINED LWC2 x 4: mr1, rw1, ---, ---, ---, mr2, rw2, ---, ---, ---, mr3, rw3, ---, ---, ---, mr4, rw4, ---, ---, ---
+		//     PIPELINED LWC2 x 4: mr1, mr2, mr3, mr4, rw1, rw2, rw3, rw4
+		//
+		// NON-PIPELINED SWC2 x 4: rr1, mw1, ---, ---, ---, rr2, mw2, ---, ---, ---, rr3, mw3, ---, ---, ---, rr4, mw4, ---, ---, ---
+		//     PIPELINED SWC2 x 4: rr1, rr2, rr3, rr4, mw1, mw2, mw3, mw4
+
+		int queue_entries = 0;    // Number of entries currently in queue
+		int queue_idx_beg = 0;    // Index of earliest entry in queue
+		int queue_idx_end = 0;    // Index of latest entry in queue
+
+		enum { LWC2_ENTRIES, SWC2_ENTRIES };
+		int queue_entry_type = LWC2_ENTRIES;  // Opcode type currently in queue (if any)
+
+		const int queue_capacity = 4;
+		union {                   // Entries have info needed for 2nd half of each operation:
+		    u8  gte_reg;          //  GTE reg (rt field) of entry's opcode (for LWC2 entries)
+		    s16 imm;              //  Immediate mem offset of the entry's opcode (for SWC2 entries)
+		} queue[queue_capacity];
+
+		// The index of an entry maps directly to a fixed host reg
+		//  that holds the 32-bit value waiting to be used later.
+		const u8 queue_regmap[queue_capacity] = { MIPSREG_A0, MIPSREG_A1,
+		                                          MIPSREG_A2, MIPSREG_A3 };
+
+		bool skip_addr_conversion = skip_base_reg_conversion_LWC2_SWC2(_Rs_);
+		if (skip_addr_conversion) {
+			// Use the unmodified base reg
+			base_reg = rs;
+		}
+
+		// Defer converting 'rs' base reg until we actually need it
+		bool base_reg_converted = false;
+
+		// NOTE: Any NOPs that were included in count will be skipped
+		int icount = count;
+		do
+		{
+			u32 opcode = *(u32 *)((char *)PSXM(PC));
+
+			if (_fOp_(opcode) == 0x32)
+			{
+				// LWC2
+
+				// Flush queue if it holds SWC2 entries
+				if (queue_entries > 0 && queue_entry_type == SWC2_ENTRIES) {
+					do {
+						if (!skip_addr_conversion && !base_reg_converted) {
+							// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
+							emitAddressConversion(base_reg, rs, TEMP_1);
+							base_reg_converted = true;
+						}
+						u8  entry_reg = queue_regmap[queue_idx_beg];
+						s16 entry_imm = queue[queue_idx_beg].imm;
+						queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+
+						// Second half of a SWC2 code sequence
+						SW(entry_reg, base_reg, entry_imm);
+					} while (--queue_entries);
+				}
+
+				// Evict earliest queue entry if it is full
+				if (queue_entries == queue_capacity) {
+					u8 entry_reg  = queue_regmap[queue_idx_beg];
+					u8 gte_reg    = queue[queue_idx_beg].gte_reg;
+					queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+					queue_entries--;
+
+					// Second half of a LWC2 code sequence
+					emitMTC2(entry_reg, gte_reg);
+				}
+
+				// Add this LWC2 to the queue
+				{
+					if (!skip_addr_conversion && !base_reg_converted) {
+						// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
+						emitAddressConversion(base_reg, rs, TEMP_1);
+						base_reg_converted = true;
+					}
+					u8  entry_reg = queue_regmap[queue_idx_end];
+					queue[queue_idx_end].gte_reg = _fRt_(opcode);
+					queue_idx_end = (queue_idx_end + 1) % queue_capacity;
+					queue_entry_type = LWC2_ENTRIES;
+					queue_entries++;
+
+					// First half of a LWC2 code sequence
+					LW(entry_reg, base_reg, _fImm_(opcode));
+				}
+
+				// Flush queue if this is the last opcode in the series
+				if (icount == 1) {
+					do {
+						u8 entry_reg  = queue_regmap[queue_idx_beg];
+						u8 gte_reg    = queue[queue_idx_beg].gte_reg;
+						queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+
+						// Second half of a LWC2 code sequence
+						emitMTC2(entry_reg, gte_reg);
+					} while (--queue_entries);
+				}
+			} else if (_fOp_(opcode) == 0x3a)
+			{
+				// SWC2
+
+				// Flush queue if it holds LWC2 entries
+				if (queue_entries > 0 && queue_entry_type == LWC2_ENTRIES) {
+					do {
+						u8 entry_reg  = queue_regmap[queue_idx_beg];
+						u8 gte_reg    = queue[queue_idx_beg].gte_reg;
+						queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+
+						// Second half of a LWC2 code sequence
+						emitMTC2(entry_reg, gte_reg);
+					} while (--queue_entries);
+				}
+
+				// Evict earliest queue entry if it is full
+				if (queue_entries == queue_capacity) {
+					if (!skip_addr_conversion && !base_reg_converted) {
+						// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
+						emitAddressConversion(base_reg, rs, TEMP_1);
+						base_reg_converted = true;
+					}
+					u8  entry_reg = queue_regmap[queue_idx_beg];
+					s16 entry_imm = queue[queue_idx_beg].imm;
+					queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+					queue_entries--;
+
+					// Second half of a SWC2 code sequence
+					SW(entry_reg, base_reg, entry_imm);
+				}
+
+				// Add this SWC2 to the queue
+				{
+					u8  entry_reg = queue_regmap[queue_idx_end];
+					queue[queue_idx_end].imm = _fImm_(opcode);
+					queue_idx_end = (queue_idx_end + 1) % queue_capacity;
+					queue_entry_type = SWC2_ENTRIES;
+					queue_entries++;
+
+					// First half of a SWC2 code sequence
+					emitMFC2(entry_reg, _fRt_(opcode));
+				}
+
+				// Flush queue if this is the last opcode in the series
+				if (icount == 1) {
+					do {
+						if (!skip_addr_conversion && !base_reg_converted) {
+							// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
+							emitAddressConversion(base_reg, rs, TEMP_1);
+							base_reg_converted = true;
+						}
+						u8  entry_reg = queue_regmap[queue_idx_beg];
+						s16 entry_imm = queue[queue_idx_beg].imm;
+						queue_idx_beg = (queue_idx_beg + 1) % queue_capacity;
+
+						// Second half of a SWC2 code sequence
+						SW(entry_reg, base_reg, entry_imm);
+					} while (--queue_entries);
+				}
+			}
+			PC += 4;
+		} while (--icount);
+
+#else
+		// -----------------------------
+		//  Emit simple direct-mem code
+		// -----------------------------
+
+		bool skip_addr_conversion = skip_base_reg_conversion_LWC2_SWC2(_Rs_);
+		if (skip_addr_conversion) {
+			// Use the unmodified base reg
+			base_reg = rs;
+		} else {
+			// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
+			emitAddressConversion(base_reg, rs, TEMP_1);
+		}
+
+		// NOTE: Any NOPs that were included in count will be skipped
 		do {
 			u32 opcode = *(u32 *)((char *)PSXM(PC));
 
+			// Any NOPs that were included in count will be skipped
 			if (_fOp_(opcode) == 0x32) {
 				// LWC2
-				LW(MIPSREG_A1, TEMP_3, _fImm_(opcode));
+				LW(MIPSREG_A1, base_reg, _fImm_(opcode));
 				emitMTC2(MIPSREG_A1, _fRt_(opcode));
-
-			} else {
+			} else if (_fOp_(opcode) == 0x3a) {
 				// SWC2
 				emitMFC2(MIPSREG_A1, _fRt_(opcode));
-				SW(MIPSREG_A1, TEMP_3, _fImm_(opcode));
+				SW(MIPSREG_A1, base_reg, _fImm_(opcode));
 			}
 			PC += 4;
 		} while (--count);
+
+#endif // USE_GTE_MEM_PIPELINING
 	} else
 	{
+		// -----------------------------------------
+		//  Emit code that calls C to access memory
+		// -----------------------------------------
+
+		// NOTE: Any NOPs that were included in count will be skipped
 		do {
 			u32 opcode = *(u32 *)((char *)PSXM(PC));
 
@@ -332,7 +569,7 @@ static void gen_LWC2_SWC2()
 				JAL(psxMemRead32);                     // Read value from memory
 				ADDIU(MIPSREG_A0, rs, _fImm_(opcode)); // <BD>
 				emitMTC2(MIPSREG_V0, _fRt_(opcode));   // Move value read to GTE reg
-			} else {
+			} else if (_fOp_(opcode) == 0x3a) {
 				// SWC2
 				emitMFC2(MIPSREG_A1, _fRt_(opcode));   // Get GTE reg value
 				JAL(psxMemWrite32);                    // Write GTE reg to memory
@@ -340,10 +577,11 @@ static void gen_LWC2_SWC2()
 			}
 			PC += 4;
 		} while (--count);
+
 	}
 
-	pc = PC;
 	regUnlock(rs);
+	pc = PC;
 }
 
 static void recLWC2()

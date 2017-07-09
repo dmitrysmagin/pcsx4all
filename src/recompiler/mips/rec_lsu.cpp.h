@@ -1,6 +1,3 @@
-// Const propagation is applied to addresses
-#define USE_CONST_ADDRESSES
-
 // Inline access to known-const HW,Scratchpad addresses (see rec_lsu_hw.cpp.h)
 #define USE_DIRECT_HW_ACCESS
 

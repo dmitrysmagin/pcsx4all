@@ -62,6 +62,9 @@
 /* Generate inline memory access or call psxMemRead/Write C functions */
 #define USE_DIRECT_MEM_ACCESS
 
+/* Const propagation is applied to addresses */
+#define USE_CONST_ADDRESSES
+
 /* 2MB of PSX RAM (psxM) is now mirrored four times in virtual address space,
  *  like a real PS1. This allows skipping mirror-region checks, the 'Einhander'
  *  game fix, and eliminates need to mask RAM addresses. We also map 0x1fxx_xxxx
