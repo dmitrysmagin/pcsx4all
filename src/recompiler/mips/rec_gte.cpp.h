@@ -17,37 +17,49 @@
 #define SKIP_MFC2_WRITEBACK
 
 
-#define CP2_FUNC(f) \
+/* Emit code to call a GTE func that takes no arguments */
+#define CP2_FUNC_0(f) \
 extern void gte##f(); \
 void rec##f() \
 { \
-	LI32(TEMP_1, psxRegs.code); \
 	JAL(gte##f); \
-	SW(TEMP_1, PERM_REG_1, off(code)); /* <BD> Branch delay slot of JAL() */ \
+	NOP(); /* <BD slot> */ \
 }
 
-CP2_FUNC(DCPL);
-CP2_FUNC(RTPS);
-CP2_FUNC(OP);
-CP2_FUNC(NCLIP);
-CP2_FUNC(DPCS);
-CP2_FUNC(INTPL);
-CP2_FUNC(MVMVA);
-CP2_FUNC(NCDS);
-CP2_FUNC(NCDT);
-CP2_FUNC(CDP);
-CP2_FUNC(NCCS);
-CP2_FUNC(CC);
-CP2_FUNC(NCS);
-CP2_FUNC(NCT);
-CP2_FUNC(SQR);
-CP2_FUNC(DPCT);
-CP2_FUNC(AVSZ3);
-CP2_FUNC(AVSZ4);
-CP2_FUNC(RTPT);
-CP2_FUNC(GPF);
-CP2_FUNC(GPL);
-CP2_FUNC(NCCT);
+/* Emit code to call a GTE func that takes one argument, which is the 32-bit
+ *  opcode shifted right 10, from which it gets various parameters. No more than
+ *  16 of the LSBs of the argument are used, so it can be passed with LI16.
+ */
+#define CP2_FUNC_1(f) \
+extern void gte##f(u32 gteop); \
+void rec##f() \
+{ \
+	JAL(gte##f); \
+	LI16(MIPSREG_A0, (u16)(psxRegs.code >> 10)); /* <BD slot> */ \
+}
+
+CP2_FUNC_0(RTPS)
+CP2_FUNC_0(NCLIP)
+CP2_FUNC_0(NCDS)
+CP2_FUNC_0(NCDT)
+CP2_FUNC_0(CDP)
+CP2_FUNC_0(NCCS)
+CP2_FUNC_0(CC)
+CP2_FUNC_0(NCS)
+CP2_FUNC_0(NCT)
+CP2_FUNC_0(DPCT)
+CP2_FUNC_0(AVSZ3)
+CP2_FUNC_0(AVSZ4)
+CP2_FUNC_0(RTPT)
+CP2_FUNC_0(NCCT)
+CP2_FUNC_1(OP)
+CP2_FUNC_1(DPCS)
+CP2_FUNC_1(INTPL)
+CP2_FUNC_1(MVMVA)
+CP2_FUNC_1(SQR)
+CP2_FUNC_1(DCPL)
+CP2_FUNC_1(GPF)
+CP2_FUNC_1(GPL)
 
 static void recCFC2()
 {

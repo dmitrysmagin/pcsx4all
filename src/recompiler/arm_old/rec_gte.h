@@ -20,6 +20,13 @@
 
 #include "gte.h"
 
+// July 2017: Some GTE instructions encode parameters inside their u32 opcode.
+//            The funcs for these instructions now take the opcode value as
+//            parameter shifted right 10 places (only lower 16 bits are used).
+//            The ARM dynarecs are not maintained and haven't been updated:
+#error "ARM dynarec has not been updated to match new GTE interface"
+
+
 #define CP2_FUNC(f) \
 void gte##f(); \
 static void rec##f() { \

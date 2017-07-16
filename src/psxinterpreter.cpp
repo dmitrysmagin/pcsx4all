@@ -901,15 +901,35 @@ void (*psxCP0[32])(void) = {
 	psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL, psxNULL
 };
 
+/* Certain GTE (CP2) functions take an argument, which is the 32-bit CP2 opcode
+ *  shifted right 10 places, encoding various parameters. This allows dynarecs
+ *  to emit faster calls. However, the interpreter needs some local wrapper
+ *  functions to help it pass the argument.
+ */
+#define GTE_FUNC_1_ARG_WRAPPER(gf) \
+static void w_##gf()               \
+{                                  \
+    gf(psxRegs.code >> 10);        \
+}
+GTE_FUNC_1_ARG_WRAPPER(gteOP)
+GTE_FUNC_1_ARG_WRAPPER(gteDPCS)
+GTE_FUNC_1_ARG_WRAPPER(gteINTPL)
+GTE_FUNC_1_ARG_WRAPPER(gteMVMVA)
+GTE_FUNC_1_ARG_WRAPPER(gteSQR)
+GTE_FUNC_1_ARG_WRAPPER(gteDCPL)
+GTE_FUNC_1_ARG_WRAPPER(gteGPF)
+GTE_FUNC_1_ARG_WRAPPER(gteGPL)
+
+/* Anything beginning with 'w_' is a local wrapper func, see note above. */
 void (*psxCP2[64])(void) = {
-	psxBASIC, gteRTPS , psxNULL , psxNULL, psxNULL, psxNULL , gteNCLIP, psxNULL, // 00
-	psxNULL , psxNULL , psxNULL , psxNULL, gteOP  , psxNULL , psxNULL , psxNULL, // 08
-	gteDPCS , gteINTPL, gteMVMVA, gteNCDS, gteCDP , psxNULL , gteNCDT , psxNULL, // 10
-	psxNULL , psxNULL , psxNULL , gteNCCS, gteCC  , psxNULL , gteNCS  , psxNULL, // 18
-	gteNCT  , psxNULL , psxNULL , psxNULL, psxNULL, psxNULL , psxNULL , psxNULL, // 20
-	gteSQR  , gteDCPL , gteDPCT , psxNULL, psxNULL, gteAVSZ3, gteAVSZ4, psxNULL, // 28
-	gteRTPT , psxNULL , psxNULL , psxNULL, psxNULL, psxNULL , psxNULL , psxNULL, // 30
-	psxNULL , psxNULL , psxNULL , psxNULL, psxNULL, gteGPF  , gteGPL  , gteNCCT  // 38
+	psxBASIC  , gteRTPS   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , gteNCLIP  , psxNULL   , // 00
+	psxNULL   , psxNULL   , psxNULL   , psxNULL   , w_gteOP   , psxNULL   , psxNULL   , psxNULL   , // 08
+	w_gteDPCS , w_gteINTPL, w_gteMVMVA, gteNCDS   , gteCDP    , psxNULL   , gteNCDT   , psxNULL   , // 10
+	psxNULL   , psxNULL   , psxNULL   , gteNCCS   , gteCC     , psxNULL   , gteNCS    , psxNULL   , // 18
+	gteNCT    , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , // 20
+	w_gteSQR  , w_gteDCPL , gteDPCT   , psxNULL   , psxNULL   , gteAVSZ3  , gteAVSZ4  , psxNULL   , // 28
+	gteRTPT   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , // 30
+	psxNULL   , psxNULL   , psxNULL   , psxNULL   , psxNULL   , w_gteGPF  , w_gteGPL  , gteNCCT     // 38
 };
 
 void (*psxCP2BSC[32])(void) = {
