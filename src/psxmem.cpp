@@ -368,29 +368,80 @@ void psxMemWrite32(u32 mem, u32 value)
 #endif
 			} else {
 				// Write to cache control port 0xfffe0130
-				switch (value) {
-					case 0x800: case 0x804:
-						if (psxRegs.writeok == 0) break;
-						psxRegs.writeok = 0;
-						memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
-						break;
-					case 0x00: case 0x1e988:
-						if (psxRegs.writeok == 1) break;
-						psxRegs.writeok = 1;
-						for (int i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8*)&psxM[(i & 0x1f) << 16];
-						memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
-						memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
-						break;
-					default:
-#ifdef PSXMEM_LOG
-						PSXMEM_LOG("unk %8.8lx = %x\n", mem, value);
-#endif
-						break;
-				}
+				psxMemWrite32_CacheCtrlPort(value);
 			}
 		}
+	}
+}
+
+// Write to cache control port 0xfffe0130
+void psxMemWrite32_CacheCtrlPort(u32 value)
+{
+#ifdef PSXREC
+	//   For dynarecs, they can choose to omit the check of 'writeok' before
+	// each store. To allow this, when cache is isolated, we backup the first
+	// 64KB of PS1 RAM. Then, the dynarec can allow all subsequent stores to go
+	// to RAM without any checks. After cache control port status returns to
+	// normal, i.e. cache is unisolated, we restore the backup.
+	//   The stores that come after cache isolation are meant soley to
+	// invalidate I-cache lines. The addresses written to are assumed to be
+	// within the first 64KB of addresses. The BIOS CacheFlush() 0x44 A0 routine
+	// is known to do this, and this also should work for games that use their
+	// own cache-flush routines, like '007 Tomorrow Never Dies'. Because some
+	// games do use their own cache-flush routines, we cannot rely merely on
+	// patching BIOS code or its 0x44 CacheFlush() A0 jumptable entry.
+	//   If we wanted to be paranoid, we could backup the entire 2MB of PS1 RAM
+	// instead of just 64KB. But, until it is proven a single game needs this,
+	// we'll stick with just 64KB.
+	//   Note that we alter the psxMemRLUT[] entries for this 64KB region to
+	// point to the backup while cache is isolated: this is done in case the
+	// dynarec needs to recompile some code during the sequence. It will read
+	// from the backed-up 64KB PS1 RAM, not from RAM overwritten by sequence.
+	// Of course, this assumes the recompiler is using psxMemRLUT[] or PSXM()
+	// macro to read PS1 code.   -senquack
+
+	static u8 mem_bak[0x10000];
+#endif //PSXREC
+
+	switch (value)
+	{
+		case 0x800: case 0x804:
+			if (psxRegs.writeok == 0) break;
+			psxRegs.writeok = 0;
+			memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
+			memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
+			memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
+
+#ifdef PSXREC
+			// Cache is now isolated, pending cache-flush sequence:
+			//  Backup lower 64KB of PS1 RAM, and point RLUT to it.
+			memcpy(mem_bak, psxM, sizeof(mem_bak));
+			psxMemRLUT[0x0000] = psxMemRLUT[0x0020] = psxMemRLUT[0x0040] = psxMemRLUT[0x0060] = mem_bak;
+			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = mem_bak;
+			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = mem_bak;
+#endif
+			break;
+		case 0x00: case 0x1e988:
+			if (psxRegs.writeok == 1) break;
+			psxRegs.writeok = 1;
+			for (int i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8*)&psxM[(i & 0x1f) << 16];
+			memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
+			memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
+
+#ifdef PSXREC
+			// Cache is now unisolated: Restore backup of lower 64KB RAM,
+			//  and point loads to their original locations
+			memcpy(psxM, mem_bak, sizeof(mem_bak));
+			psxMemRLUT[0x0000] = psxMemRLUT[0x0020] = psxMemRLUT[0x0040] = psxMemRLUT[0x0060] = (u8 *)psxM;
+			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = (u8 *)psxM;
+			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = (u8 *)psxM;
+#endif
+			break;
+		default:
+#ifdef PSXMEM_LOG
+			PSXMEM_LOG("unk %8.8lx = %x\n", mem, value);
+#endif
+			break;
 	}
 }
 

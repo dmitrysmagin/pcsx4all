@@ -315,6 +315,9 @@ static void recRecompile()
 #endif
 
 	do {
+		// See notes regarding cache-control port in psxmem.cpp psxMemWrite32()
+		//  regarding why it is good here to continue reading code from PSXM()
+		//  macro, i.e. reading based off psxMemRLUT[].
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 
 #ifdef USE_CODE_DISCARD
