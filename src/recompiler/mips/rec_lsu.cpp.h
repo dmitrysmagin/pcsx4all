@@ -13,6 +13,12 @@
 #define SKIP_SAME_2MB_REGION_CHECK
 #endif
 
+// Bypass 'writeok' cache-isolation check before stores. We now backup first
+//  64KB of PSX RAM when cache is isolated, and restore it when unisolated.
+//  We simply let the cache-flush stores go through to RAM (very temporarily).
+//  See comments in psxmem.cpp psxMemWrite32_CacheCtrlPort().
+#define SKIP_WRITEOK_CHECK
+
 #define OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
@@ -378,15 +384,6 @@ static void StoreToAddr(int count, bool force_indirect)
 		DISASM_PSX(pc + i * 4);
 #endif
 
-#ifdef USE_DIRECT_MEM_ACCESS
-	// Load psxRegs.writeok to see if RAM is writeable
-	// (load it early to reduce load stall at check below)
-	if (!force_indirect) {
-		if (!Config.HLE)
-			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
-	}
-#endif
-
 	// Preload first register to be written (prevents stalls)
 	u32 r2 = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -403,41 +400,27 @@ static void StoreToAddr(int count, bool force_indirect)
 
 		regPushState();
 
-		// Check if memory is writable and also check if address is in lower 8MB:
-		//
-		//   This is just slightly tricky. All addresses in lower 8MB of RAM will
-		//  have bits 27:24 unset, and all other valid addresses have them set.
-		//  The check below only passes when 'writeok' is 1 and bits 27:24 are 0.
-		//   It is not possible for a series of stores sharing a base register to
-		//  write both inside and outside of lower-8MB RAM region: signed 16bit imm
-		//  offset is not large enough to reach a valid mapped address in both.
-		//   Writes to 0xFFFF_xxxx and 0x0080_xxxx regions would cause an exception
-		//  on a real PS1, so no need to worry about imm offsets reaching them.
-		//  Base addresses with offsets wrapping to next/prior mirror region are
-		//  handled either with masking further below, or by emulation of mirrors
-		//  using mmap'd virtual mem (see mem_mapping.cpp)
-		//    MIPSREG_A0 is left set to the eff address of first store in series,
-		//  saving emitting an instruction in first loop iterations further below.
+		//   Check that first address in series is a RAM address. If so, we know
+		// all addresses in the series are. All addresses in RAM (lower 8MB)
+		// have bits 27:24 unset, and all other valid addresses have them set.
+		//  It is not possible for a series of stores sharing a base register to
+		// write both inside and outside of lower-8MB RAM region: signed 16bit
+		// offset is not large enough to reach a valid mapped address in both.
+		//   Writes to 0xFFFF_xxxx or 0x0080_xxxx regions would cause an exception
+		//  on a real PS1, so no need to worry about offsets reaching them.
 		// ---- Equivalent C code: ----
-		// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+		// if ( ((r1+imm_of_first_store) & 0x0f00_0000) != 0)
 		//    goto label_hle_1;
-
-		u32 *backpatch_label_hle_1;
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
 #else
 		LUI(TEMP_3, 0x0f00);
 		AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-		if (!Config.HLE) {
-			SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
-			backpatch_label_hle_1 = (u32 *)recMem;
-			BEQZ(MIPSREG_A1, 0);
-		} else {
-			backpatch_label_hle_1 = (u32 *)recMem;
-			BNE(TEMP_3, 0, 0);
-		}
+		u32 *backpatch_label_hle_1 = (u32 *)recMem;
+		BNE(TEMP_3, 0, 0);
 		// NOTE: Branch delay slot contains next emitted instruction
+
 
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 		/* Check if addr and addr+imm are in the same 2MB region */
@@ -449,12 +432,22 @@ static void StoreToAddr(int count, bool force_indirect)
 		ANDI(TEMP_3, TEMP_3, 7);
 		SRL(MIPSREG_A1, MIPSREG_A0, 21);
 		ANDI(MIPSREG_A1, MIPSREG_A1, 7);
-#endif // !SKIP_SAME_2MB_REGION_CHECK
+#endif
 
 		u32 *backpatch_label_hle_2 = (u32 *)recMem;
 		BNE(MIPSREG_A1, TEMP_3, 0);         // goto label_hle if not in same 2MB region
 		// NOTE: Branch delay slot contains next emitted instruction
+#endif // !SKIP_SAME_2MB_REGION_CHECK
+
+
+#ifndef SKIP_WRITEOK_CHECK
+		// Check if (psxRegs.writeok != 0) to see if RAM is writeable
+		LW(TEMP_3, PERM_REG_1, off(writeok)); // <BD slot>
+		u32 *backpatch_label_hle_3 = (u32 *)recMem;
+		BEQZ(TEMP_3, 0);
+		// NOTE: Branch delay slot contains next emitted instruction
 #endif
+
 
 		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
 		emitAddressConversion(TEMP_2, r1, TEMP_1);
@@ -561,6 +554,9 @@ static void StoreToAddr(int count, bool force_indirect)
 #ifndef SKIP_SAME_2MB_REGION_CHECK
 		fixup_branch(backpatch_label_hle_2);
 #endif
+#ifndef SKIP_WRITEOK_CHECK
+		fixup_branch(backpatch_label_hle_3);
+#endif
 	}
 #endif // USE_DIRECT_MEM_ACCESS
 
@@ -659,9 +655,10 @@ static void StoreToConstAddr()
 
 	u32 PC = pc - 4;
 
-	u32 *backpatch_label_no_write = NULL;
-	if (!Config.HLE)
-		LW(TEMP_1, PERM_REG_1, off(writeok));
+#ifndef SKIP_WRITEOK_CHECK
+	// Check if (psxRegs.writeok != 0) to see if RAM is writeable
+	LW(TEMP_1, PERM_REG_1, off(writeok));
+#endif
 
 	// Keep upper half of last code block and RAM addresses in regs,
 	// tracking current values so we can avoid loading same val repeatedly.
@@ -686,12 +683,13 @@ static void StoreToConstAddr()
 			LUI(TEMP_3, ADR_HI(code_addr));
 		}
 
-		// Skip RAM write if psxRegs.writeok == 0
-		if (!Config.HLE) {
-			backpatch_label_no_write = (u32 *)recMem;
-			BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
-			// NOTE: Branch delay slot contains next instruction emitted below
-		}
+#ifndef SKIP_WRITEOK_CHECK
+		// Do nothing if (psxRegs.writeok == 0). We still need the regs
+		//  allocated for all the 'rt' fields of the opcodes though.
+		u32 *backpatch_label_no_write = (u32 *)recMem;
+		BEQZ(TEMP_1, 0);  // if (!psxRegs.writeok) goto label_no_write
+		NOP(); // <BD slot>
+#endif
 
 		if (code_addr != last_code_addr) {
 			// Set code block ptr to NULL
@@ -713,9 +711,10 @@ static void StoreToConstAddr()
 		// Write to RAM:
 		OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
 
+#ifndef SKIP_WRITEOK_CHECK
 		// label_no_write:
-		if (!Config.HLE)
-			fixup_branch(backpatch_label_no_write);
+		fixup_branch(backpatch_label_no_write);
+#endif
 
 		regUnlock(r2);
 		PC += 4;
@@ -940,15 +939,6 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		DISASM_PSX(pc + i * 4);
 	#endif
 
-#ifdef USE_DIRECT_MEM_ACCESS
-	// Load psxRegs.writeok to see if RAM is writeable
-	// (load it early to reduce load stall at check below)
-	if (!force_indirect) {
-		if (!Config.HLE)
-			LW(MIPSREG_A1, PERM_REG_1, off(writeok));
-	}
-#endif
-
 	// Preload first register to be written (prevents stalls)
 	u32 r2 = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -965,13 +955,11 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 
 		regPushState();
 
-		// Check if memory is writable and also check if address is in lower 8MB:
+		// Check that address is a RAM address.
 		// See comments in StoreToAddr() for explanation of check.
 		// ---- Equivalent C code: ----
-		// if ( !((r1+imm_of_first_store) & 0x0f00_0000) < writeok) )
+		// if ( ((r1+imm_of_first_store) & 0x0f00_0000) != 0)
 		//    goto label_hle_1;
-
-		u32 *backpatch_label_hle_1;
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 		EXT(TEMP_3, MIPSREG_A0, 24, 4);
@@ -979,14 +967,8 @@ static void gen_SWL_SWR(int count, bool force_indirect)
 		LUI(TEMP_3, 0x0f00);
 		AND(TEMP_3, TEMP_3, MIPSREG_A0);
 #endif
-		if (!Config.HLE) {
-			SLTU(MIPSREG_A1, TEMP_3, MIPSREG_A1);
-			backpatch_label_hle_1 = (u32 *)recMem;
-			BEQZ(MIPSREG_A1, 0);
-		} else {
-			backpatch_label_hle_1 = (u32 *)recMem;
-			BNE(TEMP_3, 0, 0);
-		}
+		u32 *backpatch_label_hle_1 = (u32 *)recMem;
+		BNE(TEMP_3, 0, 0);
 		// NOTE: Branch delay slot contains next emitted instruction
 
 		// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
