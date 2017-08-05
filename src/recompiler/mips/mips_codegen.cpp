@@ -69,9 +69,38 @@ void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg)
 	}
 }
 
+bool opcodeIsStore(const u32 opcode)
+{
+	return
+		_fOp_(opcode) == 0x2a || _fOp_(opcode) == 0x2e ||  // SWL, SWR
+		_fOp_(opcode) == 0x28 || _fOp_(opcode) == 0x29 ||  // SB, SH
+		_fOp_(opcode) == 0x2b;                             // SW
+}
 
-/* Get u32 opcode val at location in PS1 code */
-#define OPCODE_AT(loc) (*(u32 *)((char *)PSXM((loc))))
+bool opcodeIsLoad(const u32 opcode)
+{
+	return
+		_fOp_(opcode) == 0x22 || _fOp_(opcode) == 0x26 ||  // LWL, LWR
+		_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||  // LB, LBU
+		_fOp_(opcode) == 0x21 || _fOp_(opcode) == 0x25 ||  // LH, LHU
+		_fOp_(opcode) == 0x23;                             // LW
+}
+
+bool opcodeIsBranchOrJump(const u32 opcode)
+{
+	return
+		(_fOp_(opcode) == 0x00 && (_fFunct_(opcode) == 0x08 || _fFunct_(opcode) == 0x09))     // JR, JALR
+		||
+		(_fOp_(opcode) == 0x01 && (_fRt_(opcode)    == 0x00 || _fRt_(opcode)    == 0x01 ||    // BLTZ, BGEZ
+		                           /* Don't bother checking for non-MIPS-I 'likely' branches
+		                           _fRt_(opcode)    == 0x02 || _fRt_(opcode)    == 0x03 ||    // BLTZL, BGEZL
+		                           _fRt_(opcode)    == 0x12 || _fRt_(opcode)    == 0x13 ||    // BLTZALL, BGEZALL
+		                           */
+		                           _fRt_(opcode)    == 0x10 || _fRt_(opcode)    == 0x11))     // BLTZAL, BGEZAL
+		||
+		(_fOp_(opcode) >= 0x02 && _fOp_(opcode) <= 0x07);  // J, JAL, BEQ, BNE, BLEZ, BGTZ
+}
+
 
 enum {
 	DISCARD_TYPE_DIVBYZERO = 0,

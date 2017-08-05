@@ -96,6 +96,9 @@ typedef enum {
 
 #define off(field)	OFFSET_OF(psxRegisters, field)
 
+/* Get u32 opcode val at location in PS1 code */
+#define OPCODE_AT(loc) (*(u32 *)((char *)PSXM((loc))))
+
 /* ADR_HI, ADR_LO are the equivalents of MIPS GAS %hi(), %lo()
  * They are always used as a pair, and allow converting an address to an
  * upper/lower pair, with lower half interpreted as a signed offset.
@@ -418,8 +421,13 @@ do { \
 } while (0)
 
 
+
 /* Defined in mips_codegen.cpp */
 void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg);
+bool opcodeIsStore(const u32 opcode);
+bool opcodeIsLoad(const u32 opcode);
+bool opcodeIsBranchOrJump(const u32 opcode);
+
 int rec_scan_for_div_by_zero_check_sequence(u32 code_loc);
 int rec_scan_for_MFHI_MFLO_sequence(u32 code_loc);
 int rec_discard_scan(u32 code_loc, int *discard_type);
