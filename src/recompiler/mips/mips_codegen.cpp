@@ -34,7 +34,7 @@
  *  into a base reg that can be used to access psxM[]. The register
  *  specified by 'tmp_reg' can be overwritten in the process.
  */
-void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg)
+void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped)
 {
 	if (psx_mem_mapped) {
 		// METHOD 1 (best): psxM is mmap'd to simple fixed virtual address,

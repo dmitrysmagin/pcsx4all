@@ -28,17 +28,38 @@
 #ifndef MEM_MAPPING_H
 #define MEM_MAPPING_H
 
-/* This is used for direct writes in mips recompiler */
-extern bool psx_mem_mapped;
+/* This is used for direct writes in mips recompiler, as well as mapping
+ *  of PS1 PC values to block code ptrs (replaces use of psxRecLUT[]).
+ */
+
+
 
 /* Lower 28 bits of this address should be zero! Offsets between 0 and
  * 0xF81_0000 from this address should be free for mapping. PSX RAM, ROM
  * expansion, and I/O regions are mapped into this virtual address region,
  * i.e. psxM,psxP,psxH
  */
-#define PSX_MEM_VADDR 0x10000000
+#define PSX_MEM_VADDR 0x10000000LLU
 
-void rec_mmap_psx_mem();
+int rec_mmap_psx_mem();
 void rec_munmap_psx_mem();
+
+
+
+/* Lower 28 bits of this virtual address should be zero!
+ * Recompiler's code ptr tables are mapped into this virtual address region,
+ * i.e. recRAM and recROM.
+ */
+
+#define REC_RAM_PTR_SIZE sizeof(uptr)
+
+#define REC_RAM_SIZE (0x200000 / 4 * REC_RAM_PTR_SIZE)
+#define REC_ROM_SIZE ( 0x80000 / 4 * REC_RAM_PTR_SIZE)
+
+#define REC_RAM_VADDR 0x20000000LLU
+#define REC_ROM_VADDR (REC_RAM_VADDR + (0x00c00000LLU / 4 * REC_RAM_PTR_SIZE))
+
+int rec_mmap_rec_mem();
+void rec_munmap_rec_mem();
 
 #endif // MEM_MAPPING_H

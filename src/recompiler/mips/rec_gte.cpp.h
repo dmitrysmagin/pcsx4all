@@ -4,7 +4,7 @@
 //  functions. This feature assumes that all addresses accessed are in PS1
 //  RAM or scratchpad, which should be safe. It depends on a mapped and
 //  mirrored virtual address space.
-#if defined(PSX_MEM_MAPPED_AND_MIRRORED) && defined(USE_DIRECT_MEM_ACCESS)
+#ifdef USE_DIRECT_MEM_ACCESS
 #define USE_GTE_DIRECT_MEM_ACCESS
 #endif
 
@@ -320,7 +320,8 @@ static bool skip_base_reg_conversion_LWC2_SWC2(u32 psx_reg)
 	// Since we assume all LWC2/SWC2 ops address only RAM or scratchpad,
 	//  check if the base reg is a known-const value near the scratchpad.
 	//  If our virtual mapping allows it, we can use it unmodified.
-	return PSX_MEM_VADDR == 0x10000000 &&
+	return psx_mem_mapped &&
+	       PSX_MEM_VADDR == 0x10000000 &&
 	       IsConst(psx_reg) &&
 	       iRegs[psx_reg].r >= (0x1f800000 - 32767) &&
 	       iRegs[psx_reg].r <= (0x1f8003fc + 32768);
@@ -419,7 +420,7 @@ static void gen_LWC2_SWC2()
 					do {
 						if (!skip_addr_conversion && !base_reg_converted) {
 							// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
-							emitAddressConversion(base_reg, rs, TEMP_1);
+							emitAddressConversion(base_reg, rs, TEMP_1, psx_mem_mapped);
 							base_reg_converted = true;
 						}
 						u8  entry_reg = queue_regmap[queue_idx_beg];
@@ -446,7 +447,7 @@ static void gen_LWC2_SWC2()
 				{
 					if (!skip_addr_conversion && !base_reg_converted) {
 						// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
-						emitAddressConversion(base_reg, rs, TEMP_1);
+						emitAddressConversion(base_reg, rs, TEMP_1, psx_mem_mapped);
 						base_reg_converted = true;
 					}
 					u8  entry_reg = queue_regmap[queue_idx_end];
@@ -490,7 +491,7 @@ static void gen_LWC2_SWC2()
 				if (queue_entries == queue_capacity) {
 					if (!skip_addr_conversion && !base_reg_converted) {
 						// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
-						emitAddressConversion(base_reg, rs, TEMP_1);
+						emitAddressConversion(base_reg, rs, TEMP_1, psx_mem_mapped);
 						base_reg_converted = true;
 					}
 					u8  entry_reg = queue_regmap[queue_idx_beg];
@@ -519,7 +520,7 @@ static void gen_LWC2_SWC2()
 					do {
 						if (!skip_addr_conversion && !base_reg_converted) {
 							// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
-							emitAddressConversion(base_reg, rs, TEMP_1);
+							emitAddressConversion(base_reg, rs, TEMP_1, psx_mem_mapped);
 							base_reg_converted = true;
 						}
 						u8  entry_reg = queue_regmap[queue_idx_beg];
@@ -545,7 +546,7 @@ static void gen_LWC2_SWC2()
 			base_reg = rs;
 		} else {
 			// base_reg = converted 'rs' base reg, TEMP_1 used as temp reg
-			emitAddressConversion(base_reg, rs, TEMP_1);
+			emitAddressConversion(base_reg, rs, TEMP_1, psx_mem_mapped);
 		}
 
 		// NOTE: Any NOPs that were included in count will be skipped

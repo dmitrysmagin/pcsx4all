@@ -25,13 +25,13 @@
  *
  */
 
+/* This is used for direct writes in mips recompiler, as well as mapping
+ *  of PS1 PC values to block code ptrs (replaces use of psxRecLUT[]).
+ */
+
 #include <stdio.h>
 #include "mem_mapping.h"
 #include "psxmem.h"
-
-/* This is used for direct writes in mips recompiler */
-
-bool psx_mem_mapped;
 
 #if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 #include <fcntl.h>
@@ -63,12 +63,9 @@ bool psx_mem_mapped;
  *   reason we map the rarely-accessed Expansion-ROM region (psxP) is that
  *   it lies between the RAM and scratchpad regions (what we really care about).
  */
-void rec_mmap_psx_mem()
+int rec_mmap_psx_mem()
 {
-	// Already mapped?
-	if (psx_mem_mapped)
-		return;
-
+	bool l_psx_mem_mapped = false;
 	bool  success = true;
 	int   memfd = -1;
 	void* mmap_retval = NULL;
@@ -115,17 +112,17 @@ void rec_mmap_psx_mem()
 		goto exit;
 	}
 
-	// Map PSX RAM to start at fixed virtual address specified in psxmem.h
+	// Map PSX RAM to start at fixed virtual address specified in mem_mapping.h
 	//  (usually 0x1000_0000)
 	mmap_retval = mmap((void*)PSX_MEM_VADDR, 0x200000,
 			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
 	if (mmap_retval == MAP_FAILED) {
-		printf("Error: mmap() to %p of %x bytes failed.\n", (void*)(PSX_MEM_VADDR), 0x200000);
+		printf("Error: mmap() to %p of %uMB failed.\n", (void*)(PSX_MEM_VADDR), 0x200000/(1024*1024));
 		success = false;
 		goto exit;
 	}
 	psxM = (s8*)mmap_retval;
-	psx_mem_mapped = true;
+	l_psx_mem_mapped = true;
 
 	// Create three mirrors of the 2MB RAM, all the way up to 0x7fffff
 	mmap_retval = mmap((void*)(PSX_MEM_VADDR+0x200000), 0x200000,
@@ -159,8 +156,8 @@ void rec_mmap_psx_mem()
 	mmap_retval = mmap((void*)(PSX_MEM_VADDR+0x0f000000), 0x0f810000-0x0f000000,
 			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_ANONYMOUS, -1, 0);
 	if (mmap_retval == MAP_FAILED) {
-		printf("Error: mmap() to %p of %x bytes failed.\n",
-				(void*)(PSX_MEM_VADDR+0x0f000000), 0x1f810000-0x1f000000);
+		printf("Error: mmap() to %p of %uKB failed.\n",
+				(void*)(PSX_MEM_VADDR+0x0f000000), (0x0f810000-0x0f000000)/1024);
 		success = false;
 		goto exit;
 	}
@@ -174,16 +171,11 @@ exit:
 		perror(__func__);
 		printf("ERROR: Failed to map/mirror PSX memory, falling back to malloc().\n"
 			   "Dynarec will emit slower code for loads/stores.\n");
+
 		// Abandon any mappings that were created
-		if (psx_mem_mapped) {
-			if (l_psxM_mirrored) {
-				// Unmap 2MB PSX RAM and its three mirrors
-				munmap((void*)PSX_MEM_VADDR, 0x800000);
-			} else {
-				// Unmap 2MB PSX RAM
-				munmap((void*)PSX_MEM_VADDR, 0x200000);
-			}
-			psx_mem_mapped = false;
+		if (l_psx_mem_mapped) {
+			// Unmap 2MB PSX RAM and its three mirrors (if mirrors got created)
+			munmap((void*)PSX_MEM_VADDR, l_psxM_mirrored ? 0x800000 : 0x200000);
 		}
 		psxM = psxP = psxH = NULL;
 	}
@@ -196,32 +188,197 @@ exit:
 		close(memfd);
 	unlink(mem_fname);
 #endif
+
+	return success ? 0 : -1;
 }
 
 void rec_munmap_psx_mem()
 {
-	if (!psx_mem_mapped)
-		return;
-
 	// Unmap 2MB PSX RAM and its three mirrors
 	munmap((void*)PSX_MEM_VADDR, 0x800000);
 	// Unmap 8MB ROM Expansion and 64KB HW I/O regions
 	munmap((void*)(PSX_MEM_VADDR+0x0f000000), 0x0f810000-0x0f000000);
-	psx_mem_mapped = false;
 	psxM = psxP = psxH = NULL;
+}
+
+
+/* Map/mirror recRAM code pointer table to fixed virtual address REC_RAM_VADDR,
+ *  typically 0x2000_0000. Map recROM code pointer table to offset from this
+ *  same fixed virtual address to match where ROM lies in PS1 address space,
+ *  typically 0x20c0_0000. Note that we do not map ROM at 0x2fc0_0000. This is
+ *  because we'd like to support future 64-bit platforms with 8-byte pointers.
+ *  On those future platforms, ROM ptrs would end up mapped at 0x2000_0000 +
+ *  (0x00c0_0000 * 2). Leaving ROM ptrs mapped at this lower end of the fixed
+ *  address space allows this flexibility. Only RAM or ROM addresses ever get
+ *  executed on PS1, so we have more freedom here than with the virtual memory
+ *  mapping in rec_mmap_psx_mem(). As a result, only the lower 24 bits of a PS1
+ *  PC address are used to index into recRAM/recROM.
+ */
+int rec_mmap_rec_mem()
+{
+	bool  l_rec_mem_mapped = false;
+	bool  success = true;
+	int   memfd = -1;
+	void* mmap_retval = NULL;
+	const char* mem_fname = NULL;
+	bool  l_recRAM_mirrored = false;
+
+	// Everything done here with mmap() is with a granularity of 512KB, so
+	//  make sure the platform has a page size that will allow this
+	//  (512KB will be mapped for recROM, recRAM has 2MB granularity)
+	long page_size = sysconf(_SC_PAGESIZE);
+	if (page_size > 524288) {
+		printf("ERROR: %s expects system page size <= 524288 bytes\n"
+		       "       System reported page size: %ld bytes\n", __func__, page_size);
+		success = false;
+		goto exit;
+	}
+
+#ifdef SHMEM_MIRRORING
+	// Get a POSIX shared memory object fd
+	printf("Mapping/mirroring %uMB recRAM using POSIX shared mem\n", REC_RAM_SIZE/(1024*1024));
+	mem_fname = "/pcsx4all_recram";
+	memfd = shm_open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+#else
+	// Use tmpfs file - TMPFS_DIR string literal should be defined in Makefile
+	//  CFLAGS with escaped quotes (alter if needed): -DTMPFS_DIR=\"/tmp\"
+	mem_fname = TMPFS_DIR "/pcsx4all_recram";
+	printf("Mapping/mirroring %uMB recRAM using tmpfs file %s\n", REC_RAM_SIZE/(1024*1024), mem_fname);
+	memfd = open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+#endif
+
+	if (memfd < 0) {
+#ifdef SHMEM_MIRRORING
+		printf("Error acquiring POSIX shared memory file descriptor\n");
+#else
+		printf("Error creating tmpfs file: %s\n", mem_fname);
+#endif
+		success = false;
+		goto exit;
+	}
+
+	// We want 2MB for recRAM (assuming 4-byte host pointers)
+	if (ftruncate(memfd, REC_RAM_SIZE) < 0) {
+		printf("Error in call to ftruncate(), could not get %uMB of recRAM\n", REC_RAM_SIZE/(1024*1024));
+		success = false;
+		goto exit;
+	}
+
+	// Map recRAM to start at fixed virtual address specified in mem_mapping.h
+	//  (usually 0x2000_0000)
+	mmap_retval = mmap((void*)REC_RAM_VADDR, REC_RAM_SIZE,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Error: mmap() to %p of %uMB failed.\n", (void*)(REC_RAM_VADDR), REC_RAM_SIZE/(1024*1024));
+		success = false;
+		goto exit;
+	}
+	l_rec_mem_mapped = true;
+
+	// Create three mirrors of the recRAM, to reflect PS1's RAM mirroring
+	mmap_retval = mmap((void*)(REC_RAM_VADDR+(REC_RAM_SIZE*1)), REC_RAM_SIZE,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Error: creating 1st mmap() mirror of recRAM failed.\n");
+		goto exit;
+	}
+	mmap_retval = mmap((void*)(REC_RAM_VADDR+(REC_RAM_SIZE*2)), REC_RAM_SIZE,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Error: creating 2nd mmap() mirror of recRAM failed.\n");
+		goto exit;
+	}
+	mmap_retval = mmap((void*)(REC_RAM_VADDR+(REC_RAM_SIZE*3)), REC_RAM_SIZE,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Error: creating 3rd mmap() mirror of recRAM failed.\n");
+		goto exit;
+	}
+	l_recRAM_mirrored = true;
+	printf(" ..success!\n");
+
+	printf("Mapping %uKB recROM using mmap\n", REC_ROM_SIZE/1024);
+	// Map recROM to start at offset past recRAM that matches PSX mapping,
+	//  i.e. if recRAM starts at 0x2000_0000, 512KB ROM region will be at
+	//  0x2000_0000 + 0x00c0_0000 (assuming 4-byte pointer size). Note that
+	//  only the lower 24 bits of the PS1 PC value is used as offset. This
+	//  allows future 64-bit platforms to use the same virtual mappings
+	//  while using a larger offset multiplier that 8-byte pointers require,
+	//  i.e. 0x2000_0000 + (0x00c0_0000 * 2).
+	mmap_retval = mmap((void*)REC_ROM_VADDR, REC_ROM_SIZE,
+			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED|MAP_ANONYMOUS, -1, 0);
+	if (mmap_retval == MAP_FAILED) {
+		printf("Error: mmap() to %p of %uKB failed.\n",
+				(void*)REC_ROM_VADDR, REC_ROM_SIZE/1024);
+		success = false;
+		goto exit;
+	}
+	printf(" ..success!\n");
+
+exit:
+	if (!success) {
+		// Oops, couldn't do everything we wanted to do
+		perror(__func__);
+		printf("ERROR: Failed to map/mirror recRAM/recROM, falling back to malloc().\n"
+			   "Dynarec will use slower block dispatch loop & code lookups.\n");
+
+		// Abandon any mappings that were created
+		if (l_rec_mem_mapped) {
+			// Unmap 2MB recRAM and its three mirrors (if mirrors got created)
+			munmap((void*)REC_RAM_VADDR, l_recRAM_mirrored ? REC_RAM_SIZE*4 : REC_RAM_SIZE);
+		}
+	}
+
+	// Close/unlink file: RAM is released when munmap()'ed or pid terminates
+#ifdef SHMEM_MIRRORING
+	shm_unlink(mem_fname);
+#else
+	if (memfd >= 0)
+		close(memfd);
+	unlink(mem_fname);
+#endif
+
+	return success ? 0 : -1;
+}
+
+void rec_munmap_rec_mem()
+{
+	// Unmap recRAM code ptr array and its three mirrors (hence REC_RAM_SIZE*4)
+	munmap((void*)REC_RAM_VADDR, REC_RAM_SIZE*4);
+
+	// Unmap recROM code ptr array
+	munmap((void*)REC_ROM_VADDR, REC_ROM_SIZE);
 }
 
 #else
 
-// Stub funcs to call when mmap/mirroring is not supported on a platform.
+/* Stub funcs to call when mmap/mirroring is not supported on a platform. */
+
 // psxMemInit() will be left to allocate psxM,psxP,psxH on its own.
-void rec_mmap_psx_mem()
+int rec_mmap_psx_mem()
 {
 #warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will emit slower code for loads/stores. Check your Makefile!"
 	printf("WARNING: Neither SHMEM_MIRRORING nor TMPFS_MIRRORING were defined at\n"
 	       "         compile-time! Dynarec will emit slower code for loads/stores.\n");
+	return -1;
 }
 
-void rec_munmap_psx_mem() {}
+void rec_munmap_psx_mem()
+{
+}
+
+// Dynarec will be forced to use psxRecLUT[] as further layer of indirection
+//  when looking up code block pointers.
+int rec_mmap_rec_mem()
+{
+#warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop. Check your Makefile!"
+	printf("WARNING: Neither SHMEM_MIRRORING nor TMPFS_MIRRORING were defined at\n"
+	       "         compile-time! Dynarec will use slower block dispatch loop.\n");
+	return -1;
+}
+
+void rec_munmap_rec_mem()
+{
+}
 
 #endif // defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)

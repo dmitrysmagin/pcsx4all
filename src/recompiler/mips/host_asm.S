@@ -23,7 +23,8 @@
 */
 
 // Mips32r2 introduced useful instructions:
-#if (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
+#if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
+    (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
 #define HAVE_MIPS32R2_EXT_INS
 #define HAVE_MIPS32R2_SEB_SEH

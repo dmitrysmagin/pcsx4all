@@ -48,16 +48,13 @@
 //  space, like a real PS1. This allows skipping mirror-region boundary
 //  checks which special-cased loads/stores that crossed the boundary,
 //  the 'Einhander' game fix. See notes in mem_mapping.cpp.
-#ifdef PSX_MEM_MAPPED_AND_MIRRORED
 #define SKIP_SAME_2MB_REGION_CHECK
-#endif
 
 // Bypass 'writeok' cache-isolation check before stores. We now backup first
 //  64KB of PSX RAM when cache is isolated, and restore it when unisolated.
 //  We simply let the cache-flush stores go through to RAM (very temporarily).
 //  See comments in psxmem.cpp psxMemWrite32_CacheCtrlPort().
 #define SKIP_WRITEOK_CHECK
-
 
 
 #define LSU_OPCODE(insn, rt, rn, imm) \
@@ -388,32 +385,35 @@ static void general_loads_stores(const int  count,
 		// NOTE: Branch delay slot contains next emitted instruction
 #endif
 
-#ifndef SKIP_SAME_2MB_REGION_CHECK
-		/*****************************************
-		 * Emit same-2MB-region check (obsolete) *
-		 *****************************************/
-
-		// Check if base_reg and base_reg+imm_min are in the same 2MB region.
-		//  Some games like 'Einhander' use a base reg near a RAM mirror-region
-		//  boundary to access locations in the prior mirror region. If this
-		//  is found, use indirect access.
-		//  NOTE: Virtual mapping+mirroring now makes this unnecessary.
-
-		ADDIU(TEMP_1, r1, imm_min);  // <BD slot>
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(TEMP_1, TEMP_1, 21, 3);  // TEMP_1 = (TEMP_1 >> 21) & 0x7
-		EXT(TEMP_2, r1, 21, 3);      // TEMP_2 = ((r1+imm_min) >> 21) & 0x7
-#else
-		SRL(TEMP_1, TEMP_1, 21);     // <BD slot>
-		ANDI(TEMP_1, TEMP_1, 7);
-		SRL(TEMP_2, r1, 21);
-		ANDI(TEMP_2, TEMP_2, 7);
+#ifdef SKIP_SAME_2MB_REGION_CHECK
+		//  NOTE: Virtual mapping+mirroring made emitting this check unnecessary.
+		if (!psx_mem_mapped)
 #endif
-		backpatch_label_hle_3 = (u32 *)recMem;
-		BNE(TEMP_1, TEMP_2, 0);      // goto label_hle if not in same 2MB region
+		{
+			/*****************************************
+			 * Emit same-2MB-region check (obsolete) *
+			 *****************************************/
 
-		// NOTE: Branch delay slot contains next emitted instruction
-#endif // !SKIP_SAME_2MB_REGION_CHECK
+			// Check if base_reg and base_reg+imm_min are in the same 2MB region.
+			//  Some games like 'Einhander' use a base reg near a RAM mirror-region
+			//  boundary to access locations in the prior mirror region. If this
+			//  is found, use indirect access.
+
+			ADDIU(TEMP_1, r1, imm_min);  // <BD slot>
+#ifdef HAVE_MIPS32R2_EXT_INS
+			EXT(TEMP_1, TEMP_1, 21, 3);  // TEMP_1 = (TEMP_1 >> 21) & 0x7
+			EXT(TEMP_2, r1, 21, 3);      // TEMP_2 = ((r1+imm_min) >> 21) & 0x7
+#else
+			SRL(TEMP_1, TEMP_1, 21);     // <BD slot>
+			ANDI(TEMP_1, TEMP_1, 7);
+			SRL(TEMP_2, r1, 21);
+			ANDI(TEMP_2, TEMP_2, 7);
+#endif
+			backpatch_label_hle_3 = (u32 *)recMem;
+			BNE(TEMP_1, TEMP_2, 0);      // goto label_hle if not in same 2MB region
+
+			// NOTE: Branch delay slot contains next emitted instruction
+		}
 
 
 		// Defer converting base reg until just before first use - this reduces
@@ -459,7 +459,7 @@ static void general_loads_stores(const int  count,
 
 				if (!base_reg_converted) {
 					// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
-					emitAddressConversion(TEMP_2, r1, TEMP_1);
+					emitAddressConversion(TEMP_2, r1, TEMP_1, psx_mem_mapped);
 					base_reg_converted = true;
 				}
 
@@ -505,7 +505,7 @@ static void general_loads_stores(const int  count,
 
 				if (!base_reg_converted) {
 					// TEMP_2 = converted 'r1' base reg, TEMP_1 used as temp reg
-					emitAddressConversion(TEMP_2, r1, TEMP_1);
+					emitAddressConversion(TEMP_2, r1, TEMP_1, psx_mem_mapped);
 					base_reg_converted = true;
 				}
 
@@ -582,13 +582,21 @@ static void general_loads_stores(const int  count,
 				ADDU(TEMP_1, TEMP_1, TEMP_3);
 
 				if ((PC-4) == pc_of_last_store_in_series && !skip_address_range_check) {
-					// This is the end of the loop
+					// This is the last store in the series, so the last invalidation
+					//  made and the end of all the direct code. Skip past whatever
+					//  indirect code might be coming after this.
+
 					backpatch_label_exit_2 = (u32 *)recMem;
 					B(0); // b label_exit
 					// NOTE: Branch delay slot will contain the instruction below
 				}
 				// Important: this should be the last opcode in the loop (see note above)
 				SW(0, TEMP_1, ADR_LO(recRAM));  // set code block ptr to NULL
+
+
+				// Last store in series? We're done.
+				if ((PC-4) == pc_of_last_store_in_series)
+					break;
 
 			} while (--icount);
 		}

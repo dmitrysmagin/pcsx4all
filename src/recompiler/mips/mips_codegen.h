@@ -30,11 +30,31 @@
 #define MIPS_CG_H
 
 // Mips32r2 introduced useful instructions:
-#if (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
+#if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
+    (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
 #define HAVE_MIPS32R2_EXT_INS
 #define HAVE_MIPS32R2_SEB_SEH
 #define HAVE_MIPS32R2_CACHE_OPS
+#endif
+
+/* Provide a warning to anyone compiling for a 64-bit host system:
+ *  Recompiler would need a bit of work to be compatible. All inline-asm
+ *  dispatch loops assume 32-bit pointers, and that's only one issue.
+ */
+#if defined(__SIZEOF_POINTER__) && (__SIZEOF_POINTER__ == 8)
+#error "Recompiler has not yet been ported to 64-bit platforms."
+#endif
+
+/* Provide a warning to anyone compiling for a MIPS32r6+ architecture:
+ *  MIPS32r6/MIPS64r6 changed some things and recompiler hasn't been ported yet:
+ *  - Removed LWL/LWR/SWL/SWR
+ *  - Removed MFLO/MFHI, also: divide and multiply work differently.
+ *  - Removed MOVZ/MOVN (though easily replaced with new ops SELEQZ/SELNEZ)
+ *  - Maybe some instruction encodings changed?
+ */
+#if (defined(__mips_isa_rev) && (__mips_isa_rev >= 6))
+#error "Recompiler has not yet been ported to MIPS32r6+/MIPS64r6+ platforms."
 #endif
 
 extern u32 *recMem;
@@ -423,7 +443,7 @@ do { \
 
 
 /* Defined in mips_codegen.cpp */
-void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg);
+void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped);
 bool opcodeIsStore(const u32 opcode);
 bool opcodeIsLoad(const u32 opcode);
 bool opcodeIsBranchOrJump(const u32 opcode);

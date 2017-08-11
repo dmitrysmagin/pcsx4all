@@ -65,19 +65,51 @@
 /* Const propagation is applied to addresses */
 #define USE_CONST_ADDRESSES
 
+/* Virtual memory mapping options: */
+#if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
+/* Prefer virtually mapped/mirrored code block pointer array over using
+ *  psxRecLUT[]. This removes a layer of indirection from PC->block-ptr lookups,
+ *  allows faster block dispatch loops, and reduces cache/TLB pressure.
+ */
+#define USE_VIRTUAL_RECRAM_MAPPING
 /* 2MB of PSX RAM (psxM) is now mirrored four times in virtual address space,
  *  like a real PS1. This allows skipping mirror-region checks, the 'Einhander'
  *  game fix, and eliminates need to mask RAM addresses. We also map 0x1fxx_xxxx
  *  regions (psxP,psxH) into this virtual space, optimizing scratchpad access.
  */
-#if defined(USE_DIRECT_MEM_ACCESS) && (defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-#define PSX_MEM_MAPPED_AND_MIRRORED
-#endif
+#define USE_VIRTUAL_PSXMEM_MAPPING
+#else
+#warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop and emit slower memory accesses. Check your Makefile!"
+#endif // defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
+
 
 //#define WITH_DISASM
 //#define DEBUGG printf
 
+
 #include "mem_mapping.h"
+
+static bool psx_mem_mapped;
+static bool rec_mem_mapped;
+
+/* Pointers to the recompiled blocks go here. psxRecLUT[] uses upper 16 bits of
+ *  a PC value as an index to lookup a block pointer stored in recRAM/recROM.
+ */
+static s8 *recRAM;
+static s8 *recROM;
+static uptr psxRecLUT[0x10000];
+
+#undef PC_REC
+#undef PC_REC8
+#undef PC_REC16
+#undef PC_REC32
+#define PC_REC(x)	((uptr)psxRecLUT[(x) >> 16] + (((x) & 0xffff) * (REC_RAM_PTR_SIZE / 4)))
+#define PC_REC8(x)	(*(u8 *)PC_REC(x))
+#define PC_REC16(x)	(*(u16*)PC_REC(x))
+#define PC_REC32(x)	(*(u32*)PC_REC(x))
+/* Version of PC_REC() that uses faster virtual block ptr mapping */
+#define PC_REC_MMAP(x)	(REC_RAM_VADDR | (((x) & 0x00ffffff) * (REC_RAM_PTR_SIZE / 4)))
+
 #include "mips_codegen.h"
 #include "disasm.h"
 #include "host_asm.h"
@@ -93,29 +125,19 @@ typedef struct {
 
 static iRegisters iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
-static u32 psxRecLUT[0x010000];
-
-#undef PC_REC
-#undef PC_REC8
-#undef PC_REC16
-#undef PC_REC32
-#define PC_REC(x)	(psxRecLUT[(x) >> 16] + ((x) & 0xffff))
-#define PC_REC8(x)	(*(u8 *)PC_REC(x))
-#define PC_REC16(x)	(*(u16*)PC_REC(x))
-#define PC_REC32(x)	(*(u32*)PC_REC(x))
-
 #define RECMEM_SIZE		(12 * 1024 * 1024)
 #define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
 #define REC_MAX_OPCODES		80
 
 static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
 u32 *recMem; /* the recompiled blocks will be here */
-static s8 recRAM[0x200000] __attribute__((aligned(4))); /* and the ptr to the blocks here */
-static s8 recROM[0x080000] __attribute__((aligned(4))); /* and here */
+static u32 *recMemStart;
 static u32 pc;					/* recompiler pc */
 static u32 oldpc;               /* recompiler pc at start of block */
 static u32 branch = 0;
-static u8  block_ra_loaded;      /* Non-zero when block return address is loaded in host $ra reg */
+static bool block_ra_loaded;      /* True when block return address is loaded in host $ra reg */
+static u32 end_block = 0;
+u32 cycle_multiplier = 0x200; // 0x200 == 2.00
 
 static uintptr_t block_ret_addr;      /* Non-zero when blocks are using direct return jumps */
 static uintptr_t block_fast_ret_addr; /* Non-zero when blocks are using direct return jumps &
@@ -130,6 +152,7 @@ char	disasm_buffer[512];
 static void recReset();
 static void recRecompile();
 static void recClear(u32 Addr, u32 Size);
+static void recClear_mmap(u32 Addr, u32 Size);
 
 extern void (*recBSC[64])();
 extern void (*recSPC[64])();
@@ -138,9 +161,6 @@ extern void (*recCP0[32])();
 extern void (*recCP2[64])();
 extern void (*recCP2BSC[32])();
 
-u32	*recMemStart;
-u32	end_block = 0;
-u32	cycle_multiplier = 0x200; // 0x200 == 2.00
 
 #ifdef WITH_DISASM
 
@@ -264,6 +284,7 @@ do { \
 
 #endif
 
+
 #include "opcodes.h"
 
 #ifndef HAVE_MIPS32R2_CACHE_OPS
@@ -362,6 +383,35 @@ static int recInit()
 	recMem = (u32*)recMemBase;
 	memset(recMem, 0, RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000);
 
+	// The tables recRAM and recROM hold block code pointers for all valid PC
+	//  values for a PS1 program, after masking away banking and/or mirroring.
+	//  Originally, the dynarec used a LUT, psxRecLUT[], to accomplish this
+	//  masking, which added a second layer of indirection to code lookups.
+	//  Instead, we now virtually map/mirror recRAM and map recROM.
+	//  This offloads the indirection onto the host's TLB.
+	//  NOTE: psxRecLUT[] still is used inside recExecuteBlock(): no sense in
+	//        making two versions of a function that hardly gets any real use.
+#ifdef USE_VIRTUAL_RECRAM_MAPPING
+	if (!rec_mem_mapped && !recRAM && !recROM) {
+		if (rec_mmap_rec_mem() >= 0) {
+			rec_mem_mapped = true;
+			recRAM = (s8*)REC_RAM_VADDR;
+			recROM = (s8*)REC_ROM_VADDR;
+			psxRec.Clear = recClear_mmap;
+		}
+	}
+#endif
+
+	if (!rec_mem_mapped) {
+		// Oops, somehow the virtual mapping/mirroring failed. We'll allocate
+		//  recRAM/recROM here and use slower versions of recExecute*() that
+		//  use psxRecLUT[] to indirectly access recRAM/recROM.
+		recRAM = (s8*)malloc(REC_RAM_SIZE);
+		recROM = (s8*)malloc(REC_ROM_SIZE);
+		psxRec.Clear = recClear;
+		printf("WARNING: Recompiler is using slower non-virtual block ptr lookups.\n");
+	}
+
 	recReset();
 
 	if (recRAM == NULL || recROM == NULL || recMemBase == NULL || psxRecLUT == NULL) {
@@ -369,23 +419,37 @@ static int recInit()
 	}
 
 	for (i = 0; i < 0x80; i++)
-		psxRecLUT[i + 0x0000] = (u32)&recRAM[(i & 0x1f) << 16];
+		psxRecLUT[i + 0x0000] = (uptr)recRAM + (((i & 0x1f) << 16) * (REC_RAM_PTR_SIZE/4));
 
-	memcpy(psxRecLUT + 0x8000, psxRecLUT, 0x80 * 4);
-	memcpy(psxRecLUT + 0xa000, psxRecLUT, 0x80 * 4);
+	memcpy(&psxRecLUT[0x8000], psxRecLUT, 0x80 * sizeof(psxRecLUT[0]));
+	memcpy(&psxRecLUT[0xa000], psxRecLUT, 0x80 * sizeof(psxRecLUT[0]));
 
 	for (i = 0; i < 0x08; i++)
-		psxRecLUT[i + 0xbfc0] = (u32)&recROM[i << 16];
+		psxRecLUT[i + 0xbfc0] = (uptr)recROM + ((i << 16) * (REC_RAM_PTR_SIZE/4));
 
-	// Map/mirror PSX RAM, other regions
-	rec_mmap_psx_mem();
+	// Map/mirror PSX RAM, other regions, i.e. psxM, psxP, psxH
+	// NOTE: if mapping fails or isn't enabled at compile-time, PSX mem will be
+	//       allocated using traditional methods in psxmem.cpp
+#ifdef USE_VIRTUAL_PSXMEM_MAPPING
+	if (!psx_mem_mapped)
+		psx_mem_mapped = (rec_mmap_psx_mem() >= 0);
+#endif
+
+	if (!psx_mem_mapped)
+		printf("WARNING: Recompiler is emitting slower non-virtual mem access code.\n");
 
 	return 0;
 }
 
 static void recShutdown()
 {
-	rec_munmap_psx_mem();
+	if (psx_mem_mapped)
+		rec_munmap_psx_mem();
+
+	if (rec_mem_mapped)
+		rec_munmap_rec_mem();
+
+	psx_mem_mapped = rec_mem_mapped = false;
 }
 
 /* It seems there's no way to tell GCC that something is being called inside
@@ -442,7 +506,7 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
  * Blocks return indirectly, to address stored at 16($sp)
  * Called only from recExecute(), see notes there.
  */
-static void recExecuteIndirectReturn()
+static void recExecuteIndirectReturn_lut()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -525,8 +589,11 @@ __asm__ __volatile__ (
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 "andi  $t0, $v0, 0xffff                       \n"
 "addu  $t2, $t0, $t1                          \n"
-"lw    $t0, 0($t2)                            \n" // $t0 now points to beginning of recompiled
-                                                  //  block, or is 0 if block needs recompiling
+"lw    $t0, 0($t2)                            \n" // $t0 = address of start of block code, or
+                                                  //       or 0 if block needs recompilation
+                                                  // IMPORTANT: leave block ptr in $t2, it gets
+                                                  // saved & re-used if recRecompile() is called.
+
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
 "sltu  $t4, $t3, $t4                          \n"
@@ -585,9 +652,168 @@ __asm__ __volatile__ (
   [psxRegs_pc_off]             "i" (off(pc)),
   [psxRegs_cycle_off]          "i" (off(cycle)),
   [psxRegs_io_cycle_ctr_off]   "i" (off(io_cycle_counter)),
-  [psxRecLUT]                  "i" (&psxRecLUT),
   [recRecompile]               "i" (&recRecompile),
-  [psxBranchTest]              "i" (&psxBranchTest)
+  [psxBranchTest]              "i" (&psxBranchTest),
+  [psxRecLUT]                  "i" (psxRecLUT)
+: // Clobber - No need to list anything but 'saved' regs
+  "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "fp", "ra", "memory"
+);
+#endif
+}
+
+static void recExecuteIndirectReturn_mmap()
+{
+	// Set block_ret_addr to 0, so generated code uses indirect returns
+	block_ret_addr = block_fast_ret_addr = 0;
+
+#ifndef ASM_EXECUTE_LOOP
+	for (;;) {
+		u32 *p = (u32*)PC_REC(psxRegs.pc);
+		if (*p == 0)
+			recRecompile();
+
+		recFunc((void *)*p);
+
+		if (psxRegs.cycle >= psxRegs.io_cycle_counter)
+			psxBranchTest();
+	}
+#else
+__asm__ __volatile__ (
+// NOTE: <BD> indicates an instruction in a branch-delay slot
+".set push                                    \n"
+".set noreorder                               \n"
+
+// $fp/$s8 remains set to &psxRegs across all calls to blocks
+"la    $fp, %[psxRegs]                        \n"
+
+// Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
+// empty at 0($sp) for use by functions called from within recompiled code.
+".equ  frame_size,                  24        \n"
+".equ  f_off_temp_var1,             20        \n"
+".equ  f_off_block_ret_addr,        16        \n" // NOTE: blocks assume this is at 16($sp)!
+"addiu $sp, $sp, -frame_size                  \n"
+
+// Store const block return address at fixed location in stack frame
+"la    $t0, loop%=                            \n"
+"sw    $t0, f_off_block_ret_addr($sp)         \n"
+
+// Load $v0 once with psxRegs.pc, blocks will assign new value when returning
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n"
+
+// Load $v1 once with zero. It is the # of cycles psxRegs.cycle should be
+// incremented by when a block returns.
+"move  $v1, $0                                \n"
+
+// Align loop on cache-line boundary
+".balign 32                                   \n"
+
+////////////////////////////
+//       LOOP CODE:       //
+////////////////////////////
+
+// NOTE: Blocks return to top of loop.
+// NOTE: Loop expects following values to be set:
+// $v0 = new value for psxRegs.pc
+// $v1 = # of cycles to increment psxRegs.cycle by
+
+// The loop pseudocode is this, interleaving ops to reduce load stalls:
+//
+// loop:
+// $t2 = REC_RAM_VADDR | ($v0 & 0x00ffffff)
+// $t0 = *($t2)
+// psxRegs.cycle += $v1
+// if (psxRegs.cycle >= psxRegs.io_cycle_counter)
+//    goto call_psxBranchTest;
+// psxRegs.pc = $v0
+// if ($t0 == 0)
+//    goto recompile_block;
+// $ra = block return address
+// goto $t0;
+// /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
+// /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
+
+// Infinite loop, blocks return here
+"loop%=:                                      \n"
+"lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
+"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+
+// The block ptrs are mapped virtually to address space allowing lower
+//  24 bits of PS1 PC address to lookup start of any RAM or ROM code block.
+"lui   $t2, %[REC_RAM_VADDR_UPPER]            \n"
+#ifdef HAVE_MIPS32R2_EXT_INS
+"ins   $t2, $v0, 0, 24                        \n"
+#else
+"sll   $t1, $v0, 8                            \n"
+"srl   $t1, $t1, 8                            \n"
+"or    $t2, $t2, $t1                          \n"
+#endif
+"lw    $t0, 0($t2)                            \n" // $t0 = address of start of block code, or
+                                                  //       or 0 if block needs recompilation
+                                                  // IMPORTANT: leave block ptr in $t2, it gets
+                                                  // saved & re-used if recRecompile() is called.
+
+"addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
+
+// Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
+"sltu  $t4, $t3, $t4                          \n"
+"beqz  $t4, call_psxBranchTest%=              \n"
+"sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
+                                                  //  whether or not we are branching here
+
+// Recompile block, if necessary
+"beqz  $t0, recompile_block%=                 \n"
+"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val
+
+// Execute already-compiled block. It will return at top of loop.
+"execute_block%=:                             \n"
+"jr    $t0                                    \n"
+"lw    $ra, 16($sp)                           \n" // <BD> Load block return address
+
+////////////////////////////
+//     NON-LOOP CODE:     //
+////////////////////////////
+
+// Call psxBranchTest() and go back to top of loop
+"call_psxBranchTest%=:                        \n"
+"jal   %[psxBranchTest]                       \n"
+"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val,
+                                                  //  as psxBranchTest() might issue an exception.
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // After psxBranchTest() returns, load psxRegs.pc
+                                                  //  back into $v0, which could be different than
+                                                  //  before the call if an exception was issued.
+"b     loop%=                                 \n" // Go back to top to process psxRegs.pc again..
+"move  $v1, $0                                \n" // <BD> ..using BD slot to set $v1 to 0, since
+                                                  //  psxRegs.cycle shouldn't be incremented again.
+
+// Recompile block and return to normal codepath.
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"b     execute_block%=                        \n" // Resume normal code path, but first we must..
+"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
+
+// Destroy stack frame, exiting inlined ASM block
+// NOTE: We'd never reach this point because the block dispatch loop is
+//  currently infinite. This could change in the future.
+// TODO: Could add a way to reset a game or load a new game from within
+//  the running emulator by setting a global boolean, resetting
+//  psxRegs.io_cycle_counter to 0, and checking if it's been set before
+//  calling pxsBranchTest() here. If set, you must jump here to
+//  exit the loop, to ensure that stack frame is adjusted before return!
+"exit%=:                                      \n"
+"addiu $sp, $sp, frame_size                   \n"
+".set pop                                     \n"
+
+: // Output
+: // Input
+  [psxRegs]                    "i" (&psxRegs),
+  [psxRegs_pc_off]             "i" (off(pc)),
+  [psxRegs_cycle_off]          "i" (off(cycle)),
+  [psxRegs_io_cycle_ctr_off]   "i" (off(io_cycle_counter)),
+  [recRecompile]               "i" (&recRecompile),
+  [psxBranchTest]              "i" (&psxBranchTest),
+  [REC_RAM_VADDR_UPPER]        "i" (REC_RAM_VADDR >> 16)
 : // Clobber - No need to list anything but 'saved' regs
   "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "fp", "ra", "memory"
 );
@@ -601,7 +827,7 @@ __asm__ __volatile__ (
  * block_ret_addr and return immediately.
  * Called only from recExecute(), see notes there.
  */
-static void recExecuteDirectReturn(u32 query_ret_addr)
+static void recExecuteDirectReturn_lut(u32 query_ret_addr)
 {
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
@@ -668,10 +894,12 @@ __asm__ __volatile__ (
 // psxRegs.pc = $v0
 // if ($t0 == 0)
 //    goto recompile_block;
-// $ra = block return address
+// tmp_block_start_addr = $t0
 // goto $t0;
 // /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
 // /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
+// /* If block branches back to its beginning, it will return to the        */
+// /*  fastpath version of loop that skips looking up a code pointer.       */
 
 // Infinite loop, blocks return here
 "loop%=:                                      \n"
@@ -685,8 +913,11 @@ __asm__ __volatile__ (
 "addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
 "andi  $t0, $v0, 0xffff                       \n"
 "addu  $t2, $t0, $t1                          \n"
-"lw    $t0, 0($t2)                            \n" // $t0 now points to beginning of recompiled
-                                                  //  block, or is 0 if block needs recompiling
+"lw    $t0, 0($t2)                            \n" // $t0 = address of start of block code, or
+                                                  //       or 0 if block needs recompilation
+                                                  // IMPORTANT: leave block ptr in $t2, it gets
+                                                  // saved & re-used if recRecompile() is called.
+
 
 // Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
 "sltu  $t4, $t3, $t4                          \n"
@@ -799,9 +1030,224 @@ __asm__ __volatile__ (
   [psxRegs_pc_off]             "i" (off(pc)),
   [psxRegs_cycle_off]          "i" (off(cycle)),
   [psxRegs_io_cycle_ctr_off]   "i" (off(io_cycle_counter)),
-  [psxRecLUT]                  "i" (&psxRecLUT),
   [recRecompile]               "i" (&recRecompile),
-  [psxBranchTest]              "i" (&psxBranchTest)
+  [psxBranchTest]              "i" (&psxBranchTest),
+  [psxRecLUT]                  "i" (psxRecLUT)
+: // Clobber - No need to list anything but 'saved' regs
+  "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "fp", "ra", "memory"
+);
+}
+
+static void recExecuteDirectReturn_mmap(u32 query_ret_addr)
+{
+__asm__ __volatile__ (
+// NOTE: <BD> indicates an instruction in a branch-delay slot
+".set push                                    \n"
+".set noreorder                               \n"
+
+// Set up our own stack frame. Should have 8-byte alignment, and have 16 bytes
+// empty at 0($sp) for use by functions called from within recompiled code.
+".equ  frame_size,                        32  \n"
+".equ  f_off_branchtest_fastpath_ra,      28  \n"
+".equ  f_off_temp_var1,                   24  \n"
+".equ  f_off_block_start_addr,            16  \n"
+"addiu $sp, $sp, -frame_size                  \n"
+
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+// Set the global var 'block_fast_ret_addr'.
+"la    $t0, fastpath_loop%=                   \n"
+"lui   $t1, %%hi(%[block_fast_ret_addr])      \n"
+"sw    $t0, %%lo(%[block_fast_ret_addr])($t1) \n"
+
+// We need a stack var to hold a return address for a 'fastpath' call to
+//  psxBranchTest. This helps reduce size of code through sharing.
+"la    $t0, branchtest_fastpath_retaddr%=     \n"
+"sw    $t0, f_off_branchtest_fastpath_ra($sp) \n"
+#endif
+
+// Set the global var 'block_ret_addr'.
+// If parameter 'query_ret_addr' is non-zero, return to caller.
+"la    $t0, loop%=                            \n"
+"lui   $t1, %%hi(%[block_ret_addr])           \n"
+"bnez  %[query_ret_addr], exit%=              \n"
+"sw    $t0, %%lo(%[block_ret_addr])($t1)      \n" // <BD>
+
+// $fp/$s8 remains set to &psxRegs across all calls to blocks
+"la    $fp, %[psxRegs]                        \n"
+
+// Load $v0 once with psxRegs.pc, blocks will assign new value when returning
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n"
+
+// Load $v1 once with zero. It is the # of cycles psxRegs.cycle should be
+// incremented by when a block returns.
+"move  $v1, $0                                \n"
+
+// Align loop on cache-line boundary
+".balign 32                                   \n"
+
+////////////////////////////
+//       LOOP CODE:       //
+////////////////////////////
+
+// NOTE: Blocks return to top of loop.
+// NOTE: Loop expects following values to be set:
+// $v0 = new value for psxRegs.pc
+// $v1 = # of cycles to increment psxRegs.cycle by
+
+// The loop pseudocode is this, interleaving ops to reduce load stalls:
+//
+// loop:
+// $t2 = REC_RAM_VADDR | ($v0 & 0x00ffffff)
+// $t0 = *($t2)
+// psxRegs.cycle += $v1
+// if (psxRegs.cycle >= psxRegs.io_cycle_counter)
+//    goto call_psxBranchTest;
+// psxRegs.pc = $v0
+// if ($t0 == 0)
+//    goto recompile_block;
+// tmp_block_start_addr = $t0
+// goto $t0;
+// /* Code at addr $t0 will run and return having set $v0 to new psxRegs.pc */
+// /*  value and $v1 to the number of cycles to increment psxRegs.cycle by. */
+// /* If block branches back to its beginning, it will return to the        */
+// /*  fastpath version of loop that skips looking up a code pointer.       */
+
+// Infinite loop, blocks return here
+"loop%=:                                      \n"
+"lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
+"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+
+// The block ptrs are mapped virtually to address space allowing lower
+//  24 bits of PS1 PC address to lookup start of any RAM or ROM code block.
+"lui   $t2, %[REC_RAM_VADDR_UPPER]            \n"
+#ifdef HAVE_MIPS32R2_EXT_INS
+"ins   $t2, $v0, 0, 24                        \n"
+#else
+"sll   $t1, $v0, 8                            \n"
+"srl   $t1, $t1, 8                            \n"
+"or    $t2, $t2, $t1                          \n"
+#endif
+"lw    $t0, 0($t2)                            \n" // $t0 = address of start of block code, or
+                                                  //       or 0 if block needs recompilation
+                                                  // IMPORTANT: leave block ptr in $t2, it gets
+                                                  // saved & re-used if recRecompile() is called.
+
+"addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
+
+// Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
+"sltu  $t4, $t3, $t4                          \n"
+"beqz  $t4, call_psxBranchTest%=              \n"
+"sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
+                                                  //  whether or not we are branching here
+
+// Recompile block, if necessary
+"beqz  $t0, recompile_block%=                 \n"
+"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Use BD slot to store new psxRegs.pc val
+
+// Execute already-compiled block. It returns to top of 'fastpath' loop if it
+//  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
+"execute_block%=:                             \n"
+"jr    $t0                                    \n"
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+"sw    $t0, f_off_block_start_addr($sp)       \n" // <BD> Save code address, in case block jumps back
+                                                  //      to its beginning and takes 'fastpath'
+#else
+"nop                                          \n" // <BD>
+#endif
+
+////////////////////////////
+//   BRANCH-TEST CODE:    //
+////////////////////////////
+
+// Call psxBranchTest() and go back to top of loop
+"call_psxBranchTest%=:                        \n"
+"jal   %[psxBranchTest]                       \n"
+"sw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Store new psxRegs.pc val before calling C
+"branchtest_fastpath_retaddr%=:               \n" // Next 3 instructions shared with 'fastpath' code..
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // After psxBranchTest() returns, load psxRegs.pc
+                                                  //  back into $v0, which could be different than
+                                                  //  before the call if an exception was issued.
+"b     loop%=                                 \n" // Go back to top to process new psxRegs.pc value..
+"move  $v1, $0                                \n" // <BD> ..using BD slot to set $v1 to 0, since
+                                                  //  psxRegs.cycle shouldn't be incremented again.
+
+#ifdef USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+////////////////////////////
+//   FASTPATH LOOP CODE:  //
+////////////////////////////
+
+// When a block's new PC (jump target) is the same as its own beginning PC,
+//  i.e. it branches back to its own top, it will return to this 'fast path'
+//  version of above loop. It assumes that the block is already compiled and
+//  unmodified, saving cycles versus the general loop. The main loop was
+//  careful to save the block start address at location in stack frame.
+//  NOTE: Blocks returning this way don't bother to set $v0 to any PC value.
+"fastpath_loop%=:                             \n"
+"lw    $t3, %[psxRegs_cycle_off]($fp)         \n" // $t3 = psxRegs.cycle
+"lw    $t4, %[psxRegs_io_cycle_ctr_off]($fp)  \n" // $t4 = psxRegs.io_cycle_counter
+"lw    $t0, f_off_block_start_addr($sp)       \n" // Load block code addr saved in main loop
+"addu  $t3, $t3, $v1                          \n" // $t3 = psxRegs.cycle + $v1
+
+// Must call psxBranchTest() when psxRegs.cycle >= psxRegs.io_cycle_counter
+"sltu  $t4, $t3, $t4                          \n"
+"beqz  $t4, call_psxBranchTest_fastpath%=     \n"
+"sw    $t3, %[psxRegs_cycle_off]($fp)         \n" // <BD> IMPORTANT: store new psxRegs.cycle val,
+                                                  //  whether or not we are branching here
+
+// Execute already-compiled block. It returns to top of 'fastpath' loop if it
+//  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
+"jr    $t0                                    \n"
+"nop                                          \n" // <BD>
+
+////////////////////////////
+//   BRANCH-TEST CODE:    //
+////////////////////////////
+
+// Call psxBranchTest(). We don't have a new PC in $v0 to store, so call it
+//  directly, and have it return to code shared with main 'call_psxBranchTest'.
+"call_psxBranchTest_fastpath%=:               \n"
+"j     %[psxBranchTest]                       \n"
+"lw    $ra, f_off_branchtest_fastpath_ra($sp) \n" // <BD>
+
+#endif // USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
+
+////////////////////////////
+// RECOMPILE BLOCK CODE:  //
+////////////////////////////
+
+// Recompile block and return to normal codepath.
+"recompile_block%=:                           \n"
+"jal   %[recRecompile]                        \n"
+"sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
+"lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"b     execute_block%=                        \n" // Resume normal code path, but first we must..
+"lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
+
+
+// Destroy stack frame, exiting inlined ASM block
+// NOTE: We'd never reach this point because the block dispatch loop is
+//  currently infinite. This could change in the future.
+// TODO: Could add a way to reset a game or load a new game from within
+//  the running emulator by setting a global boolean, resetting
+//  psxRegs.io_cycle_counter to 0, and checking if it's been set before
+//  calling pxsBranchTest() here. If set, you must jump here to
+//  exit the loop, to ensure that stack frame is adjusted before return!
+"exit%=:                                      \n"
+"addiu $sp, $sp, frame_size                   \n"
+".set pop                                     \n"
+
+: // Output
+: // Input
+  [query_ret_addr]             "r" (query_ret_addr),
+  [block_ret_addr]             "i" (&block_ret_addr),
+  [block_fast_ret_addr]        "i" (&block_fast_ret_addr),
+  [psxRegs]                    "i" (&psxRegs),
+  [psxRegs_pc_off]             "i" (off(pc)),
+  [psxRegs_cycle_off]          "i" (off(cycle)),
+  [psxRegs_io_cycle_ctr_off]   "i" (off(io_cycle_counter)),
+  [recRecompile]               "i" (&recRecompile),
+  [psxBranchTest]              "i" (&psxBranchTest),
+  [REC_RAM_VADDR_UPPER]        "i" (REC_RAM_VADDR >> 16)
 : // Clobber - No need to list anything but 'saved' regs
   "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7", "fp", "ra", "memory"
 );
@@ -969,7 +1415,7 @@ __asm__ __volatile__ (
   [psxRegs_pc_off]             "i" (off(pc)),
   [psxRegs_cycle_off]          "i" (off(cycle)),
   [psxRegs_io_cycle_ctr_off]   "i" (off(io_cycle_counter)),
-  [psxRecLUT]                  "i" (&psxRecLUT),
+  [psxRecLUT]                  "i" (psxRecLUT),
   [recRecompile]               "i" (&recRecompile),
   [psxBranchTest]              "i" (&psxBranchTest)
 : // Clobber - No need to list anything but 'saved' regs
@@ -982,9 +1428,10 @@ static void recExecute()
 {
 	// By default, emit traditional code that loads return address off stack:
 	//  HLE BIOS calls recExecute() and recExecuteBlock() interchangeably
-	//  during execution, so we use indirect block returns in all dispatch
-	//  loops. All blocks load $ra off stack and jump to it when returning.
-	// Var 'block_ret_addr' should remain set to zero throughout.
+	//  during execution, so if HLE BIOS is in use, we must use indirect-return
+	//  block dispatch loops regardless.. All blocks load $ra off stack and jump
+	//  to it when returning.
+	// --> Var 'block_ret_addr' should remain set to zero throughout.
 	bool use_indirect_return_dispatch_loop = true;
 	block_ret_addr = block_fast_ret_addr = 0;
 
@@ -1007,7 +1454,10 @@ static void recExecute()
 
 			// Ask direct-return dispatch func to just set block_ret_addr
 			//  and return, by passing 1 as arg:
-			recExecuteDirectReturn(1);
+			if (psx_mem_mapped)
+				recExecuteDirectReturn_mmap(1);
+			else
+				recExecuteDirectReturn_lut(1);
 
 			uintptr_t code_cache_beg = (uintptr_t)recMemBase;
 			uintptr_t code_cache_end = (uintptr_t)recMemBase + sizeof(recMemBase);
@@ -1029,29 +1479,49 @@ static void recExecute()
 #endif
 
 	if (use_indirect_return_dispatch_loop) {
-		recExecuteIndirectReturn();
+		if (psx_mem_mapped)
+			recExecuteIndirectReturn_mmap();
+		else
+			recExecuteIndirectReturn_lut();
 	} else {
 		// Clear code cache so all emitted code from this point forward
 		//  uses direct return jumps, then begin execution.
 		recReset();
-		recExecuteDirectReturn(0);
+
+		if (psx_mem_mapped)
+			recExecuteDirectReturn_mmap(0);
+		else
+			recExecuteDirectReturn_lut(0);
 	}
 }
 
 static void recClear(u32 Addr, u32 Size)
 {
-	memset((u32*)PC_REC(Addr), 0, (Size * 4));
-
+	memset((u32*)PC_REC(Addr), 0, (Size * REC_RAM_PTR_SIZE));
 	if (Addr == 0x8003d000) {
 		// temp fix for Buster Bros Collection and etc.
-		memset(recRAM+0x4d88, 0, 0x8);
+		// NOTE: this old fix prevents a segfault in game startup, and was
+		//       already present in Ulricht's original MIPS dynarec
+		memset((void*)((uptr)recRAM + (0x4d88 * REC_RAM_PTR_SIZE/4)) , 0, 2*REC_RAM_PTR_SIZE);
+	}
+}
+
+/* Version of recClear() that uses virtual mapping/mirroring, not psxRecLUT[] */
+static void recClear_mmap(u32 Addr, u32 Size)
+{
+	memset((u32*)PC_REC_MMAP(Addr), 0, (Size * REC_RAM_PTR_SIZE));
+	if (Addr == 0x8003d000) {
+		// temp fix for Buster Bros Collection and etc.
+		// NOTE: this old fix prevents a segfault in game startup, and was
+		//       already present in Ulricht's original MIPS dynarec
+		memset((void*)((uptr)recRAM + (0x4d88 * REC_RAM_PTR_SIZE/4)) , 0, 2*REC_RAM_PTR_SIZE);
 	}
 }
 
 static void recReset()
 {
-	memset(recRAM, 0, 0x200000);
-	memset(recROM, 0, 0x080000);
+	memset(recRAM, 0, REC_RAM_SIZE);
+	memset(recROM, 0, REC_ROM_SIZE);
 
 	recMem = (u32*)recMemBase;
 
