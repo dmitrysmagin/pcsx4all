@@ -92,6 +92,11 @@
 static bool psx_mem_mapped;
 static bool rec_mem_mapped;
 
+/* Bit vector indicating which PS1 RAM pages contain the start of blocks.
+ *  Used to determine when code invalidation in recClear() can be skipped.
+ */
+static u8 code_pages[0x200000/4096/8];
+
 /* Pointers to the recompiled blocks go here. psxRecLUT[] uses upper 16 bits of
  *  a PC value as an index to lookup a block pointer stored in recRAM/recROM.
  */
@@ -152,7 +157,6 @@ char	disasm_buffer[512];
 static void recReset();
 static void recRecompile();
 static void recClear(u32 Addr, u32 Size);
-static void recClear_mmap(u32 Addr, u32 Size);
 
 extern void (*recBSC[64])();
 extern void (*recSPC[64])();
@@ -325,6 +329,13 @@ static void recRecompile()
 	PC_REC32(psxRegs.pc) = (u32)recMem;
 	oldpc = pc = psxRegs.pc;
 
+	// If 'pc' is in PS1 RAM, mark the page of RAM as containing the start of
+	//  a block. For the range check, bit 27 is interpreted as a sign bit.
+	if ((s32)(pc << 4) >= 0) {
+		u32 masked_pc = pc & 0x1fffff;
+		code_pages[masked_pc/4096/8] |= (1 << ((masked_pc/4096) & 7));
+	}
+
 	DISASM_INIT();
 
 	rec_recompile_start();
@@ -397,7 +408,6 @@ static int recInit()
 			rec_mem_mapped = true;
 			recRAM = (s8*)REC_RAM_VADDR;
 			recROM = (s8*)REC_ROM_VADDR;
-			psxRec.Clear = recClear_mmap;
 		}
 	}
 #endif
@@ -408,7 +418,6 @@ static int recInit()
 		//  use psxRecLUT[] to indirectly access recRAM/recROM.
 		recRAM = (s8*)malloc(REC_RAM_SIZE);
 		recROM = (s8*)malloc(REC_ROM_SIZE);
-		psxRec.Clear = recClear;
 		printf("WARNING: Recompiler is using slower non-virtual block ptr lookups.\n");
 	}
 
@@ -1495,31 +1504,49 @@ static void recExecute()
 	}
 }
 
+/* Invalidate 'Size' code block pointers at word-aligned PS1 address 'Addr'. */
 static void recClear(u32 Addr, u32 Size)
 {
-	memset((u32*)PC_REC(Addr), 0, (Size * REC_RAM_PTR_SIZE));
-	if (Addr == 0x8003d000) {
-		// temp fix for Buster Bros Collection and etc.
-		// NOTE: this old fix prevents a segfault in game startup, and was
-		//       already present in Ulricht's original MIPS dynarec
-		memset((void*)((uptr)recRAM + (0x4d88 * REC_RAM_PTR_SIZE/4)) , 0, 2*REC_RAM_PTR_SIZE);
-	}
-}
+	const u32 masked_ram_addr = Addr & 0x1fffff;
 
-/* Version of recClear() that uses virtual mapping/mirroring, not psxRecLUT[] */
-static void recClear_mmap(u32 Addr, u32 Size)
-{
-	memset((u32*)PC_REC_MMAP(Addr), 0, (Size * REC_RAM_PTR_SIZE));
+	// Check if the page(s) of PS1 RAM that 'Addr','Size' target contain the
+	//  start of any blocks. If not, invalidation would have no effect and is
+	//  skipped. This eliminates 99% of large unnecessary invalidations that
+	//  occur when many games stream CD data in-game.
+	u32 page = masked_ram_addr/4096;
+	u32 end_page = ((masked_ram_addr + (Size-1)*4)/4096) + 1;
+	bool has_code = false;
+	do {
+		u32 pflag = 1 << (page & 7);  // Each byte in code_pages[] represents 8 pages
+		has_code = code_pages[page/8] & pflag;
+	} while ((++page != end_page) && !has_code);
+
+	// NOTE: If PS1 mem is mapped/mirrored, make PC_REC_MMAP use the same virtual
+	//       mirror region the game is already using, reducing TLB pressure.
+	uptr dst_base = !psx_mem_mapped ? (uptr)recRAM : (uptr)PC_REC_MMAP(Addr & ~0x1fffff);
+
 	if (Addr == 0x8003d000) {
 		// temp fix for Buster Bros Collection and etc.
 		// NOTE: this old fix prevents a segfault in game startup, and was
-		//       already present in Ulricht's original MIPS dynarec
-		memset((void*)((uptr)recRAM + (0x4d88 * REC_RAM_PTR_SIZE/4)) , 0, 2*REC_RAM_PTR_SIZE);
+		//       already present in Ulricht's original MIPS dynarec.
+
+		// Invalidate 2 block pointers at PS1 RAM address 0x4d88
+		// Don't call memset: GCC wants to inline it as a bunch of byte stores
+		u32 *dst = (u32*)(dst_base + (0x4d88 * REC_RAM_PTR_SIZE/4));
+		u32 *end = dst + 2 * (REC_RAM_PTR_SIZE/4);
+		while (dst != end)
+			*dst++ = 0;
+	}
+
+	if (has_code) {
+		void *dst = (void*)(dst_base + (masked_ram_addr * REC_RAM_PTR_SIZE/4));
+		memset(dst, 0, Size*REC_RAM_PTR_SIZE);
 	}
 }
 
 static void recReset()
 {
+	memset(code_pages, 0, sizeof(code_pages));
 	memset(recRAM, 0, REC_RAM_SIZE);
 	memset(recROM, 0, REC_ROM_SIZE);
 
