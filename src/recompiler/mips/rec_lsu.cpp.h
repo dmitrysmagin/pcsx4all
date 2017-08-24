@@ -56,6 +56,16 @@
 //  See comments in psxmem.cpp psxMemWrite32_CacheCtrlPort().
 #define SKIP_WRITEOK_CHECK
 
+// If PSX mem is virtually mapped/mirrored, we only need to call C funcs when
+//  accessing ROM or the cache control port. We've added support to the
+//  read/write funcs in psxhw.cpp to handle these. Directly calling
+//  psxHwRead*/Write* reduces TLB/Icache pressure because psxMemRead*/Write*
+//  would only just end up calling those funcs every time.
+//  NOTE: Only when the three optimizations listed below are enabled are we sure
+//        that all indirect accesses must be going to ROM, HW I/O, or cache port.
+#if defined(USE_DIRECT_HW_ACCESS) && defined(SKIP_SAME_2MB_REGION_CHECK) && defined(SKIP_WRITEOK_CHECK)
+#define USE_HW_FUNCS_FOR_INDIRECT_ACCESS
+#endif
 
 #define LSU_OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
@@ -336,7 +346,7 @@ static void general_loads_stores(const int  count,
 					//  if we should skip the code-invalidation sequence coming
 					//  directly after the direct code sequence: if MSB is set,
 					//  it cannot be a RAM address and couldn't hold modifiable
-					//  code. I.e., it it is a scratchpad/8MB ROM-expansion
+					//  code, i.e., it is a scratchpad/8MB ROM-expansion
 					//  address 0x?f00_0000 .. 0x?f80_03ff
 
 					LUI(TEMP_1, 0xf801);
@@ -618,6 +628,23 @@ static void general_loads_stores(const int  count,
 
 	if (force_indirect || !skip_address_range_check)
 	{
+		// INDIRECT MEM ACCESS (call C funcs)
+
+		enum { WIDTH_8, WIDTH_16, WIDTH_32 };
+		const uptr mem_read_func[]  = { (uptr)psxMemRead8,  (uptr)psxMemRead16,  (uptr)psxMemRead32  };
+		const uptr mem_write_func[] = { (uptr)psxMemWrite8, (uptr)psxMemWrite16, (uptr)psxMemWrite32 };
+		const uptr *read_func  = mem_read_func;
+		const uptr *write_func = mem_write_func;
+#ifdef USE_HW_FUNCS_FOR_INDIRECT_ACCESS
+		// See notes at top of file
+		const uptr hw_read_func[]   = { (uptr)psxHwRead8,   (uptr)psxHwRead16,   (uptr)psxHwRead32   };
+		const uptr hw_write_func[]  = { (uptr)psxHwWrite8,  (uptr)psxHwWrite16,  (uptr)psxHwWrite32  };
+		if (psx_mem_mapped) {
+			read_func  = hw_read_func;
+			write_func = hw_write_func;
+		}
+#endif
+
 		PC = pc - 4;
 
 		icount = count;
@@ -651,28 +678,28 @@ static void general_loads_stores(const int  count,
 				{
 					case 0xa0000000: // SB
 						ADDIU(MIPSREG_A0, r1, imm);
-						JAL(psxMemWrite8);
+						JAL(write_func[WIDTH_8]);
 						MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
 						break;
 					case 0xa4000000: // SH
 						ADDIU(MIPSREG_A0, r1, imm);
-						JAL(psxMemWrite16);
+						JAL(write_func[WIDTH_16]);
 						MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
 						break;
 					case 0xac000000: // SW
 						ADDIU(MIPSREG_A0, r1, imm);
-						JAL(psxMemWrite32);
+						JAL(write_func[WIDTH_32]);
 						MOV(MIPSREG_A1, r2); // <BD> Branch delay slot
 						break;
 					case 0xa8000000: // SWL
 					case 0xb8000000: // SWR
 						ADDIU(MIPSREG_A0, r1, imm);
 #ifdef HAVE_MIPS32R2_EXT_INS
-						JAL(psxMemRead32);              // result in MIPSREG_V0
+						JAL(read_func[WIDTH_32]);       // result in MIPSREG_V0
 						INS(MIPSREG_A0, 0, 0, 2);       // <BD> clear 2 lower bits of $a0
 #else
 						SRL(MIPSREG_A0, MIPSREG_A0, 2);
-						JAL(psxMemRead32);              // result in MIPSREG_V0
+						JAL(read_func[WIDTH_32]);       // result in MIPSREG_V0
 						SLL(MIPSREG_A0, MIPSREG_A0, 2); // <BD> clear lower 2 bits of $a0
 #endif
 
@@ -714,7 +741,7 @@ static void general_loads_stores(const int  count,
 						else                    // SWR
 							SLLV(TEMP_1, r2, TEMP_3);        // temp_1 = new_data << shift
 
-						JAL(psxMemWrite32);
+						JAL(write_func[WIDTH_32]);
 						OR(MIPSREG_A1, MIPSREG_A1, TEMP_1);  // <BD> $a1 |= temp_1
 						break;
 					default:
@@ -740,7 +767,7 @@ static void general_loads_stores(const int  count,
 				switch (insn)
 				{
 					case 0x80000000: // LB
-						JAL(psxMemRead8);
+						JAL(read_func[WIDTH_8]);
 						ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
 						if (rt) {
 #ifdef HAVE_MIPS32R2_SEB_SEH
@@ -752,14 +779,14 @@ static void general_loads_stores(const int  count,
 						}
 						break;
 					case 0x90000000: // LBU
-						JAL(psxMemRead8);
+						JAL(read_func[WIDTH_8]);    // result in MIPSREG_V0
 						ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
 						if (rt) {
 							MOV(r2, MIPSREG_V0);
 						}
 						break;
 					case 0x84000000: // LH
-						JAL(psxMemRead16);
+						JAL(read_func[WIDTH_16]);   // result in MIPSREG_V0
 						ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
 						if (rt) {
 #ifdef HAVE_MIPS32R2_SEB_SEH
@@ -771,14 +798,14 @@ static void general_loads_stores(const int  count,
 						}
 						break;
 					case 0x94000000: // LHU
-						JAL(psxMemRead16);
+						JAL(read_func[WIDTH_16]);   // result in MIPSREG_V0
 						ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
 						if (rt) {
 							ANDI(r2, MIPSREG_V0, 0xffff);
 						}
 						break;
 					case 0x8c000000: // LW
-						JAL(psxMemRead32);
+						JAL(read_func[WIDTH_32]);   // result in MIPSREG_V0
 						ADDIU(MIPSREG_A0, r1, imm); // <BD> Branch delay slot
 						if (rt) {
 							MOV(r2, MIPSREG_V0);
@@ -788,11 +815,11 @@ static void general_loads_stores(const int  count,
 					case 0x98000000: // LWR
 						ADDIU(MIPSREG_A0, r1, imm);
 #ifdef HAVE_MIPS32R2_EXT_INS
-						JAL(psxMemRead32);          // result in MIPSREG_V0
+						JAL(read_func[WIDTH_32]);   // result in MIPSREG_V0
 						INS(MIPSREG_A0, 0, 0, 2);   // <BD> clear 2 lower bits of $a0 (using branch delay slot)
 #else
 						SRL(MIPSREG_A0, MIPSREG_A0, 2);
-						JAL(psxMemRead32);              // result in MIPSREG_V0
+						JAL(read_func[WIDTH_32]);       // result in MIPSREG_V0
 						SLL(MIPSREG_A0, MIPSREG_A0, 2); // <BD> clear lower 2 bits of $a0
 #endif
 
