@@ -53,11 +53,31 @@ const char *mips_function_special_names[] =
   // 10    11       12      13      14      15       16      17
   "mfhi", "mthi",  "mflo", "mtlo", "???",  "???",   "???",  "???",
   // 18    19       1a      1b      1c      1d       1e      1f
-  "mult", "multu", "div",  "divu", "madd", "maddu", "???",  "???",
+  "mult", "multu", "div",  "divu", "???",  "???",   "???",  "???",
   // 20    21       22      23      24      25       26      27
-  "add",  "addu",  "sub",  "subu", "and",  "or",    "xor",  "not",
+  "add",  "addu",  "sub",  "subu", "and",  "or",    "xor",  "nor",
   // 28    29       2a      2b      2c      2d       2e      2f
   "???",  "???",   "slt",  "sltu", "???",   "???",  "???",  "???"
+};
+
+const char *mips_function_special2_names[] =
+{
+  // 0     1        2       3       4       5        6       7
+  "madd", "maddu", "mul",  "???",  "msub", "msubu", "???",   "???",
+  // 8     9        a       b       c       d        e       f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 10    11       12      13      14      15       16      17
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 18    19       1a      1b      1c      1d       1e      1f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 20    21       22      23      24      25       26      27
+  "clz",  "clo",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 28    29       2a      2b      2c      2d       2e      2f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 30    31       32      33      34      35       36      37
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???",
+  // 38    39       3a      3b      3c      3d       3e      3f
+  "???",  "???",   "???",  "???",  "???",  "???",   "???",   "???"
 };
 
 // Special3 instructions introduced in MIPS32r2
@@ -194,6 +214,14 @@ typedef enum
 
 typedef enum
 {
+  MIPS_SPECIAL2_FUNCTION_MUL_DIV,
+  MIPS_SPECIAL2_FUNCTION_MUL_3OP,
+  MIPS_SPECIAL2_FUNCTION_CLO_CLZ,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN
+} mips_function_special2_type;
+
+typedef enum
+{
   MIPS_SPECIAL3_FUNCTION_EXT,
   MIPS_SPECIAL3_FUNCTION_INS,
   MIPS_SPECIAL3_FUNCTION_BSHFL,       // BSHFL points to group of instructions below
@@ -324,8 +352,7 @@ mips_function_special_type mips_function_special_types[] =
   MIPS_SPECIAL_FUNCTION_MUL_DIV, MIPS_SPECIAL_FUNCTION_MUL_DIV,
   // div                          divu
   MIPS_SPECIAL_FUNCTION_MUL_DIV, MIPS_SPECIAL_FUNCTION_MUL_DIV,
-  // madd                         maddu
-  MIPS_SPECIAL_FUNCTION_MUL_DIV, MIPS_SPECIAL_FUNCTION_MUL_DIV,
+  MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
 
   // add                          addu
@@ -352,6 +379,53 @@ mips_function_special_type mips_function_special_types[] =
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
   MIPS_SPECIAL_FUNCTION_UNKNOWN, MIPS_SPECIAL_FUNCTION_UNKNOWN,
+};
+
+mips_function_special2_type mips_function_special2_types[] =
+{
+  // madd                          maddu
+  MIPS_SPECIAL2_FUNCTION_MUL_DIV, MIPS_SPECIAL2_FUNCTION_MUL_DIV,
+  // mul
+  MIPS_SPECIAL2_FUNCTION_MUL_3OP, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  // msub                          msubu
+  MIPS_SPECIAL2_FUNCTION_MUL_DIV, MIPS_SPECIAL2_FUNCTION_MUL_DIV,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  // clz                           clo
+  MIPS_SPECIAL2_FUNCTION_CLO_CLZ, MIPS_SPECIAL2_FUNCTION_CLO_CLZ,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
+  MIPS_SPECIAL2_FUNCTION_UNKNOWN, MIPS_SPECIAL2_FUNCTION_UNKNOWN,
 };
 
 mips_function_special3_type mips_function_special3_types[] =
@@ -619,6 +693,42 @@ void disasm_mips_instruction(u32 opcode, char *buffer, u32 pc,
           sprintf(buffer, "%s %s, %s, %d",
            mips_function_special_names[function], reg_op(reg_rd),
            reg_op(reg_rt), op_bits(6, 0x1F));
+          break;
+        }
+
+        default:
+        {
+          sprintf(buffer, "unknown");
+          break;
+        }
+      }
+      break;
+    }
+
+	case MIPS_OPCODE_SPECIAL2:
+    {
+      mips_function_special2_type function = (mips_function_special2_type)op_bits(0, 0x3F);
+
+      switch(mips_function_special2_types[function])
+      {
+        case MIPS_SPECIAL2_FUNCTION_MUL_DIV:
+        {
+          sprintf(buffer, "%s %s, %s",
+           mips_function_special2_names[function], reg_op(reg_rs), reg_op(reg_rt));
+          break;
+        }
+
+		case MIPS_SPECIAL2_FUNCTION_MUL_3OP:
+        {
+          sprintf(buffer, "%s %s, %s, %s",
+           mips_function_special2_names[function], reg_op(reg_rd), reg_op(reg_rs), reg_op(reg_rt));
+          break;
+        }
+
+		case MIPS_SPECIAL2_FUNCTION_CLO_CLZ:
+        {
+          sprintf(buffer, "%s %s, %s",
+           mips_function_special2_names[function], reg_op(reg_rd), reg_op(reg_rs));
           break;
         }
 
