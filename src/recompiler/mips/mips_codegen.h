@@ -26,8 +26,8 @@
  */
 
 
-#ifndef MIPS_CG_H
-#define MIPS_CG_H
+#ifndef MIPS_CODEGEN_H
+#define MIPS_CODEGEN_H
 
 // Mips32r2 introduced useful instructions:
 #if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
@@ -442,15 +442,48 @@ do { \
 
 
 
+static inline bool opcodeIsStore(const u32 opcode)
+{
+	return (_fOp_(opcode) >= 0x28 && _fOp_(opcode) <= 0x2b) // SB,SH,SWL,SW
+	       ||
+	       _fOp_(opcode) == 0x2e;                           // SWR
+}
+
+static inline bool opcodeIsLoad(const u32 opcode)
+{
+	return _fOp_(opcode) >= 0x20 && _fOp_(opcode) <= 0x26; // LB,LH,LWL,LW,LBU,LHU,LWR
+}
+
+static inline bool opcodeIsBranch(const u32 opcode)
+{
+	return (_fOp_(opcode) == 0x01 && (_fRt_(opcode) == 0x00 || // BLTZ
+	                                  _fRt_(opcode) == 0x01 || // BGEZ
+	                                  _fRt_(opcode) == 0x10 || // BLTZAL
+	                                  _fRt_(opcode) == 0x11))  // BGEZAL
+	       ||
+	       (_fOp_(opcode) >= 0x04 && _fOp_(opcode) <= 0x07);   // BEQ,BNE,BLEZ,BGTZ
+}
+
+static inline bool opcodeIsJump(const u32 opcode)
+{
+	return (_fOp_(opcode) == 0x00 && (_fFunct_(opcode) == 0x08 || // JR
+	                                  _fFunct_(opcode) == 0x09))  // JALR
+	       ||
+	       (_fOp_(opcode) >= 0x02 && _fOp_(opcode) <= 0x03);      // J,JAL
+}
+
+static inline bool opcodeIsBranchOrJump(const u32 opcode)
+{
+	return opcodeIsBranch(opcode) || opcodeIsJump(opcode);
+}
+
 /* Defined in mips_codegen.cpp */
 void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped);
-bool opcodeIsStore(const u32 opcode);
-bool opcodeIsLoad(const u32 opcode);
-bool opcodeIsBranchOrJump(const u32 opcode);
-
+u64 opcodeGetReads(const u32 op);
+u64 opcodeGetWrites(const u32 op);
 int rec_scan_for_div_by_zero_check_sequence(u32 code_loc);
 int rec_scan_for_MFHI_MFLO_sequence(u32 code_loc);
 int rec_discard_scan(u32 code_loc, int *discard_type);
 const char* rec_discard_type_str(int discard_type);
 
-#endif /* MIPS_CG_H */
+#endif /* MIPS_CODEGEN_H */

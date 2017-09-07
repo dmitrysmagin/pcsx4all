@@ -69,38 +69,282 @@ void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_m
 	}
 }
 
-bool opcodeIsStore(const u32 opcode)
+/* opcodeGetReads() / opcodeGetWrites adapted from Nebuleon's Mupen64Plus JIT work
+ *   with permission of author and under GPLv2 license.
+ *   https://github.com/Nebuleon/mupen64plus-core/
+ *  NOTE: Our adaptations only support PS1 MIPS r3000a opcodes.
+ *
+ *  Return value is u64 where bits 0..31 represent $zero..$ra reg read/writes,
+ *   bit 32 is LO reg, bit 33 is HI reg (MDU registers). Caller can discard or
+ *   ignore upper half of u64 result when only GPR info is needed.
+ */
+#ifdef BIT
+#undef BIT
+#endif
+#define BIT(b) ((u64)1 << (b))
+
+u64 opcodeGetReads(const u32 op)
 {
-	return
-		_fOp_(opcode) == 0x2a || _fOp_(opcode) == 0x2e ||  // SWL, SWR
-		_fOp_(opcode) == 0x28 || _fOp_(opcode) == 0x29 ||  // SB, SH
-		_fOp_(opcode) == 0x2b;                             // SW
+	switch (_fOp_(op))
+	{
+		case 0: /* SPECIAL prefix */
+			switch (_fFunct_(op))
+			{
+				case 0x0: /* SPECIAL opcode 0x0: SLL     */
+				case 0x2: /* SPECIAL opcode 0x2: SRL     */
+				case 0x3: /* SPECIAL opcode 0x3: SRA     */
+					return BIT(_fRt_(op));
+				case 0x4: /* SPECIAL opcode 0x4: SLLV    */
+				case 0x6: /* SPECIAL opcode 0x6: SRLV    */
+				case 0x7: /* SPECIAL opcode 0x7: SRAV    */
+					return BIT(_fRt_(op)) | BIT(_fRs_(op));
+				case 0x8: /* SPECIAL opcode 0x8: JR      */
+				case 0x9: /* SPECIAL opcode 0x8: JALR    */
+					return BIT(_fRs_(op));
+				case 0xc: /* SPECIAL opcode 0xc: SYSCALL */
+				case 0xd: /* SPECIAL opcode 0xd: BREAK   */
+					return 0;
+				case 0x10: /* SPECIAL opcode 0x10: MFHI */
+					/* Does not read integer registers, only HI */
+					return BIT(33);
+				case 0x11: /* SPECIAL opcode 0x11: MTHI */
+					return BIT(_fRs_(op));
+				case 0x12: /* SPECIAL opcode 0x12: MFLO */
+					/* Does not read integer registers, only LO */
+					return BIT(32);
+				case 0x13: /* SPECIAL opcode 0x13: MTLO */
+					return BIT(_fRs_(op));
+				case 0x18: /* SPECIAL opcode 0x18: MULT */
+				case 0x19: /* SPECIAL opcode 0x19: MULTU */
+				case 0x1a: /* SPECIAL opcode 0x1a: DIV */
+				case 0x1b: /* SPECIAL opcode 0x1b: DIVU */
+				case 0x20: /* SPECIAL opcode 0x20: ADD */
+				case 0x21: /* SPECIAL opcode 0x21: ADDU */
+				case 0x22: /* SPECIAL opcode 0x22: SUB */
+				case 0x23: /* SPECIAL opcode 0x23: SUBU */
+				case 0x24: /* SPECIAL opcode 0x24: AND */
+				case 0x25: /* SPECIAL opcode 0x25: OR */
+				case 0x26: /* SPECIAL opcode 0x26: XOR */
+				case 0x27: /* SPECIAL opcode 0x27: NOR */
+				case 0x2a: /* SPECIAL opcode 0x2a: SLT */
+				case 0x2b: /* SPECIAL opcode 0x2b: SLTU */
+					return BIT(_fRs_(op)) | BIT(_fRt_(op));
+			}
+			break;
+		case 0x1: /* REGIMM prefix */
+			switch (_fRt_(op))
+			{
+				case 0x0: /* REGIMM opcode 0x0: BLTZ */
+				case 0x1: /* REGIMM opcode 0x1: BGEZ */
+				case 0x10: /* REGIMM opcode 0x10: BLTZAL */
+				case 0x11: /* REGIMM opcode 0x11: BGEZAL */
+					return BIT(_fRs_(op));
+			}
+			break;
+		case 0x2: /* Major opcode 0x2: J */
+		case 0x3: /* Major opcode 0x3: JAL */
+			return 0;
+		case 0x4: /* Major opcode 0x4: BEQ */
+		case 0x5: /* Major opcode 0x5: BNE */
+			return BIT(_fRs_(op)) | BIT(_fRt_(op));
+		case 0x6: /* Major opcode 0x6: BLEZ */
+		case 0x7: /* Major opcode 0x7: BGTZ */
+			return BIT(_fRs_(op));
+		case 0x8: /* Major opcode 0x8: ADDI */
+		case 0x9: /* Major opcode 0x9: ADDIU */
+		case 0xa: /* Major opcode 0xa: SLTI */
+		case 0xb: /* Major opcode 0xb: SLTIU */
+		case 0xc: /* Major opcode 0xc: ANDI */
+		case 0xd: /* Major opcode 0xd: ORI */
+		case 0xe: /* Major opcode 0xe: XORI */
+			return BIT(_fRs_(op));
+		case 0xf: /* Major opcode 0xf: LUI */
+			return 0;
+		case 0x10: /* Coprocessor 0 prefix */
+			switch (_fRs_(op))
+			{
+				case 0x0: /* Coprocessor 0 opcode 0x0: MFC0 */
+					return 0;
+				case 0x4: /* Coprocessor 0 opcode 0x4: MTC0 */
+					return BIT(_fRt_(op));
+				case 0x10: /* Coprocessor 0 opcode 0x10: RFE */
+					return 0;
+			}
+			break;
+		case 0x12: /* Coprocessor 2 prefix (GTE) */
+			switch (_fRs_(op))
+			{
+				case 0x0: /* Coprocessor 2 opcode 0x0: MFC2 */
+				case 0x2: /* Coprocessor 2 opcode 0x2: CFC2 */
+					return 0;
+				case 0x4: /* Coprocessor 2 opcode 0x4: MTC2 */
+				case 0x6: /* Coprocessor 2 opcode 0x6: CTC2 */
+					return BIT(_fRt_(op));
+				case 0x10 ... 0x1f: /* Coprocessor 2 opcode 0x10..0x1f: GTE command */
+					return 0;
+			}
+			break;
+		case 0x20: /* Major opcode 0x20: LB */
+		case 0x21: /* Major opcode 0x21: LH */
+			return BIT(_fRs_(op));
+		case 0x22: /* Major opcode 0x22: LWL */
+			/* NOTE: Merges read from mem with dest reg */
+			return BIT(_fRt_(op)) | BIT(_fRs_(op));
+		case 0x23: /* Major opcode 0x23: LW */
+		case 0x24: /* Major opcode 0x24: LBU */
+		case 0x25: /* Major opcode 0x25: LHU */
+			return BIT(_fRs_(op));
+		case 0x26: /* Major opcode 0x26: LWR */
+			/* NOTE: Merges read from mem with dest reg */
+			return BIT(_fRt_(op)) | BIT(_fRs_(op));
+		case 0x28: /* Major opcode 0x28: SB */
+		case 0x29: /* Major opcode 0x29: SH */
+		case 0x2a: /* Major opcode 0x2a: SWL */
+		case 0x2b: /* Major opcode 0x2b: SW */
+		case 0x2e: /* Major opcode 0x2e: SWR */
+			return BIT(_fRs_(op)) | BIT(_fRt_(op));
+		case 0x32: /* Major opcode 0x32: LWC2 (GTE) */
+			return BIT(_fRs_(op));
+		case 0x3a: /* Major opcode 0x32: SWC2 (GTE) */
+			return BIT(_fRs_(op));
+	}
+
+	printf("Unknown opcode in %s(): %08x\n", __func__, op);
+
+	/* We don't know what the opcode did. Assume EVERY register was read.
+	 * This is a safe default for optimisation purposes, as this opcode will
+	 * then act as a barrier. */
+	return ~(u64)0;
 }
 
-bool opcodeIsLoad(const u32 opcode)
+u64 opcodeGetWrites(const u32 op)
 {
-	return
-		_fOp_(opcode) == 0x22 || _fOp_(opcode) == 0x26 ||  // LWL, LWR
-		_fOp_(opcode) == 0x20 || _fOp_(opcode) == 0x24 ||  // LB, LBU
-		_fOp_(opcode) == 0x21 || _fOp_(opcode) == 0x25 ||  // LH, LHU
-		_fOp_(opcode) == 0x23;                             // LW
-}
+	switch (_fOp_(op))
+	{
+		case 0x0: /* SPECIAL prefix */
+			switch (_fFunct_(op))
+			{
+				case 0x0: /* SPECIAL opcode 0x0: SLL */
+				case 0x2: /* SPECIAL opcode 0x2: SRL */
+				case 0x3: /* SPECIAL opcode 0x3: SRA */
+				case 0x4: /* SPECIAL opcode 0x4: SLLV */
+				case 0x6: /* SPECIAL opcode 0x6: SRLV */
+				case 0x7: /* SPECIAL opcode 0x7: SRAV */
+					return BIT(_fRd_(op)) & ~BIT(0);
+				case 0x8: /* SPECIAL opcode 0x8: JR */
+					return 0;
+				case 0x9: /* SPECIAL opcode 0x8: JALR */
+					return BIT(_fRd_(op)) & ~BIT(0);
+				case 0xc: /* SPECIAL opcode 0xc: SYSCALL */
+				case 0xd: /* SPECIAL opcode 0xd: BREAK */
+					return 0;
+				case 0x10: /* SPECIAL opcode 0x10: MFHI */
+					return BIT(_fRd_(op)) & ~BIT(0);
+				case 0x11: /* SPECIAL opcode 0x11: MTHI */
+					/* Does not write to integer registers, only to HI */
+					return BIT(33);
+				case 0x12: /* SPECIAL opcode 0x12: MFLO */
+					return BIT(_fRd_(op)) & ~BIT(0);
+				case 0x13: /* SPECIAL opcode 0x13: MTLO */
+					/* Does not write to integer registers, only to LO */
+					return BIT(32);
+				case 0x18: /* SPECIAL opcode 0x18: MULT */
+				case 0x19: /* SPECIAL opcode 0x19: MULTU */
+				case 0x1a: /* SPECIAL opcode 0x1a: DIV */
+				case 0x1b: /* SPECIAL opcode 0x1b: DIVU */
+					/* Does not write to integer registers, only to HI and LO */
+					return BIT(32) | BIT(33);
+				case 0x20: /* SPECIAL opcode 0x20: ADD */
+				case 0x21: /* SPECIAL opcode 0x21: ADDU */
+				case 0x22: /* SPECIAL opcode 0x22: SUB */
+				case 0x23: /* SPECIAL opcode 0x23: SUBU */
+				case 0x24: /* SPECIAL opcode 0x24: AND */
+				case 0x25: /* SPECIAL opcode 0x25: OR */
+				case 0x26: /* SPECIAL opcode 0x26: XOR */
+				case 0x27: /* SPECIAL opcode 0x27: NOR */
+				case 0x2a: /* SPECIAL opcode 0x2a: SLT */
+				case 0x2b: /* SPECIAL opcode 0x2b: SLTU */
+					return BIT(_fRd_(op)) & ~BIT(0);
+			}
+			break;
+		case 0x1: /* REGIMM prefix */
+			switch (_fRt_(op))
+			{
+				case 0x0: /* REGIMM opcode 0x0: BLTZ */
+				case 0x1: /* REGIMM opcode 0x1: BGEZ */
+					return 0;
+				case 0x10: /* REGIMM opcode 0x10: BLTZAL */
+				case 0x11: /* REGIMM opcode 0x11: BGEZAL */
+					return BIT(31);
+			}
+			break;
+		case 0x2: /* Major opcode 0x2: J */
+			return 0;
+		case 0x3: /* Major opcode 0x3: JAL */
+			return BIT(31);
+		case 0x4: /* Major opcode 0x4: BEQ */
+		case 0x5: /* Major opcode 0x5: BNE */
+		case 0x6: /* Major opcode 0x6: BLEZ */
+		case 0x7: /* Major opcode 0x7: BGTZ */
+			return 0;
+		case 0x8: /* Major opcode 0x8: ADDI */
+		case 0x9: /* Major opcode 0x9: ADDIU */
+		case 0xa: /* Major opcode 0xa: SLTI */
+		case 0xb: /* Major opcode 0xb: SLTIU */
+		case 0xc: /* Major opcode 0xc: ANDI */
+		case 0xd: /* Major opcode 0xd: ORI */
+		case 0xe: /* Major opcode 0xe: XORI */
+		case 0xf: /* Major opcode 0xf: LUI */
+			return BIT(_fRt_(op)) & ~BIT(0);
+		case 0x10: /* Coprocessor 0 prefix */
+			switch (_fRs_(op))
+			{
+				case 0x0: /* Coprocessor 0 opcode 0x0: MFC0 */
+					return BIT(_fRt_(op)) & ~BIT(0);
+				case 0x4: /* Coprocessor 0 opcode 0x4: MTC0 */
+					return 0;
+				case 0x10: /* Coprocessor 0 opcode 0x10: RFE */
+					return 0;
+			}
+			break;
+		case 0x12: /* Coprocessor 2 prefix (GTE) */
+			switch (_fRs_(op))
+			{
+				case 0x0: /* Coprocessor 2 opcode 0x0: MFC2 */
+				case 0x2: /* Coprocessor 2 opcode 0x2: CFC2 */
+					return BIT(_fRt_(op)) & ~BIT(0);
+				case 0x4: /* Coprocessor 2 opcode 0x4: MTC2 */
+				case 0x6: /* Coprocessor 2 opcode 0x6: CTC2 */
+				case 0x10 ... 0x1f: /* Coprocessor 2 opcode 0x10..0x1f: GTE command */
+					return 0;
+			}
+			break;
+		case 0x20: /* Major opcode 0x20: LB */
+		case 0x21: /* Major opcode 0x21: LH */
+		case 0x22: /* Major opcode 0x22: LWL */
+		case 0x23: /* Major opcode 0x23: LW */
+		case 0x24: /* Major opcode 0x24: LBU */
+		case 0x25: /* Major opcode 0x25: LHU */
+		case 0x26: /* Major opcode 0x26: LWR */
+			return BIT(_fRt_(op)) & ~BIT(0);
+		case 0x28: /* Major opcode 0x28: SB */
+		case 0x29: /* Major opcode 0x29: SH */
+		case 0x2a: /* Major opcode 0x2a: SWL */
+		case 0x2b: /* Major opcode 0x2b: SW */
+		case 0x2e: /* Major opcode 0x2e: SWR */
+			return 0;
+		case 0x32: /* Major opcode 0x32: LWC2 (GTE) */
+		case 0x3a: /* Major opcode 0x32: SWC2 (GTE) */
+			return 0;
+	}
 
-bool opcodeIsBranchOrJump(const u32 opcode)
-{
-	return
-		(_fOp_(opcode) == 0x00 && (_fFunct_(opcode) == 0x08 || _fFunct_(opcode) == 0x09))     // JR, JALR
-		||
-		(_fOp_(opcode) == 0x01 && (_fRt_(opcode)    == 0x00 || _fRt_(opcode)    == 0x01 ||    // BLTZ, BGEZ
-		                           /* Don't bother checking for non-MIPS-I 'likely' branches
-		                           _fRt_(opcode)    == 0x02 || _fRt_(opcode)    == 0x03 ||    // BLTZL, BGEZL
-		                           _fRt_(opcode)    == 0x12 || _fRt_(opcode)    == 0x13 ||    // BLTZALL, BGEZALL
-		                           */
-		                           _fRt_(opcode)    == 0x10 || _fRt_(opcode)    == 0x11))     // BLTZAL, BGEZAL
-		||
-		(_fOp_(opcode) >= 0x02 && _fOp_(opcode) <= 0x07);  // J, JAL, BEQ, BNE, BLEZ, BGTZ
-}
+	printf("Unknown opcode in %s(): %08x\n", __func__, op);
 
+	/* We don't know what the opcode did. Assume EVERY register was written.
+	 * This is a safe default for optimisation purposes, as this opcode will
+	 * then act as a barrier. */
+	return ~(u64)0;
+}
 
 enum {
 	DISCARD_TYPE_DIVBYZERO = 0,
