@@ -260,6 +260,31 @@ static void recMFC2()
 {
 	if (!_Rt_) return;
 
+	// XXX - Fix for 'Front Mission 3' random crashes in battles:
+	//  The game crashes randomly when a mech/wanger is destroyed, mostly
+	//   during animations involving 'leg damage'. This is caused by MFC2
+	//   opcodes being followed immediately by an ALU op that reads the
+	//   dest reg of the the MFC2. MFC2 has a 1-cycle load delay, meaning
+	//   the ALU op should be reading the *old* value, not the new one.
+	//
+	//  We detect it here and simply emit both opcodes in reversed order.
+	if (!branch && (opcodeGetReads(OPCODE_AT(pc)) & (1 << _Rt_))) {
+		if (opcodeIsBranchOrJump(OPCODE_AT(pc))) {
+			// Probably never encountered: just print a warning for devs
+			printf("%s(): WARNING: Unhandled MFC2 load-delay abuse by branch at PC %08x\n", __func__, pc);
+		} else {
+			// Emit the op *after* the MFC2 *before* emitting the MFC2 itself.
+			const u32 code_tmp = psxRegs.code;
+			psxRegs.code = OPCODE_AT(pc);
+			DISASM_PSX(pc);
+			DISASM_MSG("%s(): Applying MFC2 load-delay abuse fix at PC %08x\n", __func__, pc);
+			pc += 4;
+			recBSC[psxRegs.code>>26]();
+			psxRegs.code = code_tmp;
+		}
+	}
+	// XXX - End of 'Front Mission 3' fix
+
 	SetUndef(_Rt_);
 	u32 rt = regMipsToHost(_Rt_, REG_FIND, REG_REGISTER);
 
