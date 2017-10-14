@@ -883,7 +883,11 @@ static void general_loads_stores(const int  count,
 }
 
 
-/* Emits a series of loads/stores to a known-const RAM base address */
+/* Emits a series of loads/stores to a known-const RAM base address.
+ *  NOTE: We don't do code invalidation here: no games seem to need it.
+ *        XXX - In fact, doing code invalidation here makes 'Colony Wars'
+ *        freeze when returning to main menu after ship self-destruct sequence.
+ */
 static void const_loads_stores(const int count,
                                const u32 pc_of_last_store_in_series,
                                const u32 base_reg_constval)
@@ -902,13 +906,10 @@ static void const_loads_stores(const int count,
 	}
 #endif
 
-	// Keep upper half of last code block and RAM addresses in regs,
-	// tracking current values so we can avoid loading same val repeatedly.
+	// Keep upper half of last effective address in reg, tracking current
+	//  value so we can avoid loading same val repeatedly.
 	u16 mem_addr_hi = 0;
-	u16 code_addr_hi = 0;
-	u32 last_code_addr = 0;
 	bool upper_mem_addr_loaded = false;
-	bool upper_code_addr_loaded = false;
 
 	u32 PC = pc - 4;
 	int icount = count;
@@ -936,24 +937,6 @@ static void const_loads_stores(const int count,
 		                        : regMipsToHost(rt, REG_FIND, REG_REGISTER);
 
 		const u32 mem_addr = (u32)psxM + ((base_reg_constval + imm) & 0x1fffff);
-
-		u32 code_addr = 0;
-		if (is_store) {
-			code_addr = (u32)recRAM + ((base_reg_constval + imm) & 0x1fffff);
-			code_addr &= ~3;  // Align code block ptr address
-
-			if (!upper_code_addr_loaded || (ADR_HI(code_addr) != code_addr_hi)) {
-				code_addr_hi = ADR_HI(code_addr);
-				upper_code_addr_loaded = true;
-				LUI(TEMP_3, ADR_HI(code_addr));
-			}
-
-			if (code_addr != last_code_addr) {
-				// Set code block ptr to NULL
-				last_code_addr = code_addr;
-				SW(0, TEMP_3, ADR_LO(code_addr));
-			}
-		}
 
 		if (!upper_mem_addr_loaded || (ADR_HI(mem_addr) != mem_addr_hi)) {
 			mem_addr_hi = ADR_HI(mem_addr);
