@@ -1,18 +1,34 @@
-// If your platform gives the same results as PS1 did in the HI register
-//   when dividing by zero, define this to eliminate some fixup code, which
-//   MIPS32 jz-series CPUs seem to. (See notes in recDIV()/recDIVU())
+/***********************************************
+ * Options that can be disabled for debugging: *
+ ***********************************************/
+
+/* If your platform gives the same results as PS1 did in the HI register
+ *   when dividing by zero, define this to eliminate some fixup code.
+ *   Ingenic MIPS32 jz-series CPUs do. See recDIV(),recDIVU().
+ */
 #if defined(GCW_ZERO)
 	#define OMIT_DIV_BY_ZERO_HI_FIXUP
 #endif
 
-// See recDIV()/recDIVU (disable for debugging purposes)
+/* Detect GCC compiler-generated div-by-zero check+exception, indicating that
+ * emitting div-by-zero results fixup is pointless. See recDIV(),recDIVU().
+ */
 #define OMIT_DIV_BY_ZERO_FIXUP_IF_EXCEPTION_SEQUENCE_FOUND
 
-// See recMULT()/recMULTU (disable for debugging purposes)
+/* Detect and optimize all-const multiplies. See recMULT(),recMULTU(). */
 #define USE_CONST_MULT_OPTIMIZATIONS
 
-// See recDIV()/recDIVU (disable for debugging purposes)
+/* Detect and optimize all-const divides. See recDIV(),recDIVU(). */
 #define USE_CONST_DIV_OPTIMIZATIONS
+
+#ifdef HAVE_MIPS32_3OP_MUL
+/* Try to convert MULT/MULTU to modern 3-op MUL. See convertMultiplyTo3Op(). */
+	#define USE_3OP_MUL_OPTIMIZATIONS
+/* Convert more MULT/MULTU ops to MUL by considering JAL,JR,JALR as barriers. */
+	#define USE_3OP_MUL_JUMP_OPTIMIZATIONS
+#endif // HAVE_MIPS32_3OP_MUL
+
+static bool convertMultiplyTo3Op();
 
 
 static void recMULT()
@@ -127,6 +143,14 @@ static void recMULT()
 	}
 #endif // USE_CONST_MULT_OPTIMIZATIONS
 
+#ifdef USE_3OP_MUL_OPTIMIZATIONS
+	if (convertMultiplyTo3Op()) {
+		// MULT/MULTU was converted to modern 3-op MUL.
+		// Furthermore, no code will be emitted for next MFLO.
+		return;
+	}
+#endif
+
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -139,6 +163,7 @@ static void recMULT()
 	regUnlock(rs);
 	regUnlock(rt);
 }
+
 
 static void recMULTU()
 {
@@ -232,6 +257,14 @@ static void recMULTU()
 	}
 #endif // USE_CONST_MULT_OPTIMIZATIONS
 
+#ifdef USE_3OP_MUL_OPTIMIZATIONS
+	if (convertMultiplyTo3Op()) {
+		// MULT/MULTU was converted to modern 3-op MUL.
+		// Furthermore, no code will be emitted for next MFLO.
+		return;
+	}
+#endif
+
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
 
@@ -244,6 +277,7 @@ static void recMULTU()
 	regUnlock(rs);
 	regUnlock(rt);
 }
+
 
 static void recDIV()
 {
@@ -414,6 +448,7 @@ static void recDIV()
 	regUnlock(rt);
 }
 
+
 static void recDIVU()
 {
 // Hi, Lo = rs / rt unsigned
@@ -556,7 +591,8 @@ static void recDIVU()
 	regUnlock(rt);
 }
 
-static void recMFHI() {
+static void recMFHI()
+{
 // Rd = Hi
 	if (!_Rd_) return;
 	SetUndef(_Rd_);
@@ -567,16 +603,30 @@ static void recMFHI() {
 	regUnlock(rd);
 }
 
-static void recMTHI() {
+static void recMTHI()
+{
 // Hi = Rs
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	SW(rs, PERM_REG_1, offGPR(33));
 	regUnlock(rs);
 }
 
-static void recMFLO() {
+
+static void recMFLO()
+{
 // Rd = Lo
+
+#ifdef USE_3OP_MUL_OPTIMIZATIONS
+	if (skip_emitting_next_mflo) {
+		// A prior MULT/MULTU was converted to 3-op MUL. We emit nothing
+		//  for this MFLO.
+		skip_emitting_next_mflo = false;
+		return;
+	}
+#endif
+
 	if (!_Rd_) return;
+
 	SetUndef(_Rd_);
 	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
 
@@ -585,9 +635,483 @@ static void recMFLO() {
 	regUnlock(rd);
 }
 
-static void recMTLO() {
+
+static void recMTLO()
+{
 // Lo = Rs
 	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 	SW(rs, PERM_REG_1, offGPR(32));
 	regUnlock(rs);
 }
+
+
+#ifdef USE_3OP_MUL_OPTIMIZATIONS
+/*  recMULT(),recMULTU() call this to try to convert a MULT/MULTU to a modern
+ * 3-op MUL. The 32-bit result goes to dest reg of the original MFLO (if found).
+ *  Analysis must find a clear path from the multiply to the MFLO. The GPR
+ * written by the MFLO must not be accessed between the two ops. It must be
+ * clear that the HI result is never read, the LO result is only read once,
+ * and the HI/LO contents aren't used between or after.
+ *  Until the dynarec gets general dataflow analysis, we use this limited
+ * peephole optimizer. On average, we succeed ~30-50% of the time. If
+ * 'USE_3OP_MUL_JUMP_OPTIMIZATIONS' is defined, this rate is boosted to ~40-70%.
+ *
+ * Returns: true if 3-op MUL was emitted, false if conversion failed.
+ *
+ * NOTE: If conversion succeeds, flag 'skip_emitting_next_mflo' is set, telling
+ *       recMFLO() to emit nothing at its next call.
+ */
+static bool convertMultiplyTo3Op()
+{
+	// Max number of opcodes to scan ahead in each stage/path
+	const int scan_max = 16;
+
+	// Bitfield indicating which GPR regs have been read/written between the
+	// multiply and the MFLO instruction.
+	u32 gpr_accesses = 0;
+
+	bool convertible = true;
+
+	// 'PC' start address is the instruction after the initial multiply
+	u32 PC = pc;
+
+	/****************************************************************
+	 * STAGE 1: Preliminary work needed if multiply is in a BD slot *
+	 ****************************************************************/
+	if (branch)
+	{
+		// NOTE: the branch/jump is at PC-8 and MULT/MULTU in BD slot at PC-4.
+
+		// To make things simpler, don't convert multplies lying in BD slot of a
+		// jump, backwards-branch, large forwards-branch, or zero-length branch.
+
+		if (opcodeIsJump(OPCODE_AT(PC-8)))
+			return false;
+
+		const int branch_imm = _fImm_(OPCODE_AT(PC-8));
+		if (branch_imm <= 0 || branch_imm > 8)
+			return false;
+
+		// OK, the branch before the multiply is a small forwards-branch:
+		// Scan the branch-not-taken path to ensure there are no accesses
+		// of HI/LO, or any branches/jumps/syscall/etc before branch target.
+		//  ALSO: Track which GPRs are accessed in this path. We'll continue
+		//        tracking these through the next step.
+
+		// 'BPC' is the beginning of the branch-taken path, lying close ahead.
+		const u32 BPC = (PC-4) + (branch_imm * 4);
+
+		while (PC < BPC)
+		{
+			const u32 opcode = OPCODE_AT(PC);
+			PC += 4;
+
+			// Skip any NOPs
+			if (opcode == 0)
+				continue;
+
+			// Is opcode a branch, jump, SYSCALL, or HLE instruction?
+			if ( _fOp_(opcode) == 0x3b ||  /* HLE */
+			    (_fOp_(opcode) == 0 && _fFunct_(opcode) == 0xc) ||  /* SYSCALL */
+			     opcodeIsBranchOrJump(opcode) )
+			{
+				convertible = false;
+				break;
+			}
+
+			// Bits 32,33 of u64 retval are LO,HI respectively. Lower bits are GPRs.
+			const u64 op_reg_accesses = opcodeGetReads(opcode) | opcodeGetWrites(opcode);
+
+			// Ensure there are no accesses of HI/LO in the branch-not-taken path.
+			if ((op_reg_accesses >> 32) & 3) {
+				convertible = false;
+				break;
+			}
+
+			gpr_accesses |= (u32)op_reg_accesses;
+		}
+
+		// 'PC' is left set to the branch target pc: proceed to next stage
+	}
+
+	if (!convertible)
+		return false;
+
+	/*****************************************
+	 * STAGE 2: Scan for an MFLO instruction *
+	 *****************************************/
+
+	//  Scan ahead for the MFLO and ensure no other instructions access HI/LO
+	// inbetween. Keep a running union of all GPR accesses so we know that the
+	// MFLO's dest reg is also not accessed between the multiply and MFLO.
+	//  To keep things simpler and fast, if we come to a jump/branch, we'll give
+	// up unless the MFLO is in its BD slot.
+
+	bool in_bd_slot = false;
+	u32  rd_of_mflo = 0;
+
+	int left = scan_max;
+	while (left-- > 0)
+	{
+		const u32 opcode = OPCODE_AT(PC);
+		PC += 4;
+
+		// Skip any NOPs
+		if (opcode == 0)
+			continue;
+
+		// Is opcode MFLO?
+		if (_fOp_(opcode) == 0 && _fFunct_(opcode) == 0x12) {  /* MFLO */
+			rd_of_mflo = _fRd_(opcode);
+
+			//  For the multiply to be convertible to a 3-op MUL, the dest reg of
+			// the MFLO must not be accessed between the multiply and the MFLO.
+			if (gpr_accesses & (1 << rd_of_mflo))
+				convertible = false;
+
+			break;
+		}
+
+		// Bits 32,33 of u64 retval are LO,HI respectively. Lower bits are GPRs.
+		const u64 op_reg_accesses = opcodeGetReads(opcode) | opcodeGetWrites(opcode);
+
+		// Ensure there are no reads or writes of HI/LO whatsoever before MFLO.
+		if ((op_reg_accesses >> 32) & 3) {
+			convertible = false;
+			break;
+		}
+
+		// Give up scanning at a SYSCALL or HLE instruction.
+		if ( _fOp_(opcode) == 0x3b || /* HLE */
+		     (_fOp_(opcode) == 0 && _fFunct_(opcode) == 0xc) ) /* SYSCALL */
+		{
+			convertible = false;
+			break;
+		}
+
+		if (opcodeIsBranchOrJump(opcode)) {
+			// Branch/jump in BD slot? Give up.
+			if (in_bd_slot) {
+				convertible = false;
+				break;
+			}
+
+			// Scan just the BD slot for an MFLO and stop.
+			in_bd_slot = true;
+			left = 1;
+		}
+
+		gpr_accesses |= (u32)op_reg_accesses;
+	}
+
+	// Give up if we haven't found MFLO, or MFLO's dest reg was
+	//  accessed between the multiply and the MFLO.
+	if (!rd_of_mflo || !convertible)
+		return false;
+
+	// NOTE: We leave PC set to the instruction after the MFLO we found.
+
+	/********************************************************
+	 * STAGE 3: Scan for a HI+LO overwrite or a branch/jump *
+	 ********************************************************/
+
+	//  Now, we must scan after the MFLO for a MULT/MULTU/DIV/DIVU, while
+	// ensuring that the HI/LO results of the initial multiply aren't used
+	// after the MFLO we found. To make things simpler, we merely check for
+	// any HI/LO access while scanning for the mult/div, and give up if found.
+	//  If we encounter a branch/jump, or the MFLO we found in last stage was
+	// in a BD slot, we stop and proceed to the next stage.
+
+	bool found_hi_lo_overwrite = false;
+
+	if (!in_bd_slot)
+	{
+		left = scan_max;
+		while (left-- > 0)
+		{
+			const u32 opcode = OPCODE_AT(PC);
+			PC += 4;
+
+			// Skip any NOPs
+			if (opcode == 0)
+				continue;
+
+			// Bits 32,33 of u64 retval are LO,HI respectively. Lower bits are GPRs.
+			const u64 op_reg_reads    = opcodeGetReads(opcode);
+			const u64 op_reg_writes   = opcodeGetWrites(opcode);
+			const u64 op_reg_accesses = op_reg_reads | op_reg_writes;
+
+			// Check for a HI and LO overwrite (MULT,MULTU,DIV,DIVU)
+			if (((op_reg_writes >> 32) & 3) == 3) {
+				found_hi_lo_overwrite = true;
+				break;
+			}
+
+			// Check for a HI or LO access (only *after* overwrite check above)
+			if (((op_reg_accesses >> 32) & 3)) {
+				convertible = false;
+				break;
+			}
+
+			// Give up scanning at a SYSCALL or HLE instruction.
+			if ( _fOp_(opcode) == 0x3b || /* HLE */
+			    (_fOp_(opcode) == 0 && _fFunct_(opcode) == 0xc) ) /* SYSCALL */
+			{
+				convertible = false;
+				break;
+			}
+
+			// Stop at a branch/jump.
+			if (opcodeIsBranchOrJump(opcode))
+			{
+				// Branch/jump in BD slot? Give up.
+				if (in_bd_slot) {
+					convertible = false;
+					break;
+				}
+
+#ifdef USE_3OP_MUL_JUMP_OPTIMIZATIONS
+				//  This boosts conversion success rate:
+				//  We consider a JAL/JR/JALR as a barrier that indicates HI/LO
+				// contents are no longer used. Of course, this is only after
+				// the MFLO has been found and has met our requirements.
+				//  Theoretically, tricky PS1 ASM routines could want HI/LO
+				// values even after a JAL/JR/JALR. But it seems quite unlikely
+				// that we'd run afoul of them here, given how strict we are
+				// otherwise.. if they even exist (cue ominous music).
+				//
+				// NOTE: 'J' is not included: simple jumps are analyzed with the
+				//       same scrutiny as branches. Furthermore, the BD slot of
+				//       *any* jump/branch is always checked for a HI/LO access.
+
+				if ( _fOp_(opcode) == 0x3 ||  /* JAL */
+				    (_fOp_(opcode) == 0 && (_fFunct_(opcode) == 0x8 || _fFunct_(opcode) == 0x9)))  /* JR, JALR */
+				{
+					found_hi_lo_overwrite = true;
+
+					// NOTE: we still scan the BD slot for a HI/LO access
+				}
+#endif // USE_3OP_MUL_JUMP_OPTIMIZATIONS
+
+				// Scan just the BD slot and stop.
+				in_bd_slot = true;
+				left = 1;
+			}
+		}
+	}
+
+	if (!convertible)
+		return false;
+
+	//  NOTE: We leave PC set to the instruction after the last one analyzed.
+
+	/*****************************************************************
+	 * STAGE 4: Scan for a HI/LO overwrite along branch/jump path(s) *
+	 *****************************************************************/
+
+	//  If we haven't found a HI/LO overwrite yet, and are now at a BD slot,
+	// we analyze the code path(s) beyond the branch/jump to find one.
+	// If we find yet another branch/jump, we'll give up.
+
+	if (in_bd_slot && !found_hi_lo_overwrite)
+	{
+		int num_paths = 2;
+		bool path_has_hi_lo_overwrite[2] = { false, false };
+
+		// Begin/end PCs of each codepath's scan range
+		u32 path_start[2];
+		u32 path_end[2];
+
+		// Opcode of branch or jump instruction before the BD slot
+		const u32 bj_opcode = OPCODE_AT(PC-8);
+
+		if (opcodeIsJump(bj_opcode))
+		{
+			if (_fOp_(bj_opcode) == 0x2 || _fOp_(bj_opcode) == 0x3) {  /* J, JAL */
+				// Note that the upper 4 bits of target PC come from BD slot's PC
+				path_start[0] = (_fTarget_(bj_opcode) * 4) | ((PC-4) & 0xf0000000);
+				path_end[0] = path_start[0] + scan_max*4;
+				num_paths = 1;
+			} else {
+				// Give up on a JR, JALR: target PC is unknown
+				convertible = false;
+			}
+		} else
+		{
+			// Opcode is branch
+
+			const int branch_imm = _fImm_(bj_opcode);
+
+			if (((bj_opcode >> 16) == 0x1000) || ((bj_opcode >> 16) == 0x0411)) {  /* B, BAL */
+				// Unconditional branch: one path to analyze
+				path_start[0] = (PC-4) + branch_imm*4;
+				path_end[0] = path_start[0] + scan_max*4;
+				num_paths = 1;
+			} else {
+				// Conditional branch: two paths to analyze
+				// NOTE: index 0 is branch-not-taken path, index 1 is branch-taken path
+
+				path_start[0] = PC;
+				path_start[1] = (PC-4) + branch_imm*4;
+
+				path_end[0] = path_start[0] + scan_max*4;
+				path_end[1] = path_start[1] + scan_max*4;
+
+				if (path_start[0] == path_start[1])
+					num_paths = 1;
+			}
+
+			// If one path overlaps the other, trim its length
+			if (num_paths > 1) {
+				if (branch_imm > 0) {
+					// Path 0 is the not-taken path of a forwards branch
+					// Path 1 is the taken path
+					if (path_end[0] > path_start[1])
+						path_end[0] = path_start[1];
+				} else {
+					// Path 0 is the not-taken path of a backwards branch
+					// Path 1 is the taken path
+					if (path_end[1] > path_start[0])
+						path_end[1] = path_start[0];
+				}
+			}
+		}
+
+		if (!convertible)
+			return false;
+
+		for (int path=0; path < num_paths; ++path)
+		{
+			in_bd_slot = false;
+			PC = path_start[path];
+
+			int left = (path_end[path] - path_start[path]) / 4;
+			while (left-- > 0)
+			{
+				const u32 opcode = OPCODE_AT(PC);
+				PC += 4;
+
+				// Skip any NOPs
+				if (opcode == 0)
+					continue;
+
+				// Bits 32,33 of u64 retval are LO,HI respectively. Lower bits are GPRs.
+				const u64 op_reg_reads    = opcodeGetReads(opcode);
+				const u64 op_reg_writes   = opcodeGetWrites(opcode);
+				const u64 op_reg_accesses = op_reg_reads | op_reg_writes;
+
+				// Check for a HI and LO overwrite (MULT,MULTU,DIV,DIVU)
+				if (((op_reg_writes >> 32) & 3) == 3) {
+					path_has_hi_lo_overwrite[path] = true;
+					break;
+				}
+
+				// Check for a HI or LO access (only *after* overwrite check above)
+				if (((op_reg_accesses >> 32) & 3)) {
+					convertible = false;
+					break;
+				}
+
+				// Give up scanning at a SYSCALL or HLE instruction.
+				if ( _fOp_(opcode) == 0x3b || /* HLE */
+				    (_fOp_(opcode) == 0 && _fFunct_(opcode) == 0xc) ) /* SYSCALL */
+				{
+					convertible = false;
+					break;
+				}
+
+				if (opcodeIsBranchOrJump(opcode))
+				{
+					// Branch/jump in BD slot? Give up.
+					if (in_bd_slot) {
+						convertible = false;
+						break;
+					}
+
+#ifdef USE_3OP_MUL_JUMP_OPTIMIZATIONS
+					// See comments further above regarding this optimization.
+					if ( _fOp_(opcode) == 0x3 || /* JAL */
+					    (_fOp_(opcode) == 0 && (_fFunct_(opcode) == 0x8 || _fFunct_(opcode) == 0x9)))  /* JR, JALR */
+					{
+						path_has_hi_lo_overwrite[path] = true;
+
+						// NOTE: we still scan the BD slot for a HI/LO access
+					}
+#endif // USE_3OP_MUL_JUMP_OPTIMIZATIONS
+
+					// Scan just the BD slot for a HI/LO access or overwrite and stop.
+					in_bd_slot = true;
+					left = 1;
+				}
+			}
+		}
+
+		if (num_paths > 1)
+		{
+			// If one path ends where another begins, we only need to ensure
+			//  the path with the higher start address had a HI+LO overwrite.
+			if (path_end[0] == path_start[1]) {
+				found_hi_lo_overwrite = path_has_hi_lo_overwrite[1];
+			} else if (path_end[1] == path_start[0]) {
+				found_hi_lo_overwrite = path_has_hi_lo_overwrite[0];
+			} else {
+				// One path does not flow into the other: we must ensure HI+LO
+				//  were overwritten in *both* paths.
+				found_hi_lo_overwrite = path_has_hi_lo_overwrite[0] &&
+				                        path_has_hi_lo_overwrite[1];
+			}
+		} else {
+			found_hi_lo_overwrite = path_has_hi_lo_overwrite[0];
+		}
+	}
+
+	if (!convertible || !found_hi_lo_overwrite)
+		return false;
+
+	/***********************************************************
+	 * STAGE 5: Emit a 3-op MUL instead of original MULT/MULTU *
+	 ***********************************************************/
+
+	// We also set a flag telling recMFLO() to emit nothing at its next call.
+	// NOTE: There is no unsigned 3-op MUL. The 32-bit result would be identical.
+
+	DISASM_MSG("CONVERTING MULT/MULTU TO 3-OP MUL\n");
+
+	u32 rs = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	u32 rt = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+
+	u32 rd = 0;
+	if (rd_of_mflo == _Rs_) {
+		rd = rs;
+	} else if (rd_of_mflo == _Rt_) {
+		rd = rt;
+	} else {
+		rd = regMipsToHost(rd_of_mflo, REG_FIND, REG_REGISTER);
+	}
+
+	MUL(rd, rs, rt);
+
+	// If the multiply instruction we converted was in a BD slot, we must spill
+	//  the result. Other blocks might start at or before the MFLO instruction
+	//  in the original code.
+	if (branch) {
+		SW(rd, PERM_REG_1, offGPR(32)); // LO
+	}
+
+	SetUndef(rd_of_mflo);
+	regMipsChanged(rd_of_mflo);
+
+	regUnlock(rs);
+	regUnlock(rt);
+	regUnlock(rd);
+
+	// Set flag telling recMFLO() to emit nothing at its next call.
+	skip_emitting_next_mflo = true;
+
+	// TODO - In the future, instead of using a global flag like above, it'd be
+	//  nicer to be able to flag certain PC locations in a block as
+	//  'should-be-skipped', catching them before ever calling their emitter.
+
+	return true;
+}
+#endif // USE_3OP_MUL_OPTIMIZATIONS

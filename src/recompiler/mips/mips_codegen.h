@@ -29,7 +29,14 @@
 #ifndef MIPS_CODEGEN_H
 #define MIPS_CODEGEN_H
 
-// Mips32r2 introduced useful instructions:
+/* NOTE: it is assumed the platform has basic MIPS32r1 ISA, i.e. it has at
+ *       minimum CLZ,MOVN,MOVZ,MUL.
+ */
+
+/* XXX: encoding of 3-op MUL changed in MIPS32r6, but hasn't been updated here. */
+#define HAVE_MIPS32_3OP_MUL
+
+// MIPS32r2 introduced useful instructions:
 #if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
     (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
@@ -50,6 +57,7 @@
  *  MIPS32r6/MIPS64r6 changed some things and recompiler hasn't been ported yet:
  *  - Removed LWL/LWR/SWL/SWR
  *  - Removed MFLO/MFHI, also: divide and multiply work differently.
+ *  - 3-op MUL encoding changed (see MUL() here and rec_mdu.cpp.h)
  *  - Removed MOVZ/MOVN (though easily replaced with new ops SELEQZ/SELNEZ)
  *  - Maybe some instruction encodings changed?
  */
@@ -260,6 +268,11 @@ do { \
 
 #define SRAV(rd, rt, rs) \
 	write32(0x00000007 | (rs << 21) | (rt << 16) | (rd << 11))
+
+#ifdef HAVE_MIPS32_3OP_MUL
+#define MUL(rd, rs, rt) \
+	write32(0x70000002 | (rs << 21) | (rt << 16) | (rd << 11))
+#endif // HAVE_MIPS32_3OP_MUL
 
 #define MULT(rs, rt) \
 	write32(0x00000018 | (rs << 21) | (rt << 16))

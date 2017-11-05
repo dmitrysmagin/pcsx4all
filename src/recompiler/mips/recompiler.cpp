@@ -148,6 +148,9 @@ static uintptr_t block_ret_addr;      /* Non-zero when blocks are using direct r
 static uintptr_t block_fast_ret_addr; /* Non-zero when blocks are using direct return jumps &
                                          dispatch loop fastpath is enabled */
 
+static bool skip_emitting_next_mflo;       /* Was a MULT/MULTU converted to 3-op MUL? See rec_mdu.cpp.h */
+
+
 #ifdef WITH_DISASM
 char	disasm_buffer[512];
 #endif
@@ -341,6 +344,9 @@ static void recRecompile()
 	rec_recompile_start();
 	memset(iRegs, 0, sizeof(iRegs));
 	iRegs[0].s = 1;  // $r0 is always zero val
+
+	// See convertMultiplyTo3Op() and recMFLO() in rec_mdu.cpp.h
+	skip_emitting_next_mflo = false;
 
 #ifdef USE_CODE_DISCARD
 	int discard_cnt = 0;
