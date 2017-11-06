@@ -301,7 +301,7 @@ do { \
 #define JAL(func) \
 do { \
     /* JAL and/or C code overwrites $ra block return addr */                      \
-    block_ra_loaded = 0;                                                          \
+    block_ra_loaded = false;                                                      \
     write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2));                      \
 } while (0)
 
@@ -369,8 +369,6 @@ static inline u32 ADJUST_CLOCK(u32 cycles)
  */
 #define rec_recompile_start()                                                  \
 do {                                                                           \
-    /* On entry, $ra is already loaded with block return address */            \
-    block_ra_loaded = 1;                                                       \
 } while (0)
 
 /* end of the recompiled block

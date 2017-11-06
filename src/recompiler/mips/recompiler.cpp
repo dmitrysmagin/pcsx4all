@@ -82,15 +82,10 @@
 #warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop and emit slower memory accesses. Check your Makefile!"
 #endif // defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 
-
 //#define WITH_DISASM
 //#define DEBUGG printf
 
-
 #include "mem_mapping.h"
-
-static bool psx_mem_mapped;
-static bool rec_mem_mapped;
 
 /* Bit vector indicating which PS1 RAM pages contain the start of blocks.
  *  Used to determine when code invalidation in recClear() can be skipped.
@@ -119,6 +114,7 @@ static uptr psxRecLUT[0x10000];
 #include "disasm.h"
 #include "host_asm.h"
 
+
 typedef struct {
 	u32 s;
 	u32 r;
@@ -139,15 +135,20 @@ u32 *recMem; /* the recompiled blocks will be here */
 static u32 *recMemStart;
 static u32 pc;					/* recompiler pc */
 static u32 oldpc;               /* recompiler pc at start of block */
-static u32 branch = 0;
-static bool block_ra_loaded;      /* True when block return address is loaded in host $ra reg */
-static u32 end_block = 0;
 u32 cycle_multiplier = 0x200; // 0x200 == 2.00
 
+/* See comments in recExecute() regarding direct block returns */
 static uintptr_t block_ret_addr;      /* Non-zero when blocks are using direct return jumps */
 static uintptr_t block_fast_ret_addr; /* Non-zero when blocks are using direct return jumps &
                                          dispatch loop fastpath is enabled */
 
+static bool psx_mem_mapped;                /* PS1 RAM mmap'd+mirrored at fixed address? (psxM) */
+static bool rec_mem_mapped;                /* Code ptr arrays mmap'd+mirrored at fixed address? (recRAM,recROM) */
+
+/* Flags used during a recompilation phase */
+static bool branch;                        /* Current instruction lies in a BD slot? */
+static bool end_block;                     /* Has recompilation phase ended? */
+static bool block_ra_loaded;               /* Is block return addr currently loaded in host $ra reg? */
 static bool skip_emitting_next_mflo;       /* Was a MULT/MULTU converted to 3-op MUL? See rec_mdu.cpp.h */
 
 
@@ -345,17 +346,25 @@ static void recRecompile()
 	memset(iRegs, 0, sizeof(iRegs));
 	iRegs[0].s = 1;  // $r0 is always zero val
 
+	// Flag indicates when recompilation should stop
+	end_block = false;
+
+	// Flag indicates if $ra is currently loaded with block return address.
+	//  (When blocks are using indirect return jumps, they jump to address
+	//   in $ra. The dispatch loop will set it before all block entries, and
+	//   emitted code tries to keep it set.)
+	block_ra_loaded = true;
+
 	// See convertMultiplyTo3Op() and recMFLO() in rec_mdu.cpp.h
 	skip_emitting_next_mflo = false;
 
-#ifdef USE_CODE_DISCARD
+	// Number of discardable instructions we are currently skipping
 	int discard_cnt = 0;
-#endif
 
 	do {
-		// See notes regarding cache-control port in psxmem.cpp psxMemWrite32()
-		//  regarding why it is good here to continue reading code from PSXM()
-		//  macro, i.e. reading based off psxMemRLUT[].
+		// Flag indicates if next instruction lies in a BD slot
+		branch = false;
+
 		psxRegs.code = *(u32 *)((char *)PSXM(pc));
 
 #ifdef USE_CODE_DISCARD
@@ -385,10 +394,8 @@ static void recRecompile()
 		// Recompile next instruction.
 		recBSC[psxRegs.code>>26]();
 		regUpdate();
-		branch = 0;
 	} while (!end_block);
 
-	end_block = 0;
 	DISASM_HOST();
 	clear_insn_cache(recMemStart, recMem, 0);
 }
@@ -1560,8 +1567,6 @@ static void recReset()
 
 	regReset();
 
-	branch = 0;	
-	end_block = 0;
 }
 
 R3000Acpu psxRec =
