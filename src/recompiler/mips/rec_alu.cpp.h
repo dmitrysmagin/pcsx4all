@@ -31,26 +31,49 @@ do { \
 	regUnlock(r2); \
 } while (0)
 
-static void recADDI()
+static void recADDIU()
 {
-	u32 s = iRegs[_Rs_].s;
+	// rt = rs + (s32)imm
+
+	const bool set_const = IsConst(_Rs_);
 
 	/* Catch ADDIU reg, $0, imm */
-	if (!_Rs_) {
-		s = 1;
-		/* Exit if const already loaded */
-		if (IsConst(_Rt_) && iRegs[_Rt_].r == (s32)(s16)(_Imm_))
-			return;
-	}
+	/* Exit if const already loaded */
+	if (!_Rs_ && IsConst(_Rt_) && iRegs[_Rt_].r == (s32)_Imm_)
+		return;
 
-	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, ((s16)(_Imm_)));
-	if (s)
-		SetConst(_Rt_, iRegs[_Rs_].r + (s16)(_Imm_));
+	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, _Imm_);
+
+	if (set_const)
+		SetConst(_Rt_, iRegs[_Rs_].r + (s16)_Imm_);
+}
+static void recADDI() { recADDIU(); }
+
+static void recSLTI()
+{
+	// rt = (s32)rs < (s32)imm
+
+	const bool set_const = IsConst(_Rs_);
+
+	REC_ITYPE_RT_RS_I16(SLTI, _Rt_, _Rs_, _Imm_);
+
+	if (set_const)
+		SetConst(_Rt_, (s32)iRegs[_Rs_].r < (s32)_Imm_);
 }
 
-static void recADDIU() { recADDI(); }
-static void recSLTI()  { REC_ITYPE_RT_RS_I16(SLTI,  _Rt_, _Rs_, ((s16)(_Imm_))); }
-static void recSLTIU() { REC_ITYPE_RT_RS_I16(SLTIU, _Rt_, _Rs_, ((s16)(_Imm_))); }
+static void recSLTIU()
+{
+	// rt = (u32)rs < (u32)((s32)imm)
+	// NOTE: SLTIU sign-extends its immediate before the unsigned comparison
+
+	const bool set_const = IsConst(_Rs_);
+
+	REC_ITYPE_RT_RS_I16(SLTIU, _Rt_, _Rs_, _Imm_);
+
+	if (set_const)
+		SetConst(_Rt_, iRegs[_Rs_].r < (u32)((s32)_Imm_));
+}
+
 
 #define REC_ITYPE_RT_RS_U16(insn, _rt_, _rs_, _imm_) \
 do { \
@@ -73,25 +96,47 @@ do { \
 	regUnlock(r2); \
 } while (0)
 
+static void recANDI()
+{
+	// rt = rs & (u32)imm
 
-static void recANDI()  { REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
+	const bool set_const = IsConst(_Rs_);
+
+	REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, _ImmU_);
+
+	if (set_const)
+		SetConst(_Rt_, iRegs[_Rs_].r & (u32)_ImmU_);
+}
+
 static void recORI()
 {
-	u32 s = iRegs[_Rs_].s;
+	// rt = rs | (u32)imm
+
+	bool set_const = IsConst(_Rs_);
 
 	/* Catch ORI reg, $0, imm */
-	if (!_Rs_) {
-		s = 1;
-		/* Exit if const already loaded */
-		if (IsConst(_Rt_) && iRegs[_Rt_].r == (u16)(_Imm_))
-			return;
-	}
+	/* Exit if const already loaded */
+	if (!_Rs_ && IsConst(_Rt_) && iRegs[_Rt_].r == _ImmU_)
+		return;
 
-	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, ((u16)(_ImmU_)));
-	if (s)
-		SetConst(_Rt_, iRegs[_Rs_].r | ((u16)(_Imm_)));
+	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, (u32)_ImmU_);
+
+	if (set_const)
+		SetConst(_Rt_, iRegs[_Rs_].r | (u32)(_ImmU_));
 }
-static void recXORI()  { REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_))); }
+
+static void recXORI()
+{
+	// rt = rs ^ (u32)imm
+
+	const bool set_const = IsConst(_Rs_);
+
+	REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_)));
+
+	if (set_const)
+		SetConst(_Rt_, iRegs[_Rs_].r ^ (u32)(_ImmU_));
+}
+
 
 #define REC_ITYPE_RT_U16(insn, _rt_, _imm_) \
 do { \
@@ -106,16 +151,17 @@ do { \
 
 static void recLUI()
 {
-	u32 rt = _Rt_;
-	u32 imm =((u16)_ImmU_) << 16;
+	// rt = (u32)imm << 16
 
 	/* Avoid loading the same constant more than once */
-	if (IsConst(rt) && iRegs[rt].r == imm)
+	if (IsConst(_Rt_) && iRegs[_Rt_].r == ((u32)_ImmU_ << 16))
 		return;
 
-	SetConst(rt, imm);
-	REC_ITYPE_RT_U16(LUI, _Rt_, ((u16)(_ImmU_)));
+	REC_ITYPE_RT_U16(LUI, _Rt_, _ImmU_);
+
+	SetConst(_Rt_, (u32)_ImmU_ << 16);
 }
+
 
 #define REC_RTYPE_RD_RS_RT(insn, _rd_, _rs_, _rt_) \
 do { \
@@ -145,18 +191,104 @@ do { \
 	regUnlock(r3); \
 } while (0)
 
-static void recADD()   { REC_RTYPE_RD_RS_RT(ADDU, _Rd_, _Rs_, _Rt_); }
-static void recADDU()  { recADD(); }
-static void recSUB()   { REC_RTYPE_RD_RS_RT(SUBU, _Rd_, _Rs_, _Rt_); }
-static void recSUBU()  { recSUB(); }
+static void recADDU()
+{
+	// rd = rs + rt
 
-static void recAND()   { REC_RTYPE_RD_RS_RT(AND, _Rd_, _Rs_, _Rt_); }
-static void recOR()    { REC_RTYPE_RD_RS_RT(OR,  _Rd_, _Rs_, _Rt_); }
-static void recXOR()   { REC_RTYPE_RD_RS_RT(XOR, _Rd_, _Rs_, _Rt_); }
-static void recNOR()   { REC_RTYPE_RD_RS_RT(NOR, _Rd_, _Rs_, _Rt_); }
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
 
-static void recSLT()   { REC_RTYPE_RD_RS_RT(SLT,  _Rd_, _Rs_, _Rt_); }
-static void recSLTU()  { REC_RTYPE_RD_RS_RT(SLTU, _Rd_, _Rs_, _Rt_); }
+	REC_RTYPE_RD_RS_RT(ADDU, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r + iRegs[_Rt_].r);
+}
+static void recADD()  { recADDU(); }
+
+static void recSUBU()
+{
+	// rd = rs - rt
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(SUBU, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r - iRegs[_Rt_].r);
+}
+static void recSUB()  { recSUBU(); }
+
+static void recAND()
+{
+	// rd = rs & rt
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(AND, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r & iRegs[_Rt_].r);
+}
+
+static void recOR()
+{
+	// rd = rs | rt
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(OR,  _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r | iRegs[_Rt_].r);
+}
+
+static void recXOR()
+{
+	// rd = rs ^ rt
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(XOR, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r ^ iRegs[_Rt_].r);
+}
+
+static void recNOR()
+{
+	// rd = ~(rs | rt)
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(NOR, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, ~(iRegs[_Rs_].r | iRegs[_Rt_].r));
+}
+
+static void recSLT()
+{
+	// rd = rs < rt (SIGNED)
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(SLT,  _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, (s32)iRegs[_Rs_].r < (s32)iRegs[_Rt_].r);
+}
+
+static void recSLTU()
+{
+	// rd = rs < rt (UNSIGNED)
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RS_RT(SLTU, _Rd_, _Rs_, _Rt_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rs_].r < iRegs[_Rt_].r);
+}
+
 
 #define REC_RTYPE_RD_RT_SA(insn, _rd_, _rt_, _sa_) \
 do { \
@@ -180,9 +312,12 @@ do { \
 	regUnlock(r2); \
 } while (0)
 
-
 static void recSLL()
 {
+	// rd = rt << sa
+
+	const bool set_const = IsConst(_Rt_);
+
 #ifdef USE_MIPS32R2_ALU_OPCODE_CONVERSION
 	if (!branch)
 	{
@@ -220,7 +355,7 @@ static void recSLL()
 			regUnlock(r2);
 
 			// Propagate constness of result.
-			if (iRegs[_Rt_].s)
+			if (set_const)
 				SetConst(_Rd_, ((s32)(iRegs[_Rt_].r << _Sa_) >> _Sa_));
 			else
 				SetUndef(_Rd_);
@@ -264,7 +399,7 @@ static void recSLL()
 			regUnlock(r2);
 
 			// Propagate constness of result.
-			if (iRegs[_Rt_].s)
+			if (set_const)
 				SetConst(_Rd_, (((u32)iRegs[_Rt_].r << _Sa_) >> _Sa_));
 			else
 				SetUndef(_Rd_);
@@ -280,18 +415,18 @@ static void recSLL()
 	}
 #endif // USE_MIPS32R2_ALU_OPCODE_CONVERSION
 
-
-	u32 s = iRegs[_Rt_].s;
-
 	REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_);
 
-	if (s)
+	if (set_const)
 		SetConst(_Rd_, iRegs[_Rt_].r << _Sa_);
 }
 
-
 static void recSRL()
 {
+	// rd = rt >> sa
+
+	const bool set_const = IsConst(_Rt_);
+
 #ifdef USE_MIPS32R2_ALU_OPCODE_CONVERSION
 	if (!branch)
 	{
@@ -337,8 +472,8 @@ static void recSRL()
 				regUnlock(r2);
 
 				// Propagate constness of result.
-				if (iRegs[_Rt_].s)
-					SetConst(_Rd_, (((u32)iRegs[_Rt_].r >> _Sa_) & _fImmU_(next_opcode)));
+				if (set_const)
+					SetConst(_Rd_, ((u32)iRegs[_Rt_].r >> _Sa_) & _fImmU_(next_opcode));
 				else
 					SetUndef(_Rd_);
 
@@ -382,8 +517,8 @@ static void recSRL()
 			regUnlock(r2);
 
 			// Propagate constness of result.
-			if (iRegs[_Rt_].s)
-				SetConst(_Rd_, (((u32)iRegs[_Rt_].r >> _Sa_) << _Sa_));
+			if (set_const)
+				SetConst(_Rd_, ((u32)iRegs[_Rt_].r >> _Sa_) << _Sa_);
 			else
 				SetUndef(_Rd_);
 
@@ -398,18 +533,19 @@ static void recSRL()
 	}
 #endif // USE_MIPS32R2_ALU_OPCODE_CONVERSION
 
-
-	u32 s = iRegs[_Rt_].s;
-
 	REC_RTYPE_RD_RT_SA(SRL, _Rd_, _Rt_, _Sa_);
 
-	if (s)
+	if (set_const)
 		SetConst(_Rd_, (u32)iRegs[_Rt_].r >> _Sa_);
 }
 
 
 static void recSRA()
 {
+	// rd = (s32)rt >> sa
+
+	const bool set_const = IsConst(_Rt_);
+
 #ifdef USE_MIPS32R2_ALU_OPCODE_CONVERSION
 	if (!branch)
 	{
@@ -445,7 +581,7 @@ static void recSRA()
 			regUnlock(r2);
 
 			// Propagate constness of result.
-			if (iRegs[_Rt_].s)
+			if (set_const)
 				SetConst(_Rd_, (((s32)iRegs[_Rt_].r >> _Sa_) << _Sa_));
 			else
 				SetUndef(_Rd_);
@@ -461,12 +597,9 @@ static void recSRA()
 	}
 #endif // USE_MIPS32R2_ALU_OPCODE_CONVERSION
 
-
-	u32 s = iRegs[_Rt_].s;
-
 	REC_RTYPE_RD_RT_SA(SRA, _Rd_, _Rt_, _Sa_);
 
-	if (s)
+	if (set_const)
 		SetConst(_Rd_, (s32)iRegs[_Rt_].r >> _Sa_);
 }
 
@@ -500,6 +633,38 @@ do { \
 	regUnlock(r3); \
 } while (0)
 
-static void recSLLV()  { REC_RTYPE_RD_RT_RS(SLLV, _Rd_, _Rt_, _Rs_); }
-static void recSRLV()  { REC_RTYPE_RD_RT_RS(SRLV, _Rd_, _Rt_, _Rs_); }
-static void recSRAV()  { REC_RTYPE_RD_RT_RS(SRAV, _Rd_, _Rt_, _Rs_); }
+static void recSLLV()
+{
+	// rd = rt << rs
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RT_RS(SLLV, _Rd_, _Rt_, _Rs_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rt_].r << iRegs[_Rs_].r);
+}
+
+static void recSRLV()
+{
+	// rd = (u32)rt >> rs
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RT_RS(SRLV, _Rd_, _Rt_, _Rs_);
+
+	if (set_const)
+		SetConst(_Rd_, iRegs[_Rt_].r >> iRegs[_Rs_].r);
+}
+
+static void recSRAV()
+{
+	// rd = (s32)rt >> rs
+
+	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+
+	REC_RTYPE_RD_RT_RS(SRAV, _Rd_, _Rt_, _Rs_);
+
+	if (set_const)
+		SetConst(_Rd_, (s32)iRegs[_Rt_].r >> iRegs[_Rs_].r);
+}
