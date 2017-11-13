@@ -43,8 +43,8 @@ static void recMULT()
 	if (rs_const || rt_const)
 	{
 		// Check rs_const or rt_const before using either value here!
-		s32 rs_val = iRegs[_Rs_].r;
-		s32 rt_val = iRegs[_Rt_].r;
+		s32 rs_val = GetConst(_Rs_);
+		s32 rt_val = GetConst(_Rt_);
 
 		bool const_res = false;
 		s32 lo_res = 0;
@@ -177,8 +177,8 @@ static void recMULTU()
 	if (rs_const || rt_const)
 	{
 		// Check rs_const or rt_const before using either value here!
-		u32 rs_val = iRegs[_Rs_].r;
-		u32 rt_val = iRegs[_Rt_].r;
+		u32 rs_val = GetConst(_Rs_);
+		u32 rt_val = GetConst(_Rt_);
 
 		bool const_res = false;
 		u32 lo_res = 0;
@@ -291,8 +291,8 @@ static void recDIV()
 	if (rt_const)
 	{
 		// Check rs_const before using rs_val value here!
-		u32 rs_val = iRegs[_Rs_].r;
-		u32 rt_val = iRegs[_Rt_].r;
+		u32 rs_val = GetConst(_Rs_);
+		u32 rt_val = GetConst(_Rt_);
 
 		if (!rt_val) {
 			// If divisor operand is const 0:
@@ -400,7 +400,7 @@ static void recDIV()
 
 	bool omit_div_by_zero_fixup = false;
 
-	if (IsConst(_Rt_) && iRegs[_Rt_].r != 0) {
+	if (IsConst(_Rt_) && GetConst(_Rt_) != 0) {
 		// If divisor is known-const val and isn't 0, no need to fixup
 		omit_div_by_zero_fixup = true;
 	} else if (!branch) {
@@ -462,8 +462,8 @@ static void recDIVU()
 		bool rs_const = IsConst(_Rs_);
 
 		// Check rs_const before using rs_val value here!
-		u32 rs_val = iRegs[_Rs_].r;
-		u32 rt_val = iRegs[_Rt_].r;
+		u32 rs_val = GetConst(_Rs_);
+		u32 rt_val = GetConst(_Rt_);
 
 		if (!rt_val) {
 			// If divisor operand is const 0:
@@ -554,7 +554,7 @@ static void recDIVU()
 
 	bool omit_div_by_zero_fixup = false;
 
-	if (IsConst(_Rt_) && iRegs[_Rt_].r != 0) {
+	if (IsConst(_Rt_) && GetConst(_Rt_) != 0) {
 		// If divisor is known-const val and isn't 0, no need to fixup
 		omit_div_by_zero_fixup = true;
 	} else if (!branch) {

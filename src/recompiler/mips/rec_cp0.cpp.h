@@ -93,7 +93,7 @@ static void recMTC0()
 
 			if (IsConst(_Rt_)) {
 				SW(rt, PERM_REG_1, offCP0(12)); // Store new CP0 Status reg val
-				if ((iRegs[_Rt_].r & 0x401) == 0x401) {
+				if ((GetConst(_Rt_) & 0x401) == 0x401) {
 					SW(0, PERM_REG_1, off(io_cycle_counter));
 				}
 			} else {
@@ -112,7 +112,7 @@ static void recMTC0()
 			//  ** Fixes freeze at start of 'Jackie Chan Stuntmaster'
 
 			if (!IsConst(_Rt_) ||
-			    ((iRegs[_Rt_].r & 0x300) && (iRegs[_Rt_].r & 0x1))) {
+			    ((GetConst(_Rt_) & 0x300) && (GetConst(_Rt_) & 0x1))) {
 
 				// Load CP0 Cause reg (13), as emitTestSWInts() expects
 				//  Cause in MIPSREG_A0 and Status in MIPSREG_A1
@@ -146,7 +146,7 @@ static void recMTC0()
 
 			// See notes above regarding test for software-generated exception
 
-			if (!IsConst(_Rt_) || (iRegs[_Rt_].r & 0x300)) {
+			if (!IsConst(_Rt_) || (GetConst(_Rt_) & 0x300)) {
 				// Load CP0 Status reg (12), as emitTestSWInts() expects
 				//  Cause in MIPSREG_A0 and Status in MIPSREG_A1
 				LW(MIPSREG_A1, PERM_REG_1, offCP0(12));

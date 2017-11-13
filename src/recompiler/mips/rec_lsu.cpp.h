@@ -1037,7 +1037,7 @@ static void emitLoadStoreSeries()
 		 ************************/
 
 		// Is address outside lower 8MB RAM region? (2MB mirrored x4)
-		const u32 base_reg_constval = iRegs[_Rs_].r;
+		const u32 base_reg_constval = GetConst(_Rs_);
 		const u32 addr_max = base_reg_constval + imm_max;
 		if ((addr_max & 0x0fffffff) >= 0x800000)
 		{

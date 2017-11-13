@@ -159,10 +159,10 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 		regcache.host[regnum].mappedto = 0;
 
 		// If reg value is known-const, see if it can be loaded with just one ALU op
-		if (IsConst(regpsx) && ( (((u32)iRegs[regpsx].r <= 0xffff) || !(iRegs[regpsx].r & 0xffff)) ||
-		                         (((s32)iRegs[regpsx].r < 0) && ((s32)iRegs[regpsx].r >= -32768))    ))
+		if (IsConst(regpsx) && ( (((u32)GetConst(regpsx) <= 0xffff) || !(GetConst(regpsx) & 0xffff)) ||
+		                         (((s32)GetConst(regpsx) < 0) && ((s32)GetConst(regpsx) >= -32768))    ))
 		{
-			LI32(regnum, iRegs[regpsx].r);
+			LI32(regnum, GetConst(regpsx));
 		} else {
 			LW(regnum, PERM_REG_1, offGPR(regpsx));
 		}
@@ -173,10 +173,10 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 
 	if (action == REG_LOAD) {
 		// If reg value is known-const, see if it can be loaded with just one ALU op
-		if (IsConst(regpsx) && ( (((u32)iRegs[regpsx].r <= 0xffff) || !(iRegs[regpsx].r & 0xffff)) ||
-		                         (((s32)iRegs[regpsx].r < 0) && ((s32)iRegs[regpsx].r >= -32768))    ))
+		if (IsConst(regpsx) && ( (((u32)GetConst(regpsx) <= 0xffff) || !(GetConst(regpsx) & 0xffff)) ||
+		                         (((s32)GetConst(regpsx) < 0) && ((s32)GetConst(regpsx) >= -32768))    ))
 		{
-			LI32(regcache.psx[regpsx].mappedto, iRegs[regpsx].r);
+			LI32(regcache.psx[regpsx].mappedto, GetConst(regpsx));
 		} else {
 			LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
 		}

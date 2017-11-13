@@ -115,16 +115,17 @@ static uptr psxRecLUT[0x10000];
 #include "host_asm.h"
 
 
+/* Used for const-propagation */
 typedef struct {
-	u32 s;
-	u32 r;
+	u32 constval[32];    /* Values of known-const target GPRs: SHOULD BE UNSIGNED   */
+	u32 consts;          /* Bitfield representing which target GPRs are known-const */
 } iRegisters;
+static iRegisters iRegs;
+#define IsConst(reg_)        ((iRegs.consts & (1 << (reg_))) != 0)
+#define GetConst(reg_)       (iRegs.constval[reg_])
+#define SetUndef(reg_)       do { if (reg_) iRegs.consts &= ~(1 << (reg_)); } while (0)
+#define SetConst(reg_, val_) do { if (reg_) { iRegs.consts |= (1 << (reg_));  iRegs.constval[reg_] = (val_); } } while (0)
 
-#define IsConst(reg) (iRegs[reg].s)
-#define SetUndef(reg) do { if (reg != 0) iRegs[reg].s = 0; } while (0)
-#define SetConst(reg, val) do { if (reg != 0) { iRegs[reg].s = 1; iRegs[reg].r = (val); } } while (0)
-
-static iRegisters iRegs[32]; /* used for imm caching and back up of regs in dynarec */
 
 #define RECMEM_SIZE		(12 * 1024 * 1024)
 #define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
@@ -343,8 +344,10 @@ static void recRecompile()
 	DISASM_INIT();
 
 	rec_recompile_start();
-	memset(iRegs, 0, sizeof(iRegs));
-	iRegs[0].s = 1;  // $r0 is always zero val
+
+	// Reset const-propagation
+	memset(&iRegs, 0, sizeof(iRegs));
+	iRegs.consts |= (1 << 0);  // $r0 is always zero val
 
 	// Flag indicates when recompilation should stop
 	end_block = false;

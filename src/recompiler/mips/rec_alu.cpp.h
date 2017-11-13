@@ -39,13 +39,13 @@ static void recADDIU()
 
 	/* Catch ADDIU reg, $0, imm */
 	/* Exit if const already loaded */
-	if (!_Rs_ && IsConst(_Rt_) && iRegs[_Rt_].r == (s32)_Imm_)
+	if (!_Rs_ && IsConst(_Rt_) && GetConst(_Rt_) == (s32)_Imm_)
 		return;
 
 	REC_ITYPE_RT_RS_I16(ADDIU,  _Rt_, _Rs_, _Imm_);
 
 	if (set_const)
-		SetConst(_Rt_, iRegs[_Rs_].r + (s16)_Imm_);
+		SetConst(_Rt_, GetConst(_Rs_) + (s32)_Imm_);
 }
 static void recADDI() { recADDIU(); }
 
@@ -58,7 +58,7 @@ static void recSLTI()
 	REC_ITYPE_RT_RS_I16(SLTI, _Rt_, _Rs_, _Imm_);
 
 	if (set_const)
-		SetConst(_Rt_, (s32)iRegs[_Rs_].r < (s32)_Imm_);
+		SetConst(_Rt_, (s32)GetConst(_Rs_) < (s32)_Imm_);
 }
 
 static void recSLTIU()
@@ -71,7 +71,7 @@ static void recSLTIU()
 	REC_ITYPE_RT_RS_I16(SLTIU, _Rt_, _Rs_, _Imm_);
 
 	if (set_const)
-		SetConst(_Rt_, iRegs[_Rs_].r < (u32)((s32)_Imm_));
+		SetConst(_Rt_, GetConst(_Rs_) < (u32)((s32)_Imm_));
 }
 
 
@@ -105,7 +105,7 @@ static void recANDI()
 	REC_ITYPE_RT_RS_U16(ANDI, _Rt_, _Rs_, _ImmU_);
 
 	if (set_const)
-		SetConst(_Rt_, iRegs[_Rs_].r & (u32)_ImmU_);
+		SetConst(_Rt_, GetConst(_Rs_) & (u32)_ImmU_);
 }
 
 static void recORI()
@@ -116,13 +116,13 @@ static void recORI()
 
 	/* Catch ORI reg, $0, imm */
 	/* Exit if const already loaded */
-	if (!_Rs_ && IsConst(_Rt_) && iRegs[_Rt_].r == _ImmU_)
+	if (!_Rs_ && IsConst(_Rt_) && GetConst(_Rt_) == (u32)_ImmU_)
 		return;
 
-	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, (u32)_ImmU_);
+	REC_ITYPE_RT_RS_U16(ORI,  _Rt_, _Rs_, _ImmU_);
 
 	if (set_const)
-		SetConst(_Rt_, iRegs[_Rs_].r | (u32)(_ImmU_));
+		SetConst(_Rt_, GetConst(_Rs_) | (u32)(_ImmU_));
 }
 
 static void recXORI()
@@ -131,10 +131,10 @@ static void recXORI()
 
 	const bool set_const = IsConst(_Rs_);
 
-	REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, ((u16)(_ImmU_)));
+	REC_ITYPE_RT_RS_U16(XORI, _Rt_, _Rs_, _ImmU_);
 
 	if (set_const)
-		SetConst(_Rt_, iRegs[_Rs_].r ^ (u32)(_ImmU_));
+		SetConst(_Rt_, GetConst(_Rs_) ^ (u32)(_ImmU_));
 }
 
 
@@ -154,7 +154,7 @@ static void recLUI()
 	// rt = (u32)imm << 16
 
 	/* Avoid loading the same constant more than once */
-	if (IsConst(_Rt_) && iRegs[_Rt_].r == ((u32)_ImmU_ << 16))
+	if (IsConst(_Rt_) && GetConst(_Rt_) == ((u32)_ImmU_ << 16))
 		return;
 
 	REC_ITYPE_RT_U16(LUI, _Rt_, _ImmU_);
@@ -200,7 +200,7 @@ static void recADDU()
 	REC_RTYPE_RD_RS_RT(ADDU, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r + iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) + GetConst(_Rt_));
 }
 static void recADD()  { recADDU(); }
 
@@ -213,7 +213,7 @@ static void recSUBU()
 	REC_RTYPE_RD_RS_RT(SUBU, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r - iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) - GetConst(_Rt_));
 }
 static void recSUB()  { recSUBU(); }
 
@@ -226,7 +226,7 @@ static void recAND()
 	REC_RTYPE_RD_RS_RT(AND, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r & iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) & GetConst(_Rt_));
 }
 
 static void recOR()
@@ -238,7 +238,7 @@ static void recOR()
 	REC_RTYPE_RD_RS_RT(OR,  _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r | iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) | GetConst(_Rt_));
 }
 
 static void recXOR()
@@ -250,7 +250,7 @@ static void recXOR()
 	REC_RTYPE_RD_RS_RT(XOR, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r ^ iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) ^ GetConst(_Rt_));
 }
 
 static void recNOR()
@@ -262,7 +262,7 @@ static void recNOR()
 	REC_RTYPE_RD_RS_RT(NOR, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, ~(iRegs[_Rs_].r | iRegs[_Rt_].r));
+		SetConst(_Rd_, ~(GetConst(_Rs_) | GetConst(_Rt_)));
 }
 
 static void recSLT()
@@ -274,7 +274,7 @@ static void recSLT()
 	REC_RTYPE_RD_RS_RT(SLT,  _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, (s32)iRegs[_Rs_].r < (s32)iRegs[_Rt_].r);
+		SetConst(_Rd_, (s32)GetConst(_Rs_) < (s32)GetConst(_Rt_));
 }
 
 static void recSLTU()
@@ -286,7 +286,7 @@ static void recSLTU()
 	REC_RTYPE_RD_RS_RT(SLTU, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rs_].r < iRegs[_Rt_].r);
+		SetConst(_Rd_, GetConst(_Rs_) < GetConst(_Rt_));
 }
 
 
@@ -356,7 +356,7 @@ static void recSLL()
 
 			// Propagate constness of result.
 			if (set_const)
-				SetConst(_Rd_, ((s32)(iRegs[_Rt_].r << _Sa_) >> _Sa_));
+				SetConst(_Rd_, ((s32)(GetConst(_Rt_) << _Sa_) >> _Sa_));
 			else
 				SetUndef(_Rd_);
 
@@ -400,7 +400,7 @@ static void recSLL()
 
 			// Propagate constness of result.
 			if (set_const)
-				SetConst(_Rd_, (((u32)iRegs[_Rt_].r << _Sa_) >> _Sa_));
+				SetConst(_Rd_, (((u32)GetConst(_Rt_) << _Sa_) >> _Sa_));
 			else
 				SetUndef(_Rd_);
 
@@ -418,7 +418,7 @@ static void recSLL()
 	REC_RTYPE_RD_RT_SA(SLL, _Rd_, _Rt_, _Sa_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rt_].r << _Sa_);
+		SetConst(_Rd_, GetConst(_Rt_) << _Sa_);
 }
 
 static void recSRL()
@@ -473,7 +473,7 @@ static void recSRL()
 
 				// Propagate constness of result.
 				if (set_const)
-					SetConst(_Rd_, ((u32)iRegs[_Rt_].r >> _Sa_) & _fImmU_(next_opcode));
+					SetConst(_Rd_, ((u32)GetConst(_Rt_) >> _Sa_) & _fImmU_(next_opcode));
 				else
 					SetUndef(_Rd_);
 
@@ -518,7 +518,7 @@ static void recSRL()
 
 			// Propagate constness of result.
 			if (set_const)
-				SetConst(_Rd_, ((u32)iRegs[_Rt_].r >> _Sa_) << _Sa_);
+				SetConst(_Rd_, ((u32)GetConst(_Rt_) >> _Sa_) << _Sa_);
 			else
 				SetUndef(_Rd_);
 
@@ -536,7 +536,7 @@ static void recSRL()
 	REC_RTYPE_RD_RT_SA(SRL, _Rd_, _Rt_, _Sa_);
 
 	if (set_const)
-		SetConst(_Rd_, (u32)iRegs[_Rt_].r >> _Sa_);
+		SetConst(_Rd_, (u32)GetConst(_Rt_) >> _Sa_);
 }
 
 
@@ -582,7 +582,7 @@ static void recSRA()
 
 			// Propagate constness of result.
 			if (set_const)
-				SetConst(_Rd_, (((s32)iRegs[_Rt_].r >> _Sa_) << _Sa_));
+				SetConst(_Rd_, (((s32)GetConst(_Rt_) >> _Sa_) << _Sa_));
 			else
 				SetUndef(_Rd_);
 
@@ -600,7 +600,7 @@ static void recSRA()
 	REC_RTYPE_RD_RT_SA(SRA, _Rd_, _Rt_, _Sa_);
 
 	if (set_const)
-		SetConst(_Rd_, (s32)iRegs[_Rt_].r >> _Sa_);
+		SetConst(_Rd_, (s32)GetConst(_Rt_) >> _Sa_);
 }
 
 
@@ -642,7 +642,7 @@ static void recSLLV()
 	REC_RTYPE_RD_RT_RS(SLLV, _Rd_, _Rt_, _Rs_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rt_].r << iRegs[_Rs_].r);
+		SetConst(_Rd_, GetConst(_Rt_) << GetConst(_Rs_));
 }
 
 static void recSRLV()
@@ -654,7 +654,7 @@ static void recSRLV()
 	REC_RTYPE_RD_RT_RS(SRLV, _Rd_, _Rt_, _Rs_);
 
 	if (set_const)
-		SetConst(_Rd_, iRegs[_Rt_].r >> iRegs[_Rs_].r);
+		SetConst(_Rd_, GetConst(_Rt_) >> GetConst(_Rs_));
 }
 
 static void recSRAV()
@@ -666,5 +666,5 @@ static void recSRAV()
 	REC_RTYPE_RD_RT_RS(SRAV, _Rd_, _Rt_, _Rs_);
 
 	if (set_const)
-		SetConst(_Rd_, (s32)iRegs[_Rt_].r >> iRegs[_Rs_].r);
+		SetConst(_Rd_, (s32)GetConst(_Rt_) >> GetConst(_Rs_));
 }

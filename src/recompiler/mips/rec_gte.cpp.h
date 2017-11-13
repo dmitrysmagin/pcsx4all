@@ -339,7 +339,7 @@ static int count_LWC2_SWC2()
 	return count;
 }
 
-static bool skip_base_reg_conversion_LWC2_SWC2(u32 psx_reg)
+static bool skip_base_reg_conversion_LWC2_SWC2(u32 regpsx)
 {
 #if defined(USE_GTE_DIRECT_MEM_ACCESS) && defined(USE_CONST_ADDRESSES)
 	// Since we assume all LWC2/SWC2 ops address only RAM or scratchpad,
@@ -347,9 +347,9 @@ static bool skip_base_reg_conversion_LWC2_SWC2(u32 psx_reg)
 	//  If our virtual mapping allows it, we can use it unmodified.
 	return psx_mem_mapped &&
 	       PSX_MEM_VADDR == 0x10000000 &&
-	       IsConst(psx_reg) &&
-	       iRegs[psx_reg].r >= (0x1f800000 - 32767) &&
-	       iRegs[psx_reg].r <= (0x1f8003fc + 32768);
+	       IsConst(regpsx) &&
+	       GetConst(regpsx) >= (0x1f800000 - 32767) &&
+	       GetConst(regpsx) <= (0x1f8003fc + 32768);
 #else
 	return false;
 #endif

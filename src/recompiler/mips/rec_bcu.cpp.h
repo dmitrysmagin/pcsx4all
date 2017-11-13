@@ -203,7 +203,7 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 		//  slot before doing branch tests when branch operands are known-const.
 		//  The way it's done here seems it'd be the correct way to do it in all
 		//  cases, but anything different causes immediate problems either way.
-		s32 val = iRegs[_Rs_].r;
+		s32 val = GetConst(_Rs_);
 		bool branch_taken = false;
 
 		switch (code & 0xfc1f0000) {
@@ -361,8 +361,8 @@ static void emitBxx(u32 bpc)
 		//  slot before doing branch tests when branch operands are known-const.
 		//  The way it's done here seems it'd be the correct way to do it in all
 		//  cases, but anything different causes immediate problems either way.
-		s32 val1 = iRegs[_Rs_].r;
-		s32 val2 = iRegs[_Rt_].r;
+		s32 val1 = GetConst(_Rs_);
+		s32 val2 = GetConst(_Rt_);
 		bool branch_taken = false;
 
 		switch (code & 0xfc000000) {
