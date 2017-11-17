@@ -488,10 +488,21 @@ static inline bool opcodeIsBranchOrJump(const u32 opcode)
 	return opcodeIsBranch(opcode) || opcodeIsJump(opcode);
 }
 
+
 /* Defined in mips_codegen.cpp */
+
 void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped);
+
+/* Opcode analysis functions */
+struct ALUOpInfo {
+	bool writes_rt;
+	bool reads_rs;
+	bool reads_rt;
+};
+bool opcodeIsALU(const u32 opcode, struct ALUOpInfo *info);
 u64 opcodeGetReads(const u32 op);
 u64 opcodeGetWrites(const u32 op);
+
 int rec_scan_for_div_by_zero_check_sequence(u32 code_loc);
 int rec_scan_for_MFHI_MFLO_sequence(u32 code_loc);
 int rec_discard_scan(u32 code_loc, int *discard_type);

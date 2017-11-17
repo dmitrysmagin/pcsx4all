@@ -69,6 +69,78 @@ void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_m
 	}
 }
 
+/* Is opcode an ALU op?
+ * NOTE: only MIPS I r3000a opcodes supported (for now)
+ * Returns: true if ALU op, false if not.
+ *          If 'info' param is non-NULL and op is ALU, fill struct members.
+ */
+bool opcodeIsALU(const u32 opcode, struct ALUOpInfo *info)
+{
+	bool is_alu_op = false;
+
+	struct ALUOpInfo l_info;
+	l_info.writes_rt = false;
+	l_info.reads_rs  = false;
+	l_info.reads_rt  = false;
+
+	if (_fOp_(opcode) == 0)
+	{
+		l_info.writes_rt = false;
+
+		switch(_fFunct_(opcode))
+		{
+			case 0x00: // SLL    rd = rt << sa
+			case 0x02: // SRL    rd = rt >> sa
+			case 0x03: // SRA    rd = rt >> sa
+				is_alu_op = true;
+				l_info.reads_rt  = true;
+				break;
+			case 0x04: // SLLV   rd = rt << rs
+			case 0x06: // SRLV   rd = rt >> rs
+			case 0x07: // SRAV   rd = rt >> rs
+			case 0x20: // ADD    rd = rs + rt
+			case 0x21: // ADDU   rd = rs + rt
+			case 0x22: // SUB    rd = rs - rt
+			case 0x23: // SUBU   rd = rs - rt
+			case 0x24: // AND    rd = rs & rt
+			case 0x25: // OR     rd = rs | rt
+			case 0x26: // XOR    rd = rs ^ rt
+			case 0x27: // NOR    rd = ~(rs | rt)
+			case 0x2a: // SLT    rd = rs < rt
+			case 0x2b: // SLTU   rd = rs < rt
+				is_alu_op = true;
+				l_info.reads_rs  = true;
+				l_info.reads_rt  = true;
+				break;
+			default:
+				break;
+		}
+	} else if (_fOp_(opcode) >= 0x08 && _fOp_(opcode) <= 0x0f)
+	{
+		// fOp
+		// 0x08 ADDI   rt = rs + imm
+		// 0x09 ADDIU  rt = rs + imm
+		// 0x0a SLTI   rt = rs < imm
+		// 0x0b SLTIU  rt = rs < imm
+		// 0x0c ANDI   rt = rs & imm
+		// 0x0d ORI    rt = rs | imm
+		// 0x0e XORI   rt = rs ^ imm
+		// 0x0f LUI    rt = imm << 16
+
+		is_alu_op = true;
+		l_info.writes_rt = true;
+
+		// LUI is unique: it reads nothing
+		if (_fOp_(opcode) != 0x0f)
+			l_info.reads_rs = true;
+	}
+
+	if (is_alu_op && info)
+		*info = l_info;
+
+	return is_alu_op;
+}
+
 /* opcodeGetReads() / opcodeGetWrites adapted from Nebuleon's Mupen64Plus JIT work
  *   with permission of author and under GPLv2 license.
  *   https://github.com/Nebuleon/mupen64plus-core/
