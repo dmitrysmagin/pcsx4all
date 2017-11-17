@@ -1,8 +1,14 @@
 /* Optional defines (for debugging) */
 
-// Detect conditional branches on known-const reg vals, eliminating
-//  dead code and unnecessary branches.
+/* Detect conditional branches on known-const reg vals, eliminating
+ *  dead code and unnecessary branches.
+ */
 #define USE_CONST_BRANCH_OPTIMIZATIONS
+
+/* Convert some small forwards conditional branches to modern conditional moves */
+#define USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+
+static bool convertBranchToConditionalMoves();
 
 static void recSYSCALL()
 {
@@ -240,6 +246,18 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	}
 #endif // USE_CONST_BRANCH_OPTIMIZATIONS
 
+#ifdef USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+	// Attempt to convert the branch to conditional move(s).
+	// IMPORTANT: There must be no delay-slot trickery, and branch must
+	//            not be a 'bgezal,bltzal' branch-and-link instruction.
+	if (!andlink && (dt == 3 || dt == 0))
+	{
+		if (convertBranchToConditionalMoves())
+			return;
+	}
+#endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+
+
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 
 	if (dt == 3 || dt == 0) {
@@ -350,6 +368,10 @@ static void emitBxx(u32 bpc)
 
 	u32 code = psxRegs.code;
 
+	// XXX - If delay-slot trickery workarounds are ever added to this
+	//       emitter, as emitBxxZ() already has, be sure to disallow
+	//       the following optimizations when it is detected.
+
 #ifdef USE_CONST_BRANCH_OPTIMIZATIONS
 	// If test registers are known-const, we can eliminate the branch:
 	//  If taken, block will end here.
@@ -386,6 +408,13 @@ static void emitBxx(u32 bpc)
 		return;
 	}
 #endif // USE_CONST_BRANCH_OPTIMIZATIONS
+
+#ifdef USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+	// Attempt to convert the branch to conditional move(s).
+	if (convertBranchToConditionalMoves())
+		return;
+#endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+
 
 	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
@@ -733,3 +762,473 @@ static void recHLE()
 
 	end_block = 1;
 }
+
+/* Try to convert a small forward-branch into a series of modern
+ * conditional-moves. All opcodes in the branch-not-taken path must be ALU ops.
+ * Can reduce total number of blocks and total recompiled code size by 5-10%,
+ * and speed the code up a bit.
+ *
+ * Returns: true if branch was successfully converted, false if not.
+ *
+ * NOTE: It is assumed 'beq/bne $zero,$zero' is caught before calling here.
+ *       Is is also assumed we aren't asked to convert 'bgezal,bltzal', the
+ *       branch-and-link instructions.
+ */
+#ifdef USE_CONDITIONAL_MOVE_OPTIMIZATIONS
+static bool convertBranchToConditionalMoves()
+{
+	// Limit on size of branch-not-taken paths we convert. If it's too large,
+	// we'd waste time analyzing not-taken-paths that are really unlikely to
+	// exclusively contain ALU ops. Max of 3..5 seems to be the sweet spot.
+	const int max_ops = 4;  // Up to this # opcodes total, excluding BD slot.
+
+	// Temporary registers we can use
+	const int max_renamed = 4;
+	const u8  renamed_reg_pool[max_renamed] = { MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3 };
+	const u8  temp_condition_reg = TEMP_1;
+
+	const u32  branch_opcode  = OPCODE_AT(pc-4);
+	const u32  bd_slot_opcode = OPCODE_AT(pc);
+	const s32  branch_imm = _fImm_(branch_opcode);
+	const u8   branch_rs  = _fRs_(branch_opcode);
+	const u8   branch_rt  = _fRt_(branch_opcode);
+	const bool is_beq     = _fOp_(branch_opcode) == 0x04;
+	const bool is_bne     = _fOp_(branch_opcode) == 0x05;
+
+	// Don't allow any backward or 0-len branches, or branches too far.
+	if (branch_imm <= 1 || branch_imm > (max_ops+1))
+		return false;
+
+	// Shouldn't happen: prior functions should catch 'BEQ/BNE $zero,$zero'.
+	if ((is_beq || is_bne) && (branch_rs == 0 && branch_rt == 0))
+		return false;
+
+	// Branch/jump in BD slot? Give up.
+	if (opcodeIsBranchOrJump(bd_slot_opcode))
+		return false;
+
+	/*******************************************************
+	 * STAGE 1: Ensure all ops are ALU, collect basic info *
+	 *******************************************************/
+	struct {
+		u32  opcode;
+		u8   dst_reg;
+		bool writes_rt;
+		bool reads_rs;
+		bool reads_rt;
+		bool rs_renamed;
+		bool rt_renamed;
+		u8   dst_renamed_to;
+		u8   rs_renamed_to;
+		u8   rt_renamed_to;
+
+		//  Normally, it is assumed that dst reg has been renamed. However, some
+		// common 'addu rd, rs, $zero' compiler/assembler-generated reg-moves
+		// can avoid reg-renaming, and this gets set true.
+		bool emit_as_rd_rs_direct_cond_move;
+	} ops[max_ops];
+
+	memset(ops, 0, sizeof(ops));
+
+	// Bitfield representing any GPRs written by opcodes
+	u32  op_writes = 0;
+
+	int  num_ops = 0;
+	bool success = true;
+
+	for (int i=0; i < (branch_imm-1); ++i)
+	{
+		// 'pc' is currently pointing to the branch's BD slot, so
+		//   start looking at opcodes one instruction after that.
+		const u32 opcode = OPCODE_AT(pc + 4 + i*4);
+
+		// Skip any NOPs
+		if (opcode == 0)
+			continue;
+
+		struct ALUOpInfo info;
+
+		if (opcodeIsALU(opcode, &info))
+		{
+			const u8 dst_reg = info.writes_rt ? _fRt_(opcode) : _fRd_(opcode);
+
+			// Skip any ALU ops with $zero dst reg
+			if (!dst_reg)
+				continue;
+
+			ops[num_ops].opcode = opcode;
+			ops[num_ops].dst_reg = dst_reg;
+			ops[num_ops].writes_rt = info.writes_rt;
+			ops[num_ops].reads_rs  = info.reads_rs;
+			ops[num_ops].reads_rt  = info.reads_rt;
+			op_writes |= (1 << dst_reg);
+			num_ops++;
+		} else {
+			// Found non-ALU op, give up
+			success = false;
+			break;
+		}
+	}
+
+	if (!success || (num_ops == 0))
+		return false;
+
+	/***************************************************************
+	 * STAGE 2: Register renaming, overflow-trap opcode conversion *
+	 ***************************************************************/
+	int num_renamed = 0;
+
+	// Reverse mapping: renamed reg -> original PSX reg (used in last stage)
+	u8 host_to_psx_map[max_renamed];
+
+	{
+		// Only needed during this renaming phase:
+		struct {
+			bool is_renamed;
+			u8   renamed_to;
+		} reg_map[32];
+
+		memset(reg_map, 0, sizeof(reg_map));
+
+		for (int i=0; i < num_ops; ++i)
+		{
+			u32 opcode = ops[i].opcode;
+
+			// Convert any overflow-trap instructions to non-trapping ones
+			switch (_fOp_(opcode)) {
+				case 0:
+					switch(_fFunct_(opcode)) {
+						case 0x20:  /* ADD -> ADDU */
+							opcode &= ~0x3f;
+							opcode |= 0x21;
+							break;
+						case 0x22:  /* SUB -> SUBU */
+							opcode &= ~0x3f;
+							opcode |= 0x23;
+							break;
+						default:
+							break;
+					}
+					break;
+				case 0x08:  /* ADDI -> ADDIU */
+					opcode &= ~0xfc000000;
+					opcode |= 0x24000000;
+					break;
+				default:
+					break;
+			}
+			ops[i].opcode = opcode;  // Write back opcode in case it was converted
+
+			const u8 dst_reg = ops[i].dst_reg;
+			const u8 rs_reg  = _fRs_(opcode);
+			const u8 rt_reg  = _fRt_(opcode);
+
+			//  Catch 'ADDU dst, rs, $zero', a reg move: if the src and dst regs
+			// haven't been been renamed yet, we can skip renaming the dst reg
+			// and emit just a simple conditional move later.
+			// ADDU  rd = rs + rt
+			if ((_fOp_(opcode) == 0 && _fFunct_(opcode) == 0x21) &&  /* ADDU */
+			    rt_reg == 0 &&
+			    !reg_map[dst_reg].is_renamed &&
+			    !reg_map[rs_reg].is_renamed)
+			{
+				ops[i].emit_as_rd_rs_direct_cond_move = true;
+				continue;
+			}
+
+			if (ops[i].reads_rs && reg_map[rs_reg].is_renamed) {
+				ops[i].rs_renamed = true;
+				ops[i].rs_renamed_to = reg_map[rs_reg].renamed_to;
+			}
+
+			if (ops[i].reads_rt && reg_map[rt_reg].is_renamed) {
+				ops[i].rt_renamed = true;
+				ops[i].rt_renamed_to = reg_map[rt_reg].renamed_to;
+			}
+
+			// Rename the dst reg last, so its renaming doesn't affect
+			//  the src regs prematurely.
+			if (!reg_map[dst_reg].is_renamed) {
+				if (num_renamed >= max_renamed) {
+					// Oops, our reg-renaming pool is empty, must give up.
+					success = false;
+					break;
+				}
+
+				reg_map[dst_reg].is_renamed = true;
+				reg_map[dst_reg].renamed_to = renamed_reg_pool[num_renamed];
+				host_to_psx_map[num_renamed] = dst_reg;
+				num_renamed++;
+			}
+
+			ops[i].dst_renamed_to = reg_map[dst_reg].renamed_to;
+
+			// NOTE: Unless 'ops[i].emit_as_rd_rs_direct_cond_move' was set
+			//       true, code will assume that dst_reg was renamed.
+		}
+	}
+
+	if (!success)
+		return false;
+
+	/***********************************************************
+	 * STAGE 3: Allocate branch reg(s) and emit BD slot opcode *
+	 ***********************************************************/
+
+	//  XXX -  Our reg allocator is not very good yet, and the regs we are
+	//        allocated for branch_rs/branch_rt should not be used past the
+	//        end of this stage. The allocation mode 'REG_LOADBRANCH' is only
+	//        meant to facilitate traditional branch code. They're assumed to
+	//        be read-only over their lifespan. The mode's only purpose is to
+	//        briefly get copies of the regs read by the branch across the
+	//        execution of BD slot code, which could otherwise modify them
+	//        and incorrectly affect branch decision.
+	//         'REG_LOADBRANCH' allocation mode spills any dirty regs it is
+	//        asked to allocate, thinking it is preparing for a possible block
+	//        exit. We won't be exiting here, so that is unhelpful. Therefore,
+	//        we only use that mode here for regs we know are modified by the
+	//        BD slot instruction.
+	// TODO -  What we probably want is a new mode we can specify to the
+	//        branch allocator: maybe REG_LOADPRIVATE or REG_LOADCOPY
+
+	const u32  bd_slot_writes = (u32)opcodeGetWrites(bd_slot_opcode);
+
+	// All branches read reg in 'rs' field
+	bool br1_locked = true;
+	u32  br1 = 0;
+	if (bd_slot_writes & (1 << branch_rs)) {
+		// BD slot modifies a reg read by branch: must get special copy
+		br1 = regMipsToHost(branch_rs, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	} else {
+		br1 = regMipsToHost(branch_rs, REG_LOAD, REG_REGISTER);
+	}
+
+	// BEQ,BNE also read reg in 'rt' field
+	bool br2_locked = false;
+	u32  br2 = 0;
+	if (is_beq || is_bne) {
+		br2_locked = true;
+		if (bd_slot_writes & (1 << branch_rt)) {
+			// BD slot modifies a reg read by branch: must get special copy
+			br2 = regMipsToHost(branch_rt, REG_LOADBRANCH, REG_REGISTERBRANCH);
+		} else {
+			br2 = regMipsToHost(branch_rt, REG_LOAD, REG_REGISTER);
+		}
+	}
+
+	// Recompile opcode in BD slot (only after branch reg allocation)
+	recDelaySlot();
+
+	// NOTE: 'pc' is now at instruction after BD slot
+
+	DISASM_MSG("CONVERTING BRANCH TO CONDITIONAL MOVE(S): NOT-TAKEN PATH BEGIN\n");
+
+	/*********************************
+	 * STAGE 4: Set up condition reg *
+	 *********************************/
+
+	// Conditional-moves will base their decision on this reg.
+	// Default is a temp reg, but sometimes we can use the branch's reg.
+	u32  condition_reg = temp_condition_reg;
+	bool condition_reg_locked = false;
+
+	// Use MOVZ or MOVN for conditional moves?
+	bool use_movz = true;
+
+	if (is_beq || is_bne)
+	{
+		/* BEQ,BNE */
+
+		if (is_beq)
+			use_movz = false;
+
+		// NOTE: We assume any '$zero,$zero' comparisons were already caught by
+		//       the primary branch emitters long before the call here.
+
+		//  If BEQ/BNE read $zero reg, we can hopefully use the other reg read
+		// as the condition reg. Otherwise, we must emit a SUBU instruction and
+		// use a temp reg for the condition. Strict requirements must be met,
+		// partly for simplicity's sake, partly because our reg allocator is
+		// fairly limited (see previous 'XXX' note).
+		//
+		// REQUIREMENTS:
+		//  1.)  The BD slot must not write to the reg read by the branch:
+		//      MIPS branch decisions are made *before* any BD slot writeback.
+		//  2.)  The reg read by the branch must not be written to inside the
+		//      not-taken path. *However*, if there's only one instruction in
+		//      the not-taken path, it is OK to forgo this requirement: The
+		//      reg is read by the MOVN/MOVZ before it is written back.
+
+		const u32 branch_reads = ((1 << branch_rs) | (1 << branch_rt));
+
+		if ( (branch_rs == 0 || branch_rt == 0) &&
+		     ((bd_slot_writes & branch_reads) == 0) &&
+		     ((op_writes & branch_reads) == 0 || num_ops == 1) )
+		{
+			// Keep non-$zero condition reg locked until final MOVN/MOVZs are emitted
+			regUnlock(br1);
+			regUnlock(br2);
+			br1_locked = br2_locked = false;
+			condition_reg = regMipsToHost((branch_rt == 0 ? branch_rs : branch_rt), REG_LOAD, REG_REGISTER);
+			condition_reg_locked = true;
+		} else {
+			SUBU(condition_reg, br1, br2);
+		}
+	} else
+	{
+		/* BLTZ,BGEZ,BGTZ,BLEZ */
+
+		switch (branch_opcode & 0xfc1f0000)
+		{
+			case 0x04000000: /* BLTZ */
+				SLT(condition_reg, br1, 0);
+				break;
+			case 0x04010000: /* BGEZ */
+				SLT(condition_reg, br1, 0);
+				use_movz = false;
+				break;
+			case 0x1c000000: /* BGTZ */
+				SLTI(condition_reg, br1, 1);
+				use_movz = false;
+				break;
+			case 0x18000000: /* BLEZ */
+				SLTI(condition_reg, br1, 1);
+				break;
+
+			default:
+				printf("Error in %s(): branch_opcode=0x%08x\n", __func__, branch_opcode);
+				exit(1);
+		}
+	}
+
+	if (br1_locked)
+		regUnlock(br1);
+	if (br2_locked)
+		regUnlock(br2);
+
+	/****************************************************************************
+	 * STAGE 5: Emit ALU opcodes w/ renamed regs + any direct conditional-moves *
+	 ****************************************************************************/
+	for (int i=0; i < num_ops; ++i)
+	{
+		const u32 opcode  = ops[i].opcode;
+		const u8 orig_dst = ops[i].dst_reg;
+		const u8 orig_rs  = _fRs_(opcode);
+		const u8 orig_rt  = _fRt_(opcode);
+
+		if (ops[i].emit_as_rd_rs_direct_cond_move)
+		{
+			if (orig_dst == orig_rs) {
+				// What, a move of a reg to itself!? Emit nothing..
+				continue;
+			}
+
+			// Load *existing* contents of dest reg: they are overwritten based
+			//  on the condition reg.
+			const u32 dst = regMipsToHost(orig_dst, REG_LOAD, REG_REGISTER);
+			const u32 rs  = regMipsToHost(orig_rs,  REG_LOAD, REG_REGISTER);
+
+			if (use_movz)
+				MOVZ(dst, rs, condition_reg);
+			else
+				MOVN(dst, rs, condition_reg);
+
+			regUnlock(rs);
+			regUnlock(dst);
+			regMipsChanged(orig_dst);
+			SetUndef(orig_dst);
+		} else
+		{
+			u32  new_opcode = opcode;
+			u32  rs = 0;
+			u32  rt = 0;
+			bool rs_locked = false;
+			bool rt_locked = false;
+
+			if (ops[i].reads_rs) {
+				// Replace 'rs' opcode field with renamed or allocated reg
+				new_opcode &= ~(0x1f << 21);
+				if (ops[i].rs_renamed) {
+					new_opcode |= (ops[i].rs_renamed_to << 21);
+				} else {
+					rs = regMipsToHost(orig_rs, REG_LOAD, REG_REGISTER);
+					rs_locked = true;
+					new_opcode |= (rs << 21);
+				}
+			}
+
+			if (ops[i].reads_rt) {
+				// Replace 'rt' opcode field with renamed or allocated reg
+				new_opcode &= ~(0x1f << 16);
+
+				if (ops[i].rt_renamed) {
+					new_opcode |= (ops[i].rt_renamed_to << 16);
+				} else {
+					// Insert allocated reg in rt field
+					rt = regMipsToHost(orig_rt, REG_LOAD, REG_REGISTER);
+					rt_locked = true;
+					new_opcode |= (rt << 16);
+				}
+			}
+
+			// Replace dst opcode field with renamed reg
+			if (ops[i].writes_rt) {
+				// Opcode writes to 'rt'
+				new_opcode &= ~(0x1f << 16);
+				new_opcode |= (ops[i].dst_renamed_to << 16);
+			} else {
+				// Opcode writes to 'rd'
+				new_opcode &= ~(0x1f << 11);
+				new_opcode |= (ops[i].dst_renamed_to << 11);
+			}
+
+			// Emit ALU opcode w/ renamed register(s)
+			write32(new_opcode);
+
+			if (rs_locked)
+				regUnlock(rs);
+			if (rt_locked)
+				regUnlock(rt);
+		}
+	}
+
+	/************************************************************
+	 * STAGE 6: Emit conditional-moves for any renamed dst regs *
+	 ************************************************************/
+
+	for (int i=0; i < num_renamed; ++i)
+	{
+		// Load *existing* contents of dest reg: they are overwritten based
+		//  on the condition reg.
+		const u32 renamed_dst_reg = renamed_reg_pool[i];
+		const u32 orig_dst_reg = host_to_psx_map[i];
+		const u32 dst = regMipsToHost(orig_dst_reg, REG_LOAD, REG_REGISTER);
+
+		if (use_movz)
+			MOVZ(dst, renamed_dst_reg, condition_reg);
+		else
+			MOVN(dst, renamed_dst_reg, condition_reg);
+
+		regUnlock(dst);
+		regMipsChanged(orig_dst_reg);
+		SetUndef(orig_dst_reg);
+	}
+
+	// Did we use a branch reg as the condition reg, not a temp reg?
+	if (condition_reg_locked)
+		regUnlock(condition_reg);
+
+	// NOTE: 'pc' is already at the instruction after the delay slot.
+
+	// Disassemble all opcodes between the BD slot and the branch target PC.
+	for (int i=0; i < (branch_imm-1); ++i)
+		DISASM_PSX(pc + i*4);
+
+	DISASM_MSG("CONVERTING BRANCH TO CONDITIONAL MOVE(S): NOT-TAKEN PATH END\n");
+
+	// We're done: recompilation will resume at the branch target pc.
+	pc += (branch_imm-1)*4;
+
+	return true;
+}
+#endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
