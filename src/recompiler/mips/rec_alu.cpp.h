@@ -195,12 +195,50 @@ static void recADDU()
 {
 	// rd = rs + rt
 
-	const bool set_const = IsConst(_Rs_) && IsConst(_Rt_);
+	const bool rs_const = IsConst(_Rs_);
+	const bool rt_const = IsConst(_Rt_);
+	const bool set_const = rs_const && rt_const;
+
+	//  When an ADDU adds an unknown val to a known-const val:
+	// Propagate information about the known-const val's range with respect to
+	// PS1 address regions. If the dest reg is later used as a load/store base
+	// reg, that emitter can optimize, despite not knowing the exact value.
+	// This optimizes static array accesses in original PS1 code.
+	bool fuzzy_ram_addr = false;
+	bool fuzzy_nonram_addr = false;
+	bool fuzzy_scratchpad_addr = false;
+	if (!(rs_const && rt_const) && (rs_const || rt_const))
+	{
+		const u32 const_val = rs_const ? GetConst(_Rs_) : GetConst(_Rt_);
+
+		if (const_val >= 0x80000000 && const_val < 0x80800000)
+			fuzzy_ram_addr = true;
+
+		// Is address obviously scratchpad, I/O, or ROM?
+		if ((const_val >= 0x1f000000 && const_val < 0x1f810000) ||
+		    (const_val >= 0xbfc00000 && const_val < 0xbfc80000))
+			fuzzy_nonram_addr = true;
+
+		// To identify scratchpad-only addresses, we are stricter:
+		//  1KB scratchpad range lies in very close proximity to I/O addresses
+		// and it would be risky to assume that an ADDU of a value to the lowest
+		// address 0x1f80_0000 would result in a fuzzy scratchpad address.
+		// For range minimun, we instead use 0x1f80_0001.
+		if (const_val >= 0x1f800001 && const_val < 0x1f800400)
+			fuzzy_scratchpad_addr = true;
+	}
 
 	REC_RTYPE_RD_RS_RT(ADDU, _Rd_, _Rs_, _Rt_);
 
 	if (set_const)
 		SetConst(_Rd_, GetConst(_Rs_) + GetConst(_Rt_));
+
+	if (fuzzy_ram_addr)
+		SetFuzzyRamAddr(_Rd_);
+	if (fuzzy_nonram_addr)
+		SetFuzzyNonramAddr(_Rd_);
+	if (fuzzy_scratchpad_addr)
+		SetFuzzyScratchpadAddr(_Rd_);
 }
 static void recADD()  { recADDU(); }
 

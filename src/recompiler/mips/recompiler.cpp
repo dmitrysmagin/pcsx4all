@@ -65,6 +65,9 @@
 /* Const propagation is applied to addresses */
 #define USE_CONST_ADDRESSES
 
+/* Const propagation is extended to optimize 'fuzzy' non-const addresses */
+#define USE_CONST_FUZZY_ADDRESSES
+
 /* Virtual memory mapping options: */
 #if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 /* Prefer virtually mapped/mirrored code block pointer array over using
@@ -115,16 +118,51 @@ static uptr psxRecLUT[0x10000];
 #include "host_asm.h"
 
 
-/* Used for const-propagation */
+/* Const-propagation data and functions */
 typedef struct {
-	u32 constval[32];    /* Values of known-const target GPRs: SHOULD BE UNSIGNED   */
-	u32 consts;          /* Bitfield representing which target GPRs are known-const */
+	u32  constval;
+	bool is_const;
+
+	bool is_fuzzy_ram_addr;        /* GPR is not known-const, but at least known
+	                                   to be address somewhere in RAM? */
+	bool is_fuzzy_nonram_addr;     /* GPR is not known-const, but at least known
+	                                   to be address somewhere outside RAM? */
+	bool is_fuzzy_scratchpad_addr; /* GPR is not known-const, but at least known
+	                                   to be address somewhere in 1KB scratcpad? */
 } iRegisters;
-static iRegisters iRegs;
-#define IsConst(reg_)        ((iRegs.consts & (1 << (reg_))) != 0)
-#define GetConst(reg_)       (iRegs.constval[reg_])
-#define SetUndef(reg_)       do { if (reg_) iRegs.consts &= ~(1 << (reg_)); } while (0)
-#define SetConst(reg_, val_) do { if (reg_) { iRegs.consts |= (1 << (reg_));  iRegs.constval[reg_] = (val_); } } while (0)
+static iRegisters iRegs[32];
+static inline void ResetConsts()
+{
+	memset(&iRegs, 0, sizeof(iRegs));
+	iRegs[0].is_const = true;  // $r0 is always zero val
+}
+static inline bool IsConst(const u32 reg)  { return iRegs[reg].is_const; }
+static inline u32  GetConst(const u32 reg) { return iRegs[reg].constval; }
+static inline void SetUndef(const u32 reg)
+{
+	if (reg) {
+		iRegs[reg].is_const = false;
+		iRegs[reg].is_fuzzy_ram_addr        = false;
+		iRegs[reg].is_fuzzy_nonram_addr     = false;
+		iRegs[reg].is_fuzzy_scratchpad_addr = false;
+	}
+}
+static inline void SetConst(const u32 reg, const u32 val)
+{
+	if (reg) {
+		iRegs[reg].constval = val;
+		iRegs[reg].is_const = true;
+		iRegs[reg].is_fuzzy_ram_addr        = false;
+		iRegs[reg].is_fuzzy_nonram_addr     = false;
+		iRegs[reg].is_fuzzy_scratchpad_addr = false;
+	}
+}
+static inline void SetFuzzyRamAddr(const u32 reg)        { iRegs[reg].is_fuzzy_ram_addr = true; }
+static inline bool IsFuzzyRamAddr(const u32 reg)         { return iRegs[reg].is_fuzzy_ram_addr; }
+static inline void SetFuzzyNonramAddr(const u32 reg)     { iRegs[reg].is_fuzzy_nonram_addr = true; }
+static inline bool IsFuzzyNonramAddr(const u32 reg)      { return iRegs[reg].is_fuzzy_nonram_addr; }
+static inline void SetFuzzyScratchpadAddr(const u32 reg) { iRegs[reg].is_fuzzy_scratchpad_addr = true; }
+static inline bool IsFuzzyScratchpadAddr(const u32 reg)  { return iRegs[reg].is_fuzzy_scratchpad_addr; }
 
 
 #define RECMEM_SIZE		(12 * 1024 * 1024)
@@ -346,8 +384,7 @@ static void recRecompile()
 	rec_recompile_start();
 
 	// Reset const-propagation
-	memset(&iRegs, 0, sizeof(iRegs));
-	iRegs.consts |= (1 << 0);  // $r0 is always zero val
+	ResetConsts();
 
 	// Flag indicates when recompilation should stop
 	end_block = false;

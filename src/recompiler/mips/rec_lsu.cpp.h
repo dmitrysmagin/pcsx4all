@@ -28,6 +28,9 @@
  * Options that can be disabled for debugging: *
  ***********************************************/
 
+// NOTE: Also see options 'USE_CONST_ADDRESSES' and 'USE_CONST_FUZZY_ADDRESSES'
+//       defined elsewhere.
+
 // Inline access to known-const HW,Scratchpad addresses (see rec_lsu_hw.cpp.h)
 #define USE_DIRECT_HW_ACCESS
 
@@ -35,7 +38,7 @@
 //  to modify code. Code invalidation sequence will not be emitted.
 #define SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
 
-// Assume that stores using $zero,$k0,$k1,$gp,$sp as base registers will always
+// Assume that loads/stores using $zero,$k0,$k1,$gp,$sp as base registers always
 //  go to RAM/scratchpad. Address-range-check and indirect-access sequences
 //  will not be emitted.
 #define SKIP_ADDRESS_RANGE_CHECK_FOR_SOME_BASE_REGS
@@ -67,6 +70,7 @@
 #define USE_HW_FUNCS_FOR_INDIRECT_ACCESS
 #endif
 
+
 #define LSU_OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
 
@@ -87,22 +91,30 @@ static u32 SWR_MASKSHIFT[8] = { 0, 0xff, 0xffff, 0xffffff,
 #include "rec_lsu_hw.cpp.h"  // Direct HW I/O
 
 
-static inline bool skipCodeInvalidation(u32 reg_psx)
+static inline bool lsuSkipCodeInvalidation(const u32 reg_psx)
 {
-	bool skip_code_invalidation = false;
 #ifdef SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
-		// Skip code invalidation when base register in use is obviously not
-		//  involved in code modification ($k0,$k1,$gp,$sp).
-		if (reg_psx >= 26 && reg_psx <= 29)
-			skip_code_invalidation = true;
+	// Skip code invalidation when base reg is obviously not
+	//  involved in code modification ($k0,$k1,$gp,$sp).
+	if (reg_psx >= 26 && reg_psx <= 29)
+		return true;
 #endif
-	return skip_code_invalidation;
+
+#ifdef USE_CONST_FUZZY_ADDRESSES
+	// Skip code invalidation when base reg value is not known-const,
+	//  but at least known to be somewhere outside RAM.
+	//  Probably a scratchpad/ROM static array access in original PS1 code.
+	if (IsFuzzyNonramAddr(reg_psx))
+		return true;
+#endif
+
+	return false;
 }
 
-
-static inline bool skipAddressRangeCheck(u32 reg_psx)
+static inline bool lsuSkipAddressRangeCheck(const u32 reg_psx)
 {
-	bool skip_address_range_check = false;
+	// NOTE: If 'psx_mem_mapped' is true, all valid PS1 addresses between begin
+	//       of RAM and end of scratchpad are virtually mapped/mirrored.
 
 #ifdef SKIP_ADDRESS_RANGE_CHECK_FOR_SOME_BASE_REGS
 	if (psx_mem_mapped) {
@@ -110,11 +122,40 @@ static inline bool skipAddressRangeCheck(u32 reg_psx)
 		//  going to access RAM/scratchpad ($zero,$k0,$k1,$gp,$sp).
 		//  Zero reg can only access lower 64KB RAM region reserved for BIOS.
 		if ((reg_psx >= 26 && reg_psx <= 29) || (reg_psx == 0))
-			skip_address_range_check = true;
+			return true;
 	}
 #endif
 
-	return skip_address_range_check;
+#ifdef USE_CONST_FUZZY_ADDRESSES
+	// Skip address range check when base reg value is not known-const,
+	//  but at least known to be somewhere in RAM/scratchpad.
+	//  Probably a RAM/scratchpad static array access in original PS1 code.
+	if (IsFuzzyRamAddr(reg_psx))
+		return true;
+
+	if (psx_mem_mapped && IsFuzzyScratchpadAddr(reg_psx))
+		return true;
+#endif
+
+	return false;
+}
+
+static inline bool lsuSkipDirectAccess(const u32 reg_psx)
+{
+	// NOTE: If 'psx_mem_mapped' is true, all valid PS1 addresses between begin
+	//       of RAM and end of scratchpad are virtually mapped/mirrored.
+
+#ifdef USE_CONST_FUZZY_ADDRESSES
+	if (psx_mem_mapped) {
+		if (IsFuzzyNonramAddr(reg_psx) && !IsFuzzyScratchpadAddr(reg_psx))
+			return true;
+	} else {
+		if (IsFuzzyNonramAddr(reg_psx))
+			return true;
+	}
+#endif
+
+	return false;
 }
 
 
@@ -258,8 +299,8 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
  * be emitted and address range will be checked before choosing path to take.
  */
 static void general_loads_stores(const int  count,
-                             const u32  pc_of_last_store_in_series,
-                             const bool force_indirect)
+                                 const u32  pc_of_last_store_in_series,
+                                 bool force_indirect)
 {
 	const u32 r1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
 
@@ -273,9 +314,12 @@ static void general_loads_stores(const int  count,
 	u32 *backpatch_label_exit_2 = 0;
 
 	const bool contains_store = (pc_of_last_store_in_series != 1);
-	const bool skip_code_invalidation = !contains_store || skipCodeInvalidation(_Rs_);
+	const bool skip_code_invalidation = !contains_store || lsuSkipCodeInvalidation(_Rs_);
 
-	skip_address_range_check = skipAddressRangeCheck(_Rs_);
+	skip_address_range_check = lsuSkipAddressRangeCheck(_Rs_);
+
+	if (!force_indirect)
+		force_indirect = lsuSkipDirectAccess(_Rs_);
 
 	if (!force_indirect)
 	{
