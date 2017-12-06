@@ -1516,7 +1516,7 @@ static void recExecute()
 
 			// Ask direct-return dispatch func to just set block_ret_addr
 			//  and return, by passing 1 as arg:
-			if (psx_mem_mapped)
+			if (rec_mem_mapped)
 				recExecuteDirectReturn_mmap(1);
 			else
 				recExecuteDirectReturn_lut(1);
@@ -1541,7 +1541,7 @@ static void recExecute()
 #endif
 
 	if (use_indirect_return_dispatch_loop) {
-		if (psx_mem_mapped)
+		if (rec_mem_mapped)
 			recExecuteIndirectReturn_mmap();
 		else
 			recExecuteIndirectReturn_lut();
@@ -1550,7 +1550,7 @@ static void recExecute()
 		//  uses direct return jumps, then begin execution.
 		recReset();
 
-		if (psx_mem_mapped)
+		if (rec_mem_mapped)
 			recExecuteDirectReturn_mmap(0);
 		else
 			recExecuteDirectReturn_lut(0);
@@ -1576,7 +1576,7 @@ static void recClear(u32 Addr, u32 Size)
 
 	// NOTE: If PS1 mem is mapped/mirrored, make PC_REC_MMAP use the same virtual
 	//       mirror region the game is already using, reducing TLB pressure.
-	uptr dst_base = !psx_mem_mapped ? (uptr)recRAM : (uptr)PC_REC_MMAP(Addr & ~0x1fffff);
+	uptr dst_base = !rec_mem_mapped ? (uptr)recRAM : (uptr)PC_REC_MMAP(Addr & ~0x1fffff);
 
 	if (Addr == 0x8003d000) {
 		// temp fix for Buster Bros Collection and etc.
