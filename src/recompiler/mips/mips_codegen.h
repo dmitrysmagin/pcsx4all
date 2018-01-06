@@ -491,8 +491,6 @@ static inline bool opcodeIsBranchOrJump(const u32 opcode)
 
 /* Defined in mips_codegen.cpp */
 
-void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped);
-
 /* Opcode analysis functions */
 struct ALUOpInfo {
 	bool writes_rt;

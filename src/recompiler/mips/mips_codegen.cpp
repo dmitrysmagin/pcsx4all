@@ -30,45 +30,6 @@
 #include "mem_mapping.h"
 #include "mips_codegen.h"
 
-/* Emit code that will convert the base reg of a load/store in PS1 code
- *  into a base reg that can be used to access psxM[]. The register
- *  specified by 'tmp_reg' can be overwritten in the process.
- */
-void emitAddressConversion(u32 dst_reg, u32 src_reg, u32 tmp_reg, bool psx_mem_mapped)
-{
-	if (psx_mem_mapped) {
-		// METHOD 1 (best): psxM is mmap'd to simple fixed virtual address,
-		//                  mirrored, and expansion-ROM/scratchpad/hardware-I/O
-		//                  regions (psxP,psxH) are mapped at offset 0x0f00_0000.
-		//                  Caller expects access to both RAM and these regions.
-		//                  Thus, we need lower 28 bits of original base address.
-
-		LUI(dst_reg, (PSX_MEM_VADDR >> 16));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		INS(dst_reg, src_reg, 0, 28);   // dst_reg = PSX_MEM_VADDR | (src_reg & 0x0fffffff)
-#else
-		SLL(tmp_reg, src_reg, 4);
-		SRL(tmp_reg, tmp_reg, 4);
-		OR(dst_reg, dst_reg, tmp_reg);
-#endif
-	} else {
-		// METHOD 2: Apparently mmap() and/or mirroring is unavailable, so psxM
-		//           could be anywhere! RAM isn't mirrored virtually, so we
-		//           must mask out all but lower 21 bits of src_reg here
-		//           to handle 2MB PS1 RAM mirrors. The caller knows it can
-		//           only use converted base reg to access PS1 RAM.
-
-		LW(dst_reg, PERM_REG_1, off(psxM));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		EXT(tmp_reg, src_reg, 0, 21);  // tmp_reg = src_reg & 0x001f_ffff
-#else
-		SLL(tmp_reg, src_reg, 11);
-		SRL(tmp_reg, tmp_reg, 11);
-#endif
-		ADDU(dst_reg, dst_reg, tmp_reg);
-	}
-}
-
 /* Is opcode an ALU op?
  * NOTE: only MIPS I r3000a opcodes supported (for now)
  * Returns: true if ALU op, false if not.
