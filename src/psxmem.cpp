@@ -51,15 +51,19 @@ static inline void memstats_add_read(u32 addr, MemstatWidth width) {}
 static inline void memstats_add_write(u32 addr, MemstatWidth width) {}
 #endif // DEBUG_MEM_STATS
 
+s8 *psxM;
+s8 *psxP;
+s8 *psxR;
+s8 *psxH;
+bool psxM_allocated;
+bool psxP_allocated;
+bool psxR_allocated;
+bool psxH_allocated;
 
-s8 *psxM = NULL;
-s8 *psxP = NULL;
-s8 *psxR = NULL;
-s8 *psxH = NULL;
+u8 **psxMemWLUT;
+u8 **psxMemRLUT;
 
-u8 **psxMemWLUT = NULL;
-u8 **psxMemRLUT = NULL;
-u8 *psxNULLread=NULL;
+static u8 *psxNULLread;
 
 /*  Playstation Memory Map (from Playstation doc by Joshua Walker)
 0x0000_0000-0x0000_ffff		Kernel (64K)	
@@ -78,34 +82,34 @@ u8 *psxNULLread=NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS (512K)
 */
 
-int psxMemInit() {
+int psxMemInit()
+{
 	int i;
 
-	psxMemRLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	psxMemWLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
-	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
+	if (psxMemRLUT == NULL) { psxMemRLUT = (u8 **)calloc(0x10000, sizeof(void *)); }
+	if (psxMemWLUT == NULL) { psxMemWLUT = (u8 **)calloc(0x10000, sizeof(void *)); }
+	if (psxNULLread == NULL) { psxNULLread = (u8*)calloc(0x10000, 1); }
 
-	if (psxM == NULL)
-		psxM = (s8 *)malloc(0x200000);
+	// If a dynarec hasn't already mmap'd any of psxM,psxP,psxH,psxR, allocate
+	//  them here. Always use booleans 'psxM_allocated' etc to check allocation
+	//  status: Dynarecs could choose to mmap 'psxM' pointer to address 0,
+	//  making a standard pointer NULLness check inappropriate.
 
-	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
-	if (psxP == NULL)
-		psxP = (s8 *)malloc(0x10000);
-	if (psxH == NULL)
-		psxH = (s8 *)malloc(0x10000);
+	// Allocate 2MB for PSX RAM
+	if (!psxM_allocated) { psxM = (s8*)malloc(0x200000);  psxM_allocated = psxM != NULL; }
 
-	if (psxR == NULL)
-		psxR = (s8 *)malloc(0x80000);
+	// Allocate 64K for PSX ROM expansion 0x1f00_0000 region
+	if (!psxP_allocated) { psxP = (s8*)malloc(0x10000);   psxP_allocated = psxP != NULL; }
 
-	if (psxNULLread == NULL)
-		psxNULLread=(u8*)malloc(0x10000);
+	// Allocate 64K for PSX scratcpad + HW I/O 0x1f80_0000 region
+	if (!psxH_allocated) { psxH = (s8*)malloc(0x10000);   psxH_allocated = psxH != NULL; }
 
-	memset(psxNULLread, 0, 0x10000);
-	
-	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM == NULL || psxP == NULL || psxH == NULL ||
-		psxNULLread == NULL) {
+	// Allocate 512KB for PSX ROM 0xbfc0_0000 region
+	if (!psxR_allocated) { psxR = (s8*)malloc(0x80000);   psxR_allocated = psxR != NULL; }
+
+	if (psxMemRLUT == NULL || psxMemWLUT == NULL || psxNULLread == NULL ||
+	    !psxM_allocated || !psxP_allocated || !psxR_allocated || !psxH_allocated)
+	{
 		printf("Error allocating memory!");
 		return -1;
 	}
@@ -136,7 +140,8 @@ int psxMemInit() {
 	return 0;
 }
 
-void psxMemReset() {
+void psxMemReset()
+{
 	DIR *dirstream = NULL;
 	struct dirent *direntry;
 	boolean biosfound = FALSE;
@@ -201,10 +206,11 @@ void psxMemReset() {
 
 void psxMemShutdown()
 {
-	free(psxM);         psxM = NULL;
-	free(psxP);         psxP = NULL;
-	free(psxH);         psxH = NULL;
-	free(psxR);         psxR = NULL;
+	if (psxM_allocated) { free(psxM);  psxM = NULL;  psxM_allocated = false; }
+	if (psxP_allocated) { free(psxP);  psxP = NULL;  psxP_allocated = false; }
+	if (psxH_allocated) { free(psxH);  psxH = NULL;  psxH_allocated = false; }
+	if (psxR_allocated) { free(psxR);  psxR = NULL;  psxR_allocated = false; }
+
 	free(psxMemRLUT);   psxMemRLUT = NULL;
 	free(psxMemWLUT);   psxMemWLUT = NULL;
 	free(psxNULLread);  psxNULLread = NULL;

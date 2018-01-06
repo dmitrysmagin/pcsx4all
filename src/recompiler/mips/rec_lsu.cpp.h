@@ -120,14 +120,31 @@ static u32 emitAddressConversion(const u32 op_rs,
 		//             psxH) are mapped at offset 0x0f00_0000. Start of virtual
 		//             mapping is an address with lower 28 bits clear.
 
-		LUI(desired_reg, (PSX_MEM_VADDR >> 16));
-#ifdef HAVE_MIPS32R2_EXT_INS
-		INS(desired_reg, rs, 0, 28);
+#if (PSX_MEM_VADDR == 0)
+
+		// Neat trick: if we've mmap'd to virtual address 0, address conversion
+		//  needs just half the instructions.
+
+	#ifdef HAVE_MIPS32R2_EXT_INS
+		EXT(desired_reg, rs, 0, 28);
+	#else
+		SLL(desired_reg, rs, 4);
+		SRL(desired_reg, desired_reg, 4);
+	#endif
+
 #else
+
+		LUI(desired_reg, (PSX_MEM_VADDR >> 16));
+	#ifdef HAVE_MIPS32R2_EXT_INS
+		INS(desired_reg, rs, 0, 28);
+	#else
 		SLL(tmp_reg, rs, 4);
 		SRL(tmp_reg, tmp_reg, 4);
 		OR(desired_reg, desired_reg, tmp_reg);
-#endif
+	#endif
+
+#endif // (PSXMEM_VADDR == 0)
+
 	} else
 	{
 		// METHOD 2: Apparently mmap() and/or mirroring is unavailable, so psxM

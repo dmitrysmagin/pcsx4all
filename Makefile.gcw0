@@ -1,9 +1,20 @@
 TARGET = pcsx4all
 PORT   = sdl
 
+# Memcard filenames
+MCD1_FILE = \"mcd001.mcr\"
+MCD2_FILE = \"mcd002.mcr\"
+
 # Using 'gpulib' adapted from PCSX Rearmed is default, specify
 #  USE_GPULIB=0 as param to 'make' when building to disable it.
 USE_GPULIB ?= 1
+
+# If V=1 was passed to 'make', don't hide commands:
+ifeq ($(V),1)
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
 
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
@@ -25,16 +36,32 @@ SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
 SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
 SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
 
-MCD1_FILE = \"mcd001.mcr\"
-MCD2_FILE = \"mcd002.mcr\"
+LDFLAGS := $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
 
 ifdef A320
-	C_ARCH = -mips32 -msoft-float -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
+	C_ARCH = -mips32 -msoft-float -DGCW_ZERO -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
 else
-	C_ARCH = -mips32r2 -DSHMEM_MIRRORING
+	C_ARCH = -mips32r2 -DGCW_ZERO -DSHMEM_MIRRORING
 endif
 
-CFLAGS = $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -DGCW_ZERO \
+ifeq ($(DEV),1)
+	# If DEV=1 is passed to 'make', don't mmap anything to virtual address 0.
+	#  This is for development/debugging: it allows null pointer dereferences
+	#  to segfault as they normally would. We'll map PS1 address space higher.
+else
+	# Default: Allows address-conversion optimization in dynarec. PS1 addresses
+	#          will be mapped/mirrored at virtual address 0.
+	#
+	# Null pointer dereferences will NOT segfault.
+	# Locate program at virtual address 0x4000_0000. Anything below is free for
+	#  fixed mappings by dynarec, etc. Otherwise, the Linux default seems to be
+	#  0x40_0000 i.e., offset 4MB from 0. That's not enough room to map and
+	#  mirror PS1 address space.
+	C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
+	LDFLAGS += -Wl,-Ttext-segment=0x40000000
+endif
+
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
@@ -51,8 +78,6 @@ CFLAGS += -D$(shell echo $(SPU) | tr a-z A-Z)
 ifdef RECOMPILER
 CFLAGS += -DPSXREC -D$(RECOMPILER)
 endif
-
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
 
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/recompiler obj/recompiler/$(RECOMPILER) \
@@ -180,16 +205,19 @@ endif
 
 CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 
-#If V=1 was passed to 'make', do not hide commands:
-ifdef V
-	HIDECMD:=
-else
-	HIDECMD:=@
-endif
-
 $(TARGET): $(OBJS)
 	@echo Linking $(TARGET)...
 	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
+	@echo
+ifeq ($(DEV),1)
+	@echo "-> WARNING: This is a development build.                                  "
+	@echo "            Mapping to virtual address zero is disabled. As a result,     "
+	@echo "            some address-related dynarec optimizations are disabled.      "
+else
+	@echo "-> This is a release build. Null pointer dereferences will NOT segfault.  "
+	@echo "   If developing/debugging, you can pass DEV=1 on make command-line to    "
+	@echo "   disable mapping to virtual address 0. Be sure to do a clean rebuild.   "
+endif
 
 obj/%.o: src/%.c
 	@echo Compiling $<...
