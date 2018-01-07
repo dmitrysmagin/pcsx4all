@@ -1,6 +1,13 @@
 TARGET = pcsx4all.exe
 PORT   = sdl
 
+#If V=1 was passed to 'make', do not hide commands:
+ifdef V
+	HIDECMD:=
+else
+	HIDECMD:=@
+endif
+
 # Using 'gpulib' adapted from PCSX Rearmed is default, specify
 #  USE_GPULIB=0 as param to 'make' when building to disable it.
 USE_GPULIB ?= 1
@@ -25,7 +32,12 @@ else
 SDL_LIBS    := `sdl-config --libs`
 endif
 
-CFLAGS = -ggdb3 -O2 -march=native -DGCW_ZERO \
+LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lz
+
+# We want the GCW Zero handheld's keybindings (for dev testing purposes)
+C_ARCH = -march=native -DGCW_ZERO
+
+CFLAGS = $(C_ARCH) -ggdb3 -O2 \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Wno-format -Wno-format-extra-args \
@@ -43,8 +55,6 @@ endif
 # Convert plugin names to uppercase and make them CFLAG defines
 CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
 CFLAGS += -D$(shell echo $(SPU) | tr a-z A-Z)
-
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lz
 
 OBJDIRS = \
 	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
@@ -137,13 +147,6 @@ endif
 #******************************************
 
 CXXFLAGS := $(CFLAGS) -fno-rtti
-
-#If V=1 was passed to 'make', do not hide commands:
-ifdef V
-	HIDECMD:=
-else
-	HIDECMD:=@
-endif
 
 $(TARGET): $(OBJS) 
 	@echo Linking $(TARGET)...

@@ -1,20 +1,16 @@
 TARGET = pcsx4all
 PORT   = sdl
 
-# Memcard filenames
-MCD1_FILE = \"mcd001.mcr\"
-MCD2_FILE = \"mcd002.mcr\"
-
-# Using 'gpulib' adapted from PCSX Rearmed is default, specify
-#  USE_GPULIB=0 as param to 'make' when building to disable it.
-USE_GPULIB ?= 1
-
 # If V=1 was passed to 'make', don't hide commands:
 ifeq ($(V),1)
 	HIDECMD:=
 else
 	HIDECMD:=@
 endif
+
+# Using 'gpulib' adapted from PCSX Rearmed is default, specify
+#  USE_GPULIB=0 as param to 'make' when building to disable it.
+USE_GPULIB ?= 1
 
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
