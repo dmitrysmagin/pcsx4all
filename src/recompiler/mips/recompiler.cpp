@@ -523,9 +523,12 @@ static void recShutdown()
  * account that no registers except $ra are saved in recompiled blocks and
  * thus put all temporaries to stack. In this case $s[0-7], $fp and $ra are saved
  * in recExecute() and recExecuteBlock() only once.
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
 #ifndef ASM_EXECUTE_LOOP
-static __attribute__ ((noinline)) void recFunc(void *fn)
+__attribute__((noinline)) static void recFunc(void *fn)
 {
 	/* This magic code calls fn address saving registers $s[0-7], $fp and $ra. */
 	/*                                                                         */
@@ -566,9 +569,13 @@ static __attribute__ ((noinline)) void recFunc(void *fn)
 
 /* Execute blocks starting at psxRegs.pc
  * Blocks return indirectly, to address stored at 16($sp)
+ * Block pointers are looked up using psxRecLUT[].
  * Called only from recExecute(), see notes there.
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-static void recExecuteIndirectReturn_lut()
+__attribute__((noinline)) void recExecuteIndirectReturn_lut()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -723,7 +730,15 @@ __asm__ __volatile__ (
 #endif
 }
 
-static void recExecuteIndirectReturn_mmap()
+/* Execute blocks starting at psxRegs.pc
+ * Blocks return indirectly, to address stored at 16($sp)
+ * Block pointers are looked up using virtual address mapping of recRAM/recROM.
+ * Called only from recExecute(), see notes there.
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
+ */
+__attribute__((noinline)) static void recExecuteIndirectReturn_mmap()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -883,13 +898,19 @@ __asm__ __volatile__ (
 }
 
 /* Execute blocks starting at psxRegs.pc
- * Blocks return directly to dispatch loop. This function will set global
- * var 'block_ret_addr'. Code cache should be cleared before call.
- * If parameter 'query_ret_addr' is non-zero, this func will just set
- * block_ret_addr and return immediately.
+ * Blocks return directly (not indirectly via stack address var).
+ * Block pointers are looked up using psxRecLUT[].
  * Called only from recExecute(), see notes there.
+
+ *  If 'query_ret_addr' is non-zero, function returns immediately after setting
+ *  'block_ret_addr' global. This is so caller can analyze whether this return
+ *  address is within direct jump range of the recompiled code itself. If it
+ *  is not, an indirect block-return method must be used.
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-static void recExecuteDirectReturn_lut(u32 query_ret_addr)
+__attribute__((noinline)) static void recExecuteDirectReturn_lut(u32 query_ret_addr)
 {
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
@@ -1072,8 +1093,8 @@ __asm__ __volatile__ (
 
 
 // Destroy stack frame, exiting inlined ASM block
-// NOTE: We'd never reach this point because the block dispatch loop is
-//  currently infinite. This could change in the future.
+// NOTE: During block executions, we'd never reach this point because the block
+//  dispatch loop is currently infinite. This could change in the future.
 // TODO: Could add a way to reset a game or load a new game from within
 //  the running emulator by setting a global boolean, resetting
 //  psxRegs.io_cycle_counter to 0, and checking if it's been set before
@@ -1100,7 +1121,21 @@ __asm__ __volatile__ (
 );
 }
 
-static void recExecuteDirectReturn_mmap(u32 query_ret_addr)
+
+/* Execute blocks starting at psxRegs.pc
+ * Blocks return directly (not indirectly via stack address var).
+ * Block pointers are looked up using virtual address mapping of recRAM/recROM.
+ * Called only from recExecute(), see notes there.
+ *
+ *  If 'query_ret_addr' is non-zero, function returns immediately after setting
+ *  'block_ret_addr' global. This is so caller can analyze whether this return
+ *  address is within direct jump range of the recompiled code itself. If it
+ *  is not, an indirect block-return method must be used.
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
+ */
+__attribute__((noinline)) static void recExecuteDirectReturn_mmap(u32 query_ret_addr)
 {
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
@@ -1287,8 +1322,8 @@ __asm__ __volatile__ (
 
 
 // Destroy stack frame, exiting inlined ASM block
-// NOTE: We'd never reach this point because the block dispatch loop is
-//  currently infinite. This could change in the future.
+// NOTE: During block executions, we'd never reach this point because the block
+//  dispatch loop is currently infinite. This could change in the future.
 // TODO: Could add a way to reset a game or load a new game from within
 //  the running emulator by setting a global boolean, resetting
 //  psxRegs.io_cycle_counter to 0, and checking if it's been set before
@@ -1315,11 +1350,14 @@ __asm__ __volatile__ (
 );
 }
 
-/* Execute blocks starting at psxRegs.pc until target_pc is reached
- * NOTE: This always uses indirect return method for blocks, regardless
- *       of whether HLE BIOS is in use (see notes in recExecute())
+
+/* Execute blocks starting at psxRegs.pc until 'target_pc' is reached.
+ * Blocks return indirectly, to address stored at 16($sp)
+ *
+ * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
+ *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-static void recExecuteBlock(unsigned target_pc)
+__attribute__((noinline)) static void recExecuteBlock(unsigned target_pc)
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -1488,6 +1526,11 @@ __asm__ __volatile__ (
 
 static void recExecute()
 {
+	// Clear code cache so that all emitted code from this point forward uses
+	//  the correct block-return method. This also clears out any now-dead code
+	//  emitted during BIOS startup. Non-dead BIOS code gets recompiled fresh.
+	recReset();
+
 	// By default, emit traditional code that loads return address off stack:
 	//  HLE BIOS calls recExecute() and recExecuteBlock() interchangeably
 	//  during execution, so if HLE BIOS is in use, we must use indirect-return
@@ -1546,10 +1589,6 @@ static void recExecute()
 		else
 			recExecuteIndirectReturn_lut();
 	} else {
-		// Clear code cache so all emitted code from this point forward
-		//  uses direct return jumps, then begin execution.
-		recReset();
-
 		if (rec_mem_mapped)
 			recExecuteDirectReturn_mmap(0);
 		else
