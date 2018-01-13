@@ -44,6 +44,8 @@ ifeq ($(DEV),1)
 	# If DEV=1 is passed to 'make', don't mmap anything to virtual address 0.
 	#  This is for development/debugging: it allows null pointer dereferences
 	#  to segfault as they normally would. We'll map PS1 address space higher.
+	#
+	# Furthermore, div-by-zero is also checked for at runtime (default for GCC)
 else
 	# Default: Allows address-conversion optimization in dynarec. PS1 addresses
 	#          will be mapped/mirrored at virtual address 0.
@@ -55,6 +57,9 @@ else
 	#  mirror PS1 address space.
 	C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
 	LDFLAGS += -Wl,-Ttext-segment=0x40000000
+
+	# Furthermore, div-by-zero checks are disabled (helps software rendering)
+	C_ARCH  += -mno-check-zero-division
 endif
 
 CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 \
@@ -209,10 +214,13 @@ ifeq ($(DEV),1)
 	@echo "-> WARNING: This is a development build.                                  "
 	@echo "            Mapping to virtual address zero is disabled. As a result,     "
 	@echo "            some address-related dynarec optimizations are disabled.      "
+	@echo "            Furthermore, div-by-zero checks are enabled in C/C++ code.    "
 else
-	@echo "-> This is a release build. Null pointer dereferences will NOT segfault.  "
+	@echo "-> This is a release build.                                               "
+	@echo "    * Null pointer dereferences will NOT segfault (mmap to 0 is allowed). "
+	@echo "    * Div-by-zero in C/C++ code will NOT trap & abort execution.          "
 	@echo "   If developing/debugging, you can pass DEV=1 on make command-line to    "
-	@echo "   disable mapping to virtual address 0. Be sure to do a clean rebuild.   "
+	@echo "   disable these behaviors. Be sure to do a clean rebuild.                "
 endif
 
 obj/%.o: src/%.c
