@@ -165,21 +165,28 @@ static inline void SetFuzzyScratchpadAddr(const u32 reg) { iRegs[reg].is_fuzzy_s
 static inline bool IsFuzzyScratchpadAddr(const u32 reg)  { return iRegs[reg].is_fuzzy_scratchpad_addr; }
 
 
-#define RECMEM_SIZE		(12 * 1024 * 1024)
-#define RECMEM_SIZE_MAX 	(RECMEM_SIZE-(512*1024))
-#define REC_MAX_OPCODES		80
+/* Code cache buffer
+ *  Keep this statically allocated! This keeps it close to the
+ *  .text section, so C code and recompiled code lie in the same 256MiB region.
+ *  MIPS JAL/J opcodes in recompiled code that jump to C code require this.
+ *  Dynamic allocation would get an anonymous mmap'ing, locating the recompiled
+ *  code *far* too high in virtual address space.
+ */
+#define RECMEM_SIZE         (12 * 1024 * 1024)
+#define RECMEM_SIZE_MAX     (RECMEM_SIZE-(512*1024))
+static u8 recMemBase[RECMEM_SIZE] __attribute__((aligned(4)));
 
-static u8 recMemBase[RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000] __attribute__ ((__aligned__ (32)));
-u32 *recMem; /* the recompiled blocks will be here */
-static u32 *recMemStart;
-static u32 pc;					/* recompiler pc */
-static u32 oldpc;               /* recompiler pc at start of block */
-u32 cycle_multiplier = 0x200; // 0x200 == 2.00
+u32        *recMem;                /* Where does next emitted opcode in block go? */
+static u32 *recMemStart;           /* Where did first emitted opcode in block go? */
+static u32 pc;                     /* Recompiler pc */
+static u32 oldpc;                  /* Recompiler pc at start of block */
+u32 cycle_multiplier = 0x200;      /* Cycle advance per emulated instruction
+                                      Default is 0x200 == 2.00 (24.8 fixed-pt) */
 
 /* See comments in recExecute() regarding direct block returns */
-static uintptr_t block_ret_addr;      /* Non-zero when blocks are using direct return jumps */
-static uintptr_t block_fast_ret_addr; /* Non-zero when blocks are using direct return jumps &
-                                         dispatch loop fastpath is enabled */
+static uptr block_ret_addr;                /* Non-zero when blocks are using direct return jumps */
+static uptr block_fast_ret_addr;           /* Non-zero when blocks are using direct return jumps &
+                                              dispatch loop fastpath is enabled */
 
 static bool psx_mem_mapped;                /* PS1 RAM mmap'd+mirrored at fixed address? (psxM) */
 static bool rec_mem_mapped;                /* Code ptr arrays mmap'd+mirrored at fixed address? (recRAM,recROM) */
@@ -362,8 +369,10 @@ static void recRecompile()
 	// Notify plugin_lib that we're recompiling (affects frameskip timing)
 	pl_dynarec_notify();
 
-	if ((u32)recMem - (u32)recMemBase >= RECMEM_SIZE_MAX )
+	if (((uptr)recMem - (uptr)recMemBase) >= RECMEM_SIZE_MAX ) {
+		printf("mipsrec: Code cache size limit exceeded: flushing code cache.\n");
 		recReset();
+	}
 
 	recMemStart = recMem;
 
@@ -440,12 +449,21 @@ static void recRecompile()
 	clear_insn_cache(recMemStart, recMem, 0);
 }
 
+
 static int recInit()
 {
-	int i;
+	printf("mipsrec: Initializing\n");
 
 	recMem = (u32*)recMemBase;
-	memset(recMem, 0, RECMEM_SIZE + (REC_MAX_OPCODES*2) + 0x4000);
+
+	// Init code buffer, to allocate the RAM we need in advance. Filling with
+	//  all-1's should force an exception on any accidental non-code execution.
+	{
+		size_t fill_size = RECMEM_SIZE_MAX + 0x1000;  // 4KB past 'maximum' we'd ever use.
+		if (fill_size > RECMEM_SIZE)
+			fill_size = RECMEM_SIZE;
+		memset(recMemBase, 0xff, fill_size);
+	}
 
 	// The tables recRAM and recROM hold block code pointers for all valid PC
 	//  values for a PS1 program, after masking away banking and/or mirroring.
@@ -480,13 +498,13 @@ static int recInit()
 		printf("Error allocating memory\n"); return -1;
 	}
 
-	for (i = 0; i < 0x80; i++)
+	for (int i = 0; i < 0x80; i++)
 		psxRecLUT[i + 0x0000] = (uptr)recRAM + (((i & 0x1f) << 16) * (REC_RAM_PTR_SIZE/4));
 
 	memcpy(&psxRecLUT[0x8000], psxRecLUT, 0x80 * sizeof(psxRecLUT[0]));
 	memcpy(&psxRecLUT[0xa000], psxRecLUT, 0x80 * sizeof(psxRecLUT[0]));
 
-	for (i = 0; i < 0x08; i++)
+	for (int i = 0; i < 0x08; i++)
 		psxRecLUT[i + 0xbfc0] = (uptr)recROM + ((i << 16) * (REC_RAM_PTR_SIZE/4));
 
 	// Map/mirror PSX RAM, other regions, i.e. psxM, psxP, psxH
@@ -503,16 +521,18 @@ static int recInit()
 	return 0;
 }
 
+
 static void recShutdown()
 {
+	printf("mipsrec: Shutting down\n");
+
 	if (psx_mem_mapped)
 		rec_munmap_psx_mem();
-
 	if (rec_mem_mapped)
 		rec_munmap_rec_mem();
-
 	psx_mem_mapped = rec_mem_mapped = false;
 }
+
 
 /* It seems there's no way to tell GCC that something is being called inside
  * asm() blocks and GCC doesn't bother to save temporaries to stack.
@@ -567,6 +587,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
 }
 #endif
 
+
 /* Execute blocks starting at psxRegs.pc
  * Blocks return indirectly, to address stored at 16($sp)
  * Block pointers are looked up using psxRecLUT[].
@@ -575,7 +596,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
  * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
  *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-__attribute__((noinline)) void recExecuteIndirectReturn_lut()
+__attribute__((noinline)) void recExecute_indirect_return_lut()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -730,6 +751,7 @@ __asm__ __volatile__ (
 #endif
 }
 
+
 /* Execute blocks starting at psxRegs.pc
  * Blocks return indirectly, to address stored at 16($sp)
  * Block pointers are looked up using virtual address mapping of recRAM/recROM.
@@ -738,7 +760,7 @@ __asm__ __volatile__ (
  * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
  *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-__attribute__((noinline)) static void recExecuteIndirectReturn_mmap()
+__attribute__((noinline)) static void recExecute_indirect_return_mmap()
 {
 	// Set block_ret_addr to 0, so generated code uses indirect returns
 	block_ret_addr = block_fast_ret_addr = 0;
@@ -897,20 +919,16 @@ __asm__ __volatile__ (
 #endif
 }
 
+
 /* Execute blocks starting at psxRegs.pc
  * Blocks return directly (not indirectly via stack address var).
  * Block pointers are looked up using psxRecLUT[].
  * Called only from recExecute(), see notes there.
 
- *  If 'query_ret_addr' is non-zero, function returns immediately after setting
- *  'block_ret_addr' global. This is so caller can analyze whether this return
- *  address is within direct jump range of the recompiled code itself. If it
- *  is not, an indirect block-return method must be used.
- *
  * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
  *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-__attribute__((noinline)) static void recExecuteDirectReturn_lut(u32 query_ret_addr)
+__attribute__((noinline)) static void recExecute_direct_return_lut()
 {
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
@@ -938,11 +956,9 @@ __asm__ __volatile__ (
 #endif
 
 // Set the global var 'block_ret_addr'.
-// If parameter 'query_ret_addr' is non-zero, return to caller.
 "la    $t0, loop%=                            \n"
 "lui   $t1, %%hi(%[block_ret_addr])           \n"
-"bnez  %[query_ret_addr], exit%=              \n"
-"sw    $t0, %%lo(%[block_ret_addr])($t1)      \n" // <BD>
+"sw    $t0, %%lo(%[block_ret_addr])($t1)      \n"
 
 // $fp/$s8 remains set to &psxRegs across all calls to blocks
 "la    $fp, %[psxRegs]                        \n"
@@ -1106,7 +1122,6 @@ __asm__ __volatile__ (
 
 : // Output
 : // Input
-  [query_ret_addr]             "r" (query_ret_addr),
   [block_ret_addr]             "i" (&block_ret_addr),
   [block_fast_ret_addr]        "i" (&block_fast_ret_addr),
   [psxRegs]                    "i" (&psxRegs),
@@ -1127,15 +1142,10 @@ __asm__ __volatile__ (
  * Block pointers are looked up using virtual address mapping of recRAM/recROM.
  * Called only from recExecute(), see notes there.
  *
- *  If 'query_ret_addr' is non-zero, function returns immediately after setting
- *  'block_ret_addr' global. This is so caller can analyze whether this return
- *  address is within direct jump range of the recompiled code itself. If it
- *  is not, an indirect block-return method must be used.
- *
  * IMPORTANT: Functions containing inline ASM should have attribute 'noinline'.
  *            Crashes at callsites can occur otherwise, at least with GCC 4.xx.
  */
-__attribute__((noinline)) static void recExecuteDirectReturn_mmap(u32 query_ret_addr)
+__attribute__((noinline)) static void recExecute_direct_return_mmap()
 {
 __asm__ __volatile__ (
 // NOTE: <BD> indicates an instruction in a branch-delay slot
@@ -1163,11 +1173,9 @@ __asm__ __volatile__ (
 #endif
 
 // Set the global var 'block_ret_addr'.
-// If parameter 'query_ret_addr' is non-zero, return to caller.
 "la    $t0, loop%=                            \n"
 "lui   $t1, %%hi(%[block_ret_addr])           \n"
-"bnez  %[query_ret_addr], exit%=              \n"
-"sw    $t0, %%lo(%[block_ret_addr])($t1)      \n" // <BD>
+"sw    $t0, %%lo(%[block_ret_addr])($t1)      \n"
 
 // $fp/$s8 remains set to &psxRegs across all calls to blocks
 "la    $fp, %[psxRegs]                        \n"
@@ -1335,7 +1343,6 @@ __asm__ __volatile__ (
 
 : // Output
 : // Input
-  [query_ret_addr]             "r" (query_ret_addr),
   [block_ret_addr]             "i" (&block_ret_addr),
   [block_fast_ret_addr]        "i" (&block_fast_ret_addr),
   [psxRegs]                    "i" (&psxRegs),
@@ -1524,6 +1531,7 @@ __asm__ __volatile__ (
 #endif
 }
 
+
 static void recExecute()
 {
 	// Clear code cache so that all emitted code from this point forward uses
@@ -1531,70 +1539,44 @@ static void recExecute()
 	//  emitted during BIOS startup. Non-dead BIOS code gets recompiled fresh.
 	recReset();
 
-	// By default, emit traditional code that loads return address off stack:
-	//  HLE BIOS calls recExecute() and recExecuteBlock() interchangeably
-	//  during execution, so if HLE BIOS is in use, we must use indirect-return
-	//  block dispatch loops regardless.. All blocks load $ra off stack and jump
-	//  to it when returning.
-	// --> Var 'block_ret_addr' should remain set to zero throughout.
+	// By default, emit code that returns to dispatch loop indirectly, using
+	//  address kept on stack. This return method is safe for use with both
+	//  HLE BIOS and real BIOS. In fact, HLE BIOS requires indirect return
+	//  jumps: During main execution, i.e. recExecute(), HLE BIOS calls
+	//  recExecuteBlock() for certain 'softcalls', so in effect, two separate
+	//  dispatch loops can be active, even simultaneously! Therefore, blocks
+	//  under HLE BIOS cannot know at compile-time where to return to.
+	//
+	// To force indirect return code, set 'block_ret_addr' to 0 here.
 	bool use_indirect_return_dispatch_loop = true;
 	block_ret_addr = block_fast_ret_addr = 0;
 
 #if defined(ASM_EXECUTE_LOOP) && defined(USE_DIRECT_BLOCK_RETURN_JUMPS)
-	if (!Config.HLE) {
-		// When possible, emit code that jumps directly back to dispatch loop:
-		//  When using a real BIOS, recExecuteBlock() is called for initial BIOS
-		//  startup, and when a certain PC is reached, control returns.
-		//  Then, the real execution begins with a call to recExecute() that
-		//  never returns. So, once we're here, we clear all recompiled code
-		//  and emit faster code that jumps directly back to dispatch loop. The
-		//  dispatch loop will set 'block_ret_addr' to this const jump address.
-
-		if (sizeof(recMemBase) <= 8) {
-			printf("%s() WARNING: expected recMemBase to be array, not pointer.\n"
-			       "Falling back to indirect block returns.\n", __func__);
-		} else {
-			// Determine if max return-jump distance from a block is < 256MiB.
-			//  If it's somehow higher, we'll have to use indirect jumps.
-
-			// Ask direct-return dispatch func to just set block_ret_addr
-			//  and return, by passing 1 as arg:
-			if (rec_mem_mapped)
-				recExecuteDirectReturn_mmap(1);
-			else
-				recExecuteDirectReturn_lut(1);
-
-			uintptr_t code_cache_beg = (uintptr_t)recMemBase;
-			uintptr_t code_cache_end = (uintptr_t)recMemBase + sizeof(recMemBase);
-			ptrdiff_t diff_beg = llabs(code_cache_beg - block_ret_addr);
-			ptrdiff_t diff_end = llabs(code_cache_end - block_ret_addr);
-			ptrdiff_t max_diff = (diff_beg > diff_end) ? diff_beg : diff_end;
-
-			if (max_diff < 0x10000000) {
-				// Great, we'll emit code that uses direct return jumps
-				use_indirect_return_dispatch_loop = false;
-			} else {
-				printf("%s() WARNING: distance of %td too great for\n"
-					   "direct block returns. Falling back to indirect returns.\n", __func__, max_diff);
-				// Set block_ret_addr to 0, so generated code uses indirect returns
-				block_ret_addr = block_fast_ret_addr = 0;
-			}
-		}
-	}
+	// When using a real BIOS, recExecuteBlock() is only ever called for
+	//  initial BIOS startup, and when a certain PC is reached, it returns.
+	//  Soon after that, this function is called to begin real execution.
+	//  At this point, blocks will always be returning to the same address.
+	//  We now emit faster, denser code that returns via direct jumps.
+	//
+	// NOTE: On entry, direct-return versions of dispatch loops set vars
+	//       'block_ret_addr' and 'block_fast_ret_addr' to correct value.
+	// IMPORTANT: All existing code needs to have been cleared at this point.
+	use_indirect_return_dispatch_loop = Config.HLE;
 #endif
 
 	if (use_indirect_return_dispatch_loop) {
 		if (rec_mem_mapped)
-			recExecuteIndirectReturn_mmap();
+			recExecute_indirect_return_mmap();
 		else
-			recExecuteIndirectReturn_lut();
+			recExecute_indirect_return_lut();
 	} else {
 		if (rec_mem_mapped)
-			recExecuteDirectReturn_mmap(0);
+			recExecute_direct_return_mmap();
 		else
-			recExecuteDirectReturn_lut(0);
+			recExecute_direct_return_lut();
 	}
 }
+
 
 /* Invalidate 'Size' code block pointers at word-aligned PS1 address 'Addr'. */
 static void recClear(u32 Addr, u32 Size)
@@ -1647,6 +1629,7 @@ static void recReset()
 	regReset();
 
 }
+
 
 R3000Acpu psxRec =
 {
