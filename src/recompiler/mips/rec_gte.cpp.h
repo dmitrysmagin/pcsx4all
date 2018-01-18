@@ -1,3 +1,9 @@
+/******************************************************************************
+ * IMPORTANT: The following host registers have unique usage restrictions.    *
+ *            See notes in mips_codegen.h for full details.                   *
+ *  MIPSREG_RA, MIPSREG_V0                                                    *
+ *****************************************************************************/
+
 /* Compile-time options (disable for debugging) */
 
 // Generate inline memory access for LWC2/SWC2 or call psxMemRead/Write C

@@ -1,3 +1,9 @@
+/******************************************************************************
+ * IMPORTANT: The following host registers have unique usage restrictions.    *
+ *            See notes in mips_codegen.h for full details.                   *
+ *  MIPSREG_RA, MIPSREG_V0                                                    *
+ *****************************************************************************/
+
 static void recMFC0()
 {
 // Rt = Cop0->Rd

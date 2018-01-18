@@ -29,6 +29,74 @@
 #ifndef MIPS_CODEGEN_H
 #define MIPS_CODEGEN_H
 
+/* Host registers
+ *
+ *    USAGE RESTRICTIONS IN CODE EMITTERS:
+ *
+ * MIPSREG_RA      Holds cached block return address when blocks are returning
+ *                  indirectly. At block entry, $ra holds block return address.
+ *                  Reduces redundant loads from stack in exit code.
+ *                  -> A jump to C code via JAL() invalidates cached value.
+ * MIPSREG_S0..S7  Reserved for reg allocator.
+ * MIPSREG_S8      Holds pointer to psxRegs struct, a.k.a. PERM_REG_1.
+ * MIPSREG_V0      Blocks set $v0 to new PC before returning. At block entry,
+ *                  $v0 holds start PC of block. PC vals are cached in $v0,
+ *                  allowing fewer opcodes to be emitted overall for block-exit
+ *                  code. JAL emitters benefit also. See rec_bcu.cpp.h.
+ *                  -> A jump to C code via JAL() invalidates cached value.
+ *                  -> The only safe use of this reg is immediately after a
+ *                     JAL() function call to retrieve return values.
+ */
+typedef enum {
+	MIPSREG_AT = 1,
+
+	MIPSREG_V0 = 2,
+	MIPSREG_V1,
+
+	MIPSREG_A0 = 4,
+	MIPSREG_A1,
+	MIPSREG_A2,
+	MIPSREG_A3,
+
+	MIPSREG_T0 = 8,
+	MIPSREG_T1,
+	MIPSREG_T2,
+	MIPSREG_T3,
+	MIPSREG_T4,
+	MIPSREG_T5,
+	MIPSREG_T6,
+	MIPSREG_T7,
+
+	MIPSREG_S0 = 16,
+	MIPSREG_S1,
+	MIPSREG_S2,
+	MIPSREG_S3,
+	MIPSREG_S4,
+	MIPSREG_S5,
+	MIPSREG_S6,
+	MIPSREG_S7,
+
+	MIPSREG_T8 = 24,
+	MIPSREG_T9,
+
+	/* Note: $gp undefined: Used/clobbered by UNIX dynamic linker resolver */
+
+	MIPSREG_SP = 29,
+	MIPSREG_S8,
+	MIPSREG_RA
+} MIPSReg;
+
+/* Free for use as temporaries in emitted code.
+ * Do NOT let these conflict with registers used below!
+ */
+#define TEMP_1               MIPSREG_T0
+#define TEMP_2               MIPSREG_T1
+#define TEMP_3               MIPSREG_T2
+
+/* PERM_REG_1 is pointer to psxRegs struct */
+#define PERM_REG_1           MIPSREG_S8
+
+
 /* NOTE: it is assumed the platform has basic MIPS32r1 ISA, i.e. it has at
  *       minimum CLZ,MOVN,MOVZ,MUL.
  */
@@ -66,45 +134,6 @@
 #endif
 
 extern u32 *recMem;
-
-typedef enum {
-	MIPSREG_V0 = 2,
-	MIPSREG_V1,
-
-	MIPSREG_A0 = 4,
-	MIPSREG_A1,
-	MIPSREG_A2,
-	MIPSREG_A3,
-
-	MIPSREG_T0 = 8,
-	MIPSREG_T1,
-	MIPSREG_T2,
-	MIPSREG_T3,
-	MIPSREG_T4,
-	MIPSREG_T5,
-	MIPSREG_T6,
-	MIPSREG_T7,
-
-	MIPSREG_RA = 0x1f,
-	MIPSREG_S8 = 0x1e,
-	MIPSREG_S0 = 0x10,
-	MIPSREG_S1,
-	MIPSREG_S2,
-	MIPSREG_S3,
-	MIPSREG_S4,
-	MIPSREG_S5,
-	MIPSREG_S6,
-	MIPSREG_S7,
-
-	MIPSREG_SP = 0x1d,
-} MIPSReg;
-
-#define TEMP_1 				MIPSREG_T0
-#define TEMP_2 				MIPSREG_T1
-#define TEMP_3 				MIPSREG_T2
-
-/* PERM_REG_1 is used to store psxRegs struct address */
-#define PERM_REG_1 			MIPSREG_S8
 
 /* Crazy macro to calculate offset of the field in the structure.
  *  (Can't use standard offsetof() with non-const expressions)
@@ -298,11 +327,12 @@ do { \
 #define SLTU(rd, rs, rt) \
 	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
 
-#define JAL(func) \
-do { \
-    /* JAL and/or C code overwrites $ra block return addr */                      \
-    block_ra_loaded = false;                                                      \
-    write32(0x0c000000 | (((u32)(func) & 0x0fffffff) >> 2));                      \
+#define JAL(addr)                                                              \
+do {                                                                           \
+    /* Function call overwrites values in 'unsaved' regs */                    \
+    host_v0_reg_is_const = false;                                              \
+    host_ra_reg_has_block_retaddr = false;                                     \
+    write32(0x0c000000 | (((u32)(addr) & 0x0fffffff) >> 2));                   \
 } while (0)
 
 #define JR(rs) \
@@ -375,22 +405,16 @@ do {                                                                           \
  *
  * The idea behind having a part1 and part2 is to minimize load stalls by
  *  interleaving unrelated code between their calls. part1 loads $ra from
- *  stack at 16($sp), if it is not already.
- * NOTE: This macro only assists blocks returning indirectly, as direct
- *        returns don't use or need to load $ra.
- * NOTE: This macro will often not emit an instruction!
- * NOTE: This should be the first instruction emitted in part1,
- *        as branch emitters will often use this in branch delay
- *        slot, allowing code in either branch path to benefit from
- *        the load. It is their responsibility, however, to set
- *        block_ra_loaded=1 when this is the case.
+ *  stack at 16($sp), needed by blocks returning indirectly. Blocks
+ *  returning via direct jump don't use or need $ra and nothing is emitted.
+ * Note that $ra is cached, so the load is avoided when possible.
  * NOTE: emitBxxZ() sometimes calls this macro *twice*, when it needs
  *        to emit code for the instruction at the branch target PC,
- *        which might include a JAL that would overwrite $ra.
+ *        which might call a func, overwriting host $ra.
  */
 #define rec_recompile_end_part1()                                              \
 do {                                                                           \
-    if (!block_ret_addr && !block_ra_loaded)                                   \
+    if (block_ret_addr == 0 && !host_ra_reg_has_block_retaddr)                 \
         LW(MIPSREG_RA, MIPSREG_SP, 16);                                        \
 } while (0)
 
@@ -411,35 +435,33 @@ do {                                                                           \
  *       part1() and part2(), caller places new value for psxRegs.pc in $v0.
  *
  */
-#define rec_recompile_use_fastpath_return(__newpc)                             \
-    (block_fast_ret_addr && ((__newpc) == oldpc))
+#define rec_recompile_use_fastpath_return(newpc__)                             \
+    (block_fast_ret_addr && ((newpc__) == oldpc))
 
 #define rec_recompile_end_part2(use_fastpath_return)                           \
 do {                                                                           \
-    u32 __cycles = ADJUST_CLOCK((pc-oldpc)/4);                                 \
-    if (__cycles <= 0xffff) {                                                  \
+    const u32 cycles = ADJUST_CLOCK((pc-oldpc)/4);                             \
+    if (cycles <= 0xffff) {                                                    \
         if (block_ret_addr) {                                                  \
-            if (use_fastpath_return) {                                         \
+            if (use_fastpath_return)                                           \
                 J(block_fast_ret_addr);                                        \
-            } else {                                                           \
+            else                                                               \
                 J(block_ret_addr);                                             \
-            }                                                                  \
         } else {                                                               \
             JR(MIPSREG_RA);                                                    \
         }                                                                      \
-        LI16(MIPSREG_V1, __cycles); /* <BD> */                                 \
+        LI16(MIPSREG_V1, cycles); /* <BD> */                                   \
     } else {                                                                   \
-        LUI(MIPSREG_V1, (__cycles >> 16));                                     \
+        LUI(MIPSREG_V1, (cycles >> 16));                                       \
         if (block_ret_addr) {                                                  \
-            if (use_fastpath_return) {                                         \
+            if (use_fastpath_return)                                           \
                 J(block_fast_ret_addr);                                        \
-            } else {                                                           \
+            else                                                               \
                 J(block_ret_addr);                                             \
-            }                                                                  \
         } else {                                                               \
             JR(MIPSREG_RA);                                                    \
         }                                                                      \
-        ORI(MIPSREG_V1, MIPSREG_V1, (__cycles & 0xffff)); /* <BD> */           \
+        ORI(MIPSREG_V1, MIPSREG_V1, (cycles & 0xffff)); /* <BD> */             \
     }                                                                          \
 } while (0)
 

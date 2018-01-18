@@ -194,8 +194,12 @@ static bool rec_mem_mapped;                /* Code ptr arrays mmap'd+mirrored at
 /* Flags used during a recompilation phase */
 static bool branch;                        /* Current instruction lies in a BD slot? */
 static bool end_block;                     /* Has recompilation phase ended? */
-static bool block_ra_loaded;               /* Is block return addr currently loaded in host $ra reg? */
 static bool skip_emitting_next_mflo;       /* Was a MULT/MULTU converted to 3-op MUL? See rec_mdu.cpp.h */
+
+/* Flags/vals used to cache common values in temp regs in emitted code */
+static bool host_ra_reg_has_block_retaddr; /* Indirect-return address is cached in $ra. */
+static bool host_v0_reg_is_const;          /* PCs are cached in $v0. See rec_bcu.cpp.h */
+static u32  host_v0_reg_constval;
 
 
 #ifdef WITH_DISASM
@@ -398,14 +402,18 @@ static void recRecompile()
 	// Flag indicates when recompilation should stop
 	end_block = false;
 
-	// Flag indicates if $ra is currently loaded with block return address.
-	//  (When blocks are using indirect return jumps, they jump to address
-	//   in $ra. The dispatch loop will set it before all block entries, and
-	//   emitted code tries to keep it set.)
-	block_ra_loaded = true;
-
 	// See convertMultiplyTo3Op() and recMFLO() in rec_mdu.cpp.h
 	skip_emitting_next_mflo = false;
+
+	// Flag indicates when a PC value is cached in $v0. All dispatch loops set
+	//  $v0 to block start PC before entry. See rec_bcu.cpp.h
+	host_v0_reg_is_const = true;
+	host_v0_reg_constval = psxRegs.pc;
+
+	// Flag indicates when $ra holds block return address. This is only used
+	//  by blocks returning indirectly. The indirect-return dispatch loops
+	//  set $ra before block entry. See rec_recompile_end_part1().
+	host_ra_reg_has_block_retaddr = (block_ret_addr == 0);
 
 	// Number of discardable instructions we are currently skipping
 	int discard_cnt = 0;
@@ -556,6 +564,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
 	/*  call blocks from within C code, which is:                              */
 	/* Blocks expect $fp to be set to &psxRegs.                                */
 	/* Blocks expect return address to be stored at 16($sp) and in $ra.        */
+	/* Blocks expect $v0 to contain psxRegs.pc value (helps addr generation).  */
 	/* Stack should have 16 bytes free at 0($sp) for use by called functions.  */
 	/* Stack should be 8-byte aligned to satisfy MIPS ABI.                     */
 	/*                                                                         */
@@ -565,6 +574,7 @@ __attribute__((noinline)) static void recFunc(void *fn)
 	__asm__ __volatile__ (
 		"addiu  $sp, $sp, -24                   \n"
 		"la     $fp, %[psxRegs]                 \n" // $fp = &psxRegs
+		"lw     $v0, %[psxRegs_pc_off]($fp)     \n" // Blocks expect $v0 to contain PC val on entry
 		"la     $ra, block_return_addr%=        \n" // Load $ra with block_return_addr
 		"sw     $ra, 16($sp)                    \n" // Put 'block_return_addr' on stack
 		"jr     %[fn]                           \n" // Execute block
@@ -721,6 +731,7 @@ __asm__ __volatile__ (
 "jal   %[recRecompile]                        \n"
 "sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // Blocks expect $v0 to contain PC val on entry
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 
@@ -889,6 +900,7 @@ __asm__ __volatile__ (
 "jal   %[recRecompile]                        \n"
 "sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // Blocks expect $v0 to contain PC val on entry
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 
@@ -1081,7 +1093,7 @@ __asm__ __volatile__ (
 // Execute already-compiled block. It returns to top of 'fastpath' loop if it
 //  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
 "jr    $t0                                    \n"
-"nop                                          \n" // <BD>
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Blocks expect $v0 to contain PC val on entry
 
 ////////////////////////////
 //   BRANCH-TEST CODE:    //
@@ -1104,6 +1116,7 @@ __asm__ __volatile__ (
 "jal   %[recRecompile]                        \n"
 "sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // Blocks expect $v0 to contain PC val on entry
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 
@@ -1302,7 +1315,7 @@ __asm__ __volatile__ (
 // Execute already-compiled block. It returns to top of 'fastpath' loop if it
 //  jumps to its own beginning PC. Otherwise, it returns to top of main loop.
 "jr    $t0                                    \n"
-"nop                                          \n" // <BD>
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // <BD> Blocks expect $v0 to contain PC val on entry
 
 ////////////////////////////
 //   BRANCH-TEST CODE:    //
@@ -1325,6 +1338,7 @@ __asm__ __volatile__ (
 "jal   %[recRecompile]                        \n"
 "sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // Blocks expect $v0 to contain PC val on entry
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 
@@ -1507,6 +1521,7 @@ __asm__ __volatile__ (
 "jal   %[recRecompile]                        \n"
 "sw    $t2, f_off_temp_var1($sp)              \n" // <BD> Save block ptr across call
 "lw    $t2, f_off_temp_var1($sp)              \n" // Restore block ptr upon return
+"lw    $v0, %[psxRegs_pc_off]($fp)            \n" // Blocks expect $v0 to contain PC val on entry
 "b     execute_block%=                        \n" // Resume normal code path, but first we must..
 "lw    $t0, 0($t2)                            \n" // <BD> ..load $t0 with ptr to block code
 

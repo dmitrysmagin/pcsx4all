@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 Dmitry Smagin / Daniel Silsby
+ * Copyright (c) 2018 Dmitry Smagin / Daniel Silsby
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,6 +29,11 @@
  * Last updated: Aug 4 2017
  */
 
+/******************************************************************************
+ * IMPORTANT: The following host registers have unique usage restrictions.    *
+ *            See notes in mips_codegen.h for full details.                   *
+ *  MIPSREG_RA, MIPSREG_V0                                                    *
+ *****************************************************************************/
 
 /* Will emit code for any indirect stores (calls to C). Bool at ptr param
  *  'C_func_called' will be set to true if a call to C is made, false if not.
