@@ -962,6 +962,13 @@ static void intExecuteBlock(unsigned target_pc) {
 static void intClear(u32 Addr, u32 Size) {
 }
 
+/* Custom function added to notify dynarecs about icache-related events.
+ *  Could be used here to implement a cleaner version of Shalma's icache
+ *  emulation, which hasn't yet been backported to our interpreter.
+ */
+static void intNotify(int note, void *data) {
+}
+
 static void intShutdown(void) {
 }
 
@@ -986,5 +993,6 @@ R3000Acpu psxInt = {
 	intExecute,
 	intExecuteBlock,
 	intClear,
+	intNotify,
 	intShutdown
 };

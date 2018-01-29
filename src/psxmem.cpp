@@ -423,6 +423,8 @@ void psxMemWrite32_CacheCtrlPort(u32 value)
 			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = (u8 *)mem_bak;
 			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = (u8 *)mem_bak;
 #endif
+
+			psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
 			break;
 		case 0x00: case 0x1e988:
 			if (psxRegs.writeok == 1) break;
@@ -443,6 +445,9 @@ void psxMemWrite32_CacheCtrlPort(u32 value)
 			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = (u8 *)psxM;
 			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = (u8 *)psxM;
 #endif
+
+			/* Dynarecs might take this opportunity to flush their code cache */
+			psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
 			break;
 		default:
 			PSXMEM_LOG("%s(): unknown val 0x%08x\n", __func__, value);

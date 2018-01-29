@@ -39,6 +39,18 @@
 #include "cdrom.h"
 #include "gpu.h"
 
+/* Standard console logging */
+#define REC_LOG(...) printf("mipsrec: " __VA_ARGS__)
+#ifndef REC_LOG
+#define REC_LOG(...)
+#endif
+
+/* Verbose console logging (uncomment next line to enable) */
+//#define REC_LOG_V REC_LOG
+#ifndef REC_LOG_V
+#define REC_LOG_V(...)
+#endif
+
 /* Use inlined-asm version of block dispatcher: */
 #define ASM_EXECUTE_LOOP
 
@@ -208,6 +220,8 @@ static bool rec_mem_mapped;                /* Code ptr arrays mmap'd+mirrored at
 static bool branch;                        /* Current instruction lies in a BD slot? */
 static bool end_block;                     /* Has recompilation phase ended? */
 static bool skip_emitting_next_mflo;       /* Was a MULT/MULTU converted to 3-op MUL? See rec_mdu.cpp.h */
+static bool emit_code_invalidations;       /* Emit code invalidation for store instructions? */
+static bool flush_code_on_dma3_exe_load;   /* Flush code cache when psxDma3() detects EXE load? */
 
 /* Flags/vals used to cache common values in temp regs in emitted code */
 static bool host_ra_reg_has_block_retaddr; /* Indirect-return address is cached in $ra. */
@@ -224,6 +238,7 @@ char	disasm_buffer[512];
 static void recReset();
 static void recRecompile();
 static void recClear(u32 Addr, u32 Size);
+static void recNotify(int note, void *data);
 
 extern void (*recBSC[64])();
 extern void (*recSPC[64])();
@@ -381,13 +396,41 @@ static inline void clear_insn_cache(void *start, void *end, int flags)
 #endif
 }
 
+
+/* Set default recompilation options, and any per-game settings */
+static void rec_set_options()
+{
+	// Default options
+	emit_code_invalidations = true;
+	flush_code_on_dma3_exe_load = false;
+
+	// Per-game options
+	// -> Use case-insensitive comparisons! Some CDs have lowercase CdromId.
+
+	// 'Studio 33' game workarounds (other Studio 33 games seem to be OK)
+	//  See comments in recNotify(), psxDma3().
+	if (strncasecmp(CdromId, "SCES03886", 9) == 0  ||  // Formula 1 Arcade
+	    strncasecmp(CdromId, "SLUS00870", 9) == 0  ||  // Formula 1 '99  NTSC US
+	    strncasecmp(CdromId, "SCPS10101", 9) == 0  ||  // Formula 1 '99  NTSC J (untested)
+	    strncasecmp(CdromId, "SCES01979", 9) == 0  ||  // Formula 1 '99  PAL  E (requires .SBI subchannel file)
+	    strncasecmp(CdromId, "SLES01979", 9) == 0  ||  // Formula 1 '99  PAL  E (unknown revision, couldn't test)
+	    strncasecmp(CdromId, "SCES03404", 9) == 0  ||  // Formula 1 2001 PAL  E,Fi (fixes broken AI/controls)
+	    strncasecmp(CdromId, "SCES03423", 9) == 0)     // Formula 1 2001 PAL  Fr,G (fixes broken AI/controls)
+	{
+		REC_LOG("Using Icache workarounds for trouble games 'Formula One 99/2001/etc'.\n");
+		emit_code_invalidations = false;
+		flush_code_on_dma3_exe_load = true;
+	}
+}
+
+
 static void recRecompile()
 {
 	// Notify plugin_lib that we're recompiling (affects frameskip timing)
 	pl_dynarec_notify();
 
 	if (((uptr)recMem - (uptr)recMemBase) >= RECMEM_SIZE_MAX ) {
-		printf("mipsrec: Code cache size limit exceeded: flushing code cache.\n");
+		REC_LOG("Code cache size limit exceeded: flushing code cache.\n");
 		recReset();
 	}
 
@@ -435,7 +478,7 @@ static void recRecompile()
 		// Flag indicates if next instruction lies in a BD slot
 		branch = false;
 
-		psxRegs.code = *(u32 *)((char *)PSXM(pc));
+		psxRegs.code = OPCODE_AT(pc);
 
 #ifdef USE_CODE_DISCARD
 		// If we are not already skipping past discardable code, scan
@@ -473,7 +516,7 @@ static void recRecompile()
 
 static int recInit()
 {
-	printf("mipsrec: Initializing\n");
+	REC_LOG("Initializing\n");
 
 	recMem = (u32*)recMemBase;
 
@@ -545,7 +588,7 @@ static int recInit()
 
 static void recShutdown()
 {
-	printf("mipsrec: Shutting down\n");
+	REC_LOG("Shutting down\n");
 
 	if (psx_mem_mapped)
 		rec_munmap_psx_mem();
@@ -1609,7 +1652,7 @@ static void recExecute()
 /* Invalidate 'Size' code block pointers at word-aligned PS1 address 'Addr'. */
 static void recClear(u32 Addr, u32 Size)
 {
-	const u32 masked_ram_addr = Addr & 0x1fffff;
+	const u32 masked_ram_addr = Addr & 0x1ffffc;
 
 	// Check if the page(s) of PS1 RAM that 'Addr','Size' target contain the
 	//  start of any blocks. If not, invalidation would have no effect and is
@@ -1627,24 +1670,81 @@ static void recClear(u32 Addr, u32 Size)
 	//       mirror region the game is already using, reducing TLB pressure.
 	uptr dst_base = !rec_mem_mapped ? (uptr)recRAM : (uptr)PC_REC_MMAP(Addr & ~0x1fffff);
 
-	if (Addr == 0x8003d000) {
-		// temp fix for Buster Bros Collection and etc.
-		// NOTE: this old fix prevents a segfault in game startup, and was
-		//       already present in Ulricht's original MIPS dynarec.
-
-		// Invalidate 2 block pointers at PS1 RAM address 0x4d88
-		// Don't call memset: GCC wants to inline it as a bunch of byte stores
-		u32 *dst = (u32*)(dst_base + (0x4d88 * REC_RAM_PTR_SIZE/4));
-		u32 *end = dst + 2 * (REC_RAM_PTR_SIZE/4);
-		while (dst != end)
-			*dst++ = 0;
-	}
-
 	if (has_code) {
 		void *dst = (void*)(dst_base + (masked_ram_addr * REC_RAM_PTR_SIZE/4));
 		memset(dst, 0, Size*REC_RAM_PTR_SIZE);
 	}
 }
+
+
+/* Notification from emulator. */
+void recNotify(int note, void *data __attribute__((unused)))
+{
+	switch (note)
+	{
+		/* R3000ACPU_NOTIFY_CACHE_ISOLATED,
+		 * R3000ACPU_NOTIFY_CACHE_UNISOLATED
+		 *  Sent from psxMemWrite32_CacheCtrlPort(). Also see notes there.
+		 */
+		case R3000ACPU_NOTIFY_CACHE_ISOLATED:
+			/*  There's no need to do anything here:
+			 * psxMemWrite32_CacheCtrlPort() has backed up lower 64KB PS1 RAM,
+			 * allowing stores in emitted code to skip checking if cache
+			 * is isolated before writing to RAM (the old 'writeok' check).
+			 */
+			REC_LOG_V("R3000ACPU_NOTIFY_CACHE_ISOLATED\n");
+			break;
+		case R3000ACPU_NOTIFY_CACHE_UNISOLATED:
+			/*  Flush entire code cache, game has loaded new code:
+			 * BIOS or routine has finished invalidating cache lines.
+			 * psxMemWrite32_CacheCtrlPort() has restored lower 64KB PS1 RAM.
+			 *  Using this coarse invalidation method fixes some games that
+			 * previously needed hacks in recClear(), 'Buster Bros. Collection'.
+			 * It's also part of a fix/hack for certain games that did Icache
+			 * trickery (see DMA3 stuff further below).
+			 * TODO: With this new method, it should eventually be possible to
+			 *  provide an option to allow emitted code to skip most code
+			 *  invalidations after stores, boosting speed.
+			 */
+			recClear(0, 0x200000/4);
+			REC_LOG_V("R3000ACPU_NOTIFY_CACHE_UNISOLATED\n");
+			break;
+
+		/* Sent from psxDma3(). Also see notes there. */
+		case R3000ACPU_NOTIFY_DMA3_EXE_LOAD:
+			/* Game has begun reading from a CDROM file whose first sector is
+			 * a standard 'PS-X EXE' header. Part of a hack by senquack to fix:
+			 *  'Formula One Arcade' (crash on load)
+			 *  'Formula One 99'     (crash on load) (NOTE: PAL version requires .SBI file)
+			 *  'Formula One 2001'   (in-game controls, AI broken.. even the PS3
+			 *                        supposedly has trouble emulating this.)
+			 *
+			 *  The workaround is enabled on a per-game basis (using CdromId).
+			 *
+			 *  These games do Icache trickery and merely doing the usual
+			 * code-flush when Icache is unisolated is not enough. The fix is
+			 * admittedly just a lucky hack, and requires these things:
+			 *  1.)  As usual, invalidate code whenever emu calls recClear(),
+			 *      typically after a DMA transfer.
+			 *      *However*, emit no code invalidations whatsoever.
+			 *      Fixes the in-game AI/controls in 'Formula One 2001'.
+			 *  2.)  As usual, flush code cache when Icache is unisolated.
+			 *      *However*, also flush cache when psxDma3() notifies us here.
+			 *      This fixes crashes.
+			 */
+			if (flush_code_on_dma3_exe_load) {
+				recClear(0, 0x200000/4);
+				REC_LOG_V("R3000ACPU_NOTIFY_DMA3_EXE_LOAD .. Flushing dynarec cache\n");
+			} else {
+				REC_LOG_V("R3000ACPU_NOTIFY_DMA3_EXE_LOAD\n");
+			}
+			break;
+
+		default:
+			break;
+	}
+}
+
 
 static void recReset()
 {
@@ -1656,6 +1756,8 @@ static void recReset()
 
 	regReset();
 
+	// Set default recompilation options and any per-game options
+	rec_set_options();
 }
 
 
@@ -1666,5 +1768,6 @@ R3000Acpu psxRec =
 	recExecute,
 	recExecuteBlock,
 	recClear,
+	recNotify,
 	recShutdown
 };

@@ -108,9 +108,9 @@ typedef enum {
 #if (defined(__mips_isa_rev) && (__mips_isa_rev >= 2)) || \
     (defined(_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R3) || \
      defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6))
-#define HAVE_MIPS32R2_EXT_INS
-#define HAVE_MIPS32R2_SEB_SEH
-#define HAVE_MIPS32R2_CACHE_OPS
+ #define HAVE_MIPS32R2_EXT_INS
+ #define HAVE_MIPS32R2_SEB_SEH
+ #define HAVE_MIPS32R2_CACHE_OPS
 #endif
 
 /* Provide a warning to anyone compiling for a 64-bit host system:
@@ -118,7 +118,12 @@ typedef enum {
  *  dispatch loops assume 32-bit pointers, and that's only one issue.
  */
 #if defined(__SIZEOF_POINTER__) && (__SIZEOF_POINTER__ == 8)
-#error "Recompiler has not yet been ported to 64-bit platforms."
+ #error "Recompiler has not yet been ported to 64-bit platforms."
+#endif
+
+#if (defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)) || \
+    defined(_MIPSEB) || defined(__MIPSEB) || defined( __MIPSEB__)
+ #error "Recompiler has not yet been ported to big-endian platforms."
 #endif
 
 /* Provide a warning to anyone compiling for a MIPS32r6+ architecture:
@@ -153,8 +158,11 @@ extern u32 *recMem;
 
 #define off(field)	OFFSET_OF(psxRegisters, field)
 
-/* Get u32 opcode val at location in PS1 code */
-#define OPCODE_AT(loc) (*(u32 *)((char *)PSXM((loc))))
+/* Get u32 opcode val at location in PS1 code.
+ * See notes in psxMemWrite32_CacheCtrlPort() regarding why it is best
+ *  to read code here using PSXM*() macros, i.e. through psxMemRLUT[].
+ */
+#define OPCODE_AT(loc) PSXMu32(loc)
 
 /* ADR_HI, ADR_LO are the equivalents of MIPS GAS %hi(), %lo()
  * They are always used as a pair, and allow converting an address to an

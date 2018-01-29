@@ -174,6 +174,11 @@ static u32 emitAddressConversion(const u32 op_rs,
 /* Emit no code invalidations for PSX base reg 'op_rs'? */
 static inline bool LSU_skip_code_invalidation(const u32 op_rs)
 {
+	// For certain games that do Icache trickery, we use a workaround that
+	//  requires recompiled code does *no* invalidations of its own.
+	if (!emit_code_invalidations)
+		return true;
+
 #ifdef SKIP_CODE_INVALIDATION_FOR_SOME_BASE_REGS
 	// Skip code invalidation when base reg is obviously not
 	//  involved in code modification ($k0,$k1,$gp,$sp).
