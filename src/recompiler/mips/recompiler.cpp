@@ -59,30 +59,43 @@
  */
 #define USE_DIRECT_FASTPATH_BLOCK_RETURN_JUMPS
 
-/* Generate inline memory access or call psxMemRead/Write C functions */
-#define USE_DIRECT_MEM_ACCESS
-
 /* Const propagation is applied to addresses */
 #define USE_CONST_ADDRESSES
 
 /* Const propagation is extended to optimize 'fuzzy' non-const addresses */
 #define USE_CONST_FUZZY_ADDRESSES
 
+/* Generate inline memory access or call psxMemRead/Write C functions */
+#define USE_DIRECT_MEM_ACCESS
+
 /* Virtual memory mapping options: */
 #if defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
-/* Prefer virtually mapped/mirrored code block pointer array over using
- *  psxRecLUT[]. This removes a layer of indirection from PC->block-ptr lookups,
- *  allows faster block dispatch loops, and reduces cache/TLB pressure.
- */
-#define USE_VIRTUAL_RECRAM_MAPPING
-/* 2MB of PSX RAM (psxM) is now mirrored four times in virtual address space,
- *  like a real PS1. This allows skipping mirror-region checks, the 'Einhander'
- *  game fix, and eliminates need to mask RAM addresses. We also map 0x1fxx_xxxx
- *  regions (psxP,psxH) into this virtual space, optimizing scratchpad access.
- */
-#define USE_VIRTUAL_PSXMEM_MAPPING
+	/* 2MB of PSX RAM (psxM) is now mapped+mirrored virtually, much like
+	 *  a real PS1. We can skip mirror-region checks, the 'Einhander' game
+	 *  fix. We can skip masking RAM addresses. We also map 0x1fxx_xxxx
+	 *  regions (psxP,psxH) into this space, inlining scratchpad accesses.
+	 *
+	 * IMPORTANT: Don't enable if 'USE_DIRECT_MEM_ACCESS' isn't also enabled.
+	 *            There'd be no benefit to a virtual mapping: all mem access
+	 *            would be through indirect psxMemWrite/psxMemRead C funcs.
+	 *            Even worse, we support a mapping starting at address 0, and
+	 *            that is not compatible with psxMemWrite/psxMemRead funcs
+	 *            because of how they handle NULL addresses in their LUTs.
+	 */
+	#ifdef USE_DIRECT_MEM_ACCESS
+		#define USE_VIRTUAL_PSXMEM_MAPPING
+	#else
+		#warning "USE_DIRECT_MEM_ACCESS is undefined! Dynarec will emit slower C memory accesses."
+	#endif
+
+	/* Prefer virtually mapped/mirrored code block pointer array over using
+	 *  psxRecLUT[]. This removes a layer of indirection from PC->block-ptr lookups,
+	 *  allows faster block dispatch loops, and reduces cache/TLB pressure.
+	 */
+	#define USE_VIRTUAL_RECRAM_MAPPING
+
 #else
-#warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop and emit slower memory accesses. Check your Makefile!"
+	#warning "Neither SHMEM_MIRRORING nor TMPFS_MIRRORING are defined! Dynarec will use slower block dispatch loop and emit slower memory accesses. Check your Makefile!"
 #endif // defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING)
 
 //#define WITH_DISASM
