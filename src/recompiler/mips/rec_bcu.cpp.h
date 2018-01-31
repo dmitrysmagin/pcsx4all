@@ -102,6 +102,48 @@ static void emitBlockReturnPC(const u32  new_pc,
 #endif // USE_PC_CACHING
 }
 
+/* Emit code to set already-allocated register 'reg' to return address
+ *  'return_pc' of a JAL/JALR/BAL instruction.
+ *
+ */
+static void emitJumpAndLinkReturnAddress(const u32 reg,
+                                         const u32 return_pc)
+{
+	bool wrote_reg = false;
+
+#ifdef USE_PC_CACHING
+	// PCs are cached in host $v0 reg. Can we save an instruction?
+	//
+	// See comments in emitBlockReturnPC() for full details. Note that we
+	// are not writing to host $v0 here, but instead to an allocated PS1
+	// reg. So, we can use a cached $v0 value but we don't update/alter it.
+
+	if (host_v0_reg_is_const)
+	{
+		const u32 v0_val = host_v0_reg_constval;
+
+		// Be careful to avoid possible overflow here.
+		if ((v0_val >> 28) == (return_pc >> 28) &&
+		    (s32)(return_pc - v0_val) >= -32768 &&
+		    (s32)(return_pc - v0_val) <=  32767)
+		{
+			ADDIU(reg, MIPSREG_V0, return_pc - v0_val);
+
+			wrote_reg = true;
+		} else if ((v0_val >> 16) == (return_pc >> 16))
+		{
+			// Transform $v0's lower half to what we need.
+			XORI(reg, MIPSREG_V0, (v0_val & 0xffff) ^ (return_pc & 0xffff));
+
+			wrote_reg = true;
+		}
+	}
+#endif // USE_PC_CACHING
+
+	if (!wrote_reg)
+		LI32(reg, return_pc);
+}
+
 static void recSYSCALL()
 {
 	regClearJump();
@@ -161,20 +203,20 @@ static int iLoadTest(u32 code)
 	return 0;
 }
 
-static int DelayTest(u32 pc, u32 bpc)
+static int DelayTest(const u32 pc, const u32 bpc)
 {
-	u32 code1 = *(u32 *)((char *)PSXM(pc));
-	u32 code2 = *(u32 *)((char *)PSXM(bpc));
-	u32 reg = _fRt_(code1);
+	const u32 code1 = OPCODE_AT(pc);
+	const u32 code2 = OPCODE_AT(bpc);
+	const u32 reg = _fRt_(code1);
 
 //#define LOG_BRANCHLOADDELAYS
 #ifdef LOG_BRANCHLOADDELAYS
 	if (iLoadTest(code1)) {
-		int i = psxTestLoadDelay(reg, code2);
+		const int i = psxTestLoadDelay(reg, code2);
 		if (i == 1 || i == 2) {
 			char buffer[512];
 			printf("Case %d at %08x\n", i, pc);
-			u32 jcode = *(u32 *)((char *)PSXM(pc - 4));
+			const u32 jcode = OPCODE_AT(pc - 4);
 			disasm_mips_instruction(jcode, buffer, pc - 4, 0, 0);
 			printf("%08x: %s\n", pc - 4, buffer);
 			disasm_mips_instruction(code1, buffer, pc, 0, 0);
@@ -200,12 +242,17 @@ static int DelayTest(u32 pc, u32 bpc)
    when the branch is taken. This fixes Tekken 2 (broken models). */
 static void recRevDelaySlot(u32 pc, u32 bpc)
 {
+	//  Set 'branch' to 1 before recompiling *either* opcode, indicating we're
+	// in a BD slot. Even though the opcode at bpc is not in a BD slot, it
+	// could be the first store in a series of stores sharing the same base reg.
+	// Setting 'branch' to 1 ensures just the one store gets emitted.
+
 	branch = 1;
 
-	psxRegs.code = *(u32 *)((char *)PSXM(bpc));
+	psxRegs.code = OPCODE_AT(bpc);
 	recBSC[psxRegs.code>>26]();
 
-	psxRegs.code = *(u32 *)((char *)PSXM(pc));
+	psxRegs.code = OPCODE_AT(pc);
 	recBSC[psxRegs.code>>26]();
 
 	branch = 0;
@@ -215,7 +262,7 @@ static void recRevDelaySlot(u32 pc, u32 bpc)
 static void recDelaySlot()
 {
 	branch = 1;
-	psxRegs.code = *(u32 *)((char *)PSXM(pc));
+	psxRegs.code = OPCODE_AT(pc);
 	DISASM_PSX(pc);
 	pc+=4;
 
@@ -248,42 +295,11 @@ static void iJumpNormal(u32 bpc)
 
 static void iJumpAL(u32 bpc, u32 nbpc)
 {
-	// Write return address (nbpc) to ra
-	{
-		const u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
-		bool wrote_ra = false;
-
-#ifdef USE_PC_CACHING
-		// PCs are cached in host $v0 reg. Can we save an instruction?
-
-		if (host_v0_reg_is_const)
-		{
-			const u32 v0_val = host_v0_reg_constval;
-
-			// Be careful to avoid possible overflow here.
-			if ((v0_val >> 28) == (nbpc >> 28) &&
-			    (s32)(nbpc - v0_val) >= -32768 &&
-			    (s32)(nbpc - v0_val) <=  32767)
-			{
-				ADDIU(ra, MIPSREG_V0, nbpc - v0_val);
-
-				wrote_ra = true;
-			} else if ((v0_val >> 16) == (nbpc >> 16))
-			{
-				// Transform $v0's lower half to what we need.
-				XORI(ra, MIPSREG_V0, (v0_val & 0xffff) ^ (nbpc & 0xffff));
-
-				wrote_ra = true;
-			}
-		}
-#endif // USE_PC_CACHING
-
-		if (!wrote_ra)
-			LI32(ra, nbpc);
-
-		SetConst(31, nbpc);
-		regMipsChanged(31);
-	}
+	const u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+	emitJumpAndLinkReturnAddress(ra, nbpc);
+	regUnlock(ra);
+	SetConst(31, nbpc);
+	regMipsChanged(31);
 
 	const int dt = DelayTest(pc, bpc);
 	if (dt == 2) {
@@ -575,9 +591,8 @@ static void recBLTZ()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (!(_Rs_)) {
 		recDelaySlot();
@@ -593,9 +608,8 @@ static void recBGTZ()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (!(_Rs_)) {
 		recDelaySlot();
@@ -652,17 +666,17 @@ extern void (*psxBSC[64])(void);
 /* HACK: Execute load delay in branch delay via interpreter */
 static u32 execBranchLoadDelay(u32 pc, u32 bpc)
 {
-	u32 code1 = *(u32 *)((char *)PSXM(pc));
-	u32 code2 = *(u32 *)((char *)PSXM(bpc));
+	const u32 code1 = OPCODE_AT(pc);
+	const u32 code2 = OPCODE_AT(bpc);
 
 	branch = 1;
 
 #ifdef LOG_BRANCHLOADDELAYS
-	int i = psxTestLoadDelay(_fRt_(code1), code2);
+	const int i = psxTestLoadDelay(_fRt_(code1), code2);
 	if (i == 1 || i == 2) {
 		char buffer[512];
 		printf("Case %d at %08x\n", i, pc);
-		u32 jcode = *(u32 *)((char *)PSXM(pc - 4));
+		const u32 jcode = OPCODE_AT(pc - 4);
 		disasm_mips_instruction(jcode, buffer, pc - 4, 0, 0);
 		printf("%08x: %s\n", pc - 4, buffer);
 		disasm_mips_instruction(code1, buffer, pc, 0, 0);
@@ -720,10 +734,9 @@ static void recJR_load_delay()
 static void recJR()
 {
 // jr Rs
-	u32 code = *(u32 *)((char *)PSXM(pc)); // opcode in branch delay
 
 	// if possible read delay in branch delay slot
-	if (iLoadTest(code)) {
+	if (iLoadTest(OPCODE_AT(pc))) {
 		// BD slot trickery has been detected: use a workaround.
 		// Fixes 'Skullmonkeys'.
 
@@ -751,12 +764,16 @@ static void recJR()
 
 static void recJALR()
 {
-// jalr Rs
-	u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
-	LI32(rd, pc + 4);
+// jalr Rs, Rd=pc+4
+
+	const u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+
+	const u32 rd = regMipsToHost(_Rd_, REG_FIND, REG_REGISTER);
+	emitJumpAndLinkReturnAddress(rd, pc + 4);
+	regUnlock(rd);
 	SetConst(_Rd_, pc + 4);
 	regMipsChanged(_Rd_);
+
 	recDelaySlot();
 
 	// If new PC is unknown, cannot use 'fastpath' return
@@ -779,9 +796,8 @@ static void recBEQ()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (_Rs_ == _Rt_) {
 		iJumpNormal(bpc);
@@ -797,9 +813,8 @@ static void recBNE()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (!(_Rs_) && !(_Rt_)) {
 		recDelaySlot();
@@ -815,9 +830,8 @@ static void recBLEZ()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (!(_Rs_)) {
 		iJumpNormal(bpc);
@@ -833,9 +847,8 @@ static void recBGEZ()
 	u32 bpc = _Imm_ * 4 + pc;
 	u32 nbpc = pc + 4;
 
-	if (bpc == nbpc && psxTestLoadDelay(_Rs_, PSXMu32(bpc)) == 0) {
+	if (bpc == nbpc && psxTestLoadDelay(_Rs_, OPCODE_AT(bpc)) == 0)
 		return;
-	}
 
 	if (!(_Rs_)) {
 		iJumpNormal(bpc);
