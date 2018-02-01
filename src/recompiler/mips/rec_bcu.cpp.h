@@ -342,10 +342,9 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	//  trickery is detected.
 	if (IsConst(_Rs_) && ((dt == 3) || dt == 0))
 	{
-		// NOTE: Unlike normally-emitted branch code, we don't execute the delay
-		//  slot before doing branch tests when branch operands are known-const.
-		//  The way it's done here seems it'd be the correct way to do it in all
-		//  cases, but anything different causes immediate problems either way.
+		// MIPS branch decisions are made before execution of delay slots.
+		// Do the same here: the delay slot could write to decision regs!
+
 		const s32 val = GetConst(_Rs_);
 		bool branch_taken = false;
 
@@ -369,14 +368,20 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 				exit(1);
 		}
 
-		if (branch_taken) {
-			if (andlink)
-				iJumpAL(bpc, nbpc);
-			else
-				iJumpNormal(bpc);
-		} else {
-			recDelaySlot();
+		// Branch-and-link instructions always write return address, even
+		//  when branch is not taken!
+		if (andlink) {
+			const u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+			emitJumpAndLinkReturnAddress(ra, nbpc);
+			regUnlock(ra);
+			SetConst(31, nbpc);
+			regMipsChanged(31);
 		}
+
+		if (branch_taken)
+			iJumpNormal(bpc);
+		else
+			recDelaySlot();
 
 		// We're done here, stop emitting code
 		return;
@@ -394,8 +399,21 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	}
 #endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
 
-
 	const u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+
+	if (andlink) {
+		// Branch-and-link instructions always set the 'ra' reg, even when the
+		//  branch is not taken! Though, according to MIPS docs, the branch
+		//  decision is made before the 'ra' write. So, we write 'ra' *after*
+		//  allocating the the decision reg, which might get a private copy.
+		// NOTE: Branch-and-link is fairly rare, but some games do use it.
+		//       For testing the code here, try 'Tony Hawk Pro Skater 1/2'.
+		const u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
+		emitJumpAndLinkReturnAddress(ra, nbpc);
+		regUnlock(ra);
+		SetConst(31, nbpc);
+		regMipsChanged(31);
+	}
 
 	if (dt == 3 || dt == 0)
 		recDelaySlot();
@@ -426,49 +444,28 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 
 	regPushState();
 
-	if (dt == 2)
-	{
+	if (dt == 2) {
 		// BD slot trickery has been detected: use a workaround.
 		// Fixes gfx glitches in 'Tekken 2'
 
 		NOP();  // <BD slot>
-
-		// Instruction at target PC should see ra reg write
-		if (andlink) {
-			const u32 ra = regMipsToHost(31, REG_FIND, REG_REGISTER);
-			LI32(ra, nbpc);
-			regMipsChanged(31);
-			// Cannot set const because branch-not-taken path wouldn't see it:
-			SetUndef(31);
-		}
-
 		recRevDelaySlot(pc, bpc);
 		bpc += 4;
+	}
 
-		// Only need to set $v0 to new PC when not returning to 'fastpath'.
-		// NOTE: We pass the 'MAYBE' flag here because we aren't in the
-		//       emitted branch's BD slot anymore.
-		if (!use_fastpath_return)
-			emitBlockReturnPC(bpc, BCU_FIRST_INSTRUCTION_MAYBE_EXECUTED);
-	} else {
-		// Only need to set $v0 to new PC when not returning to 'fastpath'.
-		if (!use_fastpath_return)
+	// Only need to set $v0 to new PC when not returning to 'fastpath'.
+	if (!use_fastpath_return) {
+		if (bd_slot_loc == (uptr)recMem)
 			emitBlockReturnPC(bpc, BCU_FIRST_INSTRUCTION_ALWAYS_EXECUTED);  // <BD slot> (if instruction is emitted)
+		else
+			emitBlockReturnPC(bpc, BCU_FIRST_INSTRUCTION_MAYBE_EXECUTED);
 	}
 
 	// If indirect block returns are in use, load host $ra with block return
 	// address. Otherwise, rec_recompile_end_part2() emits direct return jump.
 	rec_recompile_end_part1();  // <BD slot> (if instruction is emitted)
 
-	if (andlink && dt != 2) {
-		// NOTE: Branch-and-link is fairly rare, but some games do use it..
-		//       For testing the code here, try 'Tony Hawk Pro Skater 1/2'.
-
-		LI32(TEMP_1, nbpc);  // <BD slot> (if empty at this point)
-		SW(TEMP_1, PERM_REG_1, offGPR(31));
-	}
-
-	regClearBranch();
+	regClearBranch();  // <BD slot> (if instruction is emitted)
 
 	// Rarely, the branch delay slot is still empty at this point. Fill if so.
 	if (bd_slot_loc == (uptr)recMem)
@@ -504,10 +501,9 @@ static void emitBxx(u32 bpc)
 
 	if (IsConst(_Rs_) && IsConst(_Rt_))
 	{
-		// NOTE: Unlike normally-emitted branch code, we don't execute the delay
-		//  slot before doing branch tests when branch operands are known-const.
-		//  The way it's done here seems it'd be the correct way to do it in all
-		//  cases, but anything different causes immediate problems either way.
+		// MIPS branch decisions are made before execution of delay slots.
+		// Do the same here: the delay slot could write to decision regs!
+
 		const s32 val1 = GetConst(_Rs_);
 		const s32 val2 = GetConst(_Rt_);
 		bool branch_taken = false;
@@ -539,7 +535,6 @@ static void emitBxx(u32 bpc)
 	if (convertBranchToConditionalMoves())
 		return;
 #endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
-
 
 	const u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
 	const u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
