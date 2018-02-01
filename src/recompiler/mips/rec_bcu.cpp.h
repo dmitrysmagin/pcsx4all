@@ -399,7 +399,19 @@ static void emitBxxZ(int andlink, u32 bpc, u32 nbpc)
 	}
 #endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
 
-	const u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	// Allocate branch decision reg. Hopefully, BD slot doesn't write to it.
+	// If it does, we must allocate private copy, increasing reg pressure.
+	u32 bd_slot_writes = 0;
+	if (OPCODE_AT(pc) != 0)
+		bd_slot_writes = (u32)opcodeGetWrites(OPCODE_AT(pc)) & ~1;
+
+	u32 br1;
+	if (bd_slot_writes & (1 << _Rs_)) {
+		// BD slot writes to reg read by branch: must get private copy.
+		br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	} else {
+		br1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	}
 
 	if (andlink) {
 		// Branch-and-link instructions always set the 'ra' reg, even when the
@@ -536,9 +548,29 @@ static void emitBxx(u32 bpc)
 		return;
 #endif // USE_CONDITIONAL_MOVE_OPTIMIZATIONS
 
-	const u32 br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
-	const u32 br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	// Allocate branch decision regs. Hopefully, BD slot doesn't write to them.
+	// If it does, we must allocate private copies, increasing reg pressure.
+	u32 bd_slot_writes = 0;
+	if (OPCODE_AT(pc) != 0)
+		bd_slot_writes = (u32)opcodeGetWrites(OPCODE_AT(pc)) & ~1;
+
+	u32 br1;
+	if (bd_slot_writes & (1 << _Rs_)) {
+		// BD slot writes to reg read by branch: must get private copy.
+		br1 = regMipsToHost(_Rs_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	} else {
+		br1 = regMipsToHost(_Rs_, REG_LOAD, REG_REGISTER);
+	}
+	u32 br2;
+	if (bd_slot_writes & (1 << _Rt_)) {
+		// BD slot writes to reg read by branch: must get private copy.
+		br2 = regMipsToHost(_Rt_, REG_LOADBRANCH, REG_REGISTERBRANCH);
+	} else {
+		br2 = regMipsToHost(_Rt_, REG_LOAD, REG_REGISTER);
+	}
+
 	recDelaySlot();
+
 	u32* const backpatch = (u32 *)recMem;
 
 	// Check opcode and emit branch with REVERSED logic!
