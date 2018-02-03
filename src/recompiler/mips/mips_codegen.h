@@ -2,7 +2,7 @@
  * mips_codegen.h
  *
  * Copyright (c) 2009 Ulrich Hecht
- * Copyright (c) 2017 modified by Dmitry Smagin / Daniel Silsby
+ * Copyright (c) 2018 modified by Dmitry Smagin / Daniel Silsby
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -182,56 +182,56 @@ extern u32 *recMem;
 #define PUSH(reg) \
 do { \
 	write32(0x27bdfffc); /* addiu sp, sp, -4 */ \
-	write32(0xafa00000 | (reg << 16)); /* sw reg, sp(0) */ \
+	write32(0xafa00000 | ((reg) << 16)); /* sw reg, sp(0) */ \
 } while (0)
 
 #define POP(reg) \
 do { \
-	write32(0x8fa00000 | (reg << 16)); /* lw reg, sp(0) */\
+	write32(0x8fa00000 | ((reg) << 16)); /* lw reg, sp(0) */\
 	write32(0x27bd0004); /* addiu sp, sp, 4 */ \
 } while (0)
 
-#define LW(rt, rn, imm) \
-	write32(0x8c000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LW(rt, rs, imm16) \
+	write32(0x8c000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define LB(rt, rn, imm) \
-	write32(0x80000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LB(rt, rs, imm16) \
+	write32(0x80000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define LBU(rt, rn, imm) \
-	write32(0x90000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LBU(rt, rs, imm16) \
+	write32(0x90000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define LH(rt, rn, imm) \
-	write32(0x84000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LH(rt, rs, imm16) \
+	write32(0x84000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define LHU(rt, rn, imm) \
-	write32(0x94000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LHU(rt, rs, imm16) \
+	write32(0x94000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define SW(rd, rn, imm) \
-	write32(0xac000000 | ((rn) << 21) | ((rd) << 16) | ((imm) & 0xffff))
+#define SW(rd, rs, imm16) \
+	write32(0xac000000 | ((rs) << 21) | ((rd) << 16) | ((imm16) & 0xffff))
 
-#define LWL(rt, rn, imm) \
-	write32(0x88000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LWL(rt, rs, imm16) \
+	write32(0x88000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define LWR(rt, rn, imm) \
-	write32(0x98000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define LWR(rt, rs, imm16) \
+	write32(0x98000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define SWL(rt, rn, imm) \
-	write32(0xa8000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define SWL(rt, rs, imm16) \
+	write32(0xa8000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define SWR(rt, rn, imm) \
-	write32(0xb8000000 | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define SWR(rt, rs, imm16) \
+	write32(0xb8000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define ADDIU(rt, rs, imm) \
-	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm) & 0xffff))
+#define ADDIU(rt, rs, imm16) \
+	write32(0x24000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define SLTI(rt, rs, imm16) \
-	write32(0x28000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
+	write32(0x28000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define SLTIU(rt, rs, imm16) \
-	write32(0x2c000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
+	write32(0x2c000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define LUI(rt, imm16) \
-	write32(0x3c000000 | (rt << 16) | ((imm16) & 0xffff))
+	write32(0x3c000000 | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define LI16(reg, imm16) \
 	write32(0x34000000 | ((reg) << 16) | ((imm16) & 0xffff)) /* ori reg, zero, imm16 */
@@ -262,78 +262,78 @@ do { \
 	write32(0x0000000a | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define ANDI(rt, rs, imm16) \
-	write32(0x30000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
+	write32(0x30000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define ORI(rt, rs, imm16) \
-	write32(0x34000000 | (rs << 21) | (rt << 16) | ((imm16) & 0xffff))
+	write32(0x34000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
 #define XORI(rt, rs, imm16) \
 	write32(0x38000000 | ((rs) << 21) | ((rt) << 16) | ((imm16) & 0xffff))
 
-#define XOR(rd, rn, rm) \
-	write32(0x00000026 | ((rn) << 21) | ((rm) << 16) | ((rd << 11)))
+#define XOR(rd, rs, rm) \
+	write32(0x00000026 | ((rs) << 21) | ((rm) << 16) | ((rd) << 11))
 
-#define SUBU(rd, rn, rm) \
-	write32(0x00000023 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
+#define SUBU(rd, rs, rm) \
+	write32(0x00000023 | ((rs) << 21) | ((rm) << 16) | ((rd) << 11)) /* subu */
 
-#define ADDU(rd, rn, rm) \
-	write32(0x00000021 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
+#define ADDU(rd, rs, rm) \
+	write32(0x00000021 | ((rs) << 21) | ((rm) << 16) | ((rd) << 11)) /* addu */
 
-#define AND(rd, rn, rm) \
-	write32(0x00000024 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+#define AND(rd, rs, rm) \
+	write32(0x00000024 | ((rs) << 21) | ((rm) << 16) | ((rd) << 11))
 
-#define OR(rd, rn, rm) \
-	write32(0x00000025 | ((rn) << 21) | ((rm) << 16) | ((rd) << 11))
+#define OR(rd, rs, rm) \
+	write32(0x00000025 | ((rs) << 21) | ((rm) << 16) | ((rd) << 11))
 
 #define NOR(rd, rs, rt) \
-	write32(0x00000027 | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x00000027 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define SLL(rd, rt, sa) \
-	write32(0x00000000 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+	write32(0x00000000 | ((rt) << 16) | ((rd) << 11) | (((sa) & 0x1f) << 6))
 
 #define SRL(rd, rt, sa) \
-	write32(0x00000002 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+	write32(0x00000002 | ((rt) << 16) | ((rd) << 11) | (((sa) & 0x1f) << 6))
 
 #define SRA(rd, rt, sa) \
-	write32(0x00000003 | (rt << 16) | (rd << 11) | ((sa & 31) << 6))
+	write32(0x00000003 | ((rt) << 16) | ((rd) << 11) | (((sa) & 0x1f) << 6))
 
 #define SLLV(rd, rt, rs) \
-	write32(0x00000004 | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x00000004 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define SRLV(rd, rt, rs) \
-	write32(0x00000006 | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x00000006 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define SRAV(rd, rt, rs) \
-	write32(0x00000007 | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x00000007 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #ifdef HAVE_MIPS32_3OP_MUL
 #define MUL(rd, rs, rt) \
-	write32(0x70000002 | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x70000002 | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 #endif // HAVE_MIPS32_3OP_MUL
 
 #define MULT(rs, rt) \
-	write32(0x00000018 | (rs << 21) | (rt << 16))
+	write32(0x00000018 | ((rs) << 21) | ((rt) << 16))
 
 #define MULTU(rs, rt) \
-	write32(0x00000019 | (rs << 21) | (rt << 16))
+	write32(0x00000019 | ((rs) << 21) | ((rt) << 16))
 
 #define DIV(rs, rt) \
-	write32(0x0000001a | (rs << 21) | (rt << 16))
+	write32(0x0000001a | ((rs) << 21) | ((rt) << 16))
 
 #define DIVU(rs, rt) \
-	write32(0x0000001b | (rs << 21) | (rt << 16))
+	write32(0x0000001b | ((rs) << 21) | ((rt) << 16))
 
 #define MFLO(rd) \
-	write32(0x00000012 | (rd << 11))
+	write32(0x00000012 | ((rd) << 11))
 
 #define MFHI(rd) \
-	write32(0x00000010 | (rd << 11))
+	write32(0x00000010 | ((rd) << 11))
 
 #define SLT(rd, rs, rt) \
-	write32(0x0000002a | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x0000002a | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define SLTU(rd, rs, rt) \
-	write32(0x0000002b | (rs << 21) | (rt << 16) | (rd << 11))
+	write32(0x0000002b | ((rs) << 21) | ((rt) << 16) | ((rd) << 11))
 
 #define JAL(addr)                                                              \
 do {                                                                           \
@@ -350,25 +350,25 @@ do {                                                                           \
     write32(0x08000000 | (((u32)(addr) & 0x0fffffff) >> 2))
 
 #define BEQ(rs, rt, offset) \
-	write32(0x10000000 | (rs << 21) | (rt << 16) | (offset >> 2))
+	write32(0x10000000 | ((rs) << 21) | ((rt) << 16) | (((offset) >> 2) & 0xffff))
 
 #define BEQZ(rs, offset)	BEQ(rs, 0, offset)
 #define B(offset)		BEQ(0, 0, offset)
 
 #define BGEZ(rs, offset) \
-	write32(0x04010000 | ((rs) << 21) | ((offset) >> 2))
+	write32(0x04010000 | ((rs) << 21) | (((offset) >> 2) & 0xffff))
 
 #define BGTZ(rs, offset) \
-	write32(0x1c000000 | ((rs) << 21) | ((offset) >> 2))
+	write32(0x1c000000 | ((rs) << 21) | (((offset) >> 2) & 0xffff))
 
 #define BLEZ(rs, offset) \
-	write32(0x18000000 | ((rs) << 21) | ((offset) >> 2))
+	write32(0x18000000 | ((rs) << 21) | (((offset) >> 2) & 0xffff))
 
 #define BLTZ(rs, offset) \
-	write32(0x04000000 | ((rs) << 21) | ((offset) >> 2))
+	write32(0x04000000 | ((rs) << 21) | (((offset) >> 2) & 0xffff))
 
 #define BNE(rs, rt, offset) \
-	write32(0x14000000 | (rs << 21) | (rt << 16) | (offset >> 2))
+	write32(0x14000000 | ((rs) << 21) | ((rt) << 16) | (((offset) >> 2) & 0xffff))
 
 #define NOP() \
 	write32(0)
@@ -376,26 +376,26 @@ do {                                                                           \
 
 #ifdef HAVE_MIPS32R2_EXT_INS
 #define EXT(rt, rs, pos, size) \
-	write32(0x7c000000 | (rs << 21) | (rt << 16) | \
-	        ((pos & 0x1f) << 6) | (((size-1) & 0x1f) << 11))
+	write32(0x7c000000 | ((rs) << 21) | ((rt) << 16) | \
+	        (((pos) & 0x1f) << 6) | ((((size)-1) & 0x1f) << 11))
 
 #define INS(rt, rs, pos, size) \
-	write32(0x7c000004 | (rs << 21) | (rt << 16) | \
-	        ((pos & 0x1f) << 6) | (((pos+size-1) & 0x1f) << 11))
+	write32(0x7c000004 | ((rs) << 21) | ((rt) << 16) | \
+	        (((pos) & 0x1f) << 6) | ((((pos)+(size)-1) & 0x1f) << 11))
 #endif //HAVE_MIPS32R2_EXT_INS
 
 
 #ifdef HAVE_MIPS32R2_SEB_SEH
 #define SEB(rd, rt) \
-	write32(0x7C000420 | (rt << 16) | (rd << 11))
+	write32(0x7C000420 | ((rt) << 16) | ((rd) << 11))
 
 #define SEH(rd, rt) \
-	write32(0x7C000620 | (rt << 16) | (rd << 11))
+	write32(0x7C000620 | ((rt) << 16) | ((rd) << 11))
 #endif //HAVE_MIPS32R2_SEB_SEH
 
 
 #define CLZ(rd, rs) \
-	write32(0x70000020 | (rs << 21) | (rd << 16) | (rd << 11))
+	write32(0x70000020 | ((rs) << 21) | ((rd) << 16) | ((rd) << 11))
 
 static inline u32 ADJUST_CLOCK(u32 cycles)
 {
@@ -486,13 +486,22 @@ do { \
 static inline bool opcodeIsStore(const u32 opcode)
 {
 	return (_fOp_(opcode) >= 0x28 && _fOp_(opcode) <= 0x2b) // SB,SH,SWL,SW
-	       ||
-	       _fOp_(opcode) == 0x2e;                           // SWR
+	       || _fOp_(opcode) == 0x2e;                        // SWR
 }
 
 static inline bool opcodeIsLoad(const u32 opcode)
 {
 	return _fOp_(opcode) >= 0x20 && _fOp_(opcode) <= 0x26; // LB,LH,LWL,LW,LBU,LHU,LWR
+}
+
+static inline bool opcodeIsStoreWordUnaligned(const u32 opcode)
+{
+	return _fOp_(opcode) == 0x2a || _fOp_(opcode) == 0x2e; // SWL, SWR
+}
+
+static inline bool opcodeIsLoadWordUnaligned(const u32 opcode)
+{
+	return _fOp_(opcode) == 0x22 || _fOp_(opcode) == 0x26; // LWL,LWR
 }
 
 static inline bool opcodeIsBranch(const u32 opcode)
@@ -505,17 +514,36 @@ static inline bool opcodeIsBranch(const u32 opcode)
 	       (_fOp_(opcode) >= 0x04 && _fOp_(opcode) <= 0x07);   // BEQ,BNE,BLEZ,BGTZ
 }
 
+static inline bool opcodeIsIndirectJump(const u32 opcode)
+{
+	return _fOp_(opcode) == 0x00 && (_fFunct_(opcode) == 0x08 || // JR
+	                                 _fFunct_(opcode) == 0x09);  // JALR
+}
+
+static inline bool opcodeIsDirectJump(const u32 opcode)
+{
+	return _fOp_(opcode) == 0x02 || _fOp_(opcode) == 0x03;       // J,JAL
+}
+
 static inline bool opcodeIsJump(const u32 opcode)
 {
-	return (_fOp_(opcode) == 0x00 && (_fFunct_(opcode) == 0x08 || // JR
-	                                  _fFunct_(opcode) == 0x09))  // JALR
-	       ||
-	       (_fOp_(opcode) >= 0x02 && _fOp_(opcode) <= 0x03);      // J,JAL
+	return opcodeIsIndirectJump(opcode) || opcodeIsDirectJump(opcode);
 }
 
 static inline bool opcodeIsBranchOrJump(const u32 opcode)
 {
 	return opcodeIsBranch(opcode) || opcodeIsJump(opcode);
+}
+
+static inline u32 opcodeGetDirectJumpTargetAddr(const u32 jump_opcode)
+{
+	return (jump_opcode & 0xf0000000) + _fTarget_(jump_opcode)*4;
+}
+
+static inline u32 opcodeGetBranchTargetAddr(const u32 branch_opcode,
+                                            const u32 bd_slot_pc)
+{
+	return bd_slot_pc + (s32)_fImm_(branch_opcode)*4;
 }
 
 
