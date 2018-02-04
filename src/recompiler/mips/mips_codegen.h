@@ -33,12 +33,6 @@
  *
  *    USAGE RESTRICTIONS IN CODE EMITTERS:
  *
- * MIPSREG_RA      Holds cached block return address when blocks are returning
- *                  indirectly. At block entry, $ra holds block return address.
- *                  Reduces redundant loads from stack in exit code.
- *                  -> A jump to C code via JAL() invalidates cached value.
- * MIPSREG_S0..S7  Reserved for reg allocator.
- * MIPSREG_S8      Holds pointer to psxRegs struct, a.k.a. PERM_REG_1.
  * MIPSREG_V0      Blocks set $v0 to new PC before returning. At block entry,
  *                  $v0 holds start PC of block. PC vals are cached in $v0,
  *                  allowing fewer opcodes to be emitted overall for block-exit
@@ -46,6 +40,19 @@
  *                  -> A jump to C code via JAL() invalidates cached value.
  *                  -> The only safe use of this reg is immediately after a
  *                     JAL() function call to retrieve return values.
+ *
+ * MIPSREG_AT,
+ * MIPSREG_V1      Load/store emitters cache values in $at, $v1.
+ *                  -> A jump to C code via JAL() invalidates cached values.
+ *
+ * MIPSREG_RA      Holds cached block return address when blocks are returning
+ *                  indirectly. At block entry, $ra holds block return address.
+ *                  Reduces redundant loads from stack in exit code.
+ *                  -> A jump to C code via JAL() invalidates cached value.
+ *
+ * MIPSREG_S0..S7  Reserved for reg allocator.
+ *
+ * MIPSREG_S8      Holds pointer to psxRegs struct, a.k.a. PERM_REG_1.
  */
 typedef enum {
 	MIPSREG_AT = 1,
@@ -89,9 +96,10 @@ typedef enum {
 /* Free for use as temporaries in emitted code.
  * Do NOT let these conflict with registers used below!
  */
-#define TEMP_1               MIPSREG_T0
-#define TEMP_2               MIPSREG_T1
-#define TEMP_3               MIPSREG_T2
+#define TEMP_0               MIPSREG_T0
+#define TEMP_1               MIPSREG_T1
+#define TEMP_2               MIPSREG_T2
+#define TEMP_3               MIPSREG_T3
 
 /* PERM_REG_1 is pointer to psxRegs struct */
 #define PERM_REG_1           MIPSREG_S8
@@ -338,6 +346,7 @@ do { \
 #define JAL(addr)                                                              \
 do {                                                                           \
     /* Function call overwrites values in 'unsaved' regs */                    \
+	lsu_tmp_cache_valid = false;                                               \
     host_v0_reg_is_const = false;                                              \
     host_ra_reg_has_block_retaddr = false;                                     \
     write32(0x0c000000 | (((u32)(addr) & 0x0fffffff) >> 2));                   \

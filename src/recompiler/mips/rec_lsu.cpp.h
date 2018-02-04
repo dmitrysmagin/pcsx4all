@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2009 Ulrich Hecht
- * Copyright (c) 2017 Dmitry Smagin / Daniel Silsby
+ * Copyright (c) 2018 Dmitry Smagin / Daniel Silsby
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -26,7 +26,7 @@
 /******************************************************************************
  * IMPORTANT: The following host registers have unique usage restrictions.    *
  *            See notes in mips_codegen.h for full details.                   *
- *  MIPSREG_RA, MIPSREG_V0                                                    *
+ *  MIPSREG_AT, MIPSREG_V0, MIPSREG_V1, MIPSREG_RA                            *
  *****************************************************************************/
 
 /***********************************************
@@ -75,6 +75,9 @@
 	#define USE_HW_FUNCS_FOR_INDIRECT_ACCESS
 #endif
 
+/* Cache values in host regs in load/store emitters. */
+#define USE_LSU_CACHING
+
 
 #define LSU_OPCODE(insn, rt, rn, imm) \
 	write32((insn) | ((rn) << 21) | ((rt) << 16) | ((imm) & 0xffff))
@@ -93,8 +96,115 @@ static u32 SWL_MASKSHIFT[8] = { 0xffffff00, 0xffff0000, 0xff000000, 0,
 static u32 SWR_MASKSHIFT[8] = { 0, 0xff, 0xffff, 0xffffff,
                                 0, 8, 16, 24 };
 
-#include "rec_lsu_hw.cpp.h"  // Direct HW I/O
 
+/***************************
+ * LSU reg caching (begin) *
+ ***************************/
+#ifdef USE_LSU_CACHING
+
+static const int LSU_TMP_CACHE_SIZE = 2;
+static const u8 lsu_tmp_cache_reg_pool[LSU_TMP_CACHE_SIZE] =
+	{ MIPSREG_AT, MIPSREG_V1 };
+
+enum {
+	LSU_TMP_CACHE_USE_TYPE_INVALID,
+	LSU_TMP_CACHE_USE_TYPE_CONST
+};
+
+struct lsu_tmp_cache_entry_t {
+	u8   host_reg;
+	u8   use_type;
+	u16  age;
+	u32  constval;
+} lsu_tmp_cache[LSU_TMP_CACHE_SIZE];
+
+static struct lsu_tmp_cache_entry_t*
+LSU_tmp_cache_get_reg(const int use_type, const u32 constval, u32 unused_param)
+{
+	// NOTE: 'lsu_tmp_cache_valid' is global bool defined in recompiler.cpp
+	for (int i=0; i < LSU_TMP_CACHE_SIZE; ++i) {
+		if (lsu_tmp_cache_valid) {
+			if (lsu_tmp_cache[i].use_type != LSU_TMP_CACHE_USE_TYPE_INVALID)
+				lsu_tmp_cache[i].age++;
+		} else {
+			lsu_tmp_cache[i].host_reg = lsu_tmp_cache_reg_pool[i];
+			lsu_tmp_cache[i].use_type = LSU_TMP_CACHE_USE_TYPE_INVALID;
+			lsu_tmp_cache[i].age = 0;
+		}
+	}
+	lsu_tmp_cache_valid = true;
+
+	switch (use_type)
+	{
+		case LSU_TMP_CACHE_USE_TYPE_CONST:
+			{
+				for (int i=0; i < LSU_TMP_CACHE_SIZE; ++i) {
+					if (lsu_tmp_cache[i].use_type == use_type &&
+						lsu_tmp_cache[i].constval == constval)
+					{
+						lsu_tmp_cache[i].age = 0;
+
+						return &lsu_tmp_cache[i];
+					}
+				}
+			}
+			break;
+		default:
+			printf("%s(): Error, unexpected 'use_type': %d\n", __func__, use_type);
+			exit(1);
+	}
+
+	// Couldn't find a cached value, so try to find an unused entry. If they're
+	//  all used, we'll evict the oldest one.
+	int oldest_entry = 0;
+	int oldest_age = 0;
+	for (int i=0; i < LSU_TMP_CACHE_SIZE; ++i) {
+		if (lsu_tmp_cache[i].use_type == LSU_TMP_CACHE_USE_TYPE_INVALID) {
+			lsu_tmp_cache[i].age = 0;
+
+			return &lsu_tmp_cache[i];
+		} else {
+			if (lsu_tmp_cache[i].age > oldest_age) {
+				oldest_age = lsu_tmp_cache[i].age;
+				oldest_entry = i;
+			}
+		}
+	}
+
+	// Evict oldest entry.
+	lsu_tmp_cache[oldest_entry].use_type = LSU_TMP_CACHE_USE_TYPE_INVALID;
+	lsu_tmp_cache[oldest_entry].age = 0;
+	return &lsu_tmp_cache[oldest_entry];
+}
+
+#endif // USE_LSU_CACHING
+/*************************
+ * LSU reg caching (end) *
+ *************************/
+
+static u32 emitConstBaseRegLUI(const u16 adr_hi)
+{
+	u32 host_reg = MIPSREG_AT;
+
+#ifdef USE_LSU_CACHING
+	lsu_tmp_cache_entry_t *entry =
+		LSU_tmp_cache_get_reg(LSU_TMP_CACHE_USE_TYPE_CONST, (u32)adr_hi << 16, 0);
+
+	if (entry->use_type == LSU_TMP_CACHE_USE_TYPE_INVALID) {
+		// No regs had this constval, so update the reg assigned from the pool.
+		entry->use_type = LSU_TMP_CACHE_USE_TYPE_CONST;
+		entry->constval = (u32)adr_hi << 16;
+
+		LUI(entry->host_reg, adr_hi);
+	}
+
+	host_reg = entry->host_reg;
+#else
+	LUI(host_reg, adr_hi);
+#endif
+
+	return host_reg;
+}
 
 /* Emit instruction(s) to convert address in PSX reg 'op_rs' (allocated to host
  *  reg 'rs') to a host address. Caller specifies 'tmp_reg' as a host reg we can
@@ -170,6 +280,7 @@ static u32 emitAddressConversion(const u32 op_rs,
 
 	return desired_reg;
 }
+
 
 /* Emit no code invalidations for PSX base reg 'op_rs'? */
 static inline bool LSU_skip_code_invalidation(const u32 op_rs)
@@ -1068,7 +1179,7 @@ static void general_loads_stores(const int  count,
  */
 static void const_loads_stores(const int count,
                                const u32 pc_of_last_store_in_series,
-                               const u32 base_reg_constval)
+                               const u32 rs_constval)
 {
 	const bool contains_store = (pc_of_last_store_in_series != 1);
 
@@ -1086,8 +1197,9 @@ static void const_loads_stores(const int count,
 
 	// Keep upper half of last effective address in reg, tracking current
 	//  value so we can avoid loading same val repeatedly.
-	u16 mem_addr_hi = 0;
-	bool upper_mem_addr_loaded = false;
+	u32  base_reg = 0;
+	u32  base_reg_val = 0xffffffff;  // Initialize with impossible value
+	bool base_reg_lui_emitted = false;
 
 	u32 PC = pc - 4;
 	int icount = count;
@@ -1099,36 +1211,52 @@ static void const_loads_stores(const int count,
 		if (opcode == 0)
 			continue;
 
-		const bool is_store = contains_store ? opcodeIsStore(opcode) : false;
-		const bool is_load  = is_store ? false : opcodeIsLoad(opcode);
+		const bool is_store   = contains_store && opcodeIsStore(opcode);
+		const bool is_load    = !is_store && opcodeIsLoad(opcode);
+		const bool is_lwl_lwr = is_load && opcodeIsLoadWordUnaligned(opcode);
 
 		if (!is_store && !is_load) {
-			// Must be a jump/branch whose BD slot contained a store that
-			//  was included in the series, so skip it.
+			// Must be a jump/branch whose BD slot is included as the last
+			//  load/store in the series: skip it.
 			continue;
 		}
 
-		const s16 imm = _fImm_(opcode);
-		const u32 rt = _fRt_(opcode);
+		const s32 imm = _fImm_(opcode);
+		const u32 op_rt = _fRt_(opcode);
 
-		const u32 r2 = is_store ? regMipsToHost(rt, REG_LOAD, REG_REGISTER)
-		                        : regMipsToHost(rt, REG_FIND, REG_REGISTER);
+		u32 rt;
+		// Note that LWL/LWR merge writeback with existing contents of reg.
+		if (is_store || is_lwl_lwr)
+			rt = regMipsToHost(op_rt, REG_LOAD, REG_REGISTER);
+		else
+			rt = regMipsToHost(op_rt, REG_FIND, REG_REGISTER);
 
-		const u32 mem_addr = (u32)psxM + ((base_reg_constval + imm) & 0x1fffff);
+		const uptr host_addr = (uptr)psxM + ((rs_constval + imm) & 0x1fffff);
 
-		if (!upper_mem_addr_loaded || (ADR_HI(mem_addr) != mem_addr_hi)) {
-			mem_addr_hi = ADR_HI(mem_addr);
-			upper_mem_addr_loaded = true;
-			LUI(TEMP_2, ADR_HI(mem_addr));
+		// If psxM is mapped to virtual address 0 and PS1 address is in
+		//  lower 32KB address space, we can use $zero as base reg.
+		const bool use_zero_base_reg = (ADR_HI(host_addr) == 0 && psxM == 0);
+
+		// Emit LUI for base reg (if not cached in host reg).
+		if (!use_zero_base_reg &&
+		    (!base_reg_lui_emitted ||
+		     base_reg_val != (ADR_HI(host_addr) << 16)))
+		{
+			base_reg_lui_emitted = true;
+			base_reg_val = ADR_HI(host_addr) << 16;
+
+			base_reg = emitConstBaseRegLUI(ADR_HI(host_addr));
 		}
 
-		LSU_OPCODE(opcode & 0xfc000000, r2, TEMP_2, ADR_LO(mem_addr));
+		const u32 rs = use_zero_base_reg ? 0 : base_reg;
 
-		if (!is_store) {
-			SetUndef(rt);
-			regMipsChanged(rt);
+		LSU_OPCODE(opcode & 0xfc000000, rt, rs, ADR_LO(host_addr));
+
+		if (is_load) {
+			SetUndef(op_rt);
+			regMipsChanged(op_rt);
 		}
-		regUnlock(r2);
+		regUnlock(rt);
 	} while (--icount);
 
 #ifndef SKIP_WRITEOK_CHECK
@@ -1137,6 +1265,9 @@ static void const_loads_stores(const int count,
 		fixup_branch(backpatch_label_no_write);
 #endif
 }
+
+
+#include "rec_lsu_hw.cpp.h"  // Direct HW I/O
 
 
 /* Main load/store function that calls all the others above */

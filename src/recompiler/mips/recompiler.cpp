@@ -224,9 +224,10 @@ static bool emit_code_invalidations;       /* Emit code invalidation for store i
 static bool flush_code_on_dma3_exe_load;   /* Flush code cache when psxDma3() detects EXE load? */
 
 /* Flags/vals used to cache common values in temp regs in emitted code */
-static bool host_ra_reg_has_block_retaddr; /* Indirect-return address is cached in $ra. */
+static bool lsu_tmp_cache_valid;           /* LSU vals are cached in $at,$v1. See rec_lsu.cpp.h */
 static bool host_v0_reg_is_const;          /* PCs are cached in $v0. See rec_bcu.cpp.h */
 static u32  host_v0_reg_constval;
+static bool host_ra_reg_has_block_retaddr; /* Indirect-return address is cached in $ra. */
 
 
 #ifdef WITH_DISASM
@@ -460,6 +461,9 @@ static void recRecompile()
 
 	// See convertMultiplyTo3Op() and recMFLO() in rec_mdu.cpp.h
 	skip_emitting_next_mflo = false;
+
+	// Flag indicates when values are cached by load/store emitters in $at,$v1
+	lsu_tmp_cache_valid = false;
 
 	// Flag indicates when a PC value is cached in $v0. All dispatch loops set
 	//  $v0 to block start PC before entry. See rec_bcu.cpp.h

@@ -1,7 +1,7 @@
 /******************************************************************************
  * IMPORTANT: The following host registers have unique usage restrictions.    *
  *            See notes in mips_codegen.h for full details.                   *
- *  MIPSREG_RA, MIPSREG_V0                                                    *
+ *  MIPSREG_AT, MIPSREG_V0, MIPSREG_V1, MIPSREG_RA                            *
  *****************************************************************************/
 
 /* Compile-time options (disable for debugging) */
@@ -133,7 +133,7 @@ static void emitMFC2(u32 rt, u32 reg)
 {
 	// IMPORTANT: Don't use these regs in this function, as they are
 	//            reserved for use by LWC2/SWC2 emitter which calls here.
-	// MIPSREG_V0, MIPSREG_V1, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3
+	// TEMP_0, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3
 
 	switch (reg) {
 	case 1: case 3: case 5: case 8: case 9: case 10: case 11:
@@ -225,7 +225,7 @@ static void emitMTC2(u32 rt, u32 reg)
 {
 	// IMPORTANT: Don't use these regs in this function, as they are
 	//            reserved for use by LWC2/SWC2 emitter which calls here.
-	// MIPSREG_V0, MIPSREG_V1, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3
+	// TEMP_0, MIPSREG_A0, MIPSREG_A1, MIPSREG_A2, MIPSREG_A3
 
 	switch (reg) {
 	case 15:
@@ -366,7 +366,7 @@ static void gen_LWC2_SWC2()
 
 	bool base_reg_converted = false;
 	// Reg reserved for coverted base reg. *Cannot* be in above list.
-	u32 base_reg = MIPSREG_V1;
+	u32 base_reg = TEMP_0;
 	// Temp reg overwritten during base reg conversion. Can be in above list.
 	const u32 conversion_temp_reg = TEMP_1;
 
