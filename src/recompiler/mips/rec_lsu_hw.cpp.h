@@ -974,8 +974,8 @@ static void const_hw_loads_stores(const int  count,
 		const bool is_lwl_lwr = is_load && opcodeIsLoadWordUnaligned(opcode);
 
 		if (!is_store && !is_load) {
-			// Must be a jump/branch whose BD slot contained a store that
-			//  was included in the series, so skip it.
+			// Must be a jump/branch whose BD slot is included as the last
+			//  load/store in the series: skip it.
 			continue;
 		}
 

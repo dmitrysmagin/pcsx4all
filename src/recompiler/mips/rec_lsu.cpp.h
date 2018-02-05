@@ -48,9 +48,8 @@
 //  will not be emitted.
 #define SKIP_ADDRESS_RANGE_CHECK_FOR_SOME_BASE_REGS
 
-// Allow series of loads/stores to include a store found in a branch delay slot,
-//  as long as it meets the requirements of inclusion (uses same base reg).
-#define INCLUDE_STORES_FOUND_IN_BD_SLOTS
+// Allow series of loads/stores to extend into a branch delay slot.
+#define INCLUDE_BD_SLOTS_IN_LSU_SERIES
 
 // 2MB of PSX RAM (psxM) is now mirrored four times in virtual address
 //  space, like a real PS1. This allows skipping mirror-region boundary
@@ -373,12 +372,11 @@ static inline bool LSU_use_only_indirect_access(const u32 op_rs)
    If 'pc_of_last_store_in_series' is not NULL, it will be set to the last store
    found in the series, or set to impossible value of 1 if no stores were found.
  */
-static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_includes_bd_slot_store)
+static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_includes_bd_slot)
 {
 	int count = 0;
 	u32 PC = pc - 4;
-	const u32 rs = _Rs_;
-
+	const u32 shared_rs = _Rs_;
 
 #ifdef LOG_LOAD_STORE_SERIES
 	int num_nops = 0;
@@ -389,7 +387,7 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 	imm_min = imm_max = _Imm_;
 
 	bool store_found = false;
-	bool bd_slot_store_found = false;
+	bool bd_slot_included = false;
 	int nops_at_end = 0;
 	for (;;)
 	{
@@ -405,43 +403,86 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 			continue;
 		}
 
-		bool is_store = opcodeIsStore(opcode);
-		bool is_load  = is_store ? false : opcodeIsLoad(opcode);
+		const bool is_store = opcodeIsStore(opcode);
+		const bool is_load  = !is_store && opcodeIsLoad(opcode);
 
 #ifdef LOG_LOAD_STORE_SERIES
 		num_stores += is_store;
 		num_loads  += is_load;
 #endif
 
-		if (is_load || is_store) {
+		if (is_load || is_store)
+		{
 			// All loads/stores in series must share a base register
-			if (rs != _fRs_(opcode)) {
+			if (shared_rs != _fRs_(opcode)) {
 				// Break out of for-loop, we can't include the current opcode.
 				break;
 			}
-#ifdef INCLUDE_STORES_FOUND_IN_BD_SLOTS
-		} else if (opcodeIsBranchOrJump(opcode)) {
-			const u32 bd_slot_opcode = OPCODE_AT(PC);
+#ifdef INCLUDE_BD_SLOTS_IN_LSU_SERIES
+		} else if (opcodeIsBranchOrJump(opcode))
+		{
+			const u32  bd_slot_opcode = OPCODE_AT(PC);
+			const bool bd_slot_is_store = opcodeIsStore(bd_slot_opcode);
+			const bool bd_slot_is_load  = opcodeIsLoad(bd_slot_opcode);
 
-			// We can include a store in the BD-slot if it abides by the usual
-			//  rule: it must share the same base reg as other loads/stores. If
-			//  store reads $ra reg, don't try to include it: JAL/JALR/BAL/etc
-			//  would give it a new value. It'd be rare anyway, so no loss.
-			if (opcodeIsStore(bd_slot_opcode) &&
-			    (_fRs_(bd_slot_opcode) == rs) && (_fRt_(bd_slot_opcode) != 31) )
+			if ((!bd_slot_is_store && !bd_slot_is_load) ||
+			    _fRs_(bd_slot_opcode) != shared_rs)
+				break;
+
+			// We can include a load/store in the BD-slot that shares the same
+			//  base reg as the rest of the series, but there's restrictions.
+
+			// Regs accessed by the branch/jump
+			const u32 bj_writes = (u32)opcodeGetWrites(opcode) & ~1;
+			const u32 bj_reads  = (u32)opcodeGetReads(opcode) & ~1;
+
+			// Store in BD slot:
+			//  Only worry is a JAL/JALR that writes a return address read
+			//   by the store.
+			if (bd_slot_is_store)
 			{
+				const u32 bd_slot_reads  = (1 << _fRs_(bd_slot_opcode)) & ~1;
+
+				if (!(bd_slot_reads & bj_writes))
+					bd_slot_included = true;
+			}
+
+			// Load in BD slot:
+			//  More worries than a store. If we emit a load out-of-order, it
+			//  could incorrectly affect a branch decision. Not only that, but
+			//  the branch/jump target must not read the reg written by the load
+			//  (1-cycle load delay). That means we must stop at a JR/JALR, since
+			//  we don't know the branch target at recompile-time.
+			if (bd_slot_is_load &&
+			    !(_fOp_(opcode) == 0 &&
+			      (_fFunct_(opcode) == 0x8 || _fFunct_(opcode) == 0x9))) // JR/JALR
+			{
+				u32 target_opcode;
+				if (opcodeIsBranch(opcode))
+					target_opcode = OPCODE_AT(PC + (s32)_fImm_(opcode)*4);
+				else
+					target_opcode = OPCODE_AT((opcode & 0xf0000000) + _fTarget_(opcode)*4);
+
+				const u32 target_reads = (u32)opcodeGetReads(target_opcode) & ~1;
+				const u32 bd_slot_writes = (1 << _fRt_(bd_slot_opcode)) & ~1;
+
+				if (!(bd_slot_writes & (bj_reads | target_reads)))
+					bd_slot_included = true;
+			}
+
+			if (bd_slot_included) {
 				// Include this branch/jump opcode in count. Emitter will skip it.
 				count++;
-				bd_slot_store_found = true;
 				nops_at_end = 0;
 				// Loop around again for BD-slot opcode, we'll terminate after that.
 				continue;
 			} else {
-				// Break out of for-loop, we can't include the current opcode.
+				// Break out of for-loop, we can't include BD slot op.
 				break;
 			}
-#endif // INCLUDE_STORES_FOUND_IN_BD_SLOTS
-		} else {
+#endif // INCLUDE_BD_SLOTS_IN_LSU_SERIES
+		} else
+		{
 			// Break out of for-loop, we can't include the current opcode.
 			break;
 		}
@@ -459,17 +500,15 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 				*pc_of_last_store_in_series = (PC-4);
 		}
 
-		// If in branch delay slot, limit count to 1
-		if (branch)
-			break;
-
 		// For loads, check if base reg got overwritten. Stop series here if so.
 		if (is_load && (_fRt_(opcode) == _fRs_(opcode)))
 			break;
 
-		// If we found a BD slot store, at this point it will already
-		//  have been included in the series and we stop immediately.
-		if (bd_slot_store_found)
+		// If series started in a BD slot, limit count to 1
+		if (branch)
+			break;
+
+		if (bd_slot_included)
 			break;
 	}
 
@@ -478,9 +517,9 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 	if (!store_found && (pc_of_last_store_in_series != NULL))
 		*pc_of_last_store_in_series = 1;
 
-	// Notify caller if the last store in the series lied in a BD slot.
-	if (series_includes_bd_slot_store != NULL)
-		*series_includes_bd_slot_store = bd_slot_store_found;
+	// Notify caller if the last load/store in the series lied in a BD slot.
+	if (series_includes_bd_slot != NULL)
+		*series_includes_bd_slot = bd_slot_included;
 
 	// Don't include any NOPs at the end of sequence in the reported count..
 	//  only count ones lying between the load/store opcodes
@@ -492,8 +531,8 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 		num_nops -= nops_at_end;
 		printf("LOAD/STORE SERIES count: %d  num_loads: %d  num_stores: %d  imm_min: %d  imm_max: %d\n",
 			count, num_loads, num_stores, imm_min, imm_max);
-		if (bd_slot_store_found)
-			printf("(SERIES INCLUDES STORE IN BD SLOT BELOW)\n");
+		if (bd_slot_included)
+			printf("(SERIES INCLUDES LOAD/STORE IN BD SLOT BELOW)\n");
 	}
 #endif
 
@@ -737,8 +776,8 @@ static void general_loads_stores(const int  count,
 			const bool is_load  = is_store ? false : opcodeIsLoad(opcode);
 
 			if (!is_store && !is_load) {
-				// Must be a jump/branch whose BD slot contained a store that
-				//  was included in the series, so skip it.
+				// Must be a jump/branch whose BD slot is included as the last
+				//  load/store in the series: skip it.
 				continue;
 			}
 
@@ -938,8 +977,8 @@ static void general_loads_stores(const int  count,
 			const bool is_load  = is_store ? false : opcodeIsLoad(opcode);
 
 			if (!is_store && !is_load) {
-				// Must be a jump/branch whose BD slot contained a store that
-				//  was included in the series, so skip it.
+				// Must be a jump/branch whose BD slot is included as the last
+				//  load/store in the series: skip it.
 				continue;
 			}
 
@@ -1273,8 +1312,8 @@ static void const_loads_stores(const int count,
 /* Main load/store function that calls all the others above */
 static void emitLoadStoreSeries()
 {
-	// See comments below regarding series and BD slots
-	static bool next_call_emits_nothing = false;  // Static variable
+	// See comments below regarding series ending in a BD slot
+	static bool next_call_emits_nothing = false;  // STATIC VARIABLE
 	if (next_call_emits_nothing) {
 		// Skip emitting anything for just this one call
 		next_call_emits_nothing = false;
@@ -1282,25 +1321,24 @@ static void emitLoadStoreSeries()
 	}
 
 	u32  pc_of_last_store_in_series = 1;
-	bool series_includes_bd_slot_store = false;
-	const int count = count_loads_stores(&pc_of_last_store_in_series, &series_includes_bd_slot_store);
+	bool series_includes_bd_slot = false;
+	const int count = count_loads_stores(&pc_of_last_store_in_series, &series_includes_bd_slot);
 
-	// Series can include a store found in a BD-slot as their last opcode:
-	//  The count includes the jump/branch and BD-slot store. We will skip any
-	//  jump/branch found, and emit the BD-slot store. When we are next called,
-	//  it will be the branch emitter wanting to recompile this store in its
-	//  BD-slot. We won't emit anything then, since we've already handled
-	//  it during this call.
-	if (series_includes_bd_slot_store)
-		next_call_emits_nothing = true;  // Static variable
+	// Series can include a load/store in a BD-slot as their last opcode:
+	//  The count includes the jump/branch and BD-slot opcode. At the end of
+	//  the series, we emit just the BD-slot opcode. When we are next called,
+	//  it will be the jump/branch emitter wanting to recompile the opcode in
+	//  its BD-slot. We won't emit anything at that next call.
+	if (series_includes_bd_slot)
+		next_call_emits_nothing = true;  // STATIC VARIABLE
 
 #ifdef WITH_DISASM
 	// First opcode in series was already disassembled in recRecompile().
 	// Disassemble the additional opcodes we're including in the series.
 	for (int i = 0; i < count-1; i++) {
-		// If we encounter a branch/jump opcode in the series, that means the
-		//  series ended by including a store in a BD-slot. Stop disassembling:
-		//  let recRecompile() disassemble the branch/jump & BD-slot store.
+		// Series can extend to include a load/store in a BD slot. If we
+		//  encounter a branch/jump opcode in the series, stop disassembling:
+		//  let recRecompile() disassemble the branch/jump & BD-slot load/store.
 		//  Otherwise, we'll upset the order of disassembly.
 		if (opcodeIsBranchOrJump(OPCODE_AT(pc + i * 4)))
 			break;
@@ -1369,9 +1407,9 @@ static void emitLoadStoreSeries()
 
 	pc += (count-1)*4;
 
-	// If we included a store in a BD-slot as our last opcode, next opcode to
-	//  be recompiled should be the jump/branch before the slot.
-	if (series_includes_bd_slot_store)
+	// If we included a load/store in a BD-slot as our last opcode, next opcode
+	//  to be recompiled should be the jump/branch before the slot.
+	if (series_includes_bd_slot)
 		pc -= 8;
 }
 
