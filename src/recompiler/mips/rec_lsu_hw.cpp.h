@@ -947,12 +947,9 @@ static bool emit_const_hw_load(u32 addr, u32 r2, u32 opcode, bool *C_func_called
 /* Emits a series of loads/stores to a known-const scratcpad/HW I/O base
  * address, i.e. address is in [0xXf80_0000 .. 0xXf80_ffff] range.
  */
-static void const_hw_loads_stores(const int  count,
-                                  const u32  pc_of_last_store_in_series,
-                                  const u32  rs_constval)
+static void const_hw_loads_stores(const int count,
+                                  u32 rs_constval)
 {
-	const bool contains_store = (pc_of_last_store_in_series != 1);
-
 	// Keep upper half of last effective address in reg, tracking current
 	//  value so we can avoid loading same val repeatedly.
 	u32  base_reg = 0;
@@ -969,7 +966,7 @@ static void const_hw_loads_stores(const int  count,
 		if (opcode == 0)
 			continue;
 
-		const bool is_store   = contains_store && opcodeIsStore(opcode);
+		const bool is_store   = opcodeIsStore(opcode);
 		const bool is_load    = !is_store && opcodeIsLoad(opcode);
 		const bool is_lwl_lwr = is_load && opcodeIsLoadWordUnaligned(opcode);
 

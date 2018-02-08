@@ -418,7 +418,8 @@ static bool LSU_bd_slot_OoO_possible(const u32  bj_opcode,
    If 'pc_of_last_store_in_series' is not NULL, it will be set to the last store
    found in the series, or set to impossible value of 1 if no stores were found.
  */
-static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_includes_bd_slot)
+static int count_loads_stores(u32  *pc_of_last_store_in_series,
+                              bool *series_includes_bd_slot)
 {
 	int count = 0;
 	u32 PC = pc - 4;
@@ -1223,12 +1224,11 @@ static void general_loads_stores(const int  count,
  *        XXX - In fact, doing code invalidation here makes 'Colony Wars'
  *        freeze when returning to main menu after ship self-destruct sequence.
  */
-static void const_loads_stores(const int count,
-                               const u32 pc_of_last_store_in_series,
-                               const u32 rs_constval)
+static void const_loads_stores(const int  count,
+                               const bool contains_store,
+                               const u32  rs_constval,
+                               const u32  array_offset_reg)
 {
-	const bool contains_store = (pc_of_last_store_in_series != 1);
-
 #ifndef SKIP_WRITEOK_CHECK
 	// Do nothing if (psxRegs.writeok == 0).
 	u32 *backpatch_label_no_write = 0;
@@ -1240,6 +1240,15 @@ static void const_loads_stores(const int count,
 		NOP(); // <BD slot>
 	}
 #endif
+
+	// We'll need to use this reg if 'array_offset_reg' is used.
+	const u32 tmp_base_reg = TEMP_1;
+
+	// If param 'array_offset_reg' is non-zero, there is an array-offset reg
+	//  that gets added to the base reg. Used by emitOptimizedStaticLoad().
+	u32 host_array_offset_reg = 0;
+	if (array_offset_reg)
+		host_array_offset_reg = regMipsToHost(array_offset_reg, REG_LOAD, REG_REGISTER);
 
 	// Keep upper half of last effective address in reg, tracking current
 	//  value so we can avoid loading same val repeatedly.
@@ -1281,7 +1290,7 @@ static void const_loads_stores(const int count,
 
 		// If psxM is mapped to virtual address 0 and PS1 address is in
 		//  lower 32KB address space, we can use $zero as base reg.
-		const bool use_zero_base_reg = (ADR_HI(host_addr) == 0 && psxM == 0);
+		bool use_zero_base_reg = (ADR_HI(host_addr) == 0 && psxM == 0);
 
 		// Emit LUI for base reg (if not cached in host reg).
 		if (!use_zero_base_reg &&
@@ -1292,11 +1301,22 @@ static void const_loads_stores(const int count,
 			base_reg_val = ADR_HI(host_addr) << 16;
 
 			base_reg = emitConstBaseRegLUI(ADR_HI(host_addr));
+
+			if (array_offset_reg != 0) {
+				ADDU(tmp_base_reg, base_reg, host_array_offset_reg);
+
+				base_reg = tmp_base_reg;
+			}
 		}
 
-		const u32 rs = use_zero_base_reg ? 0 : base_reg;
+		if (use_zero_base_reg) {
+			if (array_offset_reg != 0)
+				base_reg = array_offset_reg;
+			else
+				base_reg = 0;
+		}
 
-		LSU_OPCODE(opcode & 0xfc000000, rt, rs, ADR_LO(host_addr));
+		LSU_OPCODE(opcode & 0xfc000000, rt, base_reg, ADR_LO(host_addr));
 
 		if (is_load) {
 			SetUndef(op_rt);
@@ -1310,6 +1330,9 @@ static void const_loads_stores(const int count,
 	if (backpatch_label_no_write)
 		fixup_branch(backpatch_label_no_write);
 #endif
+
+	if (host_array_offset_reg)
+		regUnlock(host_array_offset_reg);
 }
 
 
@@ -1319,8 +1342,9 @@ static void const_loads_stores(const int count,
 /* Main load/store function that calls all the others above */
 static void emitLoadStoreSeries()
 {
+	// STATIC VARIABLE
 	// See comments below regarding series ending in a BD slot
-	static bool next_call_emits_nothing = false;  // STATIC VARIABLE
+	static bool next_call_emits_nothing = false;
 	if (next_call_emits_nothing) {
 		// Skip emitting anything for just this one call
 		next_call_emits_nothing = false;
@@ -1393,7 +1417,7 @@ static void emitLoadStoreSeries()
 				 **************************************/
 
 				// Address is in 64KB scratchpad,HW I/O port region
-				const_hw_loads_stores(count, pc_of_last_store_in_series, base_reg_constval);
+				const_hw_loads_stores(count, base_reg_constval);
 			} else {
 				/*********************************
 				 * Handle const indirect address *
@@ -1408,7 +1432,8 @@ static void emitLoadStoreSeries()
 			 * Handle const RAM address *
 			 ****************************/
 
-			const_loads_stores(count, pc_of_last_store_in_series, base_reg_constval);
+			const bool contains_store = pc_of_last_store_in_series != 1;
+			const_loads_stores(count, contains_store, base_reg_constval, 0);
 		}
 	}
 
@@ -1418,6 +1443,103 @@ static void emitLoadStoreSeries()
 	//  to be recompiled should be the jump/branch before the slot.
 	if (series_includes_bd_slot)
 		pc -= 8;
+}
+
+
+/* Check for load from a static address in original code. If found, we can skip
+ *  emitting one or two useless opcodes. These were usually compiler-generated.
+ *
+ * Called from recLUI() emitter.
+ *
+ *  Note that we can't optimize stores this way.. stores used $at as the
+ *  base reg, and the $at write is known to propagate beyond the store in
+ *  some assembler routines in games (e.g. Naughty Dog studio games).
+ *
+ *  Sequence Type 1 (load from static address):
+ *    LUI  load_dst_reg, ADDRESS_HI(const_addr)
+ *    L*   load_dst_reg, ADDRESS_LO(const_addr)(load_dst_reg)
+ *
+ *  Sequence Type 2 (load from static array address):
+ *    LUI  load_dst_reg, ADDRESS_HI(const_addr)
+ *    ADDU load_dst_reg, load_dst_reg, array_offset_reg
+ *    L*   load_dst_reg, ADDRESS_LO(const_addr)(load_dst_reg)
+ *
+ * Returns: true if sequence found and optimized load is emitted.
+ */
+static bool emitOptimizedStaticLoad()
+{
+#ifndef USE_CONST_ADDRESSES
+	return false;
+#endif
+
+	const u32  op1 = OPCODE_AT(pc-4);
+	const u32  op2 = OPCODE_AT(pc);
+	const u32  op3 = OPCODE_AT(pc+4);
+	const bool is_array_access = (_fOp_(op2) == 0 && _fFunct_(op2) == 0x21);  // ADDU
+	const u32  lsu_opcode  = is_array_access ? op3 : op2;
+	const u32  lui_opcode  = op1;
+	const u32  lui_addr    = (u32)_fImmU_(lui_opcode) << 16;
+	const bool is_ram_addr = (lui_addr & 0x0fffffff) < 0x00800000;
+	const bool is_hw_addr  = (lui_addr & 0x0fffffff) == 0x0f800000;
+
+	if (!opcodeIsLoad(lsu_opcode) || opcodeIsLoadWordUnaligned(lsu_opcode))
+		return false;
+
+	if (_fRt_(lui_opcode) != _fRs_(lsu_opcode) ||
+	    _fRt_(lsu_opcode) != _fRs_(lsu_opcode))
+		return false;
+
+	if (!is_ram_addr && !is_hw_addr)
+		return false;
+
+	u32 rs_constval = lui_addr;
+	u32 array_offset_reg = 0;
+
+	if (is_array_access)
+	{
+		// Only optimize array accesses when the LUI is setting an obvious
+		//  base address in RAM, i.e. 0x8xxx_xxxx.
+		if ((lui_addr >> 28) != 0x8)
+			return false;
+
+		const u32 addu_opcode = op2;
+		const u32 lui_writes  = (1 << _fRt_(lui_opcode)) & ~1;
+		const u32 addu_reads  = ((1 << _fRs_(addu_opcode)) | (1 << _fRt_(addu_opcode))) & ~1;
+		const u32 addu_writes = (1 << _fRd_(addu_opcode)) & ~1;
+		const u32 lsu_reads   = (1 << _fRs_(lsu_opcode)) & ~1;
+
+		if (!(lui_writes & addu_reads) || !(lsu_reads & addu_writes))
+			return false;
+
+		// Sanity check (__builtin_ctz() on 0 value is undefined)
+		if ((addu_reads & ~lui_writes) == 0)
+			return false;
+
+		array_offset_reg = __builtin_ctz(addu_reads & ~lui_writes);
+
+		// If offset reg is const, add it now and forget about the reg entirely.
+		if (IsConst(array_offset_reg)) {
+			rs_constval += GetConst(array_offset_reg);
+			array_offset_reg = 0;
+		}
+	}
+
+	DISASM_PSX(pc);
+	pc += 4;
+
+	if (is_array_access) {
+		DISASM_PSX(pc);
+		pc += 4;
+	}
+
+	// We only allow loads, never stores.
+	const bool contains_store = false;
+	if (is_ram_addr)
+		const_loads_stores(1, contains_store, rs_constval, array_offset_reg);
+	else
+		const_hw_loads_stores(1, rs_constval);
+
+	return true;
 }
 
 

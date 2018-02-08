@@ -159,6 +159,10 @@ static void recLUI()
 {
 	// rt = (u32)imm << 16
 
+	// Check for a LUI...LOAD sequence and emit an optimized one, if found.
+	if (!branch && emitOptimizedStaticLoad())
+		return;
+
 	/* Avoid loading the same constant more than once */
 	if (IsConst(_Rt_) && GetConst(_Rt_) == ((u32)_ImmU_ << 16))
 		return;
@@ -372,7 +376,7 @@ static void recSLL()
 		// Sequence we're looking for is:
 		//   SLL   rd = rt << sa    (this opcode)
 		//   SRA   rd = rt >> sa    (next opcode)
-		// Where the rd of SLL is the same as the rd,rt of ANDI,
+		// Where the rd of SLL is the same as the rd,rt of SRA,
 		//  and both shift amounts are equal and are either 24 or 16.
 
 		if (_fOp_(next_opcode) == 0 && _fFunct_(next_opcode) == 0x03 &&  // SRA
