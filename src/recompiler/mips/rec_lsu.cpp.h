@@ -365,6 +365,52 @@ static inline bool LSU_use_only_indirect_access(const u32 op_rs)
 	return false;
 }
 
+/* Returns true if a load/store in a BD slot can be emitted before the
+ *  branch/jump. Allows load/store series to extend into a BD slot.
+ */
+static bool LSU_bd_slot_OoO_possible(const u32  bj_opcode,
+                                     const u32  bd_slot_opcode,
+                                     const u32  bd_slot_pc,
+                                     const bool bd_slot_is_load)
+{
+	// A JR/JALR disqualifies out-of-order loads: we don't know the branch
+	//  target at recompile-time, and can't check for load-delay trickery.
+	if (bd_slot_is_load && opcodeIsIndirectJump(bj_opcode))
+		return false;
+
+	// Regs accessed by the branch/jump. Don't care about zero reg.
+	const u32 bj_writes = (u32)opcodeGetWrites(bj_opcode) & ~1;
+	const u32 bj_reads  = (u32)opcodeGetReads(bj_opcode) & ~1;
+
+	const u32 bd_slot_reads = (u32)opcodeGetReads(bd_slot_opcode) & ~1;
+
+	// JAL/JALR write a return address, so worry about that first.
+	if (bd_slot_reads & bj_writes)
+		return false;
+
+	// Load in BD slot:
+	//  If we emit a load out-of-order, it could incorrectly affect a branch
+	//  decision (or indirect jump, but we already ruled those out). We must
+	//  also ensure the opcode at branch/jump target PC does not read the reg
+	//  written by the load (load delay).
+	if (bd_slot_is_load)
+	{
+		u32 target_opcode;
+		if (opcodeIsBranch(bj_opcode))
+			target_opcode = OPCODE_AT(opcodeGetBranchTargetAddr(bj_opcode, bd_slot_pc));
+		else
+			target_opcode = OPCODE_AT(opcodeGetDirectJumpTargetAddr(bj_opcode));
+
+		const u32 target_reads = (u32)opcodeGetReads(target_opcode) & ~1;
+		const u32 bd_slot_writes = 1 << _fRt_(bd_slot_opcode);
+
+		if (bd_slot_writes & (bj_reads | target_reads))
+			return false;
+	}
+
+	return true;
+}
+
 
 /* Return count of the number of consecutive loads and/or stores starting at
    current instruction. All loads/stores in the series must share a common
@@ -429,51 +475,12 @@ static int count_loads_stores(u32 *pc_of_last_store_in_series, bool *series_incl
 			    _fRs_(bd_slot_opcode) != shared_rs)
 				break;
 
-			// We can include a load/store in the BD-slot that shares the same
-			//  base reg as the rest of the series, but there's restrictions.
-
-			// Regs accessed by the branch/jump
-			const u32 bj_writes = (u32)opcodeGetWrites(opcode) & ~1;
-			const u32 bj_reads  = (u32)opcodeGetReads(opcode) & ~1;
-
-			// Store in BD slot:
-			//  Only worry is a JAL/JALR that writes a return address read
-			//   by the store.
-			if (bd_slot_is_store)
-			{
-				const u32 bd_slot_reads  = (1 << _fRs_(bd_slot_opcode)) & ~1;
-
-				if (!(bd_slot_reads & bj_writes))
-					bd_slot_included = true;
-			}
-
-			// Load in BD slot:
-			//  More worries than a store. If we emit a load out-of-order, it
-			//  could incorrectly affect a branch decision. Not only that, but
-			//  the branch/jump target must not read the reg written by the load
-			//  (1-cycle load delay). That means we must stop at a JR/JALR, since
-			//  we don't know the branch target at recompile-time.
-			if (bd_slot_is_load &&
-			    !(_fOp_(opcode) == 0 &&
-			      (_fFunct_(opcode) == 0x8 || _fFunct_(opcode) == 0x9))) // JR/JALR
-			{
-				u32 target_opcode;
-				if (opcodeIsBranch(opcode))
-					target_opcode = OPCODE_AT(PC + (s32)_fImm_(opcode)*4);
-				else
-					target_opcode = OPCODE_AT((opcode & 0xf0000000) + _fTarget_(opcode)*4);
-
-				const u32 target_reads = (u32)opcodeGetReads(target_opcode) & ~1;
-				const u32 bd_slot_writes = (1 << _fRt_(bd_slot_opcode)) & ~1;
-
-				if (!(bd_slot_writes & (bj_reads | target_reads)))
-					bd_slot_included = true;
-			}
-
-			if (bd_slot_included) {
-				// Include this branch/jump opcode in count. Emitter will skip it.
+			if (LSU_bd_slot_OoO_possible(opcode, bd_slot_opcode, PC, bd_slot_is_load)) {
+				// Include branch/jump opcode in count. It's emitted after series.
 				count++;
 				nops_at_end = 0;
+				bd_slot_included = true;
+
 				// Loop around again for BD-slot opcode, we'll terminate after that.
 				continue;
 			} else {
