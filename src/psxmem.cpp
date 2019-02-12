@@ -28,37 +28,47 @@
 #include "psxmem.h"
 #include "r3000a.h"
 #include "psxhw.h"
-#ifndef WIN32
-#include <sys/mman.h>
+
+/* Uncomment for memory statistics (for development purposes) */
+//#define DEBUG_MEM_STATS
+
+/* Uncomment for debug logging to console */
+//#define PSXMEM_LOG printf
+
+#ifndef PSXMEM_LOG
+#define PSXMEM_LOG(...)
 #endif
 
+enum MemstatType   { MEMSTAT_TYPE_READ, MEMSTAT_TYPE_WRITE, MEMSTAT_TYPE_COUNT };
+enum MemstatWidth  { MEMSTAT_WIDTH_8, MEMSTAT_WIDTH_16, MEMSTAT_WIDTH_32, MEMSTAT_WIDTH_COUNT };
+enum MemstatRegion { MEMSTAT_REGION_ANY, MEMSTAT_REGION_RAM, MEMSTAT_REGION_BLOCKED,
+                     MEMSTAT_REGION_PPORT, MEMSTAT_REGION_SCRATCHPAD, MEMSTAT_REGION_HW,
+                     MEMSTAT_REGION_ROM, MEMSTAT_REGION_CACHE, MEMSTAT_REGION_COUNT };
+#ifdef DEBUG_MEM_STATS
+static void memstats_reset();
+static void memstats_print();
+static void memstats_add_read(u32 addr, MemstatWidth width);
+static void memstats_add_write(u32 addr, MemstatWidth width);
+#else
+static inline void memstats_reset() {}
+static inline void memstats_print() {}
+static inline void memstats_add_read(u32 addr, MemstatWidth width) {}
+static inline void memstats_add_write(u32 addr, MemstatWidth width) {}
+#endif // DEBUG_MEM_STATS
 
-/* This is used for direct writes in mips recompiler */
-#if defined(PSXREC) && \
-	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/types.h>
-#ifdef SHMEM_MIRRORING
-#include <sys/shm.h>   // For Posix shared mem
-#endif
-bool psxM_mirrored = false;
-static bool psxM_mapped = false;
-static bool psxM_lower_mirror = false;
-static bool psxM_upper_mirror = false;
-static s8*  mmap_psxM();
-static void munmap_psxM();
-#endif
+s8 *psxM;
+s8 *psxP;
+s8 *psxR;
+s8 *psxH;
+bool psxM_allocated;
+bool psxP_allocated;
+bool psxR_allocated;
+bool psxH_allocated;
 
+u8 **psxMemWLUT;
+u8 **psxMemRLUT;
 
-s8 *psxM = NULL;
-s8 *psxP = NULL;
-s8 *psxR = NULL;
-s8 *psxH = NULL;
-
-u8 **psxMemWLUT = NULL;
-u8 **psxMemRLUT = NULL;
-u8 *psxNULLread=NULL;
+static u8 *psxNULLread;
 
 /*  Playstation Memory Map (from Playstation doc by Joshua Walker)
 0x0000_0000-0x0000_ffff		Kernel (64K)	
@@ -77,39 +87,34 @@ u8 *psxNULLread=NULL;
 0xbfc0_0000-0xbfc7_ffff		BIOS (512K)
 */
 
-int psxMemInit() {
+int psxMemInit()
+{
 	int i;
 
-	psxMemRLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	psxMemWLUT = (u8 **)malloc(0x10000 * sizeof(void *));
-	memset(psxMemRLUT, 0, 0x10000 * sizeof(void *));
-	memset(psxMemWLUT, 0, 0x10000 * sizeof(void *));
+	if (psxMemRLUT == NULL) { psxMemRLUT = (u8 **)calloc(0x10000, sizeof(void *)); }
+	if (psxMemWLUT == NULL) { psxMemWLUT = (u8 **)calloc(0x10000, sizeof(void *)); }
+	if (psxNULLread == NULL) { psxNULLread = (u8*)calloc(0x10000, 1); }
 
-#if defined(PSXREC) && \
-	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-	psxM = mmap_psxM();
-#endif
+	// If a dynarec hasn't already mmap'd any of psxM,psxP,psxH,psxR, allocate
+	//  them here. Always use booleans 'psxM_allocated' etc to check allocation
+	//  status: Dynarecs could choose to mmap 'psxM' pointer to address 0,
+	//  making a standard pointer NULLness check inappropriate.
 
-	if (psxM == NULL)
-		psxM = (s8 *)malloc(0x200000);
+	// Allocate 2MB for PSX RAM
+	if (!psxM_allocated) { psxM = (s8*)malloc(0x200000);  psxM_allocated = psxM != NULL; }
 
-	// Allocate 64K each for 0x1f00_0000 and 0x1f80_0000 regions
-	if (psxP == NULL)
-		psxP = (s8 *)malloc(0x10000);
-	if (psxH == NULL)
-		psxH = (s8 *)malloc(0x10000);
+	// Allocate 64K for PSX ROM expansion 0x1f00_0000 region
+	if (!psxP_allocated) { psxP = (s8*)malloc(0x10000);   psxP_allocated = psxP != NULL; }
 
-	if (psxR == NULL)
-		psxR = (s8 *)malloc(0x80000);
+	// Allocate 64K for PSX scratcpad + HW I/O 0x1f80_0000 region
+	if (!psxH_allocated) { psxH = (s8*)malloc(0x10000);   psxH_allocated = psxH != NULL; }
 
-	if (psxNULLread == NULL)
-		psxNULLread=(u8*)malloc(0x10000);
+	// Allocate 512KB for PSX ROM 0xbfc0_0000 region
+	if (!psxR_allocated) { psxR = (s8*)malloc(0x80000);   psxR_allocated = psxR != NULL; }
 
-	memset(psxNULLread, 0, 0x10000);
-	
-	if (psxMemRLUT == NULL || psxMemWLUT == NULL || 
-		psxM == NULL || psxP == NULL || psxH == NULL ||
-		psxNULLread == NULL) {
+	if (psxMemRLUT == NULL || psxMemWLUT == NULL || psxNULLread == NULL ||
+	    !psxM_allocated || !psxP_allocated || !psxR_allocated || !psxH_allocated)
+	{
 		printf("Error allocating memory!");
 		return -1;
 	}
@@ -140,12 +145,15 @@ int psxMemInit() {
 	return 0;
 }
 
-void psxMemReset() {
+void psxMemReset()
+{
 	DIR *dirstream = NULL;
 	struct dirent *direntry;
 	boolean biosfound = FALSE;
 	FILE *f = NULL;
 	char bios[MAXPATHLEN];
+
+	memstats_reset();
 
 	memset(psxM, 0, 0x200000);
 	memset(psxP, 0, 0x10000);
@@ -203,22 +211,21 @@ void psxMemReset() {
 
 void psxMemShutdown()
 {
-#if defined(PSXREC) && \
-	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-	munmap_psxM();
-#endif
+	if (psxM_allocated) { free(psxM);  psxM = NULL;  psxM_allocated = false; }
+	if (psxP_allocated) { free(psxP);  psxP = NULL;  psxP_allocated = false; }
+	if (psxH_allocated) { free(psxH);  psxH = NULL;  psxH_allocated = false; }
+	if (psxR_allocated) { free(psxR);  psxR = NULL;  psxR_allocated = false; }
 
-	free(psxM);         psxM = NULL;
-	free(psxP);         psxP = NULL;
-	free(psxH);         psxH = NULL;
-	free(psxR);         psxR = NULL;
 	free(psxMemRLUT);   psxMemRLUT = NULL;
 	free(psxMemWLUT);   psxMemWLUT = NULL;
 	free(psxNULLread);  psxNULLread = NULL;
+
+	memstats_print();
 }
 
 u8 psxMemRead8(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_8);
 	u8 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -232,9 +239,7 @@ u8 psxMemRead8(u32 mem)
 		if (p != NULL) {
 			return *(u8*)(p + m);
 		} else {
-#ifdef PSXMEM_LOG
-			PSXMEM_LOG("err lb %8.8lx\n", mem);
-#endif
+			PSXMEM_LOG("%s(): err lb 0x%08x\n", __func__, mem);
 			ret = 0;
 		}
 	}
@@ -244,6 +249,7 @@ u8 psxMemRead8(u32 mem)
 
 u16 psxMemRead16(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_16);
 	u16 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -257,9 +263,7 @@ u16 psxMemRead16(u32 mem)
 		if (p != NULL) {
 			ret = SWAPu16(*(u16*)(p + m));
 		} else {
-#ifdef PSXMEM_LOG
-			PSXMEM_LOG("err lh %8.8lx\n", mem);
-#endif
+			PSXMEM_LOG("%s(): err lh 0x%08x\n", __func__, mem);
 			ret = 0;
 		}
 	}
@@ -269,6 +273,7 @@ u16 psxMemRead16(u32 mem)
 
 u32 psxMemRead32(u32 mem)
 {
+	memstats_add_read(mem, MEMSTAT_WIDTH_32);
 	u32 ret;
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
@@ -282,9 +287,7 @@ u32 psxMemRead32(u32 mem)
 		if (p != NULL) {
 			ret = SWAPu32(*(u32*)(p + m));
 		} else {
-#ifdef PSXMEM_LOG
-			if (psxRegs.writeok) { PSXMEM_LOG("err lw %8.8lx\n", mem); }
-#endif
+			if (psxRegs.writeok) { PSXMEM_LOG("%s(): err lw 0x%08x\n", __func__, mem); }
 			ret = 0;
 		}
 	}
@@ -294,6 +297,7 @@ u32 psxMemRead32(u32 mem)
 
 void psxMemWrite8(u32 mem, u8 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_8);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -309,15 +313,14 @@ void psxMemWrite8(u32 mem, u8 value)
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
-#ifdef PSXMEM_LOG
-			PSXMEM_LOG("err sb %8.8lx\n", mem);
-#endif
+			PSXMEM_LOG("%s(): err sb 0x%08x\n", __func__, mem);
 		}
 	}
 }
 
 void psxMemWrite16(u32 mem, u16 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_16);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -333,15 +336,14 @@ void psxMemWrite16(u32 mem, u16 value)
 			psxCpu->Clear((mem & (~3)), 1);
 #endif
 		} else {
-#ifdef PSXMEM_LOG
-			PSXMEM_LOG("err sh %8.8lx\n", mem);
-#endif
+			PSXMEM_LOG("%s(): err sh 0x%08x\n", __func__, mem);
 		}
 	}
 }
 
 void psxMemWrite32(u32 mem, u32 value)
 {
+	memstats_add_write(mem, MEMSTAT_WIDTH_32);
 	u32 t = mem >> 16;
 	u32 m = mem & 0xffff;
 	if (t == 0x1f80 || t == 0x9f80 || t == 0xbf80) {
@@ -361,168 +363,97 @@ void psxMemWrite32(u32 mem, u32 value)
 #ifdef PSXREC
 				if (!psxRegs.writeok) psxCpu->Clear(mem, 1);
 #endif
-
-#ifdef PSXMEM_LOG
-				if (psxRegs.writeok) { PSXMEM_LOG("err sw %8.8lx\n", mem); }
-#endif
+				if (psxRegs.writeok) { PSXMEM_LOG("%s(): err sw 0x%08x\n", __func__, mem); }
 			} else {
 				// Write to cache control port 0xfffe0130
-				switch (value) {
-					case 0x800: case 0x804:
-						if (psxRegs.writeok == 0) break;
-						psxRegs.writeok = 0;
-						memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
-						memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
-						break;
-					case 0x00: case 0x1e988:
-						if (psxRegs.writeok == 1) break;
-						psxRegs.writeok = 1;
-						for (int i = 0; i < 0x80; i++) psxMemWLUT[i + 0x0000] = (u8*)&psxM[(i & 0x1f) << 16];
-						memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
-						memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
-						break;
-					default:
-#ifdef PSXMEM_LOG
-						PSXMEM_LOG("unk %8.8lx = %x\n", mem, value);
-#endif
-						break;
-				}
+				psxMemWrite32_CacheCtrlPort(value);
 			}
 		}
 	}
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// -BEGIN- psxM allocation and mirroring via mmap()
-// This is used for direct writes in mips recompiler
-///////////////////////////////////////////////////////////////////////////////
-#if defined(PSXREC) && \
-	(defined(SHMEM_MIRRORING) || defined(TMPFS_MIRRORING))
-
-s8* mmap_psxM()
+// Write to cache control port 0xfffe0130
+void psxMemWrite32_CacheCtrlPort(u32 value)
 {
-	// Already mapped?
-	if (psxM_mapped)
-		return psxM;
+	PSXMEM_LOG("%s(): 0x%08x\n", __func__, value);
 
-	bool  success = true;
-	int   memfd = -1;
-	s8*   ptr = NULL;
-	void* mmap_retval = NULL;
+#ifdef PSXREC
+	/*  Stores in PS1 code during cache isolation invalidate cachelines.
+	 * It is assumed that cache-flush routines write to the lowest 4KB of
+	 * address space for Icache, or 1KB for Dcache/scratchpad.
+	 *  Originally, stores had to check 'writeok' in psxRegs struct before
+	 * writing to RAM. To eliminate this necessity, we could simply patch the
+	 * BIOS 0x44 FlushCache() A0 jumptable entry. Unfortunately, this won't
+	 * work for some games that use less-buggy non-BIOS cache-flush routines
+	 * like '007 Tomorrow Never Dies', often provided by SN-systems, the PS1
+	 * toolchain provider.
+	 *  Instead, we backup the lowest 64KB PS1 RAM when the cache is isolated.
+	 * All stores write to RAM regardless of cache state. Thus, cache-flush
+	 * routines temporarily trash the lowest 4KB of PS1 RAM. Fortunately, they
+	 * ran in a 'critical section' with interrupts disabled, so there's little
+	 * worry of PS1 code ever reading the trashed contents.
+	 *  We point the relevant portions of psxMemRLUT[] to the 64KB backup while
+	 * cache is isolated. This is in case the dynarec needs to recompile some
+	 * code during isolation. As long as it reads code using psxMemRLUT[] ptrs,
+	 * it should never see trashed RAM contents.
+	 *
+	 * -senquack, mips dynarec team, 2017
+	 */
 
-#ifdef SHMEM_MIRRORING
-	// Get a POSIX shared memory object fd
-	printf("Mapping/mirroring 2MB PSX RAM using POSIX shared mem\n");
-	const char* mem_fname = "/pcsx4all_psxmem";
-	memfd = shm_open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
-#else
-	// Use tmpfs file - TMPFS_DIR string literal should be defined in Makefile
-	//  CFLAGS with escaped quotes (alter if needed): -DTMPFS_DIR=\"/tmp\"
-	const char* mem_fname = TMPFS_DIR "/pcsx4all_psxmem";
-	printf("Mapping/mirroring 2MB PSX RAM using tmpfs file %s\n", mem_fname);
-	memfd = open(mem_fname, O_RDWR|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+	static u32 mem_bak[0x10000/4];
+#endif //PSXREC
+
+	switch (value)
+	{
+		case 0x800: case 0x804:
+			if (psxRegs.writeok == 0) break;
+			psxRegs.writeok = 0;
+			PSXMEM_LOG("%s(): Icache is isolated.\n", __func__);
+
+			memset(psxMemWLUT + 0x0000, 0, 0x80 * sizeof(void *));
+			memset(psxMemWLUT + 0x8000, 0, 0x80 * sizeof(void *));
+			memset(psxMemWLUT + 0xa000, 0, 0x80 * sizeof(void *));
+
+#ifdef PSXREC
+			/* Cache is now isolated, pending cache-flush sequence:
+			 *  Backup lower 64KB of PS1 RAM, adjust psxMemRLUT[].
+			 */
+			memcpy((void*)mem_bak, (void*)psxM, sizeof(mem_bak));
+			psxMemRLUT[0x0000] = psxMemRLUT[0x0020] = psxMemRLUT[0x0040] = psxMemRLUT[0x0060] = (u8 *)mem_bak;
+			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = (u8 *)mem_bak;
+			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = (u8 *)mem_bak;
 #endif
 
-	if (memfd < 0) {
-#ifdef SHMEM_MIRRORING
-		printf("Error acquiring POSIX shared memory file descriptor\n");
-#else
-		printf("Error creating tmpfs file: %s\n", mem_fname);
-#endif
-		success = false;
-		goto exit;
-	}
+			psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
+			break;
+		case 0x00: case 0x1e988:
+			if (psxRegs.writeok == 1) break;
+			psxRegs.writeok = 1;
+			PSXMEM_LOG("%s(): Icache is unisolated.\n", __func__);
 
-	// We want 2MB of PSX RAM
-	if (ftruncate(memfd, 0x200000) < 0) {
-		printf("Error in call to ftruncate(), could not get 2MB of PSX RAM\n");
-		success = false;
-		goto exit;
-	}
+			for (int i = 0; i < 0x80; i++)
+				psxMemWLUT[i + 0x0000] = (u8*)&psxM[(i & 0x1f) << 16];
+			memcpy(psxMemWLUT + 0x8000, psxMemWLUT, 0x80 * sizeof(void *));
+			memcpy(psxMemWLUT + 0xa000, psxMemWLUT, 0x80 * sizeof(void *));
 
-	// Map PSX RAM to start at fixed virtual address 0x1000_0000
-	mmap_retval = mmap((void*)0x10000000, 0x200000,
-			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
-	if (mmap_retval == MAP_FAILED) {
-		printf("Warning: mmap() to 0x10000000 of 2MB PSX RAM mmap fd failed.\n"
-			   "Dynarec will emit slower code for direct writes.\n");
-		success = false;
-		goto exit;
-	}
-	ptr = (s8*)mmap_retval;
-	psxM_mapped = true;
-
-	// Mirror upper 64KB PSX RAM to the fixed virtual region before psxM[].
-	//  This allows recompiler to skip special-casing certain loads/stores
-	//  of/to immediate($reg) address, where $reg is a value near a RAM
-	//  mirror-region boundary and the immediate is a negative value large
-	//  enough to cross to the region before it, i.e. (-16)(0x8020_0000).
-	//  This occurs in games like Einhander. Normally, 0x8020_0000 on a PSX
-	//  would be referencing the beginning of a 2MB mirror in the KSEG0 cached
-	//  mirror region. After emu code masks the address, it maps to address
-	//  0, and accessing -16(&psxM[0]) would be out-of-bounds.
-	//  The mirror here maps it to &psxM[1ffff0], like a real PSX.
-
-	mmap_retval = mmap((void*)(ptr-0x10000), 0x10000,
-			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0x200000-0x10000);
-	if (mmap_retval == MAP_FAILED) {
-		printf("Warning: creating mmap() mirror of upper 64KB of PSX RAM failed.\n");
-	} else {
-		psxM_upper_mirror = true;
-	}
-
-	// And, for correctness's sake, mirror lower 64K of PSX RAM to region after
-	//  psxM[], though in practice it's unknown if any games truly need this.
-	mmap_retval = mmap((void*)(ptr+0x200000), 0x10000,
-			PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, memfd, 0);
-	if (mmap_retval == MAP_FAILED) {
-		printf("Warning: creating mmap() mirror of lower 64KB of PSX RAM failed.\n");
-	} else {
-		psxM_lower_mirror = true;
-	}
-
-exit:
-	if (success) {
-		psxM_mirrored = (psxM_lower_mirror && psxM_upper_mirror);
-		printf(" ..success!\n");
-	} else {
-		perror(__func__);
-		printf("ERROR: Failed to mmap() 2MB PSX RAM, falling back to malloc()\n");
-		ptr = NULL;
-	}
-
-	// Close/unlink file: RAM is released when munmap()'ed or pid terminates
-#ifdef SHMEM_MIRRORING
-	shm_unlink(mem_fname);
-#else
-	if (memfd >= 0)
-		close(memfd);
-	unlink(mem_fname);
+#ifdef PSXREC
+			/* Cache is now unisolated:
+			 * Restore lower 64KB RAM contents and psxMemRLUT[].
+			 */
+			memcpy((void*)psxM, (void*)mem_bak, sizeof(mem_bak));
+			psxMemRLUT[0x0000] = psxMemRLUT[0x0020] = psxMemRLUT[0x0040] = psxMemRLUT[0x0060] = (u8 *)psxM;
+			psxMemRLUT[0x8000] = psxMemRLUT[0x8020] = psxMemRLUT[0x8040] = psxMemRLUT[0x8060] = (u8 *)psxM;
+			psxMemRLUT[0xa000] = psxMemRLUT[0xa020] = psxMemRLUT[0xa040] = psxMemRLUT[0xa060] = (u8 *)psxM;
 #endif
 
-	psxM_mapped = success;
-	return ptr;
+			/* Dynarecs might take this opportunity to flush their code cache */
+			psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
+			break;
+		default:
+			PSXMEM_LOG("%s(): unknown val 0x%08x\n", __func__, value);
+			break;
+	}
 }
-
-void munmap_psxM()
-{
-	if (!psxM_mapped)
-		return;
-
-	if (psxM_upper_mirror)
-		munmap((void*)((u8*)psxM-0x10000), 0x10000);  // Unmap mirror of upper 64KB
-	if (psxM_lower_mirror)
-		munmap((void*)((u8*)psxM+0x200000), 0x10000); // Unmap mirror of lower 64KB
-	munmap((void*)psxM, 0x200000);
-	psxM_mapped = psxM_mirrored = psxM_upper_mirror = psxM_lower_mirror = false;
-	psxM = NULL;
-}
-
-#endif
-///////////////////////////////////////////////////////////////////////////////
-// -END- psxM allocation and mirroring via mmap()
-///////////////////////////////////////////////////////////////////////////////
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -615,3 +546,112 @@ void psxMemWrite32_direct(u32 mem, u32 value,void *_regs) {
 			*((u32 *)&regs->psxP[m]) = value;
 	}
 }
+
+
+#ifdef DEBUG_MEM_STATS
+///////////////////////////////////////////////////////////////////////////////
+// -BEGIN- Memory statistics (for development purposes)
+///////////////////////////////////////////////////////////////////////////////
+long long unsigned int memstats[MEMSTAT_TYPE_COUNT][MEMSTAT_REGION_COUNT][MEMSTAT_WIDTH_COUNT];
+
+static void memstats_reset()
+{
+	memset((void*)memstats, 0, sizeof(memstats));
+}
+
+static void memstats_region_print(const char *region_description, MemstatRegion region)
+{
+	char separator_line[81];
+	strncpy(separator_line, region_description, 80);
+	separator_line[80] = '\0';
+	int i = strlen(separator_line);
+	if (i < (sizeof(separator_line)-1))
+		memset(separator_line+i, '-', sizeof(separator_line)-1-i);
+
+	printf("%s\n"
+	       "  reads:%23llu %23llu %23llu\n"
+	       " writes:%23llu %23llu %23llu\n",
+	       separator_line,
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_8],
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_16],
+	       memstats[MEMSTAT_TYPE_READ][region][MEMSTAT_WIDTH_32],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_8],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_16],
+	       memstats[MEMSTAT_TYPE_WRITE][region][MEMSTAT_WIDTH_32]);
+}
+
+static void memstats_print()
+{
+	printf("MEMORY STATS:              byte                   short                    word\n");
+	memstats_region_print("BLOCKED RAM (ISOLATED CACHE)", MEMSTAT_REGION_BLOCKED);
+	memstats_region_print("PPORT (ROM EXPANSION)",        MEMSTAT_REGION_PPORT);
+	memstats_region_print("ROM",                          MEMSTAT_REGION_ROM);
+	memstats_region_print("CACHE CTRL PORT",              MEMSTAT_REGION_CACHE);
+	memstats_region_print("RAM",                          MEMSTAT_REGION_RAM);
+	memstats_region_print("SCRATCHPAD",                   MEMSTAT_REGION_SCRATCHPAD);
+	memstats_region_print("HW I/O",                       MEMSTAT_REGION_HW);
+	memstats_region_print("TOTAL",                        MEMSTAT_REGION_ANY);
+}
+
+static inline void memstats_add_read(u32 addr, MemstatWidth width)
+{
+	MemstatRegion region;
+	addr &= 0xfffffff;
+	switch (addr >> 16) {
+		case 0x0000 ... 0x007f:
+			region = MEMSTAT_REGION_RAM;
+			break;
+		case 0x0f00 ... 0x0f7f:
+			region = MEMSTAT_REGION_PPORT;
+			break;
+		case 0x0f80:
+			if ((addr & 0xffff) < 0x0400)
+				region = MEMSTAT_REGION_SCRATCHPAD;
+			else
+				region = MEMSTAT_REGION_HW;
+			break;
+		case 0x0ffe:
+			region = MEMSTAT_REGION_CACHE;
+			break;
+		default:
+			region = MEMSTAT_REGION_ROM;
+			break;
+	}
+	memstats[MEMSTAT_TYPE_READ][region][width]++;
+	memstats[MEMSTAT_TYPE_READ][MEMSTAT_REGION_ANY][width]++;
+}
+
+static inline void memstats_add_write(u32 addr, MemstatWidth width)
+{
+	MemstatRegion region;
+	addr &= 0xfffffff;
+	switch (addr >> 16) {
+		case 0x0000 ... 0x007f:
+			if (psxRegs.writeok)
+				region = MEMSTAT_REGION_RAM;
+			else
+				region = MEMSTAT_REGION_BLOCKED;
+			break;
+		case 0x0f00 ... 0x0f7f:
+			region = MEMSTAT_REGION_PPORT;
+			break;
+		case 0x0f80:
+			if ((addr & 0xffff) < 0x0400)
+				region = MEMSTAT_REGION_SCRATCHPAD;
+			else
+				region = MEMSTAT_REGION_HW;
+			break;
+		case 0x0ffe:
+			region = MEMSTAT_REGION_CACHE;
+			break;
+		default:
+			region = MEMSTAT_REGION_ROM;
+			break;
+	}
+	memstats[MEMSTAT_TYPE_WRITE][region][width]++;
+	memstats[MEMSTAT_TYPE_WRITE][MEMSTAT_REGION_ANY][width]++;
+}
+///////////////////////////////////////////////////////////////////////////////
+// -END- Memory statistics (for development purposes)
+///////////////////////////////////////////////////////////////////////////////
+#endif // DEBUG_MEM_STATS

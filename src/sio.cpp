@@ -276,8 +276,23 @@ void sioWrite8(unsigned char value) {
 	}
 }
 
-void sioWriteStat16(unsigned short value) {
+void sioWrite16(u16 value)
+{
+	sioWrite8(value & 0xff);
+	sioWrite8((value>>8) & 0xff);
 }
+
+void sioWrite32(u32 value)
+{
+	sioWrite8( value      & 0xff);
+	sioWrite8((value>>8)  & 0xff);
+	sioWrite8((value>>16) & 0xff);
+	sioWrite8((value>>24) & 0xff);
+}
+
+// Empty function, disabled for now -senquack
+//void sioWriteStat16(unsigned short value) {
+//}
 
 void sioWriteMode16(unsigned short value) {
 	psxSio.ModeReg = value;
@@ -334,6 +349,23 @@ unsigned char sioRead8() {
 #endif
 	return ret;
 }
+
+u16 sioRead16()
+{
+	u16 retval = sioRead8();
+	retval |= (sioRead8() << 8);
+	return retval;
+}
+
+u32 sioRead32()
+{
+	u32 retval = sioRead8();
+	retval |= (sioRead8() << 8);
+	retval |= (sioRead8() << 16);
+	retval |= (sioRead8() << 24);
+	return retval;
+}
+
 unsigned short sioReadStat16() {
 	return psxSio.StatReg;
 }

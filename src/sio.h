@@ -31,12 +31,20 @@
 void sioInit(void);
 
 void sioWrite8(unsigned char value);
-void sioWriteStat16(unsigned short value);
+void sioWrite16(u16 value);
+void sioWrite32(u32 value);
+
+// Empty function, disabled for now -senquack
+//void sioWriteStat16(unsigned short value);
+
 void sioWriteMode16(unsigned short value);
 void sioWriteCtrl16(unsigned short value);
 void sioWriteBaud16(unsigned short value);
 
 unsigned char sioRead8(void);
+u16 sioRead16(void);
+u32 sioRead32(void);
+
 unsigned short sioReadStat16(void);
 unsigned short sioReadMode16(void);
 unsigned short sioReadCtrl16(void);

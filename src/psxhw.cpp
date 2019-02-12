@@ -22,6 +22,32 @@
 * Functions for PSX hardware control.
 */
 
+///////////////////////////////////////////////////////////////////////////////
+// May 30 2017  - Dynarec note: (senquack)                                   //
+//       NOTE: MIPS dynarec implements inlined versions of some cases of     //
+//       psxHwWrite8/16/32() and psxHwRead8/16/32(). Any updates of these    //
+//       functions should be accompanied by updates to MIPS dynarec HW I/O.  //
+//       IF YOU DON'T UPDATE MIPSREC: uncomment the #error line here to      //
+//       at least provide a compile-time error for future MIPS users:        //
+///////////////////////////////////////////////////////////////////////////////
+#if defined(PSXREC) && defined(mips)
+//#error "Updates to psxhw.cpp have been made, but MIPS recompiler has not been updated. You must update rec_lsu_hw.cpp.h to match psxhw.cpp, or ensure that inlined direct HW I/O is disabled in dynarec."
+#endif
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Aug 19 2017  - Added functionality useful to dynarecs: (senquack)         //
+//       NOTE: Dynarecs that handle most RAM/scratchpad memory accesses on   //
+//  on their own benefit from having psxHwRead*/psxHwWrite* handle not only  //
+//  I/O ports access, but any access to ROM or cache control port as well.   //
+//  This saves them having to call psxMemRead/psxMemWrite just to have those //
+//  functions always end up calling here. Therefore, you will see added      //
+//  '#ifdef PSXREC' blocks at the end of the read/write funcs here for this. //
+//  Sorry these functions are such a mess, but they were already like that   //
+//  in original emulator code and remain largely so to this day in PCSXR.    //
+///////////////////////////////////////////////////////////////////////////////
+
+
 #include "psxhw.h"
 #include "mdec.h"
 #include "cdrom.h"
@@ -40,12 +66,15 @@ void psxHwReset() {
 	HW_GPU_STATUS = 0x14802000;
 }
 
-u8 psxHwRead8(u32 add) {
-	unsigned char hard;
+u8 psxHwRead8(u32 add)
+{
+	u8 hard = 0;
 
-	switch (add) {
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
 		case 0x1f801040: hard = sioRead8();break; 
-      //  case 0x1f801050: hard = serial_read8(); break;//for use of serial port ignore for now
+		//  case 0x1f801050: hard = serial_read8(); break;//for use of serial port ignore for now
 		case 0x1f801800: hard = cdrRead0(); break;
 		case 0x1f801801: hard = cdrRead1(); break;
 		case 0x1f801802: hard = cdrRead2(); break;
@@ -55,19 +84,31 @@ u8 psxHwRead8(u32 add) {
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unkwnown 8bit read at address %x\n", add);
 #endif
-			return hard;
+		}
+		return hard;
 	}
 
-#ifdef PSXHW_LOG
-	PSXHW_LOG("*Known 8bit read at address %x value %x\n", add, hard);
-#endif
+#ifdef PSXREC
+	// See note at top of file regarding dynarecs needing added functionality.
+	if ((add & 0x0ff00000) == 0x0fc00000) {
+		// ROM access
+		return psxRu8(add);
+	} else {
+		// A non-32-bit read from cache control port and probably never encountered
+		return 0;
+	}
+#endif //PSXREC
+
 	return hard;
 }
 
-u16 psxHwRead16(u32 add) {
-	unsigned short hard;
+u16 psxHwRead16(u32 add)
+{
+	u16 hard = 0;
 
-	switch (add) {
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
 #ifdef PSXHW_LOG
 		case 0x1f801070: PSXHW_LOG("IREG 16bit read %x\n", psxHu16(0x1070));
 			return psxHu16(0x1070);
@@ -78,8 +119,7 @@ u16 psxHwRead16(u32 add) {
 #endif
 
 		case 0x1f801040:
-			hard = sioRead8();
-			hard|= sioRead8() << 8;
+			hard = sioRead16();
 #ifdef PAD_LOG
 			PAD_LOG("sio read16 %x; ret = %x\n", add&0xf, hard);
 #endif
@@ -175,31 +215,40 @@ u16 psxHwRead16(u32 add) {
 
 		default:
 			if (add >= 0x1f801c00 && add < 0x1f801e00) {
-            		hard = SPU_readRegister(add);
+				hard = SPU_readRegister(add);
 			} else {
 				hard = psxHu16(add); 
 #ifdef PSXHW_LOG
 				PSXHW_LOG("*Unkwnown 16bit read at address %x\n", add);
 #endif
 			}
-            return hard;
+			return hard;
+		}
 	}
-	
-#ifdef PSXHW_LOG
-	PSXHW_LOG("*Known 16bit read at address %x value %x\n", add, hard);
-#endif
+
+#ifdef PSXREC
+	// See note at top of file regarding dynarecs needing added functionality.
+	if ((add & 0x0ff00000) == 0x0fc00000) {
+		// ROM access
+		return psxRu16(add);
+	} else {
+		// A non-32-bit read from cache control port and probably never encountered
+		return 0;
+	}
+#endif //PSXREC
+
 	return hard;
 }
 
-u32 psxHwRead32(u32 add) {
-	u32 hard;
+u32 psxHwRead32(u32 add)
+{
+	u32 hard = 0;
 
-	switch (add) {
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
 		case 0x1f801040:
-			hard = sioRead8();
-			hard |= sioRead8() << 8;
-			hard |= sioRead8() << 16;
-			hard |= sioRead8() << 24;
+			hard = sioRead32();
 #ifdef PAD_LOG
 			PAD_LOG("sio read32 ;ret = %x\n", hard);
 #endif
@@ -237,8 +286,10 @@ u32 psxHwRead32(u32 add) {
 #endif
 			return hard;
 
-		case 0x1f801820: hard = mdecRead0(); break;
-		case 0x1f801824: hard = mdecRead1(); break;
+		case 0x1f801820:
+			return mdecRead0();
+		case 0x1f801824:
+			return mdecRead1();
 
 #ifdef PSXHW_LOG
 		case 0x1f8010a0:
@@ -326,15 +377,28 @@ u32 psxHwRead32(u32 add) {
 			PSXHW_LOG("*Unkwnown 32bit read at address %x\n", add);
 #endif
 			return hard;
+		}
 	}
-#ifdef PSXHW_LOG
-	PSXHW_LOG("*Known 32bit read at address %x\n", add);
-#endif
+
+#ifdef PSXREC
+	// See note at top of file regarding dynarecs needing added functionality.
+	if ((add & 0x0ff00000) == 0x0fc00000) {
+		// ROM access
+		return psxRu32(add);
+	} else {
+		// Cache control port read - mimic original psxmem.cpp behavior and return 0
+		return 0;
+	}
+#endif //PSXREC
+
 	return hard;
 }
 
-void psxHwWrite8(u32 add, u8 value) {
-	switch (add) {
+void psxHwWrite8(u32 add, u8 value)
+{
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
 		case 0x1f801040: sioWrite8(value); break;
 	//	case 0x1f801050: serial_write8(value); break;//serial port
 		case 0x1f801800: cdrWrite0(value); break;
@@ -348,30 +412,39 @@ void psxHwWrite8(u32 add, u8 value) {
 			PSXHW_LOG("*Unknown 8bit write at address %x value %x\n", add, value);
 #endif
 			return;
+		}
+
+		// NOTE: Yes, the messy and uncommented original code writes to psxH[]
+		//       even when the port address is known. I won't change this behavior
+		//       because it's unknown what original intent was. -senquack Aug 2017
+
+		psxHu8(add) = value;
 	}
-	psxHu8(add) = value;
 #ifdef PSXHW_LOG
 	PSXHW_LOG("*Known 8bit write at address %x value %x\n", add, value);
 #endif
 }
 
-void psxHwWrite16(u32 add, u16 value) {
-	switch (add) {
+void psxHwWrite16(u32 add, u16 value)
+{
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
 		case 0x1f801040:
-			sioWrite8((unsigned char)value);
-			sioWrite8((unsigned char)(value>>8));
+			sioWrite16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
 			return;
 		case 0x1f801044:
-			sioWriteStat16(value);
+			// Function is empty, disabled -senquack
+			//sioWriteStat16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
 			return;
 		case 0x1f801048:
-            sioWriteMode16(value);
+			sioWriteMode16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
@@ -383,7 +456,7 @@ void psxHwWrite16(u32 add, u16 value) {
 #endif
 			return;
 		case 0x1f80104e: // baudrate register
-            sioWriteBaud16(value);
+			sioWriteBaud16(value);
 #ifdef PAD_LOG
 			PAD_LOG ("sio write16 %x, %x\n", add&0xf, value);
 #endif
@@ -498,11 +571,8 @@ void psxHwWrite16(u32 add, u16 value) {
 			PSXHW_LOG("*Unknown 16bit write at address %x value %x\n", add, value);
 #endif
 			return;
+		}
 	}
-	psxHu16ref(add) = SWAPu16(value);
-#ifdef PSXHW_LOG
-	PSXHW_LOG("*Known 16bit write at address %x value %x\n", add, value);
-#endif
 }
 
 #define DmaExec(n) { \
@@ -513,13 +583,13 @@ void psxHwWrite16(u32 add, u16 value) {
 	} \
 }
 
-void psxHwWrite32(u32 add, u32 value) {
-	switch (add) {
-	    case 0x1f801040:
-			sioWrite8((unsigned char)value);
-			sioWrite8((unsigned char)((value&0xff) >>  8));
-			sioWrite8((unsigned char)((value&0xff) >> 16));
-			sioWrite8((unsigned char)((value&0xff) >> 24));
+void psxHwWrite32(u32 add, u32 value)
+{
+	if ((add & 0x0ff00000) == 0x0f800000)
+	{
+		switch (add) {
+		case 0x1f801040:
+			sioWrite32(value);
 #ifdef PAD_LOG
 			PAD_LOG("sio write32 %x\n", value);
 #endif
@@ -772,16 +842,29 @@ void psxHwWrite32(u32 add, u32 value) {
 			return;
 
 		default:
+			// Dukes of Hazard 2 - car engine noise
+			if (add>=0x1f801c00 && add<0x1f801e00) {
+				SPU_writeRegister(add, value&0xffff, psxRegs.cycle);
+				SPU_writeRegister(add + 2, value>>16, psxRegs.cycle);
+				return;
+			}
+
 			psxHu32ref(add) = SWAPu32(value);
 #ifdef PSXHW_LOG
 			PSXHW_LOG("*Unknown 32bit write at address %x value %x\n", add, value);
 #endif
 			return;
+		}
 	}
-	psxHu32ref(add) = SWAPu32(value);
-#ifdef PSXHW_LOG
-	PSXHW_LOG("*Known 32bit write at address %x value %x\n", add, value);
+
+#ifdef PSXREC
+	// See note at top of file regarding dynarecs needing added functionality.
+	if (add == 0xfffe0130) {
+		psxMemWrite32_CacheCtrlPort(value);
+		return;
+	}
 #endif
+
 }
 
 int psxHwFreeze(void* f, FreezeMode mode) {

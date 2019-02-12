@@ -158,14 +158,28 @@ static u32 regMipsToHostHelper(u32 regpsx, u32 action, u32 type)
 		regcache.host[regnum].ismapped = false;
 		regcache.host[regnum].mappedto = 0;
 
-		LW(regnum, PERM_REG_1, offGPR(regpsx));
+		// If reg value is known-const, see if it can be loaded with just one ALU op
+		if (IsConst(regpsx) && ( (((u32)GetConst(regpsx) <= 0xffff) || !(GetConst(regpsx) & 0xffff)) ||
+		                         (((s32)GetConst(regpsx) < 0) && ((s32)GetConst(regpsx) >= -32768))    ))
+		{
+			LI32(regnum, GetConst(regpsx));
+		} else {
+			LW(regnum, PERM_REG_1, offGPR(regpsx));
+		}
 
 		//DEBUGF("regnum 3 %d", regnum);
 		return regnum;
 	}
 
 	if (action == REG_LOAD) {
-		LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
+		// If reg value is known-const, see if it can be loaded with just one ALU op
+		if (IsConst(regpsx) && ( (((u32)GetConst(regpsx) <= 0xffff) || !(GetConst(regpsx) & 0xffff)) ||
+		                         (((s32)GetConst(regpsx) < 0) && ((s32)GetConst(regpsx) >= -32768))    ))
+		{
+			LI32(regcache.psx[regpsx].mappedto, GetConst(regpsx));
+		} else {
+			LW(regcache.psx[regpsx].mappedto, PERM_REG_1, offGPR(regpsx));
+		}
 	}
 
 	return regnum;
@@ -269,6 +283,7 @@ static void regReset()
 	}
 
 	regcache.reglist[i2] = 0xFF;
+	regcache.reglist_cnt = 0;
 	regcache_bak_idx = 0; // Empty regcache stack
 	//DEBUGF("reglist len %d", i2);
 }

@@ -1,3 +1,9 @@
+/******************************************************************************
+ * IMPORTANT: The following host registers have unique usage restrictions.    *
+ *            See notes in mips_codegen.h for full details.                   *
+ *  MIPSREG_AT, MIPSREG_V0, MIPSREG_V1, MIPSREG_RA                            *
+ *****************************************************************************/
+
 static void recMFC0()
 {
 // Rt = Cop0->Rd
@@ -66,9 +72,14 @@ static void emitTestSWInts()
 	// Use JAL's BD slot to set arg telling if instruction lied in BD slot :)
 	LI16(MIPSREG_A1, (branch == 1 ? 1 : 0)); // <BD slot>
 
+	// If new PC is unknown, cannot use 'fastpath' return
+	bool use_fastpath = false;
+
 	rec_recompile_end_part1();
+
 	LW(MIPSREG_V0, PERM_REG_1, off(pc)); // Block retval $v0 = new PC set by psxException()
-	rec_recompile_end_part2();
+
+	rec_recompile_end_part2(use_fastpath);
 
 	fixup_branch(backpatch1);
 	fixup_branch(backpatch2);
@@ -88,7 +99,7 @@ static void recMTC0()
 
 			if (IsConst(_Rt_)) {
 				SW(rt, PERM_REG_1, offCP0(12)); // Store new CP0 Status reg val
-				if ((iRegs[_Rt_].r & 0x401) == 0x401) {
+				if ((GetConst(_Rt_) & 0x401) == 0x401) {
 					SW(0, PERM_REG_1, off(io_cycle_counter));
 				}
 			} else {
@@ -107,7 +118,7 @@ static void recMTC0()
 			//  ** Fixes freeze at start of 'Jackie Chan Stuntmaster'
 
 			if (!IsConst(_Rt_) ||
-			    ((iRegs[_Rt_].r & 0x300) && (iRegs[_Rt_].r & 0x1))) {
+			    ((GetConst(_Rt_) & 0x300) && (GetConst(_Rt_) & 0x1))) {
 
 				// Load CP0 Cause reg (13), as emitTestSWInts() expects
 				//  Cause in MIPSREG_A0 and Status in MIPSREG_A1
@@ -141,7 +152,7 @@ static void recMTC0()
 
 			// See notes above regarding test for software-generated exception
 
-			if (!IsConst(_Rt_) || (iRegs[_Rt_].r & 0x300)) {
+			if (!IsConst(_Rt_) || (GetConst(_Rt_) & 0x300)) {
 				// Load CP0 Status reg (12), as emitTestSWInts() expects
 				//  Cause in MIPSREG_A0 and Status in MIPSREG_A1
 				LW(MIPSREG_A1, PERM_REG_1, offCP0(12));

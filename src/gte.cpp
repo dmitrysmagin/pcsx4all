@@ -174,17 +174,16 @@
 #define gteZSF4 (psxRegs.CP2C.p[30].sw.l)
 #define gteFLAG (psxRegs.CP2C.r[31])
 
-#define GTE_OP(op) ((op >> 20) & 31)
-#define GTE_SF(op) ((op >> 19) & 1)
-#define GTE_MX(op) ((op >> 17) & 3)
-#define GTE_V(op) ((op >> 15) & 3)
-#define GTE_CV(op) ((op >> 13) & 3)
-#define GTE_CD(op) ((op >> 11 ) & 3) /* not used */
-#define GTE_LM(op) ((op >> 10 ) & 1)
-#define GTE_CT(op) ((op >> 6) & 15) /* not used */
-#define GTE_FUNCT(op) (op & 63)
-
-#define gteop (psxRegs.code & 0x1ffffff)
+// Some GTE instructions encode various parameters in their 32-bit opcode.
+//  Rather than passing the opcode value through the psxRegisters 'opcode'
+//  field, we pass it to GTE funcs as an argument *pre-shifted* right by 10
+//  places. This allows dynarecs to emit faster calls to GTE functions.
+//  These helper macros interpret this pre-shifted opcode argument.
+#define GTE_SF(op) ((op >>  9)  & 1)
+#define GTE_MX(op) ((op >>  7)  & 3)
+#define GTE_V(op)  ((op >>  5)  & 3)
+#define GTE_CV(op) ((op >>  3)  & 3)
+#define GTE_LM(op) ((op >>  0)  & 1)
 
 //senquack-Don't try to optimize return value to s32 like PCSX Rearmed did here:
 //it's why as of Nov. 2016, PC build has gfx glitches in 1st level of 'Driver'
@@ -463,7 +462,8 @@ void gteRTPT(void) {
 	gteIR0 = limH(tmp >> 12);
 }
 
-void gteMVMVA(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteMVMVA(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 	int mx = GTE_MX(gteop);
 	int v = GTE_V(gteop);
@@ -518,7 +518,8 @@ void gteAVSZ4(void) {
 	gteOTZ = limD(gteMAC0 >> 12);
 }
 
-void gteSQR(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteSQR(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
@@ -683,7 +684,8 @@ void gteNCDT(void) {
 	gteIR3 = limB3(gteMAC3, 1);
 }
 
-void gteOP(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteOP(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
@@ -700,7 +702,8 @@ void gteOP(void) {
 	gteIR3 = limB3(gteMAC3, lm);
 }
 
-void gteDCPL(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteDCPL(u32 gteop) {
 	int lm = GTE_LM(gteop);
 
 	s32 RIR1 = ((s32)gteR * gteIR1) >> 8;
@@ -728,7 +731,8 @@ void gteDCPL(void) {
 	gteB2 = limC3(gteMAC3 >> 4);
 }
 
-void gteGPF(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteGPF(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -751,7 +755,8 @@ void gteGPF(void) {
 	gteB2 = limC3(gteMAC3 >> 4);
 }
 
-void gteGPL(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteGPL(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -774,7 +779,8 @@ void gteGPL(void) {
 	gteB2 = limC3(gteMAC3 >> 4);
 }
 
-void gteDPCS(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteDPCS(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 
 #ifdef GTE_LOG
@@ -910,7 +916,8 @@ void gteCC(void) {
 	gteB2 = limC3(gteMAC3 >> 4);
 }
 
-void gteINTPL(void) {
+// NOTE: 'gteop' parameter is instruction opcode shifted right 10 places.
+void gteINTPL(u32 gteop) {
 	int shift = 12 * GTE_SF(gteop);
 	int lm = GTE_LM(gteop);
 
