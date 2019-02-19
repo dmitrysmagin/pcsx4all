@@ -382,7 +382,12 @@ void psxBios_strcat(void) { // 0x15
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s: %s, %s\n", biosA0n[0x15], Ra0, Ra1);
 #endif
-
+	if (a0 == 0 || a1 == 0)
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
 	while (*p1++);
 	--p1;
 	while ((*p1++ = *p2++) != '\0');
@@ -1656,12 +1661,18 @@ void psxBios_PAD_init(void) { // 15
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x15]);
 #endif
-
+	if (!(a0 == 0x20000000 || a0 == 0x20000001))
+	{
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
 	ResetIoCycle();
 	psxHwWrite16(0x1f801074, (u16)(psxHwRead16(0x1f801074) | 0x1));
 	pad_buf = (int*)Ra1;
 	*pad_buf = -1;
 	psxRegs.CP0.n.Status |= 0x401;
+	v0 = 2;
 	pc0 = ra;
 }
 
@@ -2867,7 +2878,9 @@ void psxBiosException(void) {
 		case 0x20: // Syscall
 			switch (a0) {
 				case 1: // EnterCritical - disable irq's
-					psxRegs.CP0.n.Status&=~0x404; 
+					/* Fixes Medievil 2 not loading up new game, Digimon World not booting up and possibly others */
+					v0 = (psxRegs.CP0.n.Status & 0x404) == 0x404;
+					psxRegs.CP0.n.Status &= ~0x404;
 					//v0=1;	// HDHOSHY experimental patch: Spongebob, Coldblood, fearEffect, Medievil2, Martian Gothic
 					break;
 
