@@ -111,6 +111,7 @@ endif
 #  Fixes many game incompatibilities and centralizes/improves many
 #  things that once were the responsibility of individual GPU plugins.
 #  NOTE: For now, only GPU Unai has been adapted.
+OBJDIRS += obj/gpu/$(GPU)
 ifeq ($(USE_GPULIB),1)
 CFLAGS += -DUSE_GPULIB
 OBJDIRS += obj/gpu/gpulib
