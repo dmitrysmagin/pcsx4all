@@ -434,7 +434,7 @@ static struct {
 	int key;
 	int bit;
 } keymap[] = {
-	{ SDLK_UP,		DKEY_UP },
+	{ SDLK_UP,			DKEY_UP },
 	{ SDLK_DOWN,		DKEY_DOWN },
 	{ SDLK_LEFT,		DKEY_LEFT },
 	{ SDLK_RIGHT,		DKEY_RIGHT },
@@ -443,9 +443,11 @@ static struct {
 	{ SDLK_LCTRL,		DKEY_CIRCLE },
 	{ SDLK_SPACE,		DKEY_TRIANGLE },
 	{ SDLK_LALT,		DKEY_CROSS },
-	{ SDLK_TAB,		DKEY_L1 },
+	{ SDLK_TAB,			DKEY_L1 },
 	{ SDLK_BACKSPACE,	DKEY_R1 },
-	//{ SDLK_ESCAPE,		DKEY_SELECT },
+	{ SDLK_PAGEUP,		DKEY_L2 },
+	{ SDLK_PAGEDOWN,	DKEY_R2 },
+	{ SDLK_ESCAPE,		DKEY_SELECT },
 #else
 	{ SDLK_a,		DKEY_SQUARE },
 	{ SDLK_x,		DKEY_CIRCLE },
@@ -504,28 +506,28 @@ void pad_update(void)
 	/* Special key combos for GCW-Zero */
 #ifdef GCW_ZERO
 	// SELECT+B for psx's SELECT
-	if (keys[SDLK_ESCAPE] && keys[SDLK_LALT]) {
-		pad1 &= ~(1 << DKEY_SELECT);
-		pad1 |= (1 << DKEY_CROSS);
-	} else {
-		pad1 |= (1 << DKEY_SELECT);
-	}
+	// if (keys[SDLK_ESCAPE] && keys[SDLK_LALT]) {
+		// pad1 &= ~(1 << DKEY_SELECT);
+		// pad1 |= (1 << DKEY_CROSS);
+	// } else {
+		// pad1 |= (1 << DKEY_SELECT);
+	// }
 
 	// SELECT+L1 for psx's L2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
-		pad1 &= ~(1 << DKEY_L2);
-		pad1 |= (1 << DKEY_L1);
-	} else {
-		pad1 |= (1 << DKEY_L2);
-	}
+	// if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
+		// pad1 &= ~(1 << DKEY_L2);
+		// pad1 |= (1 << DKEY_L1);
+	// } else {
+		// pad1 |= (1 << DKEY_L2);
+	// }
 
-	// SELECT+R1 for R2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
-		pad1 &= ~(1 << DKEY_R2);
-		pad1 |= (1 << DKEY_R1);
-	} else {
-		pad1 |= (1 << DKEY_R2);
-	}
+	// // SELECT+R1 for R2
+	// if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
+		// pad1 &= ~(1 << DKEY_R2);
+		// pad1 |= (1 << DKEY_R1);
+	// } else {
+		// pad1 |= (1 << DKEY_R2);
+	// }
 
 	// SELECT+START for menu
 	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {

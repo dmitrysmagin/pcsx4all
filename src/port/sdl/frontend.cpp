@@ -1044,14 +1044,17 @@ static int gui_swap_cd(void)
 	return 1;
 }
 
-static MENUITEM gui_GameMenuItems[] = {
-	{(char *)"Swap CD", &gui_swap_cd, NULL, NULL, NULL},
-	{(char *)"Load state", &gui_StateLoad, NULL, NULL, NULL},
-	{(char *)"Save state", &gui_StateSave, NULL, NULL, NULL},
-	{(char *)"Quit", &gui_Quit, NULL, NULL, NULL},
-	{0}
+static MENUITEM gui_GameMenuItems[] =
+{
+  {(char *)"Swap CD", &gui_swap_cd, NULL, NULL, NULL},
+  {(char *)"Load state", &gui_StateLoad, NULL, NULL, NULL},
+  {(char *)"Save state", &gui_StateSave, NULL, NULL, NULL},
+  {(char *)"GPU settings", &gui_GPUSettings, NULL, NULL, NULL},
+  {(char *)"SPU settings", &gui_SPUSettings, NULL, NULL, NULL},
+  {(char *)"Core settings", &gui_Settings, NULL, NULL, NULL},
+  {(char *)"Quit", &gui_Quit, NULL, NULL, NULL},
+  {0}
 };
-
 #define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
 static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
 
@@ -1773,7 +1776,7 @@ static void ShowMenu(MENU *menu)
 	port_printf(menu->x - 3 * 8, menu->y + menu->cur * 10, "-->");
 
 	// general copyrights info
-	port_printf( 8 * 8, 10, "pcsx4all 2.4 for GCW-Zero");
+	port_printf( 8 * 8, 10, "pcsx4all 2.4 for RG350");
 	port_printf( 4 * 8, 20, "Built on " __DATE__ " at " __TIME__);
 }
 

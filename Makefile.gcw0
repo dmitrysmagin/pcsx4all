@@ -55,9 +55,10 @@ else
 	#  fixed mappings by dynarec, etc. Otherwise, the Linux default seems to be
 	#  0x40_0000 i.e., offset 4MB from 0. That's not enough room to map and
 	#  mirror PS1 address space.
-	C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
-	LDFLAGS += -Wl,-Ttext-segment=0x40000000
-
+	#C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
+	#LDFLAGS += -Wl,-Ttext-segment=0x40000000
+	LDFLAGS = $(SDL_LIBS) -lrt -lz -Wl,--as-needed -Wl,--gc-sections -s
+	LDFLAGS += -flto
 	# Furthermore, div-by-zero checks are disabled (helps software rendering)
 	C_ARCH  += -mno-check-zero-division
 endif
