@@ -50,7 +50,7 @@ struct pl_data_t pl_data;
 void pl_clear_screen()
 {
 	u16 *dst = SCREEN;
-	memset((void*)dst, 0, 320*240*2);
+	memset((void*)dst, 0, SCREEN_WIDTH*SCREEN_HEIGHT*2);
 }
 
 void pl_clear_borders()

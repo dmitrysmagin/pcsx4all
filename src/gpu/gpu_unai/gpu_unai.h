@@ -222,7 +222,7 @@ struct gpu_unai_t {
 	////////////////////////////////////////////////////////////////////////////
 
 
-	u8 blit_mask;           // Determines what pixels to skip when rendering.
+	// u8 blit_mask;           // Determines what pixels to skip when rendering.
 	                        //  Only useful on low-resolution devices using
 	                        //  a simple pixel-dropping downscaler for PS1
 	                        //  high-res modes. See 'pixel_skip' option.
@@ -302,10 +302,10 @@ static inline bool ProgressiveInterlaceEnabled()
 //  and pixel-skipping downscaler.
 // TODO: Flesh these out so they return useful values based on whether
 //       running on higher-res device or a resampling downscaler is enabled.
-static inline bool PixelSkipEnabled()
-{
-	return gpu_unai.config.pixel_skip;
-}
+// static inline bool PixelSkipEnabled()
+// {
+// 	return gpu_unai.config.pixel_skip;
+// }
 
 static inline bool LineSkipEnabled()
 {

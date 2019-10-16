@@ -50,6 +50,7 @@ void video_clear(void);
 void port_printf(int x, int y, const char *text);
 
 extern unsigned short *SCREEN;
+extern int SCREEN_WIDTH, SCREEN_HEIGHT;
 
 int state_load(int slot);
 int state_save(int slot);

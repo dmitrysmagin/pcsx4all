@@ -13,6 +13,7 @@
 /* PATH_MAX inclusion */
 #ifdef __MINGW32__
 #include <limits.h>
+#include <gpu/gpulib/gpu.h>
 #endif
 
 #ifdef SPU_PCSXREARMED
@@ -58,12 +59,14 @@ enum {
 
 static SDL_Surface *screen;
 unsigned short *SCREEN;
+int SCREEN_WIDTH = 640, SCREEN_HEIGHT = 480;
 
 static bool pcsx4all_initted = false;
 static bool emu_running = false;
 
 void config_load();
 void config_save();
+void update_window_size(int w, int h);
 
 static void pcsx4all_exit(void)
 {
@@ -328,10 +331,11 @@ void config_load()
 		}
 #endif
 #ifdef GPU_UNAI
-		else if (!strcmp(line, "pixel_skip")) {
-			sscanf(arg, "%d", &value);
-			gpu_unai_config_ext.pixel_skip = value;
-		} else if (!strcmp(line, "lighting")) {
+		// else if (!strcmp(line, "pixel_skip")) {
+		//	sscanf(arg, "%d", &value);
+		//	gpu_unai_config_ext.pixel_skip = value;
+		// }
+		else if (!strcmp(line, "lighting")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.lighting = value;
 		} else if (!strcmp(line, "fast_lighting")) {
@@ -413,13 +417,13 @@ void config_save()
 
 #ifdef GPU_UNAI
 	fprintf(f, "interlace %d\n"
-		   "pixel_skip %d\n"
+		   // "pixel_skip %d\n"
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
 		   "dithering %d\n",
 		   gpu_unai_config_ext.ilace_force,
-		   gpu_unai_config_ext.pixel_skip,
+		   // gpu_unai_config_ext.pixel_skip,
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
 		   gpu_unai_config_ext.blending,
@@ -697,9 +701,12 @@ void pad_update()
 
 		emu_running = false;
 		pl_pause();    // Tell plugin_lib we're pausing emu
+		update_window_size(320, 240);
 		GameMenu();
 		emu_running = true;
 		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
+		update_window_size(gpu.screen.hres, gpu.screen.vres);
+#ifdef SW_SCALE
 		video_clear();
 		video_flip();
 		video_clear();
@@ -707,6 +714,10 @@ void pad_update()
 		video_flip();
 		video_clear();
 #endif
+#endif
+		emu_running = true;
+		pad1 |= (1 << DKEY_START);
+		pad1 |= (1 << DKEY_CROSS);
 		pl_resume();    // Tell plugin_lib we're reentering emu
 	}
 
@@ -803,8 +814,7 @@ with mingw build. */
 #undef main
 #endif
 
-void Rumble_Init()
-{
+void Rumble_Init() {
 #ifdef RUMBLE
 	Shake_Init();
 
@@ -823,6 +833,53 @@ void Rumble_Init()
 		effect.delay = 0;
 		id_shake = Shake_UploadEffect(device, &effect);
 	}
+#endif
+}
+
+void update_window_size(int w, int h)
+{
+#ifndef SW_SCALE
+#ifdef SDL_TRIPLEBUF
+	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+#else
+	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+#endif
+	SCREEN_WIDTH = w;
+	SCREEN_HEIGHT = h;
+
+	if (screen && SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
+
+	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
+	if (!screen) {
+		puts("NO Set VideoMode 320x240x16");
+		exit(0);
+	}
+
+	if (SDL_MUSTLOCK(screen))
+		SDL_LockSurface(screen);
+
+#ifdef HW_PIXEL_FMT_CONV
+	screen->format->Rshift = 0;
+	screen->format->Gshift = 5;
+	screen->format->Bshift = 10;
+	screen->format->Rmask = 0x1Fu;
+	screen->format->Gmask = 0x1Fu<<5u;
+	screen->format->Bmask = 0x1Fu<<10u;
+	screen->format->Amask = 0;
+	screen->format->Ashift = 0;
+	screen->format_version++;
+#endif
+
+	SCREEN = (Uint16 *)screen->pixels;
+
+	video_clear();
+	video_flip();
+	video_clear();
+#ifdef SDL_TRIPLEBUF
+	video_flip();
+	video_clear();
+#endif
 #endif
 }
 
@@ -954,7 +1011,7 @@ int main (int argc, char **argv)
 	// gpu_unai
 #ifdef GPU_UNAI
 	gpu_unai_config_ext.ilace_force = 0;
-	gpu_unai_config_ext.pixel_skip = 1;
+	// gpu_unai_config_ext.pixel_skip = 0;
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1048,7 +1105,7 @@ int main (int argc, char **argv)
 
 			if (val == -1) {
 				printf("ERROR: -spuupdatefreq value must be between %d..%d\n"
-				       "(%d is once per frame)\n",
+					   "(%d is once per frame)\n",
 					   SPU_UPDATE_FREQ_MIN, SPU_UPDATE_FREQ_MAX, SPU_UPDATE_FREQ_1);
 				param_parse_error = true;
 				break;
@@ -1143,26 +1200,26 @@ int main (int argc, char **argv)
 		//  PSX vid modes and those pixels would never appear on 320x240 screen.
 		//  (when using pixel-dropping downscaler).
 		//  Can cause visual artifacts, default is on for now (for speed)
-		if (strcmp(argv[i],"-nopixelskip") == 0) {
-			gpu_unai_config_ext.pixel_skip = 0;
-		}
+		// if (strcmp(argv[i],"-nopixelskip") == 0) {
+		// 	gpu_unai_config_ext.pixel_skip = 0;
+		// }
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
-	#ifndef USE_GPULIB
+#ifndef USE_GPULIB
 		// Progressive interlace option - See gpu_unai/gpu.h
 		// Old option left in from when PCSX4ALL ran on very slow devices.
 		if (strcmp(argv[i],"-progressive") == 0) {
 			gpu_unai_config_ext.prog_ilace = 1;
 		}
-	#endif //!USE_GPULIB
+#endif //!USE_GPULIB
 #endif //GPU_UNAI
 
 
 	// SPU
-	#ifndef SPU_NULL
+#ifndef SPU_NULL
 
 	// ----- BEGIN SPU_PCSXREARMED SECTION -----
-	#ifdef SPU_PCSXREARMED
+#ifdef SPU_PCSXREARMED
 		// No sound
 		if (strcmp(argv[i],"-silent") == 0) {
 			spu_config.iDisabled = 1;
@@ -1255,10 +1312,10 @@ int main (int argc, char **argv)
 		//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
 		//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
-	#endif //SPU_PCSXREARMED
+#endif //SPU_PCSXREARMED
 	// ----- END SPU_PCSXREARMED SECTION -----
 
-	#endif //!SPU_NULL
+#endif //!SPU_NULL
 	}
 
 	update_memcards(0);
@@ -1274,24 +1331,9 @@ int main (int argc, char **argv)
 
 	atexit(pcsx4all_exit);
 
-#ifdef SDL_TRIPLEBUF
-	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
-#else
-	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
-#endif
-
-	screen = SDL_SetVideoMode(320, 240, 16, flags);
-	if (!screen) {
-		puts("NO Set VideoMode 320x240x16");
-		exit(0);
-	}
-
-	if (SDL_MUSTLOCK(screen))
-		SDL_LockSurface(screen);
-
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
 
-	SCREEN = (Uint16 *)screen->pixels;
+	update_window_size(320, 240);
 
 	if (argc < 2 || cdrfilename[0] == '\0') {
 		// Enter frontend main-menu:
@@ -1447,17 +1489,21 @@ void port_printf(int x, int y, const char *text)
 		0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00,0x70,0x18,0x30,0x1C,0x30,0x18,0x70,0x00,
 		0x00,0x00,0x76,0xDC,0x00,0x00,0x00,0x00,0x10,0x28,0x10,0x54,0xAA,0x44,0x00,0x00,
 	};
-	unsigned short *screen = (SCREEN + x + y * 320);
-	for (int i = 0; i < strlen(text); i++) {
+	unsigned short *screen = (SCREEN + x + y * SCREEN_WIDTH);
+	int len = strlen(text);
+	for (int i = 0; i < len; i++) {
+		int pos = 0;
 		for (int l = 0; l < 8; l++) {
-			screen[l*320+0]=(fontdata8x8[((text[i])*8)+l]&0x80)?0xffff:0x0000;
-			screen[l*320+1]=(fontdata8x8[((text[i])*8)+l]&0x40)?0xffff:0x0000;
-			screen[l*320+2]=(fontdata8x8[((text[i])*8)+l]&0x20)?0xffff:0x0000;
-			screen[l*320+3]=(fontdata8x8[((text[i])*8)+l]&0x10)?0xffff:0x0000;
-			screen[l*320+4]=(fontdata8x8[((text[i])*8)+l]&0x08)?0xffff:0x0000;
-			screen[l*320+5]=(fontdata8x8[((text[i])*8)+l]&0x04)?0xffff:0x0000;
-			screen[l*320+6]=(fontdata8x8[((text[i])*8)+l]&0x02)?0xffff:0x0000;
-			screen[l*320+7]=(fontdata8x8[((text[i])*8)+l]&0x01)?0xffff:0x0000;
+			unsigned char data = fontdata8x8[((text[i])*8)+l];
+			screen[pos+0]=(data&0x80u)?0xffff:0x0000;
+			screen[pos+1]=(data&0x40u)?0xffff:0x0000;
+			screen[pos+2]=(data&0x20u)?0xffff:0x0000;
+			screen[pos+3]=(data&0x10u)?0xffff:0x0000;
+			screen[pos+4]=(data&0x08u)?0xffff:0x0000;
+			screen[pos+5]=(data&0x04u)?0xffff:0x0000;
+			screen[pos+6]=(data&0x02u)?0xffff:0x0000;
+			screen[pos+7]=(data&0x01u)?0xffff:0x0000;
+			pos += SCREEN_WIDTH;
 		}
 		screen += 8;
 	}

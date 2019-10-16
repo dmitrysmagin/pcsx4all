@@ -27,8 +27,6 @@
 
 #define GPU_INLINE static inline __attribute__((always_inline))
 
-#define VIDEO_WIDTH 320
-
 #ifdef TIME_IN_MSEC
 #define TPS 1000
 #else
@@ -571,6 +569,7 @@ void  GPU_writeStatus(u32 data)
 				// Update width
 				gpu_unai.DisplayArea[2] = new_width;
 
+				/*
 				if (PixelSkipEnabled()) {
 					// Set blit_mask for high horizontal resolutions. This allows skipping
 					//  rendering pixels that would never get displayed on low-resolution
@@ -581,7 +580,7 @@ void  GPU_writeStatus(u32 data)
 						case 640: gpu_unai.blit_mask = 0xaa; break; // GPU_BlitWS
 						default:  gpu_unai.blit_mask = 0;    break;
 					}
-				} else {
+				} else*/ {
 					gpu_unai.blit_mask = 0;
 				}
 
@@ -662,7 +661,7 @@ static void gpuVideoOutput(void)
 		src16_offs = (src16_offs + (((h1-h0) / 2) * 1024)) & src16_offs_msk;
 		h1 = h0;
 	} else if (h1<h0) {
-		dst16 += ((h0-h1) >> sizeShift) * VIDEO_WIDTH;
+		dst16 += ((h0-h1) >> sizeShift) * SCREEN_WIDTH;
 	}
 
 
@@ -681,7 +680,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
@@ -690,7 +689,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
@@ -701,7 +700,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
@@ -710,7 +709,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
@@ -719,7 +718,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
@@ -728,7 +727,7 @@ static void gpuVideoOutput(void)
 				{
 					if (( 0 == (y0&li) ) && ((!pi) || (pif=!pif)))
 						GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
-					dst16 += VIDEO_WIDTH;
+					dst16 += SCREEN_WIDTH;
 					src16_offs = (src16_offs + h0) & src16_offs_msk;
 				}
 				break;
