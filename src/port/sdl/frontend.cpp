@@ -460,7 +460,7 @@ static MENUITEM gui_MainMenuItems[] = {
 };
 
 #define MENU_SIZE ((sizeof(gui_MainMenuItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_MainMenu = { MENU_SIZE, 0, 112, 140, (MENUITEM *)&gui_MainMenuItems };
+static MENU gui_MainMenu = { MENU_SIZE, 0, 102, 140, (MENUITEM *)&gui_MainMenuItems };
 
 static int gui_state_save(int slot)
 {
@@ -1060,7 +1060,7 @@ static MENUITEM gui_GameMenuItems[] =
   {0}
 };
 #define GMENU_SIZE ((sizeof(gui_GameMenuItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_GameMenu = { GMENU_SIZE, 0, 112, 120, (MENUITEM *)&gui_GameMenuItems };
+static MENU gui_GameMenu = { GMENU_SIZE, 0, 102, 120, (MENUITEM *)&gui_GameMenuItems };
 
 #ifdef PSXREC
 static int emu_alter(u32 keys)
@@ -1128,9 +1128,15 @@ static int bios_set()
 	if (name) {
 		const char *p = strrchr(name, '/');
 		strcpy(Config.Bios, p + 1);
+		check_spec_bios();
 	}
 
 	return 0;
+}
+
+static char *bios_file_show()
+{
+	return (char*)bios_file_get();
 }
 
 static int RCntFix_alter(u32 keys)
@@ -1202,6 +1208,54 @@ static char *VSyncWA_show()
 	return buf;
 }
 
+static int McdSlot1_alter(u32 keys)
+{
+	int slot = Config.McdSlot1;
+	if (keys & KEY_RIGHT)
+	{
+		if (++slot > 15) slot = 1;
+	}
+	else
+	if (keys & KEY_LEFT)
+	{
+		if (--slot < 1) slot = 15;
+	}
+	Config.McdSlot1 = slot;
+	update_memcards(1);
+	return 0;
+}
+
+static char *McdSlot1_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "mcd%03d.mcr", (int)Config.McdSlot1);
+	return buf;
+}
+
+static int McdSlot2_alter(u32 keys)
+{
+	int slot = Config.McdSlot2;
+	if (keys & KEY_RIGHT)
+	{
+		if (++slot > 16) slot = 1;
+	}
+	else
+	if (keys & KEY_LEFT)
+	{
+		if (--slot < 1) slot = 16;
+	}
+	Config.McdSlot2 = slot;
+	update_memcards(2);
+	return 0;
+}
+
+static char *McdSlot2_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "mcd%03d.mcr", (int)Config.McdSlot2);
+	return buf;
+}
+
 static int settings_back()
 {
 	return 1;
@@ -1230,22 +1284,24 @@ static int settings_defaults()
 
 static MENUITEM gui_SettingsItems[] = {
 #ifdef PSXREC
-	{(char *)"Emulation core       ", NULL, &emu_alter, &emu_show, NULL},
-	{(char *)"Cycle multiplier     ", NULL, &cycle_alter, &cycle_show, NULL},
+	{(char *)"Emulation core     ", NULL, &emu_alter, &emu_show, NULL},
+	{(char *)"Cycle multiplier   ", NULL, &cycle_alter, &cycle_show, NULL},
 #endif
-	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show, NULL},
-	{(char *)"Set BIOS file        ", &bios_set, NULL, NULL, NULL},
-	{(char *)"Skip BIOS logos      ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
-	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
-	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
-	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL, NULL},
+	{(char *)"HLE emulated BIOS  ", NULL, &bios_alter, &bios_show, NULL},
+	{(char *)"Set BIOS file      ", &bios_set, NULL, &bios_file_show, NULL},
+	{(char *)"Skip BIOS logos    ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
+	{(char *)"RCntFix            ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
+	{(char *)"VSyncWA            ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
+	{(char *)"Memory card Slot1  ", NULL, &McdSlot1_alter, &McdSlot1_show, NULL},
+	{(char *)"Memory card Slot2  ", NULL, &McdSlot2_alter, &McdSlot2_show, NULL},
+	{(char *)"Restore defaults   ", &settings_defaults, NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
+	{(char *)"Back to main menu  ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
 #define SET_SIZE ((sizeof(gui_SettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_SettingsMenu = { SET_SIZE, 0, 56, 112, (MENUITEM *)&gui_SettingsItems };
+static MENU gui_SettingsMenu = { SET_SIZE, 0, 56, 102, (MENUITEM *)&gui_SettingsItems };
 
 static int fps_alter(u32 keys)
 {
@@ -1489,7 +1545,7 @@ static MENUITEM gui_GPUSettingsItems[] = {
 };
 
 #define SET_GPUSIZE ((sizeof(gui_GPUSettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_GPUSettingsMenu = { SET_GPUSIZE, 0, 56, 112, (MENUITEM *)&gui_GPUSettingsItems };
+static MENU gui_GPUSettingsMenu = { SET_GPUSIZE, 0, 56, 102, (MENUITEM *)&gui_GPUSettingsItems };
 
 static int xa_alter(u32 keys)
 {
@@ -1704,7 +1760,7 @@ static MENUITEM gui_SPUSettingsItems[] = {
 };
 
 #define SET_SPUSIZE ((sizeof(gui_SPUSettingsItems) / sizeof(MENUITEM)) - 1)
-static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 112, (MENUITEM *)&gui_SPUSettingsItems };
+static MENU gui_SPUSettingsMenu = { SET_SPUSIZE, 0, 56, 102, (MENUITEM *)&gui_SPUSettingsItems };
 
 static int gui_LoadIso()
 {
