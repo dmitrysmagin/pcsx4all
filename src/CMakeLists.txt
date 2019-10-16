@@ -15,7 +15,7 @@ set(SRC_FILES
     plugin_lib/plugin_lib.cpp plugin_lib/pl_sshot.cpp plugin_lib/perfmon.cpp
     psxinterpreter.cpp
     mdec.cpp decode_xa.cpp
-    cdriso.cpp cdrom.cpp ppf.cpp
+    cdriso.cpp cdrom.cpp ppf.cpp cheat.cpp
     sio.cpp pad.cpp
     gte.cpp
     spu/${SPU}/spu.c

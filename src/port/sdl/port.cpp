@@ -8,6 +8,7 @@
 #include "plugins.h"
 #include "plugin_lib.h"
 #include "perfmon.h"
+#include "cheat.h"
 #include <SDL.h>
 
 /* PATH_MAX inclusion */
@@ -70,6 +71,12 @@ void update_window_size(int w, int h);
 
 static void pcsx4all_exit(void)
 {
+	// unload cheats
+	cheat_unload();
+
+	// Store config to file
+	config_save();
+
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
 
@@ -86,9 +93,6 @@ static void pcsx4all_exit(void)
 		ReleasePlugins();
 		psxShutdown();
 	}
-
-	// Store config to file
-	config_save();
 }
 
 static char *home = NULL;
@@ -97,6 +101,7 @@ static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
 static char biosdir[PATH_MAX] =		"./.pcsx4all/bios";
 static char patchesdir[PATH_MAX] =	"./.pcsx4all/patches";
 char sstatesdir[PATH_MAX] = "./.pcsx4all/sstates";
+char cheatsdir[PATH_MAX] = "./.pcsx4all/cheats";
 
 static char McdPath1[MAXPATHLEN] = "";
 static char McdPath2[MAXPATHLEN] = "";
@@ -122,6 +127,7 @@ static void setup_paths()
 		sprintf(memcardsdir, "%s/memcards", homedir);
 		sprintf(biosdir, "%s/bios", homedir);
 		sprintf(patchesdir, "%s/patches", homedir);
+		sprintf(cheatsdir, "%s/cheats", homedir);
 	}
 
 	MKDIR(homedir);
@@ -129,6 +135,7 @@ static void setup_paths()
 	MKDIR(memcardsdir);
 	MKDIR(biosdir);
 	MKDIR(patchesdir);
+	MKDIR(cheatsdir);
 }
 
 void probe_lastdir()
@@ -1372,6 +1379,9 @@ int main (int argc, char **argv)
 			if (LoadCdrom() == -1) {
 				printf("Failed loading ISO image.\n");
 				SetIsoFile(NULL);
+			} else {
+				// load cheats
+				cheat_load();
 			}
 		}
 	} else {
