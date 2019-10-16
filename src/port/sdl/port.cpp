@@ -470,6 +470,7 @@ void pad_update(void)
 {
 	SDL_Event event;
 	Uint8 *keys = SDL_GetKeyState(NULL);
+	bool popup_menu = false;
 
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -478,14 +479,19 @@ void pad_update(void)
 			break;
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
+			case SDLK_HOME:
+			case SDLK_F10:
+				popup_menu = true;
+				break;
 #ifndef GCW_ZERO
 			case SDLK_ESCAPE:
+#endif
+			case SDLK_q:
 				event.type = SDL_QUIT;
 				SDL_PushEvent(&event);
 				break;
-#endif
 			case SDLK_v: { Config.ShowFps=!Config.ShowFps; } break;
-			default: break;
+				default: break;
 			}
 			break;
 
@@ -503,34 +509,8 @@ void pad_update(void)
 		k++;
 	}
 
-	/* Special key combos for GCW-Zero */
-#ifdef GCW_ZERO
-	// SELECT+B for psx's SELECT
-	// if (keys[SDLK_ESCAPE] && keys[SDLK_LALT]) {
-		// pad1 &= ~(1 << DKEY_SELECT);
-		// pad1 |= (1 << DKEY_CROSS);
-	// } else {
-		// pad1 |= (1 << DKEY_SELECT);
-	// }
-
-	// SELECT+L1 for psx's L2
-	// if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
-		// pad1 &= ~(1 << DKEY_L2);
-		// pad1 |= (1 << DKEY_L1);
-	// } else {
-		// pad1 |= (1 << DKEY_L2);
-	// }
-
-	// // SELECT+R1 for R2
-	// if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
-		// pad1 &= ~(1 << DKEY_R2);
-		// pad1 |= (1 << DKEY_R1);
-	// } else {
-		// pad1 |= (1 << DKEY_R2);
-	// }
-
-	// SELECT+START for menu
-	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {
+	// popup main menu
+	if (popup_menu) {
 		//Sync and close any memcard files opened for writing
 		//TODO: Disallow entering menu until they are synced/closed
 		// automatically, displaying message that write is in progress.
@@ -540,6 +520,7 @@ void pad_update(void)
 		pl_pause();    // Tell plugin_lib we're pausing emu
 		GameMenu();
 		emu_running = true;
+		pad1 |= (1 << DKEY_SELECT);
 		pad1 |= (1 << DKEY_START);
 		pad1 |= (1 << DKEY_CROSS);
 		video_clear();
@@ -551,7 +532,6 @@ void pad_update(void)
 #endif
 		pl_resume();    // Tell plugin_lib we're reentering emu
 	}
-#endif
 }
 
 unsigned short pad_read(int num)

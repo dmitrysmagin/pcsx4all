@@ -32,7 +32,11 @@
 #include "gpu/gpu_unai/gpu.h"
 #endif
 
+#ifdef TIME_IN_MSEC
+#define timer_delay(a)	wait_ticks(a)
+#else
 #define timer_delay(a)	wait_ticks(a*1000)
+#endif
 
 enum  {
 	KEY_UP=0x1,	KEY_LEFT=0x4,		KEY_DOWN=0x10,	KEY_RIGHT=0x40,
