@@ -152,6 +152,7 @@ void psxMemReset()
 	boolean biosfound = FALSE;
 	FILE *f = NULL;
 	char bios[MAXPATHLEN];
+	const char *selected = bios_file_get();
 
 	memstats_reset();
 
@@ -168,7 +169,7 @@ void psxMemReset()
 		}
 
 		while ((direntry = readdir(dirstream))) {
-			if (!strcasecmp(direntry->d_name, Config.Bios)) {
+			if (!strcasecmp(direntry->d_name, selected)) {
 				if (snprintf(bios, MAXPATHLEN, "%s/%s", Config.BiosDir, direntry->d_name) >= MAXPATHLEN)
 					continue;
 
@@ -200,7 +201,7 @@ void psxMemReset()
 		closedir(dirstream);
 
 		if (!biosfound) {
-			printf("Could not locate BIOS: \"%s\". Enabling HLE BIOS!\n", Config.Bios);
+			printf("Could not locate BIOS: \"%s\". Enabling HLE BIOS!\n", selected);
 			Config.HLE = TRUE;
 		}
 	}

@@ -121,8 +121,6 @@ enum {
 };
 
 typedef struct {
-	char Mcd1[MAXPATHLEN];
-	char Mcd2[MAXPATHLEN];
 	char Bios[MAXPATHLEN];
 	char BiosDir[MAXPATHLEN];
 	char LastDir[MAXPATHLEN];
@@ -133,10 +131,14 @@ typedef struct {
 	boolean Cdda; /* 0=Enable Cd audio, 1=Disable Cd audio */
 	boolean HLE; /* 1=HLE, 0=bios */
 	boolean SlowBoot; /* 0=skip bios logo sequence on boot  1=show sequence (does not apply to HLE) */
+	boolean AnalogArrow; /* 0=disable 1=use L-stick as D-pad arrow key */
+	u8 AnalogMode;   /* 0-Digital 1-DualAnalog 2-DualShock */
 	boolean RCntFix; /* 1=Parasite Eve 2, Vandal Hearts 1/2 Fix */
 	boolean VSyncWA; /* 1=InuYasha Sengoku Battle Fix */
 	u8 Cpu; /* 0=recompiler, 1=interpreter */
 	u8 PsxType; /* 0=ntsc, 1=pal */
+    u8 McdSlot1; /* mcd slot 1, mcd%03u.mcr */
+    u8 McdSlot2; /* mcd slot 2, mcd%03u.mcr */
 
 	//senquack - added Config.SpuIrq option from PCSX Rearmed/Reloaded:
 	boolean SpuIrq; /* 1=SPU IRQ always enabled (needed for audio in some games) */

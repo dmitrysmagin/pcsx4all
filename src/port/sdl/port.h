@@ -12,6 +12,21 @@
 #include <sys/types.h>
 #include <assert.h>
 
+struct ps1_controller {
+	uint8_t id;
+	uint8_t joy_right_ax0;
+	uint8_t joy_right_ax1;
+	uint8_t joy_left_ax0;
+	uint8_t joy_left_ax1;
+	uint8_t Vib[2];
+	uint8_t VibF[2];
+	uint8_t pad_mode;
+	uint8_t pad_controllertype;
+	uint8_t configmode;
+};
+
+extern struct ps1_controller player_controller[2];
+
 ///////////////////////////
 // Windows compatibility //
 ///////////////////////////
@@ -38,6 +53,10 @@ extern unsigned short *SCREEN;
 
 int state_load(int slot);
 int state_save(int slot);
+
+void update_memcards(int load_mcd);
+const char *bios_file_get();
+void check_spec_bios();
 
 int SelectGame();
 int GameMenu();
