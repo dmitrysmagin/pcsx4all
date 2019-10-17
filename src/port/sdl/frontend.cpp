@@ -1173,6 +1173,64 @@ static int SlowBoot_alter(u32 keys)
 	return 0;
 }
 
+static int AnalogArrow_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (Config.AnalogArrow < 1) Config.AnalogArrow = 1;
+	} else if (keys & KEY_LEFT) {
+		if (Config.AnalogArrow > 0) Config.AnalogArrow = 0;
+	}
+
+	return 0;
+}
+
+static void AnalogArrow_hint()
+{
+	port_printf(6 * 8, 10 * 8, "Analog Stick -> Arrow Keys");
+}
+
+static char* AnalogArrow_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", Config.AnalogArrow ? "on" : "off");
+	return buf;
+}
+
+static int Analog_Mode_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		Config.AnalogMode++;
+		if (Config.AnalogMode > 2) Config.AnalogMode = 2;
+	} else if (keys & KEY_LEFT) {
+		Config.AnalogMode--;
+		if (Config.AnalogMode < 1) Config.AnalogMode = 0;
+	}
+
+	return 0;
+}
+
+static void Analog_Mode_hint()
+{
+	port_printf(6 * 8, 10 * 8, "Analog Mode");
+}
+
+static char* Analog_Mode_show()
+{
+	static char buf[16] = "\0";
+	extern void Set_Controller_Mode();
+	switch (Config.AnalogMode) {
+	case 0: sprintf(buf, "Digital");
+		break;
+	case 1: sprintf(buf, "DualAnalog");
+		break;
+	case 2: sprintf(buf, "DualShock");
+		break;
+	}
+	Set_Controller_Mode();
+
+	return buf;
+}
+
 static char *RCntFix_show()
 {
 	static char buf[16] = "\0";
@@ -1268,6 +1326,8 @@ static int settings_defaults()
 	Config.PsxAuto = 1;
 	Config.HLE = 1;
 	Config.SlowBoot = 0;
+	Config.AnalogArrow = 0;
+	Config.AnalogMode = 0;
 	Config.RCntFix = 0;
 	Config.VSyncWA = 0;
 #ifdef PSXREC
@@ -1287,14 +1347,16 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Emulation core     ", NULL, &emu_alter, &emu_show, NULL},
 	{(char *)"Cycle multiplier   ", NULL, &cycle_alter, &cycle_show, NULL},
 #endif
-	{(char *)"HLE emulated BIOS  ", NULL, &bios_alter, &bios_show, NULL},
-	{(char *)"Set BIOS file      ", &bios_set, NULL, &bios_file_show, NULL},
-	{(char *)"Skip BIOS logos    ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
-	{(char *)"RCntFix            ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
-	{(char *)"VSyncWA            ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
+	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show, NULL},
+	{(char *)"Set BIOS file        ", &bios_set, NULL, &bios_file_show, NULL},
+	{(char *)"Skip BIOS logos      ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
+	{(char *)"Map L-stick to Dpad  ", NULL, &AnalogArrow_alter, &AnalogArrow_show, &AnalogArrow_hint},
+	{(char *)"Analog Mode          ", NULL, &Analog_Mode_alter, &Analog_Mode_show, &Analog_Mode_hint},
+	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
+	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
 	{(char *)"Memory card Slot1  ", NULL, &McdSlot1_alter, &McdSlot1_show, NULL},
 	{(char *)"Memory card Slot2  ", NULL, &McdSlot2_alter, &McdSlot2_show, NULL},
-	{(char *)"Restore defaults   ", &settings_defaults, NULL, NULL, NULL},
+	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL, NULL},
 	{(char *)"Back to main menu  ", &settings_back, NULL, NULL, NULL},
 	{0}

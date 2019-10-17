@@ -187,8 +187,8 @@ long CALLBACK SPU_init(void);
 
 unsigned char PAD1_startPoll(void);
 unsigned char PAD2_startPoll(void);
-unsigned char PAD1_poll(void);
-unsigned char PAD2_poll(void);
+unsigned char PAD1_poll(unsigned char);
+unsigned char PAD2_poll(unsigned char);
 
 // ISO functions
 
