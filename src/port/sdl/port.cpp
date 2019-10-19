@@ -527,7 +527,7 @@ static unsigned short analog1 = 0;
 
 SDL_Joystick* sdl_joy[2];
 
-#define joy_commit_range    2048
+#define joy_commit_range    8192
 enum {
 	ANALOG_UP = 1,
 	ANALOG_DOWN = 2,
@@ -851,17 +851,28 @@ void update_window_size(int w, int h)
 {
 #ifndef SW_SCALE
 #ifdef SDL_TRIPLEBUF
-	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+	int flags = SDL_TRIPLEBUF;
 #else
-	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+	int flags = SDL_DOUBLEBUF;
 #endif
+    flags |= SDL_HWSURFACE
+#if !defined(SW_PIXEL_FMT_CONV) && defined(RG350)
+        | SDL_SWIZZLEBGR
+#endif
+        ;
 	SCREEN_WIDTH = w;
 	SCREEN_HEIGHT = h;
 
 	if (screen && SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
 
-	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
+	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
+#if defined(SW_PIXEL_FMT_CONV) || !defined(RG350)
+			16,
+#else
+			15,
+#endif
+			flags);
 	if (!screen) {
 		puts("SDL_SetVideoMode error");
 		exit(0);
@@ -872,7 +883,7 @@ void update_window_size(int w, int h)
 
 	SCREEN = (Uint16 *)screen->pixels;
 
-#ifdef HW_PIXEL_FMT_CONV
+#if !defined(SW_PIXEL_FMT_CONV) && !defined(RG350)
 	screen->format->Rshift = 0;
 	screen->format->Gshift = 5;
 	screen->format->Bshift = 10;
@@ -1354,6 +1365,7 @@ int main (int argc, char **argv)
 #else
 	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
 #endif
+    flags |= SDL_HWSURFACE;
 	SCREEN_WIDTH = 320;
 	SCREEN_HEIGHT = 240;
 

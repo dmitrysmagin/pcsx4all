@@ -1,5 +1,5 @@
 option(USE_GPULIB "Use gpulib from pcsx rearmed" ON)
-option(HW_PIXEL_FMT_CONV "Use hardware pixel format convert" OFF)
+option(SW_PIXEL_FMT_CONV "Use software pixel format convert" OFF)
 
 set(PORT sdl)
 set(GPU gpu_unai)
@@ -79,8 +79,8 @@ set(SPU_FLAGS ${SPU_FLAGS} ${SPU_FLAG})
 if(MINGW)
     set(EXTRA_FLAGS __USE_MINGW_ANSI_STDIO=1)
 endif()
-if(HW_PIXEL_FMT_CONV)
-    set(EXTRA_FLAGS ${EXTRA_FLAGS} HW_PIXEL_FMT_CONV)
+if(SW_PIXEL_FMT_CONV)
+    set(EXTRA_FLAGS ${EXTRA_FLAGS} SW_PIXEL_FMT_CONV)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE XA_HACK
