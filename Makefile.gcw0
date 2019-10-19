@@ -63,7 +63,7 @@ else
 	C_ARCH  += -mno-check-zero-division
 endif
 
-CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 \
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -DTIME_IN_MSEC \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
@@ -95,7 +95,7 @@ OBJS = \
 	obj/plugin_lib/plugin_lib.o obj/plugin_lib/pl_sshot.o \
 	obj/psxinterpreter.o \
 	obj/mdec.o obj/decode_xa.o \
-	obj/cdriso.o obj/cdrom.o obj/ppf.o \
+	obj/cdriso.o obj/cdrom.o obj/ppf.o obj/cheat.o \
 	obj/sio.o obj/pad.o
 
 ifdef RECOMPILER

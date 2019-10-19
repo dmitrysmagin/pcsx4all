@@ -253,6 +253,8 @@ long GPU_shutdown(void)
   return ret;
 }
 
+extern void update_window_size(int w, int h);
+
 void GPU_writeStatus(uint32_t data)
 {
 	//senquack TODO: Would it be wise to add cmd buffer flush here, since
@@ -311,6 +313,7 @@ void GPU_writeStatus(uint32_t data)
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
       update_height();
+      update_window_size(gpu.screen.hres, gpu.screen.vres);
       renderer_notify_res_change();
       break;
     default:

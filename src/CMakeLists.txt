@@ -1,4 +1,6 @@
 option(USE_GPULIB "Use gpulib from pcsx rearmed" ON)
+option(HW_PIXEL_FMT_CONV "Use hardware pixel format convert" OFF)
+
 set(PORT sdl)
 set(GPU gpu_unai)
 set(SPU spu_pcsxrearmed)
@@ -13,7 +15,7 @@ set(SRC_FILES
     plugin_lib/plugin_lib.cpp plugin_lib/pl_sshot.cpp plugin_lib/perfmon.cpp
     psxinterpreter.cpp
     mdec.cpp decode_xa.cpp
-    cdriso.cpp cdrom.cpp ppf.cpp
+    cdriso.cpp cdrom.cpp ppf.cpp cheat.cpp
     sio.cpp pad.cpp
     gte.cpp
     spu/${SPU}/spu.c
@@ -76,6 +78,9 @@ set(SPU_FLAGS ${SPU_FLAGS} ${SPU_FLAG})
 
 if(MINGW)
     set(EXTRA_FLAGS __USE_MINGW_ANSI_STDIO=1)
+endif()
+if(HW_PIXEL_FMT_CONV)
+    set(EXTRA_FLAGS ${EXTRA_FLAGS} HW_PIXEL_FMT_CONV)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE XA_HACK

@@ -70,7 +70,7 @@ OBJS = \
 	obj/plugin_lib/plugin_lib.o obj/plugin_lib/pl_sshot.o \
 	obj/psxinterpreter.o \
 	obj/mdec.o obj/decode_xa.o \
-	obj/cdriso.o obj/cdrom.o obj/ppf.o \
+	obj/cdriso.o obj/cdrom.o obj/ppf.o obj/cheat.o \
 	obj/sio.o obj/pad.o
 
 ######################################################################
