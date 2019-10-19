@@ -1558,7 +1558,7 @@ static char *blending_show()
 	return buf;
 }
 
-/*
+#ifdef SW_SCALE
 static int pixel_skip_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -1578,7 +1578,7 @@ static char *pixel_skip_show()
 	sprintf(buf, "%s", gpu_unai_config_ext.pixel_skip == true ? "on" : "off");
 	return buf;
 }
-*/
+#endif
 #endif
 
 static int gpu_settings_defaults()
@@ -1592,7 +1592,9 @@ static int gpu_settings_defaults()
 	gpu_unai_config_ext.frameskip_count = 0;
 #endif
 	gpu_unai_config_ext.ilace_force = 0;
-	// gpu_unai_config_ext.pixel_skip = 1;
+#ifdef SW_SCALE
+	gpu_unai_config_ext.pixel_skip = 1;
+#endif
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1616,7 +1618,9 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show, NULL},
 	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show, NULL},
 	{(char *)"Blending             ", NULL, &blending_alter, &blending_show, NULL},
-	// {(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
+#ifdef SW_SCALE
+	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
+#endif
 #endif
 	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL, NULL},
@@ -1963,7 +1967,11 @@ static void ShowMenu(MENU *menu)
 	port_printf(menu->x - 3 * 8, menu->y + cur * 10, "-->");
 
 	// general copyrights info
+#if defined(RG350)
 	port_printf(8 * 8, 10, "pcsx4all 2.4 for RG350");
+#else
+	port_printf(8 * 8, 10, "pcsx4all 2.4 for GCW-Zero");
+#endif
 	port_printf(4 * 8, 20, "Built on " __DATE__ " at " __TIME__);
 	if (CdromId[0]) {
 		// add disc id display for confirming cheat filename

@@ -35,9 +35,9 @@ SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
 LDFLAGS := $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
 
 ifdef A320
-	C_ARCH = -mips32 -msoft-float -DGCW_ZERO -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
+	C_ARCH = -mips32 -msoft-float -DGCW_ZERO -DRG350 -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
 else
-	C_ARCH = -mips32r2 -DGCW_ZERO -DSHMEM_MIRRORING
+	C_ARCH = -mips32r2 -DGCW_ZERO -DRG350 -DSHMEM_MIRRORING
 endif
 
 ifeq ($(DEV),1)
@@ -63,7 +63,7 @@ else
 	C_ARCH  += -mno-check-zero-division
 endif
 
-CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -flto -DSW_SCALE -DTIME_IN_MSEC \
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O4 -fexpensive-optimizations -flto -DTIME_IN_MSEC \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \

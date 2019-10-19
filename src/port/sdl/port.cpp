@@ -338,10 +338,12 @@ void config_load()
 		}
 #endif
 #ifdef GPU_UNAI
-		// else if (!strcmp(line, "pixel_skip")) {
-		//	sscanf(arg, "%d", &value);
-		//	gpu_unai_config_ext.pixel_skip = value;
-		// }
+#ifdef SW_SCALE
+		else if (!strcmp(line, "pixel_skip")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.pixel_skip = value;
+		}
+#endif
 		else if (!strcmp(line, "lighting")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.lighting = value;
@@ -424,13 +426,17 @@ void config_save()
 
 #ifdef GPU_UNAI
 	fprintf(f, "interlace %d\n"
-		   // "pixel_skip %d\n"
+#ifdef SW_SCALE
+		   "pixel_skip %d\n"
+#endif
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
 		   "dithering %d\n",
 		   gpu_unai_config_ext.ilace_force,
-		   // gpu_unai_config_ext.pixel_skip,
+#ifdef SW_SCALE
+		   gpu_unai_config_ext.pixel_skip,
+#endif
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
 		   gpu_unai_config_ext.blending,
@@ -859,12 +865,14 @@ void update_window_size(int w, int h)
 
 	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
 	if (!screen) {
-		puts("NO Set VideoMode 320x240x16");
+		puts("SDL_SetVideoMode error");
 		exit(0);
 	}
 
 	if (SDL_MUSTLOCK(screen))
 		SDL_LockSurface(screen);
+
+	SCREEN = (Uint16 *)screen->pixels;
 
 #ifdef HW_PIXEL_FMT_CONV
 	screen->format->Rshift = 0;
@@ -877,8 +885,6 @@ void update_window_size(int w, int h)
 	screen->format->Ashift = 0;
 	screen->format_version++;
 #endif
-
-	SCREEN = (Uint16 *)screen->pixels;
 
 	video_clear();
 	video_flip();
@@ -1018,7 +1024,9 @@ int main (int argc, char **argv)
 	// gpu_unai
 #ifdef GPU_UNAI
 	gpu_unai_config_ext.ilace_force = 0;
-	// gpu_unai_config_ext.pixel_skip = 0;
+#ifdef SW_SCALE
+	gpu_unai_config_ext.pixel_skip = 0;
+#endif
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1203,13 +1211,15 @@ int main (int argc, char **argv)
 			gpu_unai_config_ext.fast_lighting = 0;
 		}
 
+#ifdef SW_SCALE
 		// Render all pixels on a horizontal line, even when in hi-res 512,640
 		//  PSX vid modes and those pixels would never appear on 320x240 screen.
 		//  (when using pixel-dropping downscaler).
 		//  Can cause visual artifacts, default is on for now (for speed)
-		// if (strcmp(argv[i],"-nopixelskip") == 0) {
-		// 	gpu_unai_config_ext.pixel_skip = 0;
-		// }
+		if (strcmp(argv[i],"-nopixelskip") == 0) {
+		 	gpu_unai_config_ext.pixel_skip = 0;
+		}
+#endif
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
 #ifndef USE_GPULIB
@@ -1340,7 +1350,31 @@ int main (int argc, char **argv)
 
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
 
+#ifdef SW_SCALE
+#ifdef SDL_TRIPLEBUF
+	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+#else
+	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+#endif
+	SCREEN_WIDTH = 320;
+	SCREEN_HEIGHT = 240;
+
+	if (screen && SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
+
+	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
+	if (!screen) {
+		puts("NO Set VideoMode 320x240x16");
+		exit(0);
+	}
+
+	if (SDL_MUSTLOCK(screen))
+		SDL_LockSurface(screen);
+
+	SCREEN = (Uint16 *)screen->pixels;
+#else
 	update_window_size(320, 240);
+#endif
 
 	if (argc < 2 || cdrfilename[0] == '\0') {
 		// Enter frontend main-menu:

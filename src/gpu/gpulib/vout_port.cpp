@@ -97,7 +97,7 @@ static inline void GPU_BlitWWSWWSWS(const void* src, u16* dst16, bool isRGB24)
 	u32 uCount;
 	if (!isRGB24)
 	{
-#ifdef USE_BGR15
+#ifndef USE_BGR15
 		uCount = 64;
 		const u16* src16 = (const u16*) src;
 		do {

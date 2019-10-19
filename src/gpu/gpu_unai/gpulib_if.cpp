@@ -105,7 +105,7 @@ void renderer_finish(void)
 
 void renderer_notify_res_change(void)
 {
-  /*
+#ifdef SW_SCALE
   if (PixelSkipEnabled()) {
     // Set blit_mask for high horizontal resolutions. This allows skipping
     //  rendering pixels that would never get displayed on low-resolution
@@ -120,7 +120,7 @@ void renderer_notify_res_change(void)
   } else {
     gpu_unai.blit_mask = 0;
   }
-  */
+#endif
 
   if (LineSkipEnabled()) {
     // Set rendering line-skip (only render every other line in high-res
@@ -257,7 +257,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x22:
       case 0x23: {          // Monochrome 3-pt poly
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -272,7 +274,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
 
         u32 driver_idx =
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -293,7 +297,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x2A:
       case 0x2B: {          // Monochrome 4-pt poly
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Blending_Mode |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB
         ];
@@ -308,7 +314,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetTexture(gpu_unai.PacketBuffer.U4[4] >> 16);
 
         u32 driver_idx =
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | gpu_unai.PixelMSB;
@@ -333,7 +341,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         // shouldn't apply. Until the original array of template
         // instantiation ptrs is fixed, we're stuck with this. (TODO)
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
@@ -348,7 +358,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
@@ -362,7 +374,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
       case 0x3B: {          // Gouraud-shaded 4-pt poly
         // See notes regarding '129' for 0x30..0x33 further above -senquack
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode |
           gpu_unai.Masking | Blending | 129 | gpu_unai.PixelMSB
@@ -377,7 +391,9 @@ int do_cmd_list(unsigned int *list, int list_len, int *last_cmd)
         gpuSetCLUT    (gpu_unai.PacketBuffer.U4[2] >> 16);
         gpuSetTexture (gpu_unai.PacketBuffer.U4[5] >> 16);
         PP driver = gpuPolySpanDrivers[
-          //(gpu_unai.blit_mask?1024:0) |
+#ifdef SW_SCALE
+          (gpu_unai.blit_mask?1024:0) |
+#endif
           Dithering |
           Blending_Mode | gpu_unai.TEXT_MODE |
           gpu_unai.Masking | Blending | ((Lighting)?129:0) | gpu_unai.PixelMSB
