@@ -636,25 +636,25 @@ void pad_update()
 				break;
 			case 2: /* X axis */
 				axisval = event.jaxis.value;
-				if (Config.AnalogArrow == 1) {
+				/* if (Config.AnalogArrow == 1) {
 					if (axisval > joy_commit_range) {
 						pad1_buttons &= ~(1 << DKEY_CIRCLE);
 					} else if (axisval < -joy_commit_range) {
 						pad1_buttons &= ~(1 << DKEY_SQUARE);
 					}
-				} else {
+				} else */ {
 					player_controller[0].joy_right_ax0 = (axisval + 32768) / 256;
 				}
 				break;
 			case 3: /* Y axis */
 				axisval = event.jaxis.value;
-				if (Config.AnalogArrow == 1) {
+				/* if (Config.AnalogArrow == 1) {
 					if (axisval > joy_commit_range) {
 						pad1_buttons &= ~(1 << DKEY_CROSS);
 					} else if (axisval < -joy_commit_range) {
 						pad1_buttons &= ~(1 << DKEY_TRIANGLE);
 					}
-				} else {
+				} else */ {
 					player_controller[0].joy_right_ax1 = (axisval + 32768) / 256;
 				}
 				break;
