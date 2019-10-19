@@ -688,7 +688,6 @@ void pad_update()
 		}
 	}
 
-#ifndef GCW_ZERO
 	if (Config.AnalogArrow == 1) {
 		if ((pad1_buttons & (1 << DKEY_UP)) && (analog1 & ANALOG_UP)) {
 			pad1_buttons &= ~(1 << DKEY_UP);
@@ -703,7 +702,6 @@ void pad_update()
 			pad1_buttons &= ~(1 << DKEY_RIGHT);
 		}
 	}
-#endif
 
 	// popup main menu
 	if (popup_menu) {
