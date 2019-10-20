@@ -1363,13 +1363,13 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Emulation core     ", NULL, &emu_alter, &emu_show, NULL},
 	{(char *)"Cycle multiplier   ", NULL, &cycle_alter, &cycle_show, NULL},
 #endif
-	{(char *)"HLE emulated BIOS    ", NULL, &bios_alter, &bios_show, NULL},
-	{(char *)"Set BIOS file        ", &bios_set, NULL, &bios_file_show, NULL},
-	{(char *)"Skip BIOS logos      ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
-	{(char *)"Map L-stick to Dpad  ", NULL, &AnalogArrow_alter, &AnalogArrow_show, &AnalogArrow_hint},
-	{(char *)"Analog Mode          ", NULL, &Analog_Mode_alter, &Analog_Mode_show, &Analog_Mode_hint},
-	{(char *)"RCntFix              ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
-	{(char *)"VSyncWA              ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
+	{(char *)"HLE emulated BIOS  ", NULL, &bios_alter, &bios_show, NULL},
+	{(char *)"Set BIOS file      ", &bios_set, NULL, &bios_file_show, NULL},
+	{(char *)"Skip BIOS logos    ", NULL, &SlowBoot_alter, &SlowBoot_show, &SlowBoot_hint},
+	{(char *)"Map L-stick to Dpad", NULL, &AnalogArrow_alter, &AnalogArrow_show, &AnalogArrow_hint},
+	{(char *)"Analog Mode        ", NULL, &Analog_Mode_alter, &Analog_Mode_show, &Analog_Mode_hint},
+	{(char *)"RCntFix            ", NULL, &RCntFix_alter, &RCntFix_show, &RCntFix_hint},
+	{(char *)"VSyncWA            ", NULL, &VSyncWA_alter, &VSyncWA_show, &VSyncWA_hint},
 	{(char *)"Memory card Slot1  ", NULL, &McdSlot1_alter, &McdSlot1_show, NULL},
 	{(char *)"Memory card Slot2  ", NULL, &McdSlot2_alter, &McdSlot2_show, NULL},
 	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL, NULL},
@@ -1558,7 +1558,7 @@ static char *blending_show()
 	return buf;
 }
 
-/*
+#ifdef SW_SCALE
 static int pixel_skip_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -1578,7 +1578,7 @@ static char *pixel_skip_show()
 	sprintf(buf, "%s", gpu_unai_config_ext.pixel_skip == true ? "on" : "off");
 	return buf;
 }
-*/
+#endif
 #endif
 
 static int gpu_settings_defaults()
@@ -1592,7 +1592,9 @@ static int gpu_settings_defaults()
 	gpu_unai_config_ext.frameskip_count = 0;
 #endif
 	gpu_unai_config_ext.ilace_force = 0;
-	// gpu_unai_config_ext.pixel_skip = 1;
+#ifdef SW_SCALE
+	gpu_unai_config_ext.pixel_skip = 1;
+#endif
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1616,7 +1618,9 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show, NULL},
 	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show, NULL},
 	{(char *)"Blending             ", NULL, &blending_alter, &blending_show, NULL},
-	// {(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
+#ifdef SW_SCALE
+	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
+#endif
 #endif
 	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL, NULL},
@@ -1963,7 +1967,11 @@ static void ShowMenu(MENU *menu)
 	port_printf(menu->x - 3 * 8, menu->y + cur * 10, "-->");
 
 	// general copyrights info
+#if defined(RG350)
 	port_printf(8 * 8, 10, "pcsx4all 2.4 for RG350");
+#else
+	port_printf(8 * 8, 10, "pcsx4all 2.4 for GCW-Zero");
+#endif
 	port_printf(4 * 8, 20, "Built on " __DATE__ " at " __TIME__);
 	if (CdromId[0]) {
 		// add disc id display for confirming cheat filename

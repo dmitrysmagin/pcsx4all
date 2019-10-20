@@ -97,7 +97,7 @@ static inline void GPU_BlitWWSWWSWS(const void* src, u16* dst16, bool isRGB24)
 	u32 uCount;
 	if (!isRGB24)
 	{
-#ifdef USE_BGR15
+#ifndef USE_BGR15
 		uCount = 64;
 		const u16* src16 = (const u16*) src;
 		do {
@@ -400,7 +400,7 @@ static inline void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 
 #else
 
-#ifdef HW_PIXEL_FMT_CONV
+#ifndef SW_PIXEL_FMT_CONV
 #undef RGB24
 #define RGB24(R,G,B)	(((((R)&0xF8)>>3)|(((G)&0xF8)<<2)|(((B)&0xF8)<<7)))
 #endif
@@ -571,7 +571,7 @@ void vout_update(void)
 	}
 
 	src16_offs &= ~1u;
-#ifdef HW_PIXEL_FMT_CONV
+#ifndef SW_PIXEL_FMT_CONV
 	if (isRGB24) {
 		for (int y1 = y0+h1; y0<y1; y0++) {
 			GPU_BlitCopy(src16+src16_offs, dst16, isRGB24);

@@ -549,8 +549,13 @@ void psxBios_strpbrk(void) { // 0x20
 		}
 	}
 
-	// should return a0 instead of NULL if not found (???)
-	v0 = a0; pc0 = ra;
+	/* 
+	If there was no occurence, it returns 0 only if src[0]=00h, 
+	otherwise returns the incoming "src" value.
+	(which is the SAME return value as when a occurence did occur on 1st character).
+	*/
+	v0 = p1[0] == 0x00 ? 0 : a0;
+	pc0 = ra;
 }
 
 void psxBios_strspn(void) { // 0x21
@@ -1141,6 +1146,9 @@ void psxBios_FlushCache(void) { // 44
 	PSXBIOS_LOG("psxBios_%s\n", biosA0n[0x44]);
 #endif
 
+	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_ISOLATED, NULL);
+	psxCpu->Notify(R3000ACPU_NOTIFY_CACHE_UNISOLATED, NULL);
+
 	pc0 = ra;
 }
 
@@ -1459,7 +1467,7 @@ void psxBios_OpenEvent(void) { // 08
 
 	Event[ev][spec].status = EvStWAIT;
 	Event[ev][spec].mode = a2;
-	Event[ev][spec].fhandler = a3;
+	if (a2 == EvMdINTR) Event[ev][spec].fhandler = a3;
 
 	v0 = ev | (spec << 8);
 	pc0 = ra;
@@ -1490,10 +1498,22 @@ void psxBios_WaitEvent(void) { // 0a
 #ifdef PSXBIOS_LOG
 	PSXBIOS_LOG("psxBios_%s %x,%x\n", biosB0n[0x0a], ev, spec);
 #endif
+	if (Event[ev][spec].status == EvStUNUSED) {
+		v0 = 0;
+		pc0 = ra;
+		return;
+	}
 
-	Event[ev][spec].status = EvStACTIVE;
+	if (Event[ev][spec].status == EvStALREADY)
+	{
+		/* Callback events (mode=EvMdINTR) do never set the ready flag (and thus WaitEvent would hang forever). */
+		if (!(Event[ev][spec].mode == EvMdINTR)) Event[ev][spec].status = EvStACTIVE;
+		v0 = 1;
+		pc0 = ra;
+		return;
+	}
 
-	v0 = 1;
+	v0 = 0;
 	pc0 = ra;
 	ResetIoCycle();
 }
@@ -1832,11 +1852,12 @@ void psxBios_lseek(void) { // 0x33
 	/*printf("read %d: %x,%x (%s)\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2, Mcd##mcd##Data + 128 * FDesc[1 + mcd].mcfile + 0xa);*/ \
 	unsigned offset = 8192 * FDesc[1 + mcd].mcfile + FDesc[1 + mcd].offset; \
 	sioMcdRead(((mcd == 1) ? MCD1 : MCD2), (char*)Ra1, offset, a2); \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = a2; \
+	if (FDesc[1 + mcd].mode & 0x8000) { \
+		DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
+		DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+		v0 = 0; \
+	} else v0 = a2; \
 	FDesc[1 + mcd].offset += v0; \
-	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
-	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
 }
 
 /*
@@ -1867,10 +1888,11 @@ void psxBios_read(void) { // 0x34
 	/*printf("write %d: %x,%x\n", FDesc[1 + mcd].mcfile, FDesc[1 + mcd].offset, a2);*/ \
 	sioMcdWrite((mcd==1) ? MCD1 : MCD2, (const char*)Ra1, offset, a2); \
 	FDesc[1 + mcd].offset += a2; \
-	if (FDesc[1 + mcd].mode & 0x8000) v0 = 0; \
-	else v0 = a2; \
-	DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
-	DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+	if (FDesc[1 + mcd].mode & 0x8000) { \
+		DeliverEvent(0x11, 0x2); /* 0xf0000011, 0x0004 */ \
+		DeliverEvent(0x81, 0x2); /* 0xf4000001, 0x0004 */ \
+		v0 = 0; \
+	} else v0 = a2; \
 }
 
 /*
@@ -1984,7 +2006,7 @@ void psxBios_firstfile(void) { // 42
 	if (pa0) {
 		strcpy(ffile, pa0);
 		pfile = ffile+5;
-		nfile = 1;
+		nfile = 0;
 		if (!strncmp(pa0, "bu00", 4)) {
 			bufile(1);
 		} else if (!strncmp(pa0, "bu10", 4)) {
@@ -2268,6 +2290,18 @@ void psxBios__card_wait(void) { // 5d
 	PSXBIOS_LOG("psxBios_%s\n", biosB0n[0x5d]);
 #endif
 
+	/*
+	 * 01h=ready
+	 * 02h=busy/read
+	 * 04h=busy/write
+	 * 08h=busy/info
+	 * 11h=failed/timeout (eg. when no cartridge inserted)
+	 * 21h=failed/general error
+	 *
+	 * Games like Fade To Black and Final Fantasy 8 use this and card_info for memory card detection.
+	 * Unfortunately, it's not implemented properly enough for either games to work.
+	 */
+	v0 = 0x1;
 	pc0 = ra;
 }
 
@@ -2724,7 +2758,9 @@ void psxBiosInit(void) {
 */
 	// opcode HLE
 	psxRu32ref(0x0000) = SWAPu32((0x3b << 26) | 4);
-	psxMu32ref(0x0000) = SWAPu32((0x3b << 26) | 0);
+	/* Whatever this does, it actually breaks CTR, even without the uninitiliazed memory patch. 
+	 * Normally games shouldn't read from address 0 yet they do. See explanation below in details. */
+	// psxMu32ref(0x0000) = SWAPu32((0x3b << 26) | 0);
 	psxMu32ref(0x00a0) = SWAPu32((0x3b << 26) | 1);
 	psxMu32ref(0x00b0) = SWAPu32((0x3b << 26) | 2);
 	psxMu32ref(0x00c0) = SWAPu32((0x3b << 26) | 3);
@@ -2748,6 +2784,24 @@ void psxBiosInit(void) {
 
 	// memory size 2 MB
 	psxHu32ref(0x1060) = SWAPu32(0x00000b88);
+
+	/* Some games like R-Types, CTR, Fade to Black read from adress 0x00000000 due to uninitialized pointers.
+	 * See Garbage Area at Address 00000000h in Nocash PSX Specfications for more information.
+	 * Here are some examples of games not working with this fix in place :
+	 * R-type won't get past the Irem logo if not implemented.
+	 * Crash Team Racing will softlock after the Sony logo.
+	 */
+	psxMu32ref(0x0000) = SWAPu32(0x00000003);
+	/*
+	 * But overwritten by 00000003h after soon.
+	 * psxMu32ref(0x0000) = SWAPu32(0x00001A3C);
+	 */
+	psxMu32ref(0x0004) = SWAPu32(0x800C5A27);
+	psxMu32ref(0x0008) = SWAPu32(0x08000403);
+	psxMu32ref(0x000C) = SWAPu32(0x00000000);
+
+	psxMu32ref(0x0064) = SWAPu32(0x00000000);
+	psxMu32ref(0x0068) = SWAPu32(0xFF000000);
 }
 
 void psxBiosShutdown() {
