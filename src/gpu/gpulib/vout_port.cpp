@@ -35,6 +35,17 @@
 #define s32 int32_t
 #define s64 int64_t
 
+#ifndef DISABLE_MEMCPY32
+static inline void *memcpy32 (void *dest, const void *src, size_t len)
+{
+  u32 *d = static_cast<u32 *>(dest);
+  const u32 *s = static_cast<const u32 *>(src);
+  while (len--)
+    *d++ = *s++;
+  return dest;
+}
+#endif
+
 #ifdef SW_SCALE
 
 template<typename T>
@@ -62,7 +73,11 @@ static inline void GPU_BlitWW(const void* src, u16* dst16, bool isRGB24)
 			src32 += 8;
 		} while(--uCount);
 #else
+	#ifndef DISABLE_MEMCPY32
+		memcpy32(dst16, src, 160);
+	#else
 		memcpy(dst16, src, 640);
+	#endif
 #endif
 	} else
 	{
@@ -405,6 +420,7 @@ static inline void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 #define RGB24(R,G,B)	(((((R)&0xF8)>>3)|(((G)&0xF8)<<2)|(((B)&0xF8)<<7)))
 #endif
 
+
 static inline void GPU_BlitCopy(const void* src, u16* dst16, bool isRGB24)
 {
 	u32 uCount;
@@ -427,7 +443,11 @@ static inline void GPU_BlitCopy(const void* src, u16* dst16, bool isRGB24)
 			src32 += 8;
 		} while(--uCount);
 #else
-		memcpy(dst16, src, SCREEN_WIDTH * 2);
+	#ifndef DISABLE_MEMCPY32
+		memcpy32(dst16, src, SCREEN_WIDTH >> 1);
+	#else
+		memcpy(dst16, src, SCREEN_WIDTH << 1);
+	#endif
 #endif
 	} else
 	{
@@ -580,7 +600,11 @@ void vout_update(void)
 		}
 	} else {
 		for (int y1 = y0+h1; y0<y1; y0++) {
-			memcpy(dst16, src16+src16_offs, 2 * SCREEN_WIDTH);
+#ifndef DISABLE_MEMCPY32
+			memcpy32(dst16, src16+src16_offs, SCREEN_WIDTH >> 1);
+#else
+			memcpy(dst16, src16+src16_offs, SCREEN_WIDTH << 1);
+#endif
 			dst16 += SCREEN_WIDTH;
 			src16_offs = (src16_offs+1024) & src16_offs_msk;
 		}
