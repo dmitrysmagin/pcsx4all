@@ -237,7 +237,7 @@ char *FileReq(char *dir, const char *ext, char *result)
 	struct dirent *direntry;
 	static s32 row;
 	char tmp_string[41];
-	u32 keys;
+	u32 keys = 0;
 
 	if (dir)
 		ChDir(dir);
@@ -245,8 +245,6 @@ char *FileReq(char *dir, const char *ext, char *result)
 	cwd = GetCwd();
 
 	for (;;) {
-		keys = key_read();
-
 		video_clear();
 
 		if (keys & KEY_SELECT) {
@@ -330,6 +328,9 @@ char *FileReq(char *dir, const char *ext, char *result)
 
 				FREE_LIST();
 				key_reset();
+
+				keys = 0;
+				continue;
 			} else {
 				sprintf(result, "%s/%s", cwd, filereq_dir_items[cursor_pos].name);
 				if (dir)
@@ -378,6 +379,10 @@ char *FileReq(char *dir, const char *ext, char *result)
 		if (keys & (KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R |
 			    KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN))
 			timer_delay(50);
+		do {
+			keys = key_read();
+			timer_delay(50);
+		} while (keys == 0);
 	}
 
 	return NULL;
@@ -1455,6 +1460,37 @@ static char *frameskip_show()
 	if (fs > 4) fs = 4;
 	return (char*)str[fs];
 }
+
+static int videoscaling_alter(u32 keys)
+{
+	int vs = Config.VideoScaling;
+	if (keys & KEY_RIGHT) {
+		if (vs < 1) vs++;
+	} else if (keys & KEY_LEFT) {
+		if (vs > 0) vs--;
+	}
+	Config.VideoScaling = vs;
+	return 0;
+}
+
+static char *videoscaling_show() {
+	const char* str[] = {"hardware", "nearest"};
+	int vs = Config.VideoScaling;
+	if (vs < 0) vs = 0;
+	else if (vs > 1) vs = 1;
+	return (char*)str[vs];
+}
+
+static void videoscaling_hint() {
+	switch(Config.VideoScaling) {
+	case 0:
+		port_printf(4 * 8, 10 * 8, "Hardware, POWER+A to switch aspect");
+		break;
+	case 1:
+		port_printf(7 * 8, 10 * 8, "Nearest filter");
+		break;
+	}
+}
 #endif //USE_GPULIB
 
 #ifdef GPU_UNAI
@@ -1558,7 +1594,7 @@ static char *blending_show()
 	return buf;
 }
 
-#ifdef SW_SCALE
+/*
 static int pixel_skip_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -1578,7 +1614,7 @@ static char *pixel_skip_show()
 	sprintf(buf, "%s", gpu_unai_config_ext.pixel_skip == true ? "on" : "off");
 	return buf;
 }
-#endif
+*/
 #endif
 
 static int gpu_settings_defaults()
@@ -1592,9 +1628,7 @@ static int gpu_settings_defaults()
 	gpu_unai_config_ext.frameskip_count = 0;
 #endif
 	gpu_unai_config_ext.ilace_force = 0;
-#ifdef SW_SCALE
 	gpu_unai_config_ext.pixel_skip = 1;
-#endif
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1611,6 +1645,7 @@ static MENUITEM gui_GPUSettingsItems[] = {
 #ifdef USE_GPULIB
 	/* Only working with gpulib */
 	{(char *)"Frame skip           ", NULL, &frameskip_alter, &frameskip_show, NULL},
+	{(char *)"Video Scaling        ", NULL, &videoscaling_alter, &videoscaling_show, videoscaling_hint},
 #endif
 #ifdef GPU_UNAI
 	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show, NULL},
@@ -1618,9 +1653,7 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show, NULL},
 	{(char *)"Fast lighting        ", NULL, &fast_lighting_alter, &fast_lighting_show, NULL},
 	{(char *)"Blending             ", NULL, &blending_alter, &blending_show, NULL},
-#ifdef SW_SCALE
-	{(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
-#endif
+	// {(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
 #endif
 	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL, NULL},
@@ -1994,14 +2027,12 @@ static void fix_menu_top(MENU *menu)
 
 static int gui_RunMenu(MENU *menu)
 {
-	u32 keys;
+	u32 keys = 0;
 	if (menu->page_num == 0) menu->page_num = menu->num;
 	menu->cur_top = 0;
 	if (menu->cur >= menu->page_num) menu->cur_top = menu->cur - menu->page_num + 1;
 
 	for (;;) {
-		keys = key_read();
-
 		video_clear();
 
 		// check keys
@@ -2052,6 +2083,11 @@ static int gui_RunMenu(MENU *menu)
 		if (keys & (KEY_A | KEY_B | KEY_X | KEY_Y | KEY_L | KEY_R |
 			    KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN))
 			timer_delay(50);
+
+		do {
+			keys = key_read();
+			timer_delay(50);
+		} while (keys == 0);
 	}
 
 	return 0;

@@ -22,6 +22,7 @@
 #ifndef GPU_UNAI_H
 #define GPU_UNAI_H
 
+#include <psxcommon.h>
 #include "gpu.h"
 
 // Header shared between both standalone gpu_unai (gpu.cpp) and new
@@ -222,12 +223,10 @@ struct gpu_unai_t {
 	////////////////////////////////////////////////////////////////////////////
 
 
-#ifdef SW_SCALE
 	u8 blit_mask;           // Determines what pixels to skip when rendering.
 	                        //  Only useful on low-resolution devices using
 	                        //  a simple pixel-dropping downscaler for PS1
 	                        //  high-res modes. See 'pixel_skip' option.
-#endif
 
 	u8 ilace_mask;          // Determines what lines to skip when rendering.
 	                        //  Normally 0 when PS1 240 vertical res is in
@@ -300,16 +299,14 @@ static inline bool ProgressiveInterlaceEnabled()
 #endif
 }
 
-#ifdef SW_SCALE
 // For now, 320x240 output resolution is assumed, using simple line-skipping
 //  and pixel-skipping downscaler.
 // TODO: Flesh these out so they return useful values based on whether
 //       running on higher-res device or a resampling downscaler is enabled.
 static inline bool PixelSkipEnabled()
 {
-	return gpu_unai.config.pixel_skip;
+	return Config.VideoScaling == 1 && gpu_unai.config.pixel_skip;
 }
-#endif
 
 static inline bool LineSkipEnabled()
 {
