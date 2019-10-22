@@ -63,7 +63,7 @@ else
 	C_ARCH  += -mno-check-zero-division
 endif
 
-CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -flto -DSW_SCALE -DTIME_IN_MSEC \
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -flto -DTIME_IN_MSEC \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \

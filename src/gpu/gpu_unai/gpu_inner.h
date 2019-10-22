@@ -32,11 +32,9 @@
 #define  CF_GOURAUD   ((CF>> 7)&1) // Gouraud shading
 #define  CF_MASKSET   ((CF>> 8)&1) // Mask bit set
 #define  CF_DITHER    ((CF>> 9)&1) // Dithering
-#ifdef SW_SCALE
 #define  CF_BLITMASK  ((CF>>10)&1) // blit_mask check (skip rendering pixels
                                    //  that wouldn't end up displayed on
                                    //  low-res screen using simple downscaler)
-#endif
 
 #ifdef __arm__
 #ifndef ENABLE_GPU_ARMV7
@@ -467,9 +465,7 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 	//  Untextured prims can always skip this (src color MSB is always 0).
 	//  For textured prims, lighting funcs always return it unset. (bonus!)
 	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
-#ifdef SW_SCALE
 	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
-#endif
 
 	if (!CF_TEXTMODE)
 	{
@@ -581,9 +577,7 @@ endpolynotextgou:
 
 		do
 		{
-#ifdef SW_SCALE
 			if (CF_BLITMASK) { if ((bMsk>>((((uintptr_t)pDst)>>1)&7))&1) goto endpolytext; }
-#endif
 			if (CF_MASKCHECK || CF_BLEND) { uDst = *pDst; }
 			if (CF_MASKCHECK) if (uDst&0x8000) { goto endpolytext; }
 

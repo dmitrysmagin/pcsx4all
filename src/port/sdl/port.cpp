@@ -279,6 +279,9 @@ void config_load()
 			if (value < FRAMESKIP_MIN || value > FRAMESKIP_MAX)
 				value = FRAMESKIP_OFF;
 			Config.FrameSkip = value;
+		} else if (!strcmp(line, "VideoScaling")) {
+			sscanf(arg, "%d", &value);
+			Config.VideoScaling = value;
 		}
 #ifdef SPU_PCSXREARMED
 		else if (!strcmp(line, "SpuUseInterpolation")) {
@@ -338,12 +341,10 @@ void config_load()
 		}
 #endif
 #ifdef GPU_UNAI
-#ifdef SW_SCALE
 		else if (!strcmp(line, "pixel_skip")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.pixel_skip = value;
 		}
-#endif
 		else if (!strcmp(line, "lighting")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.lighting = value;
@@ -406,13 +407,14 @@ void config_save()
 		   "ForcedXAUpdates %d\n"
 		   "ShowFps %d\n"
 		   "FrameLimit %d\n"
-		   "FrameSkip %d\n",
+		   "FrameSkip %d\n"
+		   "VideoScaling %d\n",
 		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda,
 		   Config.HLE, Config.SlowBoot, Config.AnalogArrow, Config.AnalogMode,
 		   Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType,
 		   Config.McdSlot1, Config.McdSlot2, Config.SpuIrq, Config.SyncAudio,
 		   Config.SpuUpdateFreq, Config.ForcedXAUpdates, Config.ShowFps,
-		   Config.FrameLimit, Config.FrameSkip);
+		   Config.FrameLimit, Config.FrameSkip, Config.VideoScaling);
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
@@ -426,17 +428,13 @@ void config_save()
 
 #ifdef GPU_UNAI
 	fprintf(f, "interlace %d\n"
-#ifdef SW_SCALE
 		   "pixel_skip %d\n"
-#endif
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
 		   "dithering %d\n",
 		   gpu_unai_config_ext.ilace_force,
-#ifdef SW_SCALE
 		   gpu_unai_config_ext.pixel_skip,
-#endif
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
 		   gpu_unai_config_ext.blending,
@@ -615,7 +613,6 @@ void pad_update()
 #ifndef GCW_ZERO
 			case SDLK_ESCAPE:
 #endif
-			case SDLK_q:
 				event.type = SDL_QUIT;
 				SDL_PushEvent(&event);
 				break;
@@ -717,15 +714,15 @@ void pad_update()
 		emu_running = true;
 		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
 		update_window_size(gpu.screen.hres, gpu.screen.vres);
-#ifdef SW_SCALE
-		video_clear();
-		video_flip();
-		video_clear();
+		if (Config.VideoScaling == 1) {
+			video_clear();
+			video_flip();
+			video_clear();
 #ifdef SDL_TRIPLEBUF
-		video_flip();
-		video_clear();
+			video_flip();
+			video_clear();
 #endif
-#endif
+		}
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
 		pad1 |= (1 << DKEY_CROSS);
@@ -849,14 +846,14 @@ void Rumble_Init() {
 
 void update_window_size(int w, int h)
 {
-#ifndef SW_SCALE
+	if (Config.VideoScaling != 0) return;
 #ifdef SDL_TRIPLEBUF
 	int flags = SDL_TRIPLEBUF;
 #else
 	int flags = SDL_DOUBLEBUF;
 #endif
     flags |= SDL_HWSURFACE
-#if !defined(SW_PIXEL_FMT_CONV) && defined(RG350)
+#if defined(GCW_ZERO) && defined(USE_BGR15)
         | SDL_SWIZZLEBGR
 #endif
         ;
@@ -867,7 +864,7 @@ void update_window_size(int w, int h)
 		SDL_UnlockSurface(screen);
 
 	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
-#if defined(SW_PIXEL_FMT_CONV) || !defined(RG350)
+#if !defined(GCW_ZERO) || !defined(USE_BGR15)
 			16,
 #else
 			15,
@@ -883,7 +880,7 @@ void update_window_size(int w, int h)
 
 	SCREEN = (Uint16 *)screen->pixels;
 
-#if !defined(SW_PIXEL_FMT_CONV) && !defined(RG350)
+#if !defined(GCW_ZERO) && defined(USE_BGR15)
 	screen->format->Rshift = 0;
 	screen->format->Gshift = 5;
 	screen->format->Bshift = 10;
@@ -901,7 +898,6 @@ void update_window_size(int w, int h)
 #ifdef SDL_TRIPLEBUF
 	video_flip();
 	video_clear();
-#endif
 #endif
 }
 
@@ -1033,9 +1029,7 @@ int main (int argc, char **argv)
 	// gpu_unai
 #ifdef GPU_UNAI
 	gpu_unai_config_ext.ilace_force = 0;
-#ifdef SW_SCALE
 	gpu_unai_config_ext.pixel_skip = 0;
-#endif
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
@@ -1220,7 +1214,6 @@ int main (int argc, char **argv)
 			gpu_unai_config_ext.fast_lighting = 0;
 		}
 
-#ifdef SW_SCALE
 		// Render all pixels on a horizontal line, even when in hi-res 512,640
 		//  PSX vid modes and those pixels would never appear on 320x240 screen.
 		//  (when using pixel-dropping downscaler).
@@ -1228,7 +1221,6 @@ int main (int argc, char **argv)
 		if (strcmp(argv[i],"-nopixelskip") == 0) {
 		 	gpu_unai_config_ext.pixel_skip = 0;
 		}
-#endif
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
 #ifndef USE_GPULIB
@@ -1359,32 +1351,32 @@ int main (int argc, char **argv)
 
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
 
-#ifdef SW_SCALE
+	if (Config.VideoScaling == 1) {
 #ifdef SDL_TRIPLEBUF
-	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+		int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
 #else
-	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+		int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
 #endif
-    flags |= SDL_HWSURFACE;
-	SCREEN_WIDTH = 320;
-	SCREEN_HEIGHT = 240;
+		flags |= SDL_HWSURFACE;
+		SCREEN_WIDTH = 320;
+		SCREEN_HEIGHT = 240;
 
-	if (screen && SDL_MUSTLOCK(screen))
-		SDL_UnlockSurface(screen);
+		if (screen && SDL_MUSTLOCK(screen))
+			SDL_UnlockSurface(screen);
 
-	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
-	if (!screen) {
-		puts("NO Set VideoMode 320x240x16");
-		exit(0);
+		screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
+		if (!screen) {
+			puts("NO Set VideoMode 320x240x16");
+			exit(0);
+		}
+
+		if (SDL_MUSTLOCK(screen))
+			SDL_LockSurface(screen);
+
+		SCREEN = (Uint16 *) screen->pixels;
+	} else {
+		update_window_size(320, 240);
 	}
-
-	if (SDL_MUSTLOCK(screen))
-		SDL_LockSurface(screen);
-
-	SCREEN = (Uint16 *)screen->pixels;
-#else
-	update_window_size(320, 240);
-#endif
 
 	if (argc < 2 || cdrfilename[0] == '\0') {
 		// Enter frontend main-menu:

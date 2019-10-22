@@ -12,6 +12,7 @@
  */
 
 #include <stdio.h>
+#include <psxcommon.h>
 #include "port.h"
 #include "gpu.h"
 
@@ -38,15 +39,17 @@
 #ifndef DISABLE_MEMCPY32
 static inline void *memcpy32 (void *dest, const void *src, size_t len)
 {
-  u32 *d = static_cast<u32 *>(dest);
-  const u32 *s = static_cast<const u32 *>(src);
-  while (len--)
-    *d++ = *s++;
-  return dest;
+	u32 *d = (u32*)dest;
+	const u32 *s = (const u32*)src;
+	while (len--) {
+		*d++ = *s++;
+	}
+	return dest;
 }
+#define MEMCPY(d, s, l) memcpy32((d), (s), (l) >> 2)
+#else
+#define MEMCPY memcpy
 #endif
-
-#ifdef SW_SCALE
 
 template<typename T>
 INLINE  T Min2 (const T _a, const T _b) { return (_a<_b)?_a:_b; }
@@ -73,11 +76,7 @@ static inline void GPU_BlitWW(const void* src, u16* dst16, bool isRGB24)
 			src32 += 8;
 		} while(--uCount);
 #else
-	#ifndef DISABLE_MEMCPY32
-		memcpy32(dst16, src, 160);
-	#else
-		memcpy(dst16, src, 640);
-	#endif
+		MEMCPY(dst16, src, 640);
 #endif
 	} else
 	{
@@ -413,71 +412,33 @@ static inline void GPU_BlitWS(const void* src, u16* dst16, bool isRGB24)
 	}
 }
 
-#else
 
-#ifndef SW_PIXEL_FMT_CONV
-#undef RGB24
-#define RGB24(R,G,B)	(((((R)&0xF8)>>3)|(((G)&0xF8)<<2)|(((B)&0xF8)<<7)))
-#endif
-
-
-static inline void GPU_BlitCopy(const void* src, u16* dst16, bool isRGB24)
+static inline void GPU_BlitCopy(const void* src, u16* dst16, int w, bool isRGB24)
 {
 	u32 uCount;
 	if (!isRGB24)
 	{
 #ifndef USE_BGR15
-		uCount = SCREEN_WIDTH / 16;
+		uCount = w / 2;
 		const u32* src32 = (const u32*) src;
 		u32* dst32 = (u32*)(void*) dst16;
 		do {
-			dst32[0] = RGB16X2(src32[0]);
-			dst32[1] = RGB16X2(src32[1]);
-			dst32[2] = RGB16X2(src32[2]);
-			dst32[3] = RGB16X2(src32[3]);
-			dst32[4] = RGB16X2(src32[4]);
-			dst32[5] = RGB16X2(src32[5]);
-			dst32[6] = RGB16X2(src32[6]);
-			dst32[7] = RGB16X2(src32[7]);
-			dst32 += 8;
-			src32 += 8;
+			*dst32++ = RGB16X2(*src32++);
 		} while(--uCount);
 #else
-	#ifndef DISABLE_MEMCPY32
-		memcpy32(dst16, src, SCREEN_WIDTH >> 1);
-	#else
-		memcpy(dst16, src, SCREEN_WIDTH << 1);
-	#endif
+		MEMCPY(dst16, src, w * 2);
 #endif
 	} else
 	{
-		uCount = SCREEN_WIDTH / 16;
+		uCount = w;
 		const u8* src8 = (const u8*)src;
 		do{
-			dst16[ 0] = RGB24(src8[ 0], src8[ 1], src8[ 2] );
-			dst16[ 1] = RGB24(src8[ 3], src8[ 4], src8[ 5] );
-			dst16[ 2] = RGB24(src8[ 6], src8[ 7], src8[ 8] );
-			dst16[ 3] = RGB24(src8[ 9], src8[10], src8[11] );
-			dst16[ 4] = RGB24(src8[12], src8[13], src8[14] );
-			dst16[ 5] = RGB24(src8[15], src8[16], src8[17] );
-			dst16[ 6] = RGB24(src8[18], src8[19], src8[20] );
-			dst16[ 7] = RGB24(src8[21], src8[22], src8[23] );
-
-			dst16[ 8] = RGB24(src8[24], src8[25], src8[26] );
-			dst16[ 9] = RGB24(src8[27], src8[28], src8[29] );
-			dst16[10] = RGB24(src8[30], src8[31], src8[32] );
-			dst16[11] = RGB24(src8[33], src8[34], src8[35] );
-			dst16[12] = RGB24(src8[36], src8[37], src8[38] );
-			dst16[13] = RGB24(src8[39], src8[40], src8[41] );
-			dst16[14] = RGB24(src8[42], src8[43], src8[44] );
-			dst16[15] = RGB24(src8[45], src8[46], src8[47] );
-			dst16 += 16;
-			src8  += 48;
+			*dst16++ = RGB24(src8[ 0], src8[ 1], src8[ 2] );
+			src8  += 3;
 		} while (--uCount);
 	}
 }
 
-#endif
 
 // Basically an adaption of old gpu_unai/gpu.cpp's gpuVideoOutput() that
 //  assumes 320x240 destination resolution (for now)
@@ -498,6 +459,7 @@ void vout_update(void)
 	int x0 = gpu.screen.x;
 	int y0 = gpu.screen.y;
 	int w0 = gpu.screen.hres;
+	int w1 = gpu.screen.w;
 	int h0 = gpu.screen.vres;
 	int h1 = gpu.screen.h;     // height of image displayed on screen
 
@@ -512,111 +474,112 @@ void vout_update(void)
 	unsigned int src16_offs_msk = 1024*512-1;
 	unsigned int src16_offs = (x0 + y0*1024u) & src16_offs_msk;
 
-#ifdef SW_SCALE
-	//  Height centering
-	int sizeShift = 1;
-	if (h0 == 256) {
-		h0 = 240;
-	} else if (h0 == 480) {
-		sizeShift = 2;
-	}
-	if (h1 > h0) {
-		src16_offs = (src16_offs + (((h1-h0) / 2) * 1024)) & src16_offs_msk;
-		h1 = h0;
-	} else if (h1 < h0) {
-		dst16 += ((h0-h1) >> sizeShift) * SCREEN_WIDTH;
-	}
+	if (Config.VideoScaling == 1) {
+		//  Height centering
+		int sizeShift = 0;
+		if (h0 == 256) {
+			h0 = 240;
+		} else if (h0 == 480) {
+			sizeShift = 1;
+		}
+		if (h1 > h0) {
+			src16_offs = (src16_offs + (((h1 - h0) / 2) * 1024)) & src16_offs_msk;
+			h1 = h0;
+		} else if (h1 < h0) {
+			if (y0 + h1 > h0)
+				dst16 += ((h0 - h1) >> sizeShift) * SCREEN_WIDTH;
+			else
+				dst16 += (y0 >> sizeShift) * SCREEN_WIDTH;
+		}
 
-	int incY = (h0 == 480) ? 2 : 1;
-	h0 = ((h0 == 480) ? 2048 : 1024);
+		int incY = (h0 == 480) ? 2 : 1;
+		h0 = ((h0 == 480) ? 2048 : 1024);
 
-	switch ( w0 )
-	{
-		case 256: {
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+		switch (w0) {
+			case 256: {
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWWDWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
+				break;
 
-		case 368: {
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+			case 368: {
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWWWWWWWWS(src16 + src16_offs, dst16, isRGB24, 4);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
+				break;
 
-		case 320: {
-			// Ensure 32-bit alignment for GPU_BlitWW() blitter:
-			src16_offs &= ~1;
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+			case 320: {
+				// Ensure 32-bit alignment for GPU_BlitWW() blitter:
+				src16_offs &= ~1;
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWW(src16 + src16_offs, dst16, isRGB24);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
+				break;
 
-		case 384: {
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+			case 384: {
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWWWWWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
+				break;
 
-		case 512: {
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+			case 512: {
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWWSWWSWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
+				break;
 
-		case 640: {
-			for (int y1=y0+h1; y0<y1; y0+=incY) {
-				GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
-				dst16 += SCREEN_WIDTH;
-				src16_offs = (src16_offs + h0) & src16_offs_msk;
+			case 640: {
+				for (int y1 = y0 + h1; y0 < y1; y0 += incY) {
+					GPU_BlitWS(src16 + src16_offs, dst16, isRGB24);
+					dst16 += SCREEN_WIDTH;
+					src16_offs = (src16_offs + h0) & src16_offs_msk;
+				}
 			}
-		} break;
-	}
-#else
-	if (h1 > h0) {
-		src16_offs = (src16_offs + (((h1-h0) >> 1) * 1024)) & src16_offs_msk;
-		h1 = h0;
-	} else if (h1 < h0) {
-		dst16 += ((h0-h1) >> 1) * SCREEN_WIDTH;
-	}
-
-	src16_offs &= ~1u;
-#ifndef SW_PIXEL_FMT_CONV
-	if (isRGB24) {
-		for (int y1 = y0+h1; y0<y1; y0++) {
-			GPU_BlitCopy(src16+src16_offs, dst16, isRGB24);
-			dst16 += SCREEN_WIDTH;
-			src16_offs = (src16_offs+1024) & src16_offs_msk;
+				break;
 		}
 	} else {
+		if (h1 > h0) {
+			src16_offs = (src16_offs + (((h1 - h0) >> 1) * 1024)) & src16_offs_msk;
+			h1 = h0;
+		} else if (h1 < h0) {
+			if (y0 + h1 > h0)
+				dst16 += (h0 - h1) * SCREEN_WIDTH;
+			else
+				dst16 += y0 * SCREEN_WIDTH;
+		}
+		if (w1 >= w0) {
+			w1 = w0;
+		} else {
+			x0 %= 320;
+			if (x0 + w1 > w0)
+				dst16 += w0 - w1;
+			else
+				dst16 += x0;
+		}
+		w1 = (w1 + 1) & ~0x01;
+
+		src16_offs &= ~1u;
 		for (int y1 = y0+h1; y0<y1; y0++) {
-#ifndef DISABLE_MEMCPY32
-			memcpy32(dst16, src16+src16_offs, SCREEN_WIDTH >> 1);
-#else
-			memcpy(dst16, src16+src16_offs, SCREEN_WIDTH << 1);
-#endif
+			GPU_BlitCopy(src16+src16_offs, dst16, w1, isRGB24);
 			dst16 += SCREEN_WIDTH;
 			src16_offs = (src16_offs+1024) & src16_offs_msk;
 		}
 	}
-#else
-	for (int y1 = y0+h1; y0<y1; y0++) {
-		GPU_BlitCopy(src16+src16_offs, dst16, isRGB24);
-		dst16 += SCREEN_WIDTH;
-		src16_offs = (src16_offs+1024) & src16_offs_msk;
-	}
-#endif
-#endif
 	video_flip();
 }
 

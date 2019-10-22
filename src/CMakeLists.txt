@@ -1,5 +1,5 @@
 option(USE_GPULIB "Use gpulib from pcsx rearmed" ON)
-option(SW_PIXEL_FMT_CONV "Use software pixel format convert" OFF)
+option(USE_BGR15 "Hardware BGR15 convert (Only for MIPS targets)" ON)
 
 set(PORT sdl)
 set(GPU gpu_unai)
@@ -79,8 +79,8 @@ set(SPU_FLAGS ${SPU_FLAGS} ${SPU_FLAG})
 if(MINGW)
     set(EXTRA_FLAGS __USE_MINGW_ANSI_STDIO=1)
 endif()
-if(SW_PIXEL_FMT_CONV)
-    set(EXTRA_FLAGS ${EXTRA_FLAGS} SW_PIXEL_FMT_CONV)
+if(USE_BGR15)
+    set(EXTRA_FLAGS ${EXTRA_FLAGS} USE_BGR15)
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE XA_HACK
