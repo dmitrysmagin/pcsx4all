@@ -1353,18 +1353,28 @@ int main (int argc, char **argv)
 
 	if (Config.VideoScaling == 1) {
 #ifdef SDL_TRIPLEBUF
-		int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
+	int flags = SDL_TRIPLEBUF;
 #else
-		int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
+	int flags = SDL_DOUBLEBUF;
 #endif
-		flags |= SDL_HWSURFACE;
+    flags |= SDL_HWSURFACE
+#if defined(GCW_ZERO) && defined(USE_BGR15)
+        | SDL_SWIZZLEBGR
+#endif
+        ;
 		SCREEN_WIDTH = 320;
 		SCREEN_HEIGHT = 240;
 
 		if (screen && SDL_MUSTLOCK(screen))
 			SDL_UnlockSurface(screen);
 
-		screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT, 16, flags);
+		screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
+#if !defined(GCW_ZERO) || !defined(USE_BGR15)
+			16,
+#else
+			15,
+#endif
+		flags);
 		if (!screen) {
 			puts("NO Set VideoMode 320x240x16");
 			exit(0);
@@ -1541,14 +1551,14 @@ void port_printf(int x, int y, const char *text)
 		int pos = 0;
 		for (int l = 0; l < 8; l++) {
 			unsigned char data = fontdata8x8[((text[i])*8)+l];
-			screen[pos+0]=(data&0x80u)?0xffff:0x0000;
-			screen[pos+1]=(data&0x40u)?0xffff:0x0000;
-			screen[pos+2]=(data&0x20u)?0xffff:0x0000;
-			screen[pos+3]=(data&0x10u)?0xffff:0x0000;
-			screen[pos+4]=(data&0x08u)?0xffff:0x0000;
-			screen[pos+5]=(data&0x04u)?0xffff:0x0000;
-			screen[pos+6]=(data&0x02u)?0xffff:0x0000;
-			screen[pos+7]=(data&0x01u)?0xffff:0x0000;
+			if (data&0x80u) screen[pos+0] = 0xffff;
+			if (data&0x40u) screen[pos+1] = 0xffff;
+			if (data&0x20u) screen[pos+2] = 0xffff;
+			if (data&0x10u) screen[pos+3] = 0xffff;
+			if (data&0x08u) screen[pos+4] = 0xffff;
+			if (data&0x04u) screen[pos+5] = 0xffff;
+			if (data&0x02u) screen[pos+6] = 0xffff;
+			if (data&0x01u) screen[pos+7] = 0xffff;
 			pos += SCREEN_WIDTH;
 		}
 		screen += 8;
