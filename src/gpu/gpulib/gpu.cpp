@@ -253,7 +253,7 @@ long GPU_shutdown(void)
   return ret;
 }
 
-extern void update_window_size(int w, int h);
+extern void update_window_size(int w, int h, bool ntsc_fix);
 
 void GPU_writeStatus(uint32_t data)
 {
@@ -313,7 +313,7 @@ void GPU_writeStatus(uint32_t data)
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
       update_height();
-      update_window_size(gpu.screen.hres, gpu.screen.vres);
+      update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
       renderer_notify_res_change();
       break;
     default:

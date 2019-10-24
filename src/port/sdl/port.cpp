@@ -67,7 +67,7 @@ static bool emu_running = false;
 
 void config_load();
 void config_save();
-void update_window_size(int w, int h);
+void update_window_size(int w, int h, bool ntsc_fix);
 
 static void pcsx4all_exit(void)
 {
@@ -360,6 +360,9 @@ void config_load()
 		} else if (!strcmp(line, "interlace")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.ilace_force = value;
+		} else if (!strcmp(line, "ntsc_fix")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.ntsc_fix = value;
 		}
 #endif
 	}
@@ -432,13 +435,15 @@ void config_save()
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
-		   "dithering %d\n",
+		   "dithering %d\n"
+		   "ntsc_fix %d\n",
 		   gpu_unai_config_ext.ilace_force,
 		   gpu_unai_config_ext.pixel_skip,
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
 		   gpu_unai_config_ext.blending,
-		   gpu_unai_config_ext.dithering);
+		   gpu_unai_config_ext.dithering,
+		   gpu_unai_config_ext.ntsc_fix);
 #endif
 
 
@@ -709,11 +714,11 @@ void pad_update()
 
 		emu_running = false;
 		pl_pause();    // Tell plugin_lib we're pausing emu
-		update_window_size(320, 240);
+		update_window_size(320, 240, false);
 		GameMenu();
 		emu_running = true;
 		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
-		update_window_size(gpu.screen.hres, gpu.screen.vres);
+		update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
 		if (Config.VideoScaling == 1) {
 			video_clear();
 			video_flip();
@@ -844,7 +849,7 @@ void Rumble_Init() {
 #endif
 }
 
-void update_window_size(int w, int h)
+void update_window_size(int w, int h, bool ntsc_fix)
 {
 	if (Config.VideoScaling != 0) return;
 #ifdef SDL_TRIPLEBUF
@@ -858,6 +863,13 @@ void update_window_size(int w, int h)
 #endif
         ;
 	SCREEN_WIDTH = w;
+	if (gpu_unai_config_ext.ntsc_fix && ntsc_fix) {
+		switch (h) {
+		case 240:
+		case 256: h -= 16; break;
+		case 480: h -= 32; break;
+		}
+	}
 	SCREEN_HEIGHT = h;
 
 	if (screen && SDL_MUSTLOCK(screen))
@@ -1034,6 +1046,7 @@ int main (int argc, char **argv)
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
 	gpu_unai_config_ext.dithering = 0;
+	gpu_unai_config_ext.ntsc_fix = 1;
 #endif
 
 	// Load config from file.
@@ -1198,6 +1211,10 @@ int main (int argc, char **argv)
 		// Allow 24bpp->15bpp dithering (only polys, only if PS1 game uses it)
 		if (strcmp(argv[i],"-dither") == 0) {
 			gpu_unai_config_ext.dithering = 1;
+		}
+
+		if (strcmp(argv[i],"-ntsc_fix") == 0) {
+			gpu_unai_config_ext.ntsc_fix = 1;
 		}
 
 		if (strcmp(argv[i],"-nolight") == 0) {
@@ -1385,7 +1402,7 @@ int main (int argc, char **argv)
 
 		SCREEN = (Uint16 *) screen->pixels;
 	} else {
-		update_window_size(320, 240);
+		update_window_size(320, 240, false);
 	}
 
 	if (argc < 2 || cdrfilename[0] == '\0') {

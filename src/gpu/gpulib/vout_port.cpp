@@ -460,7 +460,7 @@ void vout_update(void)
 	int y0 = gpu.screen.y;
 	int w0 = gpu.screen.hres;
 	int w1 = gpu.screen.w;
-	int h0 = gpu.screen.vres;
+	int h0 = !gpu_unai_config_ext.ntsc_fix || Config.VideoScaling == 1 ? gpu.screen.vres : SCREEN_HEIGHT;
 	int h1 = gpu.screen.h;     // height of image displayed on screen
 
 	if (w0 == 0 || h0 == 0)
@@ -557,21 +557,13 @@ void vout_update(void)
 			src16_offs = (src16_offs + (((h1 - h0) >> 1) * 1024)) & src16_offs_msk;
 			h1 = h0;
 		} else if (h1 < h0) {
-			if (y0 + h1 > h0)
-				dst16 += (h0 - h1) * SCREEN_WIDTH;
-			else
-				dst16 += y0 * SCREEN_WIDTH;
+			dst16 += (h0 - h1) / 2 * SCREEN_WIDTH;
 		}
 		if (w1 >= w0) {
 			w1 = w0;
 		} else {
-			x0 %= 320;
-			if (x0 + w1 > w0)
-				dst16 += w0 - w1;
-			else
-				dst16 += x0;
+			dst16 += (w0 - w1) / 2;
 		}
-		w1 = (w1 + 1) & ~0x01;
 
 		src16_offs &= ~1u;
 		for (int y1 = y0+h1; y0<y1; y0++) {
