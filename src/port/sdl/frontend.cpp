@@ -615,16 +615,6 @@ GUI_STATE_SAVE_HINT(7)
 GUI_STATE_SAVE_HINT(8)
 GUI_STATE_SAVE_HINT(9)
 
-static int gui_state_save_back()
-{
-	if (sshot_img) {
-		free(sshot_img);
-		sshot_img = NULL;
-	}
-
-	return 1;
-}
-
 // In-game savestate save sub-menu, called from GameMenu() menu
 static int gui_StateSave()
 {
@@ -667,10 +657,6 @@ static int gui_StateSave()
 		{(char *)str_slot[7], &gui_state_save7, NULL, NULL, &gui_state_save_hint7},
 		{(char *)str_slot[8], &gui_state_save8, NULL, NULL, &gui_state_save_hint8},
 		{(char *)str_slot[9], &gui_state_save9, NULL, NULL, &gui_state_save_hint9},
-		{NULL, NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL, NULL},
-		{(char *)"Back to main menu    ", &gui_state_save_back, NULL, NULL, NULL},
 		{0}
 	};
 
@@ -823,16 +809,6 @@ GUI_STATE_LOAD_HINT(7)
 GUI_STATE_LOAD_HINT(8)
 GUI_STATE_LOAD_HINT(9)
 
-static int gui_state_load_back()
-{
-	if (sshot_img) {
-		free(sshot_img);
-		sshot_img = NULL;
-	}
-
-	return 1;
-}
-
 // In-game savestate load sub-menu, called from GameMenu() menu
 static int gui_StateLoad()
 {
@@ -884,10 +860,6 @@ static int gui_StateLoad()
 		{(char *)str_slot[7], &gui_state_load7, NULL, NULL, &gui_state_load_hint7},
 		{(char *)str_slot[8], &gui_state_load8, NULL, NULL, &gui_state_load_hint8},
 		{(char *)str_slot[9], &gui_state_load9, NULL, NULL, &gui_state_load_hint9},
-		{NULL, NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL, NULL},
-		{NULL, NULL, NULL, NULL, NULL},
-		{(char *)"Back to main menu    ", &gui_state_load_back, NULL, NULL, NULL},
 		{0}
 	};
 
@@ -895,7 +867,7 @@ static int gui_StateLoad()
 
 	// If no files were present, select last menu entry as initial position
 	if (initial_pos < 0)
-		initial_pos = menu_size-1;
+		return 0;
 
 	MENU gui_StateLoadMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateLoadItems };
 
@@ -1335,11 +1307,6 @@ static char *McdSlot2_show()
 	return buf;
 }
 
-static int settings_back()
-{
-	return 1;
-}
-
 static int settings_defaults()
 {
 	/* Restores settings to default values. */
@@ -1378,8 +1345,6 @@ static MENUITEM gui_SettingsItems[] = {
 	{(char *)"Memory card Slot1  ", NULL, &McdSlot1_alter, &McdSlot1_show, NULL},
 	{(char *)"Memory card Slot2  ", NULL, &McdSlot2_alter, &McdSlot2_show, NULL},
 	{(char *)"Restore defaults     ", &settings_defaults, NULL, NULL, NULL},
-	{NULL, NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu  ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1494,6 +1459,26 @@ static void videoscaling_hint() {
 #endif //USE_GPULIB
 
 #ifdef GPU_UNAI
+static int ntsc_fix_alter(u32 keys)
+{
+	if (keys & KEY_RIGHT) {
+		if (gpu_unai_config_ext.ntsc_fix == 0)
+			gpu_unai_config_ext.ntsc_fix = 1;
+	} else if (keys & KEY_LEFT) {
+		if (gpu_unai_config_ext.ntsc_fix == 1)
+			gpu_unai_config_ext.ntsc_fix = 0;
+	}
+
+	return 0;
+}
+
+static char *ntsc_fix_show()
+{
+	static char buf[16] = "\0";
+	sprintf(buf, "%s", gpu_unai_config_ext.ntsc_fix ? "on" : "off");
+	return buf;
+}
+
 static int interlace_alter(u32 keys)
 {
 	if (keys & KEY_RIGHT) {
@@ -1648,6 +1633,7 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	{(char *)"Video Scaling        ", NULL, &videoscaling_alter, &videoscaling_show, videoscaling_hint},
 #endif
 #ifdef GPU_UNAI
+	{(char *)"NTSC Resolution Fix  ", NULL, &ntsc_fix_alter, &ntsc_fix_show, NULL},
 	{(char *)"Interlace            ", NULL, &interlace_alter, &interlace_show, NULL},
 	{(char *)"Dithering            ", NULL, &dithering_alter, &dithering_show, NULL},
 	{(char *)"Lighting             ", NULL, &lighting_alter, &lighting_show, NULL},
@@ -1656,8 +1642,6 @@ static MENUITEM gui_GPUSettingsItems[] = {
 	// {(char *)"Pixel skip           ", NULL, &pixel_skip_alter, &pixel_skip_show, NULL},
 #endif
 	{(char *)"Restore defaults     ", &gpu_settings_defaults, NULL, NULL, NULL},
-	{NULL, NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1871,8 +1855,6 @@ static MENUITEM gui_SPUSettingsItems[] = {
 	{(char *)"Master volume        ", NULL, &volume_alter, &volume_show, NULL},
 #endif
 	{(char *)"Restore defaults     ", &spu_settings_defaults, NULL, NULL, NULL},
-	{NULL, NULL, NULL, NULL, NULL},
-	{(char *)"Back to main menu    ", &settings_back, NULL, NULL, NULL},
 	{0}
 };
 
@@ -1930,17 +1912,13 @@ static int cheat_alter(u32 keys) {
 	return 0;
 }
 
-static int cheat_back() {
-	return 1;
-}
-
 static int gui_Cheats()
 {
 	const cheat_t *ch = cheat_get();
 	int i;
-	gui_CheatMenu.num = ch->num_entries + 2;
+	gui_CheatMenu.num = ch->num_entries;
 	gui_CheatMenu.cur = 0;
-	gui_CheatMenu.m = (MENUITEM*)calloc(ch->num_entries + 2, sizeof(MENUITEM));
+	gui_CheatMenu.m = (MENUITEM*)calloc(ch->num_entries, sizeof(MENUITEM));
 	gui_CheatMenu.cur_top = 0;
 	for (i = 0; i < ch->num_entries; ++i)
 	{
@@ -1952,9 +1930,6 @@ static int gui_Cheats()
 		item->showval = NULL;
 		item->hint = NULL;
 	}
-	MENUITEM *item = &gui_CheatMenu.m[++i];
-	item->name = (char*)"  Back to game";
-	item->on_press_a = cheat_back;
 	gui_RunMenu(&gui_CheatMenu);
 	free(gui_CheatMenu.m);
 	gui_CheatMenu.m = NULL;
@@ -2060,9 +2035,8 @@ static int gui_RunMenu(MENU *menu)
 					return result;
 			}
 		} else if (keys & KEY_B) {
-			menu->cur = menu->num - 1;
 			key_reset();
-			fix_menu_top(menu);
+			return 1;
 		}
 
 		if ((keys & (KEY_LEFT | KEY_RIGHT))) {
