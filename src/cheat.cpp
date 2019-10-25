@@ -1,13 +1,15 @@
 #include "cheat.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <limits.h>
-
 #include "psxmem.h"
 #include "misc.h"
 
 #include "port.h"
+
+#include "unzip.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <limits.h>
 
 static cheat_t* ct = NULL;
 
@@ -21,18 +23,48 @@ void cheat_load(void)
 {
 	char cheat_filename[PATH_MAX];
 	FILE* f;
-	char linebuf[256];
-	int i, disableall;
+	char *filebuf;
+	int i, disableall, buf_pos = 0;
 	cheat_entry_t* entry = NULL;
-	if (ct != NULL) cheat_unload();
+	cheat_unload();
 	snprintf(cheat_filename, sizeof(cheat_filename), "%s/%s.txt", cheatsdir, CdromId);
 	f = fopen(cheat_filename, "r");
-	if (!f) {
-		return;
+	if (f) {
+		fseeko(f, 0, SEEK_END);
+		off_t len = ftello(f);
+		filebuf = new char[len + 1];
+		filebuf[len] = 0;
+		fseeko(f, 0, SEEK_SET);
+		fread(filebuf, 1, len, f);
+		fclose(f);
+	} else {
+		unz_file_info finfo;
+		snprintf(cheat_filename, sizeof(cheat_filename), "%s/cheats.zip", cheatsdir);
+		unzFile uf = unzOpen(cheat_filename);
+		if (uf == NULL) return;
+		snprintf(cheat_filename, sizeof(cheat_filename), "%s.txt", CdromId);
+		if (unzLocateFile(uf, cheat_filename, 2) != UNZ_OK || unzGetCurrentFileInfo(uf, &finfo, NULL, 0, NULL, 0, NULL, 0) != UNZ_OK || unzOpenCurrentFile(uf) != UNZ_OK) {
+			unzClose(uf);
+			return;
+		}
+		filebuf = new char[finfo.uncompressed_size + 1];
+		filebuf[finfo.uncompressed_size] = 0;
+		unzReadCurrentFile(uf, filebuf, finfo.uncompressed_size);
+		unzCloseCurrentFile(uf);
+		unzClose(uf);
 	}
 	ct = (cheat_t*) calloc(1, sizeof(cheat_t));
-	while (fgets(linebuf, sizeof(linebuf), f) != NULL) {
-		const char* buf = linebuf;
+	for(;;) {
+		char *buf = filebuf + buf_pos;
+		if (*buf == 0) break;
+		int token_pos = strcspn(buf, "\r\n");
+		if (buf[token_pos] == 0)
+			buf_pos += token_pos;
+		else {
+			buf[token_pos] = 0;
+			buf_pos += token_pos + 1;
+			while(filebuf[buf_pos] == '\r' || filebuf[buf_pos] == '\n') ++buf_pos;
+		}
 		while (*buf == ' ' || *buf == '\t') ++buf;
 		if (*buf == '#') {
 			int pos;
@@ -78,6 +110,7 @@ void cheat_load(void)
 			}
 		}
 	}
+	delete[] filebuf;
 	disableall = 0;
 	for (i = 0; i < ct->num_entries; ++i) {
 		u32 code;
@@ -98,23 +131,6 @@ void cheat_load(void)
 			ct->entries[i].cont_enabled = 0;
 		}
 	}
-	/*
-	{
-	  int i, j;
-	  char fn[256];
-	  snprintf(fn, sizeof(fn), "%s/test.log", cheatsdir);
-	  FILE *flog = fopen(fn, "wt");
-	  for (i = 0; i < ct->num_entries; ++i) {
-		cheat_entry_t *e = &ct->entries[i];
-		fprintf(flog, "%s\n", e->name);
-		for (j = 0; j < e->num_lines; ++j) {
-		  fprintf(flog, "  %08X %04X\n", e->lines[j].code1, e->lines[j].code2);
-		}
-	  }
-	  fclose(flog);
-	}
-	*/
-	fclose(f);
 }
 
 void cheat_unload(void)

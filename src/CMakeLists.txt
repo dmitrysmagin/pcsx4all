@@ -18,6 +18,7 @@ set(SRC_FILES
     cdriso.cpp cdrom.cpp ppf.cpp cheat.cpp
     sio.cpp pad.cpp
     gte.cpp
+    external_lib/ioapi.c external_lib/unzip.c
     spu/${SPU}/spu.c
     port/${PORT}/port.cpp
     port/${PORT}/frontend.cpp
@@ -88,5 +89,5 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE XA_HACK
     ${GPU_FLAGS} ${SPU_FLAGS} ${EXTRA_FLAGS})
 target_compile_options(${PROJECT_NAME} PRIVATE -Wno-format-truncation)
 target_include_directories(${PROJECT_NAME} PRIVATE ${SDL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS}
-    . spu/${SPU} gpu/${GPU} port/${PORT} plugin_lib)
+    . spu/${SPU} gpu/${GPU} port/${PORT} plugin_lib external_lib)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${SDL_LIBRARY} ${ZLIB_LIBRARIES})
