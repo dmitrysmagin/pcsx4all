@@ -65,9 +65,36 @@ int SCREEN_WIDTH = 640, SCREEN_HEIGHT = 480;
 static bool pcsx4all_initted = false;
 static bool emu_running = false;
 
+#ifdef GCW_ZERO
+static bool last_keep_aspect = false;
+#endif
+
 void config_load();
 void config_save();
 void update_window_size(int w, int h, bool ntsc_fix);
+
+static const char *KEEP_ASPECT_FILENAME = "/sys/devices/platform/jz-lcd.0/keep_aspect_ratio";
+
+#ifdef GCW_ZERO
+
+static inline bool get_keep_aspect_ratio() {
+	FILE *f = fopen(KEEP_ASPECT_FILENAME, "rb");
+	if (!f) return false;
+	char c;
+	fread(&c, 1, 1, f);
+	fclose(f);
+	return c == 'Y';
+}
+
+static inline void set_keep_aspect_ratio(bool n) {
+	FILE *f = fopen(KEEP_ASPECT_FILENAME, "wb");
+	if (!f) return;
+	char c = n ? 'Y' : 'N';
+	fwrite(&c, 1, 1, f);
+	fclose(f);
+}
+
+#endif
 
 static void pcsx4all_exit(void)
 {
@@ -76,6 +103,10 @@ static void pcsx4all_exit(void)
 
 	// Store config to file
 	config_save();
+
+#ifdef GCW_ZERO
+	set_keep_aspect_ratio(last_keep_aspect);
+#endif
 
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
@@ -162,12 +193,13 @@ extern u32 cycle_multiplier; // in mips/recompiler.cpp
 void config_load()
 {
 	FILE *f;
-	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
-	char line[strlen("LastDir ") + MAXPATHLEN + 1];
+	char config[MAXPATHLEN];
+	char line[MAXPATHLEN + 8 + 1];
 	int lineNum = 0;
 
-	if (!config)
-		return;
+#ifdef GCW_ZERO
+	last_keep_aspect = get_keep_aspect_ratio();
+#endif
 
 	sprintf(config, "%s/pcsx4all.cfg", homedir);
 
@@ -175,7 +207,6 @@ void config_load()
 
 	if (f == NULL) {
 		printf("Failed to open config file: \"%s\" for reading.\n", config);
-		free(config);
 		return;
 	}
 
@@ -365,19 +396,21 @@ void config_load()
 			gpu_unai_config_ext.ntsc_fix = value;
 		}
 #endif
+#ifdef GCW_ZERO
+		else if (!strcmp(line, "keep_aspect_ratio")) {
+			sscanf(arg, "%d", &value);
+			set_keep_aspect_ratio(value != 0);
+		}
+#endif
 	}
 
 	fclose(f);
-	free(config);
 }
 
 void config_save()
 {
 	FILE *f;
-	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
-
-	if (!config)
-		return;
+	char config[MAXPATHLEN];
 
 	sprintf(config, "%s/pcsx4all.cfg", homedir);
 
@@ -385,7 +418,6 @@ void config_save()
 
 	if (f == NULL) {
 		printf("Failed to open config file: \"%s\" for writing.\n", config);
-		free(config);
 		return;
 	}
 
@@ -446,6 +478,10 @@ void config_save()
 		   gpu_unai_config_ext.ntsc_fix);
 #endif
 
+#ifdef GCW_ZERO
+	fprintf(f, "keep_aspect_ratio %d\n",
+		   get_keep_aspect_ratio() ? 1 : 0);
+#endif
 
 	if (Config.LastDir[0]) {
 		fprintf(f, "LastDir %s\n", Config.LastDir);
@@ -460,7 +496,6 @@ void config_save()
 	}
 
 	fclose(f);
-	free(config);
 }
 
 // Returns 0: success, -1: failure
