@@ -526,6 +526,31 @@ GUI_STATE_SAVE(7)
 GUI_STATE_SAVE(8)
 GUI_STATE_SAVE(9)
 
+static void show_screenshot()
+{
+	if (sshot_img) {
+		int x = 160-8;
+		int y = 70;
+		uint16_t *dst = (uint16_t*)SCREEN + y * SCREEN_WIDTH + x;
+		for (int j=0; j < 120; ++j) {
+#ifdef USE_BGR15
+			uint16_t *src_img = sshot_img + j*160;
+			uint16_t *dst_img = dst;
+			for (int i = 160; i; i--) {
+				uint16_t c = *src_img++;
+				*dst_img++ = (c >> 11) | ((c >> 1) & (0x1Fu << 5)) | ((c & 0x1Fu) << 10);
+			}
+#else
+			memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
+#endif
+			dst += SCREEN_WIDTH;
+		}
+	} else {
+		port_printf(320-135, 125 - 10, "No screenshot");
+		port_printf(320-135, 125,      "  available  ");
+	}
+}
+
 static void gui_state_save_hint(int slot)
 {
 	int x, y, len;
@@ -566,18 +591,7 @@ static void gui_state_save_hint(int slot)
 	}
 
 	// Display screenshot image
-	if (sshot_img) {
-		x = 160-8;
-		y = 70;
-		uint16_t *dst = (uint16_t*)SCREEN + y * SCREEN_WIDTH + x;
-		for (int j=0; j < 120; ++j) {
-			memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
-			dst += SCREEN_WIDTH;
-		}
-	} else {
-		port_printf(320-135, 125 - 10, "No screenshot");
-		port_printf(320-135, 125,      "  available  ");
-	}
+    show_screenshot();
 
 	// Display date of last modification
 	char date_str[128];
@@ -662,9 +676,9 @@ static int gui_StateSave()
 
 	const int menu_size = (sizeof(gui_StateSaveItems) / sizeof(MENUITEM)) - 1;
 
-	// If no files were present, select last menu entry as initial position
+	// If no files were present, select first menu entry as initial position
 	if (initial_pos < 0)
-		initial_pos = menu_size-1;
+		initial_pos = 0;
 
 	MENU gui_StateSaveMenu = { menu_size, initial_pos, 30, 80, (MENUITEM *)&gui_StateSaveItems };
 
@@ -760,18 +774,7 @@ static void gui_state_load_hint(int slot)
 	}
 
 	// Display screenshot image
-	if (sshot_img) {
-		x = 160-8;
-		y = 70;
-		uint16_t *dst = (uint16_t*)SCREEN + y * SCREEN_WIDTH + x;
-		for (int j=0; j < 120; ++j) {
-			memcpy((void*)dst, (void*)(sshot_img + j*160), 160*2);
-			dst += SCREEN_WIDTH;
-		}
-	} else {
-		port_printf(320-135, 125 - 10, "No screenshot");
-		port_printf(320-135, 125,      "  available  ");
-	}
+	show_screenshot();
 
 	// Display date of last modification
 	char date_str[128];
@@ -1123,6 +1126,9 @@ static int bios_set()
 		strcpy(Config.Bios, p + 1);
 		check_spec_bios();
 	}
+
+	video_clear();
+	video_flip();
 
 	return 0;
 }

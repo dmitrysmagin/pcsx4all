@@ -69,6 +69,7 @@ CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -flto -DTIME_IN_MSEC \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
 	-Isrc/plugin_lib \
+	-Isrc/external_lib \
 	-DXA_HACK \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
@@ -84,7 +85,7 @@ endif
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/recompiler obj/recompiler/$(RECOMPILER) \
 	  obj/port obj/port/$(PORT) \
-	  obj/plugin_lib
+	  obj/plugin_lib obj/external_lib
 
 all: maketree $(TARGET)
 
@@ -96,7 +97,8 @@ OBJS = \
 	obj/psxinterpreter.o \
 	obj/mdec.o obj/decode_xa.o \
 	obj/cdriso.o obj/cdrom.o obj/ppf.o obj/cheat.o \
-	obj/sio.o obj/pad.o
+	obj/sio.o obj/pad.o \
+	obj/external_lib/ioapi.o obj/external_lib/unzip.o
 
 ifdef RECOMPILER
 OBJS += \
