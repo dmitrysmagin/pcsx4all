@@ -32,12 +32,12 @@ SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
 SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
 SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
 
-LDFLAGS := $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz
+LDFLAGS := $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz -lshake
 
 ifdef A320
 	C_ARCH = -mips32 -msoft-float -DGCW_ZERO -DRG350 -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
 else
-	C_ARCH = -mips32r2 -DGCW_ZERO -DRG350 -DSHMEM_MIRRORING
+	C_ARCH = -mips32r2 -DGCW_ZERO -DRUMBLE -DRG350 -DSHMEM_MIRRORING
 endif
 
 ifeq ($(DEV),1)
@@ -57,7 +57,7 @@ else
 	#  mirror PS1 address space.
 	#C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
 	#LDFLAGS += -Wl,-Ttext-segment=0x40000000
-	LDFLAGS = $(SDL_LIBS) -lrt -lz -Wl,--as-needed -Wl,--gc-sections -s
+	LDFLAGS = $(SDL_LIBS) -lrt -lz -Wl,--as-needed -Wl,--gc-sections -s -lshake
 	LDFLAGS += -flto
 	# Furthermore, div-by-zero checks are disabled (helps software rendering)
 	C_ARCH  += -mno-check-zero-division
