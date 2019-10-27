@@ -1470,6 +1470,7 @@ int main (int argc, char **argv)
 		printf("Failed loading plugins.\n");
 		exit(1);
 	}
+	Rumble_Init();
 
 	pcsx4all_initted = true;
 	emu_running = true;
@@ -1500,7 +1501,6 @@ int main (int argc, char **argv)
 
 	joy_init();
 
-	Rumble_Init();
 
 	if (filename[0] != '\0') {
 		if (Load(filename) == -1) {
