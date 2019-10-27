@@ -30,9 +30,11 @@
 #ifdef RUMBLE
 #include <shake.h>
 extern Shake_Device *device;
-extern Shake_Effect effect;
+extern Shake_Effect effect_small;
+extern Shake_Effect effect_big;
 uint32_t in_enable_vibration = 1;
-extern int id_shake;
+extern int id_shake_small;
+extern int id_shake_big;
 #endif
 
 uint8_t CurPad = 0, CurCmd = 0;
@@ -97,29 +99,6 @@ static uint8_t unk47[8] = {0xFF, 0x5A, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00};
 static uint8_t unk4c[8] = {0xFF, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 static uint8_t unk4d[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-
-#ifdef RUMBLE
-void plat_trigger_vibrate(int pad, int low, int high)
-{
-	if (high > 0 || low > 0)
-	{
-		if (Rumble_Change == 0)
-		{
-			Shake_Play(device, id_shake);
-			Rumble_Change = 1;
-		}
-	}
-	else
-	{
-		if (Rumble_Change == 1)
-		{
-			Shake_Stop(device, id_shake);
-			id_shake = 0;
-			Rumble_Change = 0;
-		}
-	}
-}
-#endif
 
 unsigned char PAD1_poll(unsigned char value) {
 	static uint8_t buf[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80};
@@ -229,15 +208,30 @@ unsigned char PAD1_poll(unsigned char value) {
 	if (player_controller[0].pad_controllertype == 1) {
 		switch (CurCmd) {
 		case CMD_READ_DATA_AND_VIBRATE:
+				if (g.CurByte1 == player_controller[0].Vib[0]) {
+					player_controller[0].VibF[0] = value;
 #ifdef RUMBLE
-			for (i = 0; i < 2; i++) {
-				if (player_controller[0].Vib[i] == g.CurByte1
-					 && player_controller[0].VibF[i] != value) {
-					player_controller[0].VibF[i] = value;
-				}
-			}
-			plat_trigger_vibrate(CurPad, player_controller[0].VibF[0], player_controller[0].VibF[1]);
+
+					if (player_controller[0].VibF[0] != 0) {
+						Shake_Play(device, id_shake_small);
+					}
 #endif
+					
+				}
+
+				else if (g.CurByte1 == player_controller[0].Vib[1]) {
+					player_controller[0].VibF[1] = value;
+
+#ifdef RUMBLE
+					if (player_controller[0].VibF[1] != 0) {
+						if (value >= 0xf0)
+							Shake_Play(device, id_shake_big);						
+						else
+							Shake_Play(device, id_shake_small);
+					}
+#endif
+					
+				}
 			break;
 		case CMD_VIBRATION_TOGGLE:
 			for (i = 0; i < 2; i++) {

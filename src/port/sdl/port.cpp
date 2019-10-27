@@ -33,8 +33,10 @@
 #ifdef RUMBLE
 #include <shake.h>
 Shake_Device *device;
-Shake_Effect effect;
-int id_shake;
+Shake_Effect effect_big;
+Shake_Effect effect_small;
+int id_shake_small;
+int id_shake_big;
 #endif
 
 enum {
@@ -114,8 +116,10 @@ static void pcsx4all_exit(void)
 	SDL_Quit();
 
 #ifdef RUMBLE
-	Shake_Stop(device, id_shake);
-	Shake_EraseEffect(device, id_shake);
+	Shake_Stop(device, id_shake_small);
+	Shake_Stop(device, id_shake_big);
+	Shake_EraseEffect(device, id_shake_small);
+	Shake_EraseEffect(device, id_shake_big);
 	Shake_Close(device);
 	Shake_Quit();
 #endif
@@ -868,18 +872,23 @@ void Rumble_Init() {
 
 	if (Shake_NumOfDevices() > 0) {
 		device = Shake_Open(0);
-		Shake_InitEffect(&effect, SHAKE_EFFECT_PERIODIC);
-		effect.u.periodic.waveform = SHAKE_PERIODIC_SINE;
-		effect.u.periodic.period = 0.1 * 0x100;
-		effect.u.periodic.magnitude = 0x6000;
-		effect.u.periodic.envelope.attackLength = 0x100;
-		effect.u.periodic.envelope.attackLevel = 0;
-		effect.u.periodic.envelope.fadeLength = 0x100;
-		effect.u.periodic.envelope.fadeLevel = 0;
-		effect.direction = 0x4000;
-		effect.length = 0;
-		effect.delay = 0;
-		id_shake = Shake_UploadEffect(device, &effect);
+
+		Shake_InitEffect(&effect_small, SHAKE_EFFECT_RUMBLE);
+		effect_small.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX * 0.85f;
+		effect_small.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
+		effect_small.length = 17;
+		effect_small.delay = 0;
+
+		Shake_InitEffect(&effect_big, SHAKE_EFFECT_RUMBLE);
+		effect_big.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX;
+		effect_big.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
+		effect_big.length = 17;
+		effect_big.delay = 0;
+
+		id_shake_small = Shake_UploadEffect(device, &effect_small);
+		id_shake_big = Shake_UploadEffect(device, &effect_big);
+
+		
 	}
 #endif
 }
