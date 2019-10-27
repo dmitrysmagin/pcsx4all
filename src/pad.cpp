@@ -32,14 +32,12 @@
 extern Shake_Device *device;
 extern Shake_Effect effect_small;
 extern Shake_Effect effect_big;
-uint32_t in_enable_vibration = 1;
 extern int id_shake_small;
 extern int id_shake_big;
 #endif
 
 uint8_t CurPad = 0, CurCmd = 0;
 uint8_t pad_detect_pad[2] = {0, 0};
-uint8_t Rumble_Change = 0;
 
 typedef struct tagGlobalData
 {
@@ -234,16 +232,26 @@ unsigned char PAD1_poll(unsigned char value) {
 				}
 			break;
 		case CMD_VIBRATION_TOGGLE:
-			for (i = 0; i < 2; i++) {
-				if (player_controller[0].Vib[i] == g.CurByte1)
+			if (g.CurByte1 >= 2 && g.CurByte1 < g.CmdLen1) {
+				if (g.CurByte1 == player_controller[0].Vib[0]) {
 					buf[g.CurByte1] = 0;
-			}
-			if (value < 2) {
-				player_controller[0].Vib[value] = g.CurByte1;
-				if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
-					player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
 				}
-			}
+				if (g.CurByte1 == player_controller[0].Vib[1]) {
+					buf[g.CurByte1] = 1;
+				}
+
+				if (value == 0) {
+					player_controller[0].Vib[0] = g.CurByte1;
+					if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
+						player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
+					}
+				} else if (value == 1) {
+					player_controller[0].Vib[1] = g.CurByte1;
+					if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
+						player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
+					}
+				}
+			}		
 			break;
 		}
 	}
