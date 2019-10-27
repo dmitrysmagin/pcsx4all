@@ -57,6 +57,7 @@ int state_save(int slot);
 
 void update_memcards(int load_mcd);
 const char *bios_file_get();
+void bios_file_set(const char *filename);
 void check_spec_bios();
 
 int SelectGame();

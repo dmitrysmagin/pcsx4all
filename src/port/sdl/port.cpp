@@ -845,6 +845,11 @@ const char *bios_file_get() {
 	return BiosFile;
 }
 
+void bios_file_set(const char *filename) {
+	strcpy(Config.Bios, filename);
+	strcpy(BiosFile, filename);
+}
+
 // if [CdromId].bin is exsit, use the spec bios
 void check_spec_bios() {
 	FILE *f = NULL;
@@ -984,7 +989,7 @@ int main (int argc, char **argv)
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=0; /* 0=Enable Cd audio, 1=Disable Cd audio */
-	Config.HLE=1; /* 0=BIOS, 1=HLE */
+	Config.HLE=0; /* 0=BIOS, 1=HLE */
 #if defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 #else

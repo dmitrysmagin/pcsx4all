@@ -145,13 +145,40 @@ int psxMemInit()
 	return 0;
 }
 
+static bool psxOpenBios(const char *name) {
+	char bios[MAXPATHLEN];
+	FILE *f;
+	if (snprintf(bios, MAXPATHLEN, "%s/%s", Config.BiosDir, name) >= MAXPATHLEN)
+		return false;
+
+	f = fopen(bios, "rb");
+
+	if (f == NULL) {
+		return false;
+	}
+	size_t bytes_read, bytes_expected = 0x80000;
+	bytes_read = fread(psxR, 1, bytes_expected, f);
+	if (bytes_read == 0) {
+		printf("Error: skipping empty BIOS file %s!\n", bios);
+		fclose(f);
+		return false;
+	} else if (bytes_read < bytes_expected) {
+		printf("Warning: size of BIOS file %s is smaller than expected!\n", bios);
+		printf("Expected %zu bytes and got only %zu\n", bytes_expected, bytes_read);
+	} else {
+		printf("Loaded BIOS image: %s\n", bios);
+	}
+
+	fclose(f);
+	Config.HLE = FALSE;
+	return true;
+}
+
 void psxMemReset()
 {
 	DIR *dirstream = NULL;
 	struct dirent *direntry;
 	boolean biosfound = FALSE;
-	FILE *f = NULL;
-	char bios[MAXPATHLEN];
 	const char *selected = bios_file_get();
 
 	memstats_reset();
@@ -161,6 +188,7 @@ void psxMemReset()
 	memset(psxR, 0, 0x80000);    // Bios memory
 
 	if (Config.HLE==FALSE) {
+		char fallback[MAXPATHLEN] = "";
 		dirstream = opendir(Config.BiosDir);
 		if (dirstream == NULL) {
 			printf("Could not open BIOS directory: \"%s\". Enabling HLE Bios!\n", Config.BiosDir);
@@ -170,39 +198,21 @@ void psxMemReset()
 
 		while ((direntry = readdir(dirstream))) {
 			if (!strcasecmp(direntry->d_name, selected)) {
-				if (snprintf(bios, MAXPATHLEN, "%s/%s", Config.BiosDir, direntry->d_name) >= MAXPATHLEN)
-					continue;
-
-				f = fopen(bios, "rb");
-
-				if (f == NULL) {
-					continue;
-				} else {
-					size_t bytes_read, bytes_expected = 0x80000;
-					bytes_read = fread(psxR, 1, bytes_expected, f);
-					if (bytes_read == 0) {
-						printf("Error: skipping empty BIOS file %s!\n", bios);
-						fclose(f);
-						continue;
-					} else if (bytes_read < bytes_expected) {
-						printf("Warning: size of BIOS file %s is smaller than expected!\n", bios);
-						printf("Expected %zu bytes and got only %zu\n", bytes_expected, bytes_read);
-					} else {
-						printf("Loaded BIOS image: %s\n", bios);
-					}
-
-					fclose(f);
-					Config.HLE = FALSE;
-					biosfound = TRUE;
-					break;
-				}
+				biosfound = psxOpenBios(direntry->d_name);
+				if (biosfound) break;
+			} else if (fallback[0] == 0 && !strncasecmp(direntry->d_name, "SCPH", 4)) {
+				strcpy(fallback, direntry->d_name);
 			}
 		}
 		closedir(dirstream);
 
 		if (!biosfound) {
-			printf("Could not locate BIOS: \"%s\". Enabling HLE BIOS!\n", selected);
-			Config.HLE = TRUE;
+			if (fallback[0] != 0 && psxOpenBios(fallback)) {
+				bios_file_set(fallback);
+			} else {
+				printf("Could not locate BIOS: \"%s\". Enabling HLE BIOS!\n", selected);
+				Config.HLE = TRUE;
+			}
 		}
 	}
 
