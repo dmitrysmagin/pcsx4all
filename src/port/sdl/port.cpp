@@ -205,13 +205,16 @@ void config_load()
 	last_keep_aspect = get_keep_aspect_ratio();
 #endif
 
-	sprintf(config, "%s/pcsx4all.cfg", homedir);
-
+	sprintf(config, "%s/pcsx4all_ng.cfg", homedir);
 	f = fopen(config, "r");
 
 	if (f == NULL) {
-		printf("Failed to open config file: \"%s\" for reading.\n", config);
-		return;
+		sprintf(config, "%s/pcsx4all.cfg", homedir);
+		f = fopen(config, "r");
+		if (f == NULL) {
+			printf("Failed to open config file: \"%s\" for reading.\n", config);
+			return;
+		}
 	}
 
 	while (fgets(line, sizeof(line), f)) {
@@ -416,7 +419,7 @@ void config_save()
 	FILE *f;
 	char config[MAXPATHLEN];
 
-	sprintf(config, "%s/pcsx4all.cfg", homedir);
+	sprintf(config, "%s/pcsx4all_ng.cfg", homedir);
 
 	f = fopen(config, "w");
 
