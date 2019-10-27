@@ -219,7 +219,7 @@ unsigned char PAD1_poll(unsigned char value) {
 					
 				}
 
-				else if (g.CurByte1 == player_controller[0].Vib[1]) {
+				if (g.CurByte1 == player_controller[0].Vib[1]) {
 					player_controller[0].VibF[1] = value;
 
 #ifdef RUMBLE
