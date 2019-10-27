@@ -244,7 +244,7 @@ static inline void GPU_BlitWWWWWWWWS(const void*__restrict__ src, u16*__restrict
 		uCount = 40;
 		const u16*__restrict__ src16 = ((const u16*__restrict__) src) + uClip_src;
 		do {
-			memcpy(dst16, src16, 2 * 8);
+			MEMCPY(dst16, src16, 2 * 8);
 			dst16 += 8;
 			src16 += 9;
 		} while (--uCount);
