@@ -98,7 +98,6 @@ static uint8_t unk4d[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 unsigned char PAD1_poll(unsigned char value) {
 	static uint8_t buf[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80};
-	uint8_t i;
 	uint8_t analogpad = 0;
 
 	if (g.CurByte1 == 0) {
@@ -219,7 +218,6 @@ unsigned char PAD1_poll(unsigned char value) {
 
 #ifdef RUMBLE
 					if (player_controller[0].VibF[1] != 0) {
-printf("VR=%d\n",value);
 						Shake_Play(device, id_shake_level[value/16]);
 					}
 #endif
