@@ -157,7 +157,7 @@ void psxMemReset()
 	memstats_reset();
 
 	memset(psxM, 0, 0x200000);
-	memset(psxP, 0, 0x10000);
+	memset(psxP, 0xff, 0x10000);
 	memset(psxR, 0, 0x80000);    // Bios memory
 
 	if (Config.HLE==FALSE) {
