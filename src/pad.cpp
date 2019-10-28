@@ -30,10 +30,8 @@
 #ifdef RUMBLE
 #include <shake.h>
 extern Shake_Device *device;
-extern Shake_Effect effect_small;
-extern Shake_Effect effect_big;
-extern int id_shake_small;
-extern int id_shake_big;
+extern int id_shake_level[16];
+
 #endif
 
 uint8_t CurPad = 0, CurCmd = 0;
@@ -209,9 +207,8 @@ unsigned char PAD1_poll(unsigned char value) {
 				if (g.CurByte1 == player_controller[0].Vib[0]) {
 					player_controller[0].VibF[0] = value;
 #ifdef RUMBLE
-
 					if (player_controller[0].VibF[0] != 0) {
-						Shake_Play(device, id_shake_small);
+						Shake_Play(device, id_shake_level[0]);
 					}
 #endif
 					
@@ -222,10 +219,8 @@ unsigned char PAD1_poll(unsigned char value) {
 
 #ifdef RUMBLE
 					if (player_controller[0].VibF[1] != 0) {
-						if (value >= 0xf0)
-							Shake_Play(device, id_shake_big);						
-						else
-							Shake_Play(device, id_shake_small);
+printf("VR=%d\n",value);
+						Shake_Play(device, id_shake_level[value/16]);
 					}
 #endif
 					

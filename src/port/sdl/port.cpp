@@ -33,10 +33,7 @@
 #ifdef RUMBLE
 #include <shake.h>
 Shake_Device *device;
-Shake_Effect effect_big;
-Shake_Effect effect_small;
-int id_shake_small;
-int id_shake_big;
+int id_shake_level[16];
 #endif
 
 enum {
@@ -116,10 +113,10 @@ static void pcsx4all_exit(void)
 	SDL_Quit();
 
 #ifdef RUMBLE
-	Shake_Stop(device, id_shake_small);
-	Shake_Stop(device, id_shake_big);
-	Shake_EraseEffect(device, id_shake_small);
-	Shake_EraseEffect(device, id_shake_big);
+	//Shake_Stop(device, id_shake_small);
+	//Shake_Stop(device, id_shake_big);
+	for (int i = 0; i < 16; i++)
+		Shake_EraseEffect(device, id_shake_level[i]);
 	Shake_Close(device);
 	Shake_Quit();
 #endif
@@ -871,28 +868,33 @@ with mingw build. */
 
 void Rumble_Init() {
 #ifdef RUMBLE
+	static bool rumble_init = false;
+	
+	if (rumble_init)
+	{
+		printf("ERROR: Rumble already initialized !\n");
+		return;
+	}
 	Shake_Init();
 
 	if (Shake_NumOfDevices() > 0) {
 		device = Shake_Open(0);
 
-		Shake_InitEffect(&effect_small, SHAKE_EFFECT_RUMBLE);
-		effect_small.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX * 0.85f;
-		effect_small.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
-		effect_small.length = 17;
-		effect_small.delay = 0;
-
-		Shake_InitEffect(&effect_big, SHAKE_EFFECT_RUMBLE);
-		effect_big.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX;
-		effect_big.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
-		effect_big.length = 17;
-		effect_big.delay = 0;
-
-		id_shake_small = Shake_UploadEffect(device, &effect_small);
-		id_shake_big = Shake_UploadEffect(device, &effect_big);
-
+		Shake_Effect temp_effect;		
+		for(int i = 0; i < 16; i++)
+		{
+			Shake_InitEffect(&temp_effect, SHAKE_EFFECT_RUMBLE);
+			temp_effect.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX * (0.4f + 0.0375f * (i + 1));
+			temp_effect.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
+			temp_effect.length = 17;
+			temp_effect.delay = 0;
+			id_shake_level[i] = Shake_UploadEffect(device, &temp_effect);
+		}		
 		
 	}
+	printf("Rumble initialized !\n");
+
+	rumble_init = true;
 #endif
 }
 
@@ -1409,6 +1411,7 @@ int main (int argc, char **argv)
 	}
 
 	//NOTE: spu_pcsxrearmed will handle audio initialization
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
 
 	atexit(pcsx4all_exit);
@@ -1461,6 +1464,8 @@ int main (int argc, char **argv)
 		}
 	}
 
+	Rumble_Init();
+
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
 		exit(1);
@@ -1470,7 +1475,6 @@ int main (int argc, char **argv)
 		printf("Failed loading plugins.\n");
 		exit(1);
 	}
-	Rumble_Init();
 
 	pcsx4all_initted = true;
 	emu_running = true;

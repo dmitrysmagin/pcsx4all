@@ -688,7 +688,7 @@ static const char PcsxHeader[32] = "STv4 PCSX v" PACKAGE_VERSION;
 
 // Savestate Versioning!
 // If you make changes to the savestate version, please increment value below.
-static const u32 SaveVersion = 0x8b410006;
+static const u32 SaveVersion = 0x8b410007;
 static const u32 SaveVersionEarliestSupported = 0x8b410004;
 // Versions supported: (NOTE: this only includes versions after 2016
 //  adoption of PCSX4ALL 2.3 codebase by MIPS / GCW Zero port team)
@@ -781,6 +781,9 @@ int SaveState(const char *file) {
 	     || psxHwFreeze(f, FREEZE_SAVE)
 	     || psxRcntFreeze(f, FREEZE_SAVE)
 	     || mdecFreeze(f, FREEZE_SAVE) )
+		goto error;
+
+	if (freeze_rw(f, FREEZE_SAVE, &player_controller[0], sizeof(struct ps1_controller)))
 		goto error;
 
 	if (SaveFuncs.close(f)) {
@@ -897,6 +900,10 @@ int LoadState(const char *file) {
 	     mdecFreeze(f, FREEZE_LOAD)     )
 		goto error;
 
+	if (freeze_rw(f, FREEZE_LOAD, &player_controller[0], sizeof(struct ps1_controller)))
+	{
+		goto error;
+	}
 	//XXX: HACK December 2016 -- see comment above
 skip_missing_data_hack:
 
