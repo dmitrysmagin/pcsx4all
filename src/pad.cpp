@@ -218,7 +218,7 @@ unsigned char PAD1_poll(unsigned char value) {
 
 #ifdef RUMBLE
 					if (player_controller[0].VibF[1] != 0) {
-						Shake_Play(device, id_shake_level[value/16]);
+						Shake_Play(device, id_shake_level[value>>4]);
 					}
 #endif
 					
