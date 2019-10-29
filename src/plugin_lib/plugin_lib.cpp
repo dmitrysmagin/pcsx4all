@@ -197,11 +197,12 @@ static void pl_stats_update(void)
 {
 	// TODO: show skipped frames in stats message
 
-	sprintf(pl_data.stats_msg, "%3ux%3ux%s CPU=%3u%% FPS=%3u/%u",
+	sprintf(pl_data.stats_msg, "%3ux%3ux%s CPU=%3u%% FPS=%3u/%u %s",
 			pl_data.sinfo.hres,
 			pl_data.sinfo.vres,
 			pl_data.sinfo.depth24 ? "24" : "15",
 			(unsigned int)(pl_data.cpu_cur + 0.5f),
 			(unsigned int)(pl_data.fps_cur + 0.5f),
-			pl_data.sinfo.pal ? 50 : 60);
+			pl_data.sinfo.pal ? 50 : 60,
+			player_controller[0].pad_mode?"A":"D");
 }

@@ -593,8 +593,8 @@ void Set_Controller_Mode()
 		player_controller[0].pad_controllertype = 1;
 		break;
 		/* DualShock, required for Ape Escape. */
-	case 2: player_controller[0].id = 0x73;
-		player_controller[0].pad_mode = 1;
+	case 2: player_controller[0].id = 0x41;
+		player_controller[0].pad_mode = 0;
 		player_controller[0].pad_controllertype = 1;
 		break;
 	}
@@ -607,7 +607,7 @@ void joy_init()
 	SDL_InitSubSystem(SDL_INIT_JOYSTICK);
 	SDL_JoystickEventState(SDL_ENABLE);
 
-	player_controller[0].id = 0x41;
+	//player_controller[0].id = 0x41;
 	player_controller[0].joy_left_ax0 = 127;
 	player_controller[0].joy_left_ax1 = 127;
 	player_controller[0].joy_right_ax0 = 127;
@@ -618,8 +618,8 @@ void joy_init()
 	player_controller[0].VibF[0] = 0;
 	player_controller[0].VibF[1] = 0;
 
-	player_controller[0].pad_mode = 0;
-	player_controller[0].pad_controllertype = 0;
+	//player_controller[0].pad_mode = 0;
+	//player_controller[0].pad_controllertype = 0;
 
 	player_controller[0].configmode = 0;
 

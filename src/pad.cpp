@@ -35,7 +35,6 @@ extern int id_shake_level[16];
 #endif
 
 uint8_t CurPad = 0, CurCmd = 0;
-uint8_t pad_detect_pad[2] = {0, 0};
 
 typedef struct tagGlobalData
 {
@@ -82,12 +81,13 @@ static uint8_t stdmodel[8] = {
 		0x5A,
 		0x01, // 03 - dualshock2, 01 - dualshock
 		0x02, // number of modes
-		0x01, // current mode: 01 - analog, 00 - digital
+		0x00, // current mode: 01 - analog, 00 - digital
 		0x02,
 		0x01,
 		0x00
 };
-
+static uint8_t stdpar[8] = 	{0xFF, 0x5A, 0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}
+;
 static uint8_t unk46[8] = {0xFF, 0x5A, 0x00, 0x00, 0x01, 0x02, 0x00, 0x0A};
 
 static uint8_t unk47[8] = {0xFF, 0x5A, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00};
@@ -97,9 +97,7 @@ static uint8_t unk4c[8] = {0xFF, 0x5A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 static uint8_t unk4d[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 unsigned char PAD1_poll(unsigned char value) {
-	static uint8_t buf[8] = {0xFF, 0x5A, 0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80};
-	uint8_t analogpad = 0;
-
+	static uint8_t *buf;
 	if (g.CurByte1 == 0) {
 		uint16_t n;
 		g.CurByte1++;
@@ -110,33 +108,39 @@ unsigned char PAD1_poll(unsigned char value) {
 
 		// Don't enable Analog/Vibration for a Digital or DualAnalog controller
 		CurCmd = value;
-		if (player_controller[0].pad_mode == 0 || player_controller[0].id == 0x53) {
+		if (player_controller[0].pad_controllertype == 0) {
 			CurCmd = CMD_READ_DATA_AND_VIBRATE;
 		}
 
 		switch (CurCmd) {
-		case CMD_SET_MODE_AND_LOCK: memcpy(buf, stdmode, 8);
+		case CMD_SET_MODE_AND_LOCK: 
+			buf = stdmode;
 			return 0xF3;
-		case CMD_QUERY_MODEL_AND_MODE: memcpy(buf, stdmodel, 8);
+		case CMD_QUERY_MODEL_AND_MODE: 
+			buf = stdmodel;
 			buf[4] = player_controller[0].pad_mode;
 			return 0xF3;
-		case CMD_QUERY_ACT: memcpy(buf, unk46, 8);
+		case CMD_QUERY_ACT: 
+			buf = unk46;
 			return 0xF3;
-		case CMD_QUERY_COMB: memcpy(buf, unk47, 8);
+		case CMD_QUERY_COMB: 
+			buf = unk47;
 			return 0xF3;
-		case CMD_QUERY_MODE: memcpy(buf, unk4c, 8);
+		case CMD_QUERY_MODE: 
+			buf = unk4c;
 			return 0xF3;
-		case CMD_VIBRATION_TOGGLE: memcpy(buf, unk4d, 8);
+		case CMD_VIBRATION_TOGGLE: 
+			buf = unk4d;
 			return 0xF3;
 		case CMD_CONFIG_MODE:
 			if (player_controller[0].configmode) {
-				memcpy(buf, stdcfg, 8);
+				buf = stdcfg;
 				return 0xF3;
 			}
 			// else FALLTHROUGH
 		case CMD_READ_DATA_AND_VIBRATE:
 		default:
-
+			buf = stdpar;
 			buf[2] = n & 0xFF;
 			buf[3] = n >> 8;
 
@@ -145,17 +149,15 @@ unsigned char PAD1_poll(unsigned char value) {
 			 * and Dualshock features won't work.
 			 * */
 			if (player_controller[0].pad_controllertype == 0) g.CmdLen1 = 4;
-			if (player_controller[0].id == 0x53) analogpad = 1;
 
-			if (player_controller[0].pad_mode == 1 || analogpad == 1) {
+			if (player_controller[0].pad_mode) {
 				buf[4] = player_controller[0].joy_right_ax0;
 				buf[5] = player_controller[0].joy_right_ax1;
 				buf[6] = player_controller[0].joy_left_ax0;
 				buf[7] = player_controller[0].joy_left_ax1;
 			}
 
-			if (player_controller[0].id == 0x53) return 0x53;
-			return pad_detect_pad[0] ? player_controller[0].id : 0x41;
+			return player_controller[0].id;
 		}
 	}
 
@@ -167,7 +169,8 @@ unsigned char PAD1_poll(unsigned char value) {
 		case CMD_CONFIG_MODE: player_controller[0].configmode = value;
 			break;
 
-		case CMD_SET_MODE_AND_LOCK: player_controller[0].pad_mode = value;
+		case CMD_SET_MODE_AND_LOCK: 
+			player_controller[0].pad_mode = value;
 			player_controller[0].id = value ? 0x73 : 0x41;
 			break;
 
@@ -189,11 +192,11 @@ unsigned char PAD1_poll(unsigned char value) {
 		case CMD_QUERY_MODE:
 			switch (value) {
 			case 0: // mode 0 - digital mode
-				pad_detect_pad[0] = buf[5] = PSE_PAD_TYPE_STANDARD;
+				buf[5] = PSE_PAD_TYPE_STANDARD;
 				break;
 
 			case 1: // mode 1 - analog mode
-				pad_detect_pad[0] = buf[5] = PSE_PAD_TYPE_ANALOGPAD;
+				buf[5] = PSE_PAD_TYPE_ANALOGPAD;
 				break;
 			}
 			break;
@@ -225,26 +228,16 @@ unsigned char PAD1_poll(unsigned char value) {
 				}
 			break;
 		case CMD_VIBRATION_TOGGLE:
-			if (g.CurByte1 >= 2 && g.CurByte1 < g.CmdLen1) {
-				if (g.CurByte1 == player_controller[0].Vib[0]) {
+			for (uint8_t i = 0; i < 2; i++) {
+				if (player_controller[0].Vib[i] == g.CurByte1)
 					buf[g.CurByte1] = 0;
+			}
+			if (value < 2) {
+				player_controller[0].Vib[value] = g.CurByte1;
+				if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
+					player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
 				}
-				if (g.CurByte1 == player_controller[0].Vib[1]) {
-					buf[g.CurByte1] = 1;
-				}
-
-				if (value == 0) {
-					player_controller[0].Vib[0] = g.CurByte1;
-					if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
-						player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
-					}
-				} else if (value == 1) {
-					player_controller[0].Vib[1] = g.CurByte1;
-					if ((player_controller[0].id & 0x0f) < (g.CurByte1 - 1) / 2) {
-						player_controller[0].id = (player_controller[0].id & 0xf0) + (g.CurByte1 - 1) / 2;
-					}
-				}
-			}		
+			}
 			break;
 		}
 	}
