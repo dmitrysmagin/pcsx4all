@@ -47,6 +47,7 @@ void video_flip(void);
 void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 #endif
 void video_clear(void);
+void video_clear_cache();
 void port_printf(int x, int y, const char *text);
 
 extern unsigned short *SCREEN;

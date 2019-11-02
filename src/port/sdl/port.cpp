@@ -759,13 +759,7 @@ void pad_update()
 		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
 		update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
 		if (Config.VideoScaling == 1) {
-			video_clear();
-			video_flip();
-			video_clear();
-#ifdef SDL_TRIPLEBUF
-			video_flip();
-			video_clear();
-#endif
+			video_clear_cache();
 		}
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
@@ -820,6 +814,17 @@ void video_set(unsigned short *pVideo, unsigned int width, unsigned int height)
 void video_clear(void)
 {
 	memset(screen->pixels, 0, screen->pitch*screen->h);
+}
+
+void video_clear_cache()
+{
+	video_clear();
+	video_flip();
+	video_clear();
+#ifdef SDL_TRIPLEBUF
+	video_flip();
+	video_clear();
+#endif
 }
 
 const char *GetMemcardPath(int slot) {
@@ -958,13 +963,7 @@ void update_window_size(int w, int h, bool ntsc_fix)
 	screen->format_version++;
 #endif
 
-	video_clear();
-	video_flip();
-	video_clear();
-#ifdef SDL_TRIPLEBUF
-	video_flip();
-	video_clear();
-#endif
+	video_clear_cache();
 }
 
 int main (int argc, char **argv)

@@ -76,7 +76,9 @@ static noinline void update_width(void)
     // full width
     gpu.screen.w = gpu.screen.hres;
   else
-    gpu.screen.w = sw * gpu.screen.hres / 2560;
+    /* soarqin: align width to 8 bytes to solve graphic glitches on
+     *          right edge in some games (Grandia, Gunbird... etc) */
+    gpu.screen.w = (sw * gpu.screen.hres / 2560) & ~7;
 
   if (gpu.screen.w < old_width) {
 	  // Must clear borders of screen
