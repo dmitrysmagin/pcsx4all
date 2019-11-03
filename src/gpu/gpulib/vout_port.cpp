@@ -557,7 +557,6 @@ void vout_update(void)
 			dst16 += (w0 - w1) / 2;
 		}
 
-		src16_offs &= ~1u;
 		for (int y1 = y0+h1; y0<y1; y0++) {
 			GPU_BlitCopy(src16+src16_offs, dst16, w1, isRGB24);
 			dst16 += SCREEN_WIDTH;

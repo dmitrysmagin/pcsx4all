@@ -1451,6 +1451,8 @@ long CDR_open(void) {
 		printf("[+sbi]");
 	}
 
+	fseeko(cdHandle, 0, SEEK_END);
+	off_t file_len = ftello(cdHandle);
 	if (numtracks < 1) {
 		// set a default track, to satisfy bios read
 		unsigned int t;
@@ -1467,15 +1469,13 @@ long CDR_open(void) {
 		sec2msf(t, ti[numtracks].start);
 
 		// default track length to file length
-		fseeko(cdHandle, 0, SEEK_END);
-		off_t file_len = ftello(cdHandle);
 		t = (file_len - ti[numtracks].start_offset) / CD_FRAMESIZE_RAW;
 		sec2msf(t, ti[numtracks].length);
 	}
 
 	// maybe user selected metadata file instead of main .bin ..
 	bin_filename = GetIsoFile();
-	if (CD_FRAMESIZE_RAW * 0x10) {
+	if (file_len < CD_FRAMESIZE_RAW * 0x10) {
 		static const char *exts[] = { ".bin", ".BIN", ".img", ".IMG" };
 		FILE *tmpf = NULL;
 		size_t i;

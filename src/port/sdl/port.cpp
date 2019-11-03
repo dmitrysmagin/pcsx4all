@@ -759,13 +759,7 @@ void pad_update()
 		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
 		update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
 		if (Config.VideoScaling == 1) {
-			video_clear();
-			video_flip();
-			video_clear();
-#ifdef SDL_TRIPLEBUF
-			video_flip();
-			video_clear();
-#endif
+			video_clear_cache();
 		}
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
@@ -822,6 +816,17 @@ void video_clear(void)
 	memset(screen->pixels, 0, screen->pitch*screen->h);
 }
 
+void video_clear_cache()
+{
+	video_clear();
+	video_flip();
+	video_clear();
+#ifdef SDL_TRIPLEBUF
+	video_flip();
+	video_clear();
+#endif
+}
+
 const char *GetMemcardPath(int slot) {
 	switch(slot) {
 	case 1:
@@ -843,6 +848,11 @@ void update_memcards(int load_mcd) {
 
 const char *bios_file_get() {
 	return BiosFile;
+}
+
+void bios_file_set(const char *filename) {
+	strcpy(Config.Bios, filename);
+	strcpy(BiosFile, filename);
 }
 
 // if [CdromId].bin is exsit, use the spec bios
@@ -953,13 +963,7 @@ void update_window_size(int w, int h, bool ntsc_fix)
 	screen->format_version++;
 #endif
 
-	video_clear();
-	video_flip();
-	video_clear();
-#ifdef SDL_TRIPLEBUF
-	video_flip();
-	video_clear();
-#endif
+	video_clear_cache();
 }
 
 int main (int argc, char **argv)
@@ -984,7 +988,7 @@ int main (int argc, char **argv)
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=0; /* 0=Enable Cd audio, 1=Disable Cd audio */
-	Config.HLE=1; /* 0=BIOS, 1=HLE */
+	Config.HLE=0; /* 0=BIOS, 1=HLE */
 #if defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 #else

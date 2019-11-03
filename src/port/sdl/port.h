@@ -47,6 +47,7 @@ void video_flip(void);
 void video_set(unsigned short* pVideo,unsigned int width,unsigned int height);
 #endif
 void video_clear(void);
+void video_clear_cache();
 void port_printf(int x, int y, const char *text);
 
 extern unsigned short *SCREEN;
@@ -57,6 +58,7 @@ int state_save(int slot);
 
 void update_memcards(int load_mcd);
 const char *bios_file_get();
+void bios_file_set(const char *filename);
 void check_spec_bios();
 
 int SelectGame();
