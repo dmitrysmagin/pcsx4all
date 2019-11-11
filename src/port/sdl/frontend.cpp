@@ -1195,16 +1195,18 @@ static char* AnalogArrow_show()
 	return buf;
 }
 
+extern void Set_Controller_Mode();
 static int Analog_Mode_alter(u32 keys)
 {
+	
 	if (keys & KEY_RIGHT) {
 		Config.AnalogMode++;
-		if (Config.AnalogMode > 2) Config.AnalogMode = 2;
+		if (Config.AnalogMode > 3) Config.AnalogMode = 3;
 	} else if (keys & KEY_LEFT) {
 		Config.AnalogMode--;
 		if (Config.AnalogMode < 1) Config.AnalogMode = 0;
 	}
-
+	Set_Controller_Mode();
 	return 0;
 }
 
@@ -1216,7 +1218,6 @@ static void Analog_Mode_hint()
 static char* Analog_Mode_show()
 {
 	static char buf[16] = "\0";
-	extern void Set_Controller_Mode();
 	switch (Config.AnalogMode) {
 	case 0: sprintf(buf, "Digital");
 		break;
@@ -1224,8 +1225,9 @@ static char* Analog_Mode_show()
 		break;
 	case 2: sprintf(buf, "DualShock");
 		break;
+	case 3: sprintf(buf, "DualShock / A");
+		break;
 	}
-	Set_Controller_Mode();
 
 	return buf;
 }
@@ -1321,7 +1323,7 @@ static int settings_defaults()
 	Config.HLE = 1;
 	Config.SlowBoot = 0;
 	Config.AnalogArrow = 0;
-	Config.AnalogMode = 0;
+	Config.AnalogMode = 2;
 	Config.RCntFix = 0;
 	Config.VSyncWA = 0;
 #ifdef PSXREC

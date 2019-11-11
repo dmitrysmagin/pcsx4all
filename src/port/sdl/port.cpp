@@ -585,29 +585,33 @@ void Set_Controller_Mode()
 		/* Digital. Required for some games. */
 	default: player_controller[0].id = 0x41;
 		player_controller[0].pad_mode = 0;
-		player_controller[0].pad_controllertype = 0;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_STANDARD;
 		break;
 		/* DualAnalog. Some games might misbehave with Dualshock like Descent so this is for those */
 	case 1: player_controller[0].id = 0x53;
 		player_controller[0].pad_mode = 1;
-		player_controller[0].pad_controllertype = 1;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
 		break;
 		/* DualShock, required for Ape Escape. */
-	case 2: player_controller[0].id = 0x41;
+	case 2: 
+		player_controller[0].id = 0x41;
 		player_controller[0].pad_mode = 0;
-		player_controller[0].pad_controllertype = 1;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+	case 3: 
+		player_controller[0].id = 0x73;
+		player_controller[0].pad_mode = 1;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
 		break;
 	}
 }
 
 void joy_init()
 {
+
 	sdl_joy[0] = SDL_JoystickOpen(0);
 	sdl_joy[1] = SDL_JoystickOpen(1);
-	SDL_InitSubSystem(SDL_INIT_JOYSTICK);
-	SDL_JoystickEventState(SDL_ENABLE);
 
-	//player_controller[0].id = 0x41;
 	player_controller[0].joy_left_ax0 = 127;
 	player_controller[0].joy_left_ax1 = 127;
 	player_controller[0].joy_right_ax0 = 127;
@@ -618,6 +622,7 @@ void joy_init()
 	player_controller[0].VibF[0] = 0;
 	player_controller[0].VibF[1] = 0;
 
+	//player_controller[0].id = 0x41;
 	//player_controller[0].pad_mode = 0;
 	//player_controller[0].pad_controllertype = 0;
 
@@ -676,7 +681,7 @@ void pad_update()
 						analog1 |= ANALOG_LEFT;
 					}
 				} else {
-					player_controller[0].joy_left_ax0 = (axisval + 32768) / 256;
+					player_controller[0].joy_left_ax0 = (0x8000 + 32768) >> 8;
 				}
 				break;
 			case 1: /* Y axis */
@@ -689,32 +694,16 @@ void pad_update()
 						analog1 |= ANALOG_UP;
 					}
 				} else {
-					player_controller[0].joy_left_ax1 = (axisval + 32768) / 256;
+					player_controller[0].joy_left_ax1 = (axisval + 0x8000) >> 8;
 				}
 				break;
 			case 2: /* X axis */
 				axisval = event.jaxis.value;
-				/* if (Config.AnalogArrow == 1) {
-					if (axisval > joy_commit_range) {
-						pad1_buttons &= ~(1 << DKEY_CIRCLE);
-					} else if (axisval < -joy_commit_range) {
-						pad1_buttons &= ~(1 << DKEY_SQUARE);
-					}
-				} else */ {
-					player_controller[0].joy_right_ax0 = (axisval + 32768) / 256;
-				}
+				player_controller[0].joy_right_ax0 = (axisval + 0x8000) >> 8;
 				break;
 			case 3: /* Y axis */
 				axisval = event.jaxis.value;
-				/* if (Config.AnalogArrow == 1) {
-					if (axisval > joy_commit_range) {
-						pad1_buttons &= ~(1 << DKEY_CROSS);
-					} else if (axisval < -joy_commit_range) {
-						pad1_buttons &= ~(1 << DKEY_TRIANGLE);
-					}
-				} else */ {
-					player_controller[0].joy_right_ax1 = (axisval + 32768) / 256;
-				}
+				player_controller[0].joy_right_ax1 = (axisval + 0x8000) >> 8;
 				break;
 			}
 			break;
@@ -1104,7 +1093,6 @@ int main (int argc, char **argv)
 
 	// Load config from file.
 	config_load();
-
 	// Check if LastDir exists.
 	probe_lastdir();
 
@@ -1417,6 +1405,7 @@ int main (int argc, char **argv)
 	//NOTE: spu_pcsxrearmed will handle audio initialization
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
+	SDL_JoystickEventState(SDL_ENABLE);
 
 	atexit(pcsx4all_exit);
 
@@ -1468,7 +1457,6 @@ int main (int argc, char **argv)
 		}
 	}
 
-	Rumble_Init();
 
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
@@ -1507,6 +1495,8 @@ int main (int argc, char **argv)
 		psxReset();
 	}
 
+
+	Rumble_Init();
 	joy_init();
 
 
