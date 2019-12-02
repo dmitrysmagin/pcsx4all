@@ -681,7 +681,7 @@ void pad_update()
 						analog1 |= ANALOG_LEFT;
 					}
 				} else {
-					player_controller[0].joy_left_ax0 = (0x8000 + 32768) >> 8;
+					player_controller[0].joy_left_ax0 = (axisval + 0x8000) >> 8;
 				}
 				break;
 			case 1: /* Y axis */
