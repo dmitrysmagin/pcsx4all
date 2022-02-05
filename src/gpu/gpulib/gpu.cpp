@@ -76,7 +76,9 @@ static noinline void update_width(void)
     // full width
     gpu.screen.w = gpu.screen.hres;
   else
-    gpu.screen.w = sw * gpu.screen.hres / 2560;
+    /* soarqin: align width to 8 bytes to solve graphic glitches on
+     *          right edge in some games (Grandia, Gunbird... etc) */
+    gpu.screen.w = (sw * gpu.screen.hres / 2560) & ~7;
 
   if (gpu.screen.w < old_width) {
 	  // Must clear borders of screen
@@ -253,6 +255,8 @@ long GPU_shutdown(void)
   return ret;
 }
 
+extern void update_window_size(int w, int h, bool ntsc_fix);
+
 void GPU_writeStatus(uint32_t data)
 {
 	//senquack TODO: Would it be wise to add cmd buffer flush here, since
@@ -311,6 +315,7 @@ void GPU_writeStatus(uint32_t data)
       gpu.screen.vres = vres[(gpu.status.reg >> 19) & 3];
       update_width();
       update_height();
+      update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
       renderer_notify_res_change();
       break;
     default:

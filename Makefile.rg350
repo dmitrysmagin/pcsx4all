@@ -14,28 +14,56 @@ USE_GPULIB ?= 1
 
 #GPU   = gpu_dfxvideo
 #GPU   = gpu_drhell
-#GPU    = gpu_null
-GPU    = gpu_unai
+#GPU   = gpu_null
+GPU   = gpu_unai
 
-SPU    = spu_pcsxrearmed
+SPU   = spu_pcsxrearmed
+
+RECOMPILER = mips
 
 RM     = rm -f
 MD     = mkdir
-CC     = gcc
-CXX    = g++
-LD     = g++
+CC     = mipsel-linux-gcc
+CXX    = mipsel-linux-g++
+LD     = mipsel-linux-g++
 
 SYSROOT     := $(shell $(CC) --print-sysroot)
 SDL_CONFIG  := $(SYSROOT)/usr/bin/sdl-config
 SDL_CFLAGS  := $(shell $(SDL_CONFIG) --cflags)
 SDL_LIBS    := $(shell $(SDL_CONFIG) --libs)
 
-LDFLAGS = $(SDL_LIBS) -lSDL_mixer -lSDL_image -lpthread -lz
+LDFLAGS := $(SDL_LIBS) -lSDL_mixer -lSDL_image -lrt -lz -lshake
 
-# We want the GCW Zero handheld's keybindings (for dev testing purposes)
-C_ARCH = -march=native -DGCW_ZERO
+ifdef A320
+	C_ARCH = -mips32 -msoft-float -DGCW_ZERO -DRG350 -DDYNAREC_SKIP_DCACHE_FLUSH -DTMPFS_MIRRORING -DTMPFS_DIR=\"/tmp\"
+else
+	C_ARCH = -mips32r2 -DGCW_ZERO -DRUMBLE -DRG350 -DSHMEM_MIRRORING
+endif
 
-CFLAGS = $(C_ARCH) -ggdb3 -O2 \
+ifeq ($(DEV),1)
+	# If DEV=1 is passed to 'make', don't mmap anything to virtual address 0.
+	#  This is for development/debugging: it allows null pointer dereferences
+	#  to segfault as they normally would. We'll map PS1 address space higher.
+	#
+	# Furthermore, div-by-zero is also checked for at runtime (default for GCC)
+else
+	# Default: Allows address-conversion optimization in dynarec. PS1 addresses
+	#          will be mapped/mirrored at virtual address 0.
+	#
+	# Null pointer dereferences will NOT segfault.
+	# Locate program at virtual address 0x4000_0000. Anything below is free for
+	#  fixed mappings by dynarec, etc. Otherwise, the Linux default seems to be
+	#  0x40_0000 i.e., offset 4MB from 0. That's not enough room to map and
+	#  mirror PS1 address space.
+	#C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
+	#LDFLAGS += -Wl,-Ttext-segment=0x40000000
+	LDFLAGS = $(SDL_LIBS) -lrt -lz -Wl,--as-needed -Wl,--gc-sections -s -lshake
+	LDFLAGS += -flto
+	# Furthermore, div-by-zero checks are disabled (helps software rendering)
+	C_ARCH  += -mno-check-zero-division
+endif
+
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O4 -fexpensive-optimizations -flto -DUSE_BGR15 -DTIME_IN_MSEC \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
@@ -50,10 +78,14 @@ CFLAGS = $(C_ARCH) -ggdb3 -O2 \
 CFLAGS += -D$(shell echo $(GPU) | tr a-z A-Z)
 CFLAGS += -D$(shell echo $(SPU) | tr a-z A-Z)
 
-OBJDIRS = \
-	obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
-	obj/port obj/port/$(PORT) \
-	obj/plugin_lib obj/external_lib
+ifdef RECOMPILER
+CFLAGS += -DPSXREC -D$(RECOMPILER)
+endif
+
+OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
+	  obj/recompiler obj/recompiler/$(RECOMPILER) \
+	  obj/port obj/port/$(PORT) \
+	  obj/plugin_lib obj/external_lib
 
 all: maketree $(TARGET)
 
@@ -67,6 +99,15 @@ OBJS = \
 	obj/cdriso.o obj/cdrom.o obj/ppf.o obj/cheat.o \
 	obj/sio.o obj/pad.o \
 	obj/external_lib/ioapi.o obj/external_lib/unzip.o
+
+ifdef RECOMPILER
+OBJS += \
+	obj/recompiler/mips/recompiler.o \
+	obj/recompiler/mips/host_asm.o \
+	obj/recompiler/mips/mem_mapping.o \
+	obj/recompiler/mips/mips_codegen.o \
+	obj/recompiler/mips/mips_disasm.o
+endif
 
 ######################################################################
 #  GPULIB from PCSX Rearmed:
@@ -94,6 +135,32 @@ OBJS += obj/plugin_lib/perfmon.o
 #******************************************
 # spu_pcsxrearmed section BEGIN
 #******************************************
+
+##########
+# Use a non-default SPU update frequency for these slower devices
+#  to avoid audio dropouts. 0: once-per-frame (default)   5: 32-times-per-frame
+#
+#  On slower Dingoo A320, update 8 times per frame
+ifdef A320
+CFLAGS += -DSPU_UPDATE_FREQ_DEFAULT=3
+else
+#  On faster GCW Zero platform, update 4 times per frame
+CFLAGS += -DSPU_UPDATE_FREQ_DEFAULT=2
+endif
+##########
+
+##########
+# Similarly, set higher XA audio update frequency for slower devices
+#
+#  On slower Dingoo A320, force XA to update 8 times per frame (val 4)
+ifdef A320
+CFLAGS += -DFORCED_XA_UPDATES_DEFAULT=4
+else
+#  On faster GCW Zero platform, use auto-update
+CFLAGS += -DFORCED_XA_UPDATES_DEFAULT=1
+endif
+##########
+
 ifeq ($(SPU),spu_pcsxrearmed)
 # Specify which audio backend to use:
 SOUND_DRIVERS=sdl
@@ -140,11 +207,24 @@ endif
 # spu_pcsxrearmed END
 #******************************************
 
-CXXFLAGS := $(CFLAGS) -fno-rtti
+CXXFLAGS := $(CFLAGS) -fno-rtti -fno-exceptions
 
 $(TARGET): $(OBJS)
 	@echo Linking $(TARGET)...
 	$(HIDECMD)$(LD) $(OBJS) $(LDFLAGS) -o $@
+	@echo
+ifeq ($(DEV),1)
+	@echo "-> WARNING: This is a development build.                                  "
+	@echo "            Mapping to virtual address zero is disabled. As a result,     "
+	@echo "            some address-related dynarec optimizations are disabled.      "
+	@echo "            Furthermore, div-by-zero checks are enabled in C/C++ code.    "
+else
+	@echo "-> This is a release build.                                               "
+	@echo "    * Null pointer dereferences will NOT segfault (mmap to 0 is allowed). "
+	@echo "    * Div-by-zero in C/C++ code will NOT trap & abort execution.          "
+	@echo "   If developing/debugging, you can pass DEV=1 on make command-line to    "
+	@echo "   disable these behaviors. Be sure to do a clean rebuild.                "
+endif
 
 obj/%.o: src/%.c
 	@echo Compiling $<...

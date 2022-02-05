@@ -41,6 +41,21 @@
 
 //  GPU_Query		- will be implemented soon
 
+// MOUSE SCPH-1030
+#define PSE_PAD_TYPE_MOUSE			1
+// NEGCON - 16 button analog controller SLPH-00001
+#define PSE_PAD_TYPE_NEGCON			2
+// GUN CONTROLLER - gun controller SLPH-00014 from Konami
+#define PSE_PAD_TYPE_GUN			3
+// STANDARD PAD SCPH-1080, SCPH-1150
+#define PSE_PAD_TYPE_STANDARD		4
+// ANALOG JOYSTICK SCPH-1110
+#define PSE_PAD_TYPE_ANALOGJOY		5
+// GUNCON - gun controller SLPH-00034 from Namco
+#define PSE_PAD_TYPE_GUNCON			6
+// ANALOG CONTROLLER SCPH-1150
+#define PSE_PAD_TYPE_ANALOGPAD		7
+
 typedef struct
 {
 	uint32_t	flags;

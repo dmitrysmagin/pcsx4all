@@ -22,6 +22,7 @@
 #ifndef GPU_UNAI_H
 #define GPU_UNAI_H
 
+#include <psxcommon.h>
 #include "gpu.h"
 
 // Header shared between both standalone gpu_unai (gpu.cpp) and new
@@ -304,7 +305,7 @@ static inline bool ProgressiveInterlaceEnabled()
 //       running on higher-res device or a resampling downscaler is enabled.
 static inline bool PixelSkipEnabled()
 {
-	return gpu_unai.config.pixel_skip;
+	return Config.VideoScaling == 1 && gpu_unai.config.pixel_skip;
 }
 
 static inline bool LineSkipEnabled()

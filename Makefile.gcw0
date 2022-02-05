@@ -55,19 +55,21 @@ else
 	#  fixed mappings by dynarec, etc. Otherwise, the Linux default seems to be
 	#  0x40_0000 i.e., offset 4MB from 0. That's not enough room to map and
 	#  mirror PS1 address space.
-	C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
-	LDFLAGS += -Wl,-Ttext-segment=0x40000000
-
+	#C_ARCH  += -DMMAP_TO_ADDRESS_ZERO
+	#LDFLAGS += -Wl,-Ttext-segment=0x40000000
+	LDFLAGS = $(SDL_LIBS) -lrt -lz -Wl,--as-needed -Wl,--gc-sections -s
+	LDFLAGS += -flto
 	# Furthermore, div-by-zero checks are disabled (helps software rendering)
 	C_ARCH  += -mno-check-zero-division
 endif
 
-CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 \
+CFLAGS := $(C_ARCH) -mplt -mno-shared -ggdb3 -O2 -flto -DTIME_IN_MSEC \
 	-Wall -Wunused -Wpointer-arith \
 	-Wno-sign-compare -Wno-cast-align \
 	-Isrc -Isrc/spu/$(SPU) -D$(SPU) -Isrc/gpu/$(GPU) \
 	-Isrc/port/$(PORT) \
 	-Isrc/plugin_lib \
+	-Isrc/external_lib \
 	-DXA_HACK \
 	-DINLINE="static __inline__" -Dasm="__asm__ __volatile__" \
 	$(SDL_CFLAGS)
@@ -83,7 +85,7 @@ endif
 OBJDIRS = obj obj/gpu obj/gpu/$(GPU) obj/spu obj/spu/$(SPU) \
 	  obj/recompiler obj/recompiler/$(RECOMPILER) \
 	  obj/port obj/port/$(PORT) \
-	  obj/plugin_lib
+	  obj/plugin_lib obj/external_lib
 
 all: maketree $(TARGET)
 
@@ -94,8 +96,9 @@ OBJS = \
 	obj/plugin_lib/plugin_lib.o obj/plugin_lib/pl_sshot.o \
 	obj/psxinterpreter.o \
 	obj/mdec.o obj/decode_xa.o \
-	obj/cdriso.o obj/cdrom.o obj/ppf.o \
-	obj/sio.o obj/pad.o
+	obj/cdriso.o obj/cdrom.o obj/ppf.o obj/cheat.o \
+	obj/sio.o obj/pad.o \
+	obj/external_lib/ioapi.o obj/external_lib/unzip.o
 
 ifdef RECOMPILER
 OBJS += \

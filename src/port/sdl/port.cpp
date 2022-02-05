@@ -8,11 +8,13 @@
 #include "plugins.h"
 #include "plugin_lib.h"
 #include "perfmon.h"
+#include "cheat.h"
 #include <SDL.h>
 
 /* PATH_MAX inclusion */
 #ifdef __MINGW32__
 #include <limits.h>
+#include <gpu/gpulib/gpu.h>
 #endif
 
 #ifdef SPU_PCSXREARMED
@@ -26,6 +28,12 @@
 
 #ifdef GPU_UNAI
 #include "gpu/gpu_unai/gpu.h"
+#endif
+
+#ifdef RUMBLE
+#include <shake.h>
+Shake_Device *device;
+int id_shake_level[16];
 #endif
 
 enum {
@@ -51,27 +59,72 @@ enum {
 
 static SDL_Surface *screen;
 unsigned short *SCREEN;
+int SCREEN_WIDTH = 640, SCREEN_HEIGHT = 480;
 
 static bool pcsx4all_initted = false;
 static bool emu_running = false;
 
+#ifdef GCW_ZERO
+static bool last_keep_aspect = false;
+#endif
+
 void config_load();
 void config_save();
+void update_window_size(int w, int h, bool ntsc_fix);
+
+static const char *KEEP_ASPECT_FILENAME = "/sys/devices/platform/jz-lcd.0/keep_aspect_ratio";
+
+#ifdef GCW_ZERO
+
+static inline bool get_keep_aspect_ratio() {
+	FILE *f = fopen(KEEP_ASPECT_FILENAME, "rb");
+	if (!f) return false;
+	char c;
+	fread(&c, 1, 1, f);
+	fclose(f);
+	return c == 'Y';
+}
+
+static inline void set_keep_aspect_ratio(bool n) {
+	FILE *f = fopen(KEEP_ASPECT_FILENAME, "wb");
+	if (!f) return;
+	char c = n ? 'Y' : 'N';
+	fwrite(&c, 1, 1, f);
+	fclose(f);
+}
+
+#endif
 
 static void pcsx4all_exit(void)
 {
+	// unload cheats
+	cheat_unload();
+
+	// Store config to file
+	config_save();
+
+#ifdef GCW_ZERO
+	set_keep_aspect_ratio(last_keep_aspect);
+#endif
+
 	if (SDL_MUSTLOCK(screen))
 		SDL_UnlockSurface(screen);
 
 	SDL_Quit();
 
+#ifdef RUMBLE
+	//Shake_Stop(device, id_shake_small);
+	//Shake_Stop(device, id_shake_big);
+	for (int i = 0; i < 16; i++)
+		Shake_EraseEffect(device, id_shake_level[i]);
+	Shake_Close(device);
+	Shake_Quit();
+#endif
+
 	if (pcsx4all_initted == true) {
 		ReleasePlugins();
 		psxShutdown();
 	}
-
-	// Store config to file
-	config_save();
 }
 
 static char *home = NULL;
@@ -80,6 +133,11 @@ static char memcardsdir[PATH_MAX] =	"./.pcsx4all/memcards";
 static char biosdir[PATH_MAX] =		"./.pcsx4all/bios";
 static char patchesdir[PATH_MAX] =	"./.pcsx4all/patches";
 char sstatesdir[PATH_MAX] = "./.pcsx4all/sstates";
+char cheatsdir[PATH_MAX] = "./.pcsx4all/cheats";
+
+static char McdPath1[MAXPATHLEN] = "";
+static char McdPath2[MAXPATHLEN] = "";
+static char BiosFile[MAXPATHLEN] = "";
 
 #ifdef __WIN32__
 	#define MKDIR(A) mkdir(A)
@@ -101,6 +159,7 @@ static void setup_paths()
 		sprintf(memcardsdir, "%s/memcards", homedir);
 		sprintf(biosdir, "%s/bios", homedir);
 		sprintf(patchesdir, "%s/patches", homedir);
+		sprintf(cheatsdir, "%s/cheats", homedir);
 	}
 
 	MKDIR(homedir);
@@ -108,6 +167,7 @@ static void setup_paths()
 	MKDIR(memcardsdir);
 	MKDIR(biosdir);
 	MKDIR(patchesdir);
+	MKDIR(cheatsdir);
 }
 
 void probe_lastdir()
@@ -134,21 +194,24 @@ extern u32 cycle_multiplier; // in mips/recompiler.cpp
 void config_load()
 {
 	FILE *f;
-	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
-	char line[strlen("LastDir ") + MAXPATHLEN + 1];
+	char config[MAXPATHLEN];
+	char line[MAXPATHLEN + 8 + 1];
 	int lineNum = 0;
 
-	if (!config)
-		return;
+#ifdef GCW_ZERO
+	last_keep_aspect = get_keep_aspect_ratio();
+#endif
 
-	sprintf(config, "%s/pcsx4all.cfg", homedir);
-
+	sprintf(config, "%s/pcsx4all_ng.cfg", homedir);
 	f = fopen(config, "r");
 
 	if (f == NULL) {
-		printf("Failed to open config file: \"%s\" for reading.\n", config);
-		free(config);
-		return;
+		sprintf(config, "%s/pcsx4all.cfg", homedir);
+		f = fopen(config, "r");
+		if (f == NULL) {
+			printf("Failed to open config file: \"%s\" for reading.\n", config);
+			return;
+		}
 	}
 
 	while (fgets(line, sizeof(line), f)) {
@@ -200,6 +263,12 @@ void config_load()
 		} else if (!strcmp(line, "SlowBoot")) {
 			sscanf(arg, "%d", &value);
 			Config.SlowBoot = value;
+		} else if (!strcmp(line, "AnalogArrow")) {
+			sscanf(arg, "%d", &value);
+			Config.AnalogArrow = value;
+		} else if (!strcmp(line, "Analog_Mode")) {
+			sscanf(arg, "%d", &value);
+			Config.AnalogMode = value;
 		} else if (!strcmp(line, "RCntFix")) {
 			sscanf(arg, "%d", &value);
 			Config.RCntFix = value;
@@ -210,10 +279,16 @@ void config_load()
 			sscanf(arg, "%d", &value);
 			Config.Cpu = value;
 		} else if (!strcmp(line, "PsxType")) {
-			sscanf(arg, "%d", &value);
-			Config.PsxType = value;
-		} else if (!strcmp(line, "SpuIrq")) {
-			sscanf(arg, "%d", &value);
+            sscanf(arg, "%d", &value);
+            Config.PsxType = value;
+        } else if (!strcmp(line, "McdSlot1")) {
+            sscanf(arg, "%d", &value);
+            Config.McdSlot1 = value;
+        } else if (!strcmp(line, "McdSlot2")) {
+            sscanf(arg, "%d", &value);
+            Config.McdSlot2 = value;
+        } else if (!strcmp(line, "SpuIrq")) {
+            sscanf(arg, "%d", &value);
 			Config.SpuIrq = value;
 		} else if (!strcmp(line, "SyncAudio")) {
 			sscanf(arg, "%d", &value);
@@ -239,6 +314,9 @@ void config_load()
 			if (value < FRAMESKIP_MIN || value > FRAMESKIP_MAX)
 				value = FRAMESKIP_OFF;
 			Config.FrameSkip = value;
+		} else if (!strcmp(line, "VideoScaling")) {
+			sscanf(arg, "%d", &value);
+			Config.VideoScaling = value;
 		}
 #ifdef SPU_PCSXREARMED
 		else if (!strcmp(line, "SpuUseInterpolation")) {
@@ -301,7 +379,8 @@ void config_load()
 		else if (!strcmp(line, "pixel_skip")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.pixel_skip = value;
-		} else if (!strcmp(line, "lighting")) {
+		}
+		else if (!strcmp(line, "lighting")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.lighting = value;
 		} else if (!strcmp(line, "fast_lighting")) {
@@ -316,29 +395,33 @@ void config_load()
 		} else if (!strcmp(line, "interlace")) {
 			sscanf(arg, "%d", &value);
 			gpu_unai_config_ext.ilace_force = value;
+		} else if (!strcmp(line, "ntsc_fix")) {
+			sscanf(arg, "%d", &value);
+			gpu_unai_config_ext.ntsc_fix = value;
+		}
+#endif
+#ifdef GCW_ZERO
+		else if (!strcmp(line, "keep_aspect_ratio")) {
+			sscanf(arg, "%d", &value);
+			set_keep_aspect_ratio(value != 0);
 		}
 #endif
 	}
 
 	fclose(f);
-	free(config);
 }
 
 void config_save()
 {
 	FILE *f;
-	char *config = (char *)malloc(strlen(homedir) + strlen("/pcsx4all.cfg") + 1);
+	char config[MAXPATHLEN];
 
-	if (!config)
-		return;
-
-	sprintf(config, "%s/pcsx4all.cfg", homedir);
+	sprintf(config, "%s/pcsx4all_ng.cfg", homedir);
 
 	f = fopen(config, "w");
 
 	if (f == NULL) {
 		printf("Failed to open config file: \"%s\" for writing.\n", config);
-		free(config);
 		return;
 	}
 
@@ -349,22 +432,28 @@ void config_save()
 		   "Cdda %d\n"
 		   "HLE %d\n"
 		   "SlowBoot %d\n"
+		   "AnalogArrow %d\n"
+		   "Analog_Mode %d\n"
 		   "RCntFix %d\n"
 		   "VSyncWA %d\n"
 		   "Cpu %d\n"
 		   "PsxType %d\n"
+		   "McdSlot1 %d\n"
+		   "McdSlot2 %d\n"
 		   "SpuIrq %d\n"
 		   "SyncAudio %d\n"
 		   "SpuUpdateFreq %d\n"
 		   "ForcedXAUpdates %d\n"
 		   "ShowFps %d\n"
 		   "FrameLimit %d\n"
-		   "FrameSkip %d\n",
-		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto,
-		   Config.Cdda, Config.HLE, Config.SlowBoot, Config.RCntFix, Config.VSyncWA,
-		   Config.Cpu, Config.PsxType, Config.SpuIrq, Config.SyncAudio,
-		   Config.SpuUpdateFreq, Config.ForcedXAUpdates, Config.ShowFps, Config.FrameLimit,
-		   Config.FrameSkip);
+		   "FrameSkip %d\n"
+		   "VideoScaling %d\n",
+		   CONFIG_VERSION, Config.Xa, Config.Mdec, Config.PsxAuto, Config.Cdda,
+		   Config.HLE, Config.SlowBoot, Config.AnalogArrow, Config.AnalogMode,
+		   Config.RCntFix, Config.VSyncWA, Config.Cpu, Config.PsxType,
+		   Config.McdSlot1, Config.McdSlot2, Config.SpuIrq, Config.SyncAudio,
+		   Config.SpuUpdateFreq, Config.ForcedXAUpdates, Config.ShowFps,
+		   Config.FrameLimit, Config.FrameSkip, Config.VideoScaling);
 
 #ifdef SPU_PCSXREARMED
 	fprintf(f, "SpuUseInterpolation %d\n", spu_config.iUseInterpolation);
@@ -382,15 +471,21 @@ void config_save()
 		   "lighting %d\n"
 		   "fast_lighting %d\n"
 		   "blending %d\n"
-		   "dithering %d\n",
+		   "dithering %d\n"
+		   "ntsc_fix %d\n",
 		   gpu_unai_config_ext.ilace_force,
 		   gpu_unai_config_ext.pixel_skip,
 		   gpu_unai_config_ext.lighting,
 		   gpu_unai_config_ext.fast_lighting,
 		   gpu_unai_config_ext.blending,
-		   gpu_unai_config_ext.dithering);
+		   gpu_unai_config_ext.dithering,
+		   gpu_unai_config_ext.ntsc_fix);
 #endif
 
+#ifdef GCW_ZERO
+	fprintf(f, "keep_aspect_ratio %d\n",
+		   get_keep_aspect_ratio() ? 1 : 0);
+#endif
 
 	if (Config.LastDir[0]) {
 		fprintf(f, "LastDir %s\n", Config.LastDir);
@@ -405,7 +500,6 @@ void config_save()
 	}
 
 	fclose(f);
-	free(config);
 }
 
 // Returns 0: success, -1: failure
@@ -434,7 +528,7 @@ static struct {
 	int key;
 	int bit;
 } keymap[] = {
-	{ SDLK_UP,		DKEY_UP },
+	{ SDLK_UP,			DKEY_UP },
 	{ SDLK_DOWN,		DKEY_DOWN },
 	{ SDLK_LEFT,		DKEY_LEFT },
 	{ SDLK_RIGHT,		DKEY_RIGHT },
@@ -443,9 +537,13 @@ static struct {
 	{ SDLK_LCTRL,		DKEY_CIRCLE },
 	{ SDLK_SPACE,		DKEY_TRIANGLE },
 	{ SDLK_LALT,		DKEY_CROSS },
-	{ SDLK_TAB,		DKEY_L1 },
+	{ SDLK_TAB,			DKEY_L1 },
 	{ SDLK_BACKSPACE,	DKEY_R1 },
-	//{ SDLK_ESCAPE,		DKEY_SELECT },
+	{ SDLK_PAGEUP,		DKEY_L2 },
+	{ SDLK_PAGEDOWN,	DKEY_R2 },
+	{ SDLK_KP_DIVIDE,	DKEY_L3 },
+	{ SDLK_KP_PERIOD,	DKEY_R3 },
+	{ SDLK_ESCAPE,		DKEY_SELECT },
 #else
 	{ SDLK_a,		DKEY_SQUARE },
 	{ SDLK_x,		DKEY_CIRCLE },
@@ -461,13 +559,94 @@ static struct {
 	{ 0, 0 }
 };
 
-static unsigned short pad1 = 0xffff;
-static unsigned short pad2 = 0xffff;
+static uint16_t pad1 = 0xFFFF;
 
-void pad_update(void)
+static uint16_t pad2 = 0xFFFF;
+
+static uint16_t pad1_buttons = 0xFFFF;
+
+static unsigned short analog1 = 0;
+
+SDL_Joystick* sdl_joy[2];
+
+#define joy_commit_range    8192
+enum {
+	ANALOG_UP = 1,
+	ANALOG_DOWN = 2,
+	ANALOG_LEFT = 4,
+	ANALOG_RIGHT = 8
+};
+
+struct ps1_controller player_controller[2];
+
+void Set_Controller_Mode()
 {
+	switch (Config.AnalogMode) {
+		/* Digital. Required for some games. */
+	default: player_controller[0].id = 0x41;
+		player_controller[0].pad_mode = 0;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_STANDARD;
+		break;
+		/* DualAnalog. Some games might misbehave with Dualshock like Descent so this is for those */
+	case 1: player_controller[0].id = 0x53;
+		player_controller[0].pad_mode = 1;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+		/* DualShock, required for Ape Escape. */
+	case 2: 
+		player_controller[0].id = 0x41;
+		player_controller[0].pad_mode = 0;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+	case 3: 
+		player_controller[0].id = 0x73;
+		player_controller[0].pad_mode = 1;
+		player_controller[0].pad_controllertype = PSE_PAD_TYPE_ANALOGPAD;
+		break;
+	}
+}
+
+void joy_init()
+{
+
+	sdl_joy[0] = SDL_JoystickOpen(0);
+	sdl_joy[1] = SDL_JoystickOpen(1);
+
+	player_controller[0].joy_left_ax0 = 127;
+	player_controller[0].joy_left_ax1 = 127;
+	player_controller[0].joy_right_ax0 = 127;
+	player_controller[0].joy_right_ax1 = 127;
+
+	player_controller[0].Vib[0] = 0;
+	player_controller[0].Vib[1] = 0;
+	player_controller[0].VibF[0] = 0;
+	player_controller[0].VibF[1] = 0;
+
+	//player_controller[0].id = 0x41;
+	//player_controller[0].pad_mode = 0;
+	//player_controller[0].pad_controllertype = 0;
+
+	player_controller[0].configmode = 0;
+
+	Set_Controller_Mode();
+}
+
+void pad_update()
+{
+	int axisval;
 	SDL_Event event;
 	Uint8 *keys = SDL_GetKeyState(NULL);
+	bool popup_menu = false;
+
+	int k = 0;
+	while (keymap[k].key) {
+		if (keys[keymap[k].key]) {
+			pad1_buttons &= ~(1 << keymap[k].bit);
+		} else {
+			pad1_buttons |= (1 << keymap[k].bit);
+		}
+		k++;
+	}
 
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -476,59 +655,86 @@ void pad_update(void)
 			break;
 		case SDL_KEYDOWN:
 			switch (event.key.keysym.sym) {
+			case SDLK_HOME:
+			case SDLK_F10:
+				popup_menu = true;
+				break;
 #ifndef GCW_ZERO
 			case SDLK_ESCAPE:
+#endif
 				event.type = SDL_QUIT;
 				SDL_PushEvent(&event);
 				break;
-#endif
 			case SDLK_v: { Config.ShowFps=!Config.ShowFps; } break;
-			default: break;
+				default: break;
 			}
 			break;
-
+		case SDL_JOYAXISMOTION:
+			switch (event.jaxis.axis) {
+			case 0: /* X axis */
+				axisval = event.jaxis.value;
+				if (Config.AnalogArrow == 1) {
+					analog1 &= ~(ANALOG_LEFT | ANALOG_RIGHT);
+					if (axisval > joy_commit_range) {
+						analog1 |= ANALOG_RIGHT;
+					} else if (axisval < -joy_commit_range) {
+						analog1 |= ANALOG_LEFT;
+					}
+				} else {
+					player_controller[0].joy_left_ax0 = (axisval + 0x8000) >> 8;
+				}
+				break;
+			case 1: /* Y axis */
+				axisval = event.jaxis.value;
+				if (Config.AnalogArrow == 1) {
+					analog1 &= ~(ANALOG_UP | ANALOG_DOWN);
+					if (axisval > joy_commit_range) {
+						analog1 |= ANALOG_DOWN;
+					} else if (axisval < -joy_commit_range) {
+						analog1 |= ANALOG_UP;
+					}
+				} else {
+					player_controller[0].joy_left_ax1 = (axisval + 0x8000) >> 8;
+				}
+				break;
+			case 2: /* X axis */
+				axisval = event.jaxis.value;
+				player_controller[0].joy_right_ax0 = (axisval + 0x8000) >> 8;
+				break;
+			case 3: /* Y axis */
+				axisval = event.jaxis.value;
+				player_controller[0].joy_right_ax1 = (axisval + 0x8000) >> 8;
+				break;
+			}
+			break;
+		case SDL_JOYBUTTONDOWN:
+			if (event.jbutton.which == 0) {
+				pad1_buttons |= (1 << DKEY_L3);
+			} else if (event.jbutton.which == 1) {
+				pad1_buttons |= (1 << DKEY_R3);
+			}
+			break;
 		default: break;
 		}
 	}
 
-	int k = 0;
-	while (keymap[k].key) {
-		if (keys[keymap[k].key]) {
-			pad1 &= ~(1 << keymap[k].bit);
-		} else {
-			pad1 |= (1 << keymap[k].bit);
+	if (Config.AnalogArrow == 1) {
+		if ((pad1_buttons & (1 << DKEY_UP)) && (analog1 & ANALOG_UP)) {
+			pad1_buttons &= ~(1 << DKEY_UP);
 		}
-		k++;
+		if ((pad1_buttons & (1 << DKEY_DOWN)) && (analog1 & ANALOG_DOWN)) {
+			pad1_buttons &= ~(1 << DKEY_DOWN);
+		}
+		if ((pad1_buttons & (1 << DKEY_LEFT)) && (analog1 & ANALOG_LEFT)) {
+			pad1_buttons &= ~(1 << DKEY_LEFT);
+		}
+		if ((pad1_buttons & (1 << DKEY_RIGHT)) && (analog1 & ANALOG_RIGHT)) {
+			pad1_buttons &= ~(1 << DKEY_RIGHT);
+		}
 	}
 
-	/* Special key combos for GCW-Zero */
-#ifdef GCW_ZERO
-	// SELECT+B for psx's SELECT
-	if (keys[SDLK_ESCAPE] && keys[SDLK_LALT]) {
-		pad1 &= ~(1 << DKEY_SELECT);
-		pad1 |= (1 << DKEY_CROSS);
-	} else {
-		pad1 |= (1 << DKEY_SELECT);
-	}
-
-	// SELECT+L1 for psx's L2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_TAB]) {
-		pad1 &= ~(1 << DKEY_L2);
-		pad1 |= (1 << DKEY_L1);
-	} else {
-		pad1 |= (1 << DKEY_L2);
-	}
-
-	// SELECT+R1 for R2
-	if (keys[SDLK_ESCAPE] && keys[SDLK_BACKSPACE]) {
-		pad1 &= ~(1 << DKEY_R2);
-		pad1 |= (1 << DKEY_R1);
-	} else {
-		pad1 |= (1 << DKEY_R2);
-	}
-
-	// SELECT+START for menu
-	if (keys[SDLK_ESCAPE] && keys[SDLK_RETURN] && !keys[SDLK_LALT]) {
+	// popup main menu
+	if (popup_menu) {
 		//Sync and close any memcard files opened for writing
 		//TODO: Disallow entering menu until they are synced/closed
 		// automatically, displaying message that write is in progress.
@@ -536,20 +742,21 @@ void pad_update(void)
 
 		emu_running = false;
 		pl_pause();    // Tell plugin_lib we're pausing emu
+		update_window_size(320, 240, false);
 		GameMenu();
+		emu_running = true;
+		pad1_buttons |= (1 << DKEY_SELECT) | (1 << DKEY_START) | (1 << DKEY_CROSS);
+		update_window_size(gpu.screen.hres, gpu.screen.vres, Config.PsxType == PSX_TYPE_NTSC);
+		if (Config.VideoScaling == 1) {
+			video_clear_cache();
+		}
 		emu_running = true;
 		pad1 |= (1 << DKEY_START);
 		pad1 |= (1 << DKEY_CROSS);
-		video_clear();
-		video_flip();
-		video_clear();
-#ifdef SDL_TRIPLEBUF
-		video_flip();
-		video_clear();
-#endif
 		pl_resume();    // Tell plugin_lib we're reentering emu
 	}
-#endif
+
+	pad1 = pad1_buttons;
 }
 
 unsigned short pad_read(int num)
@@ -598,11 +805,155 @@ void video_clear(void)
 	memset(screen->pixels, 0, screen->pitch*screen->h);
 }
 
+void video_clear_cache()
+{
+	video_clear();
+	video_flip();
+	video_clear();
+#ifdef SDL_TRIPLEBUF
+	video_flip();
+	video_clear();
+#endif
+}
+
+const char *GetMemcardPath(int slot) {
+	switch(slot) {
+	case 1:
+		return McdPath1;
+	case 2:
+		return McdPath2;
+	}
+	return NULL;
+}
+
+void update_memcards(int load_mcd) {
+	sprintf(McdPath1, "%s/mcd%03d.mcr", memcardsdir, (int) Config.McdSlot1);
+	sprintf(McdPath2, "%s/mcd%03d.mcr", memcardsdir, (int) Config.McdSlot2);
+	if (load_mcd & 1)
+		LoadMcd(MCD1, McdPath1); //Memcard 1
+	if (load_mcd & 2)
+		LoadMcd(MCD2, McdPath2); //Memcard 2
+}
+
+const char *bios_file_get() {
+	return BiosFile;
+}
+
+void bios_file_set(const char *filename) {
+	strcpy(Config.Bios, filename);
+	strcpy(BiosFile, filename);
+}
+
+// if [CdromId].bin is exsit, use the spec bios
+void check_spec_bios() {
+	FILE *f = NULL;
+	char bios[MAXPATHLEN];
+	sprintf(bios, "%s/%s.bin", Config.BiosDir, CdromId);
+	f = fopen(bios, "rb");
+	if (f == NULL) {
+		strcpy(BiosFile, Config.Bios);
+		return;
+	}
+	fclose(f);
+	sprintf(BiosFile, "%s.bin", CdromId);
+}
+
+
 /* This is needed to override redirecting to stderr.txt and stdout.txt
 with mingw build. */
 #ifdef UNDEF_MAIN
 #undef main
 #endif
+
+void Rumble_Init() {
+#ifdef RUMBLE
+	static bool rumble_init = false;
+	
+	if (rumble_init)
+	{
+		printf("ERROR: Rumble already initialized !\n");
+		return;
+	}
+	Shake_Init();
+
+	if (Shake_NumOfDevices() > 0) {
+		device = Shake_Open(0);
+
+		Shake_Effect temp_effect;		
+		for(int i = 0; i < 16; i++)
+		{
+			Shake_InitEffect(&temp_effect, SHAKE_EFFECT_RUMBLE);
+			temp_effect.u.rumble.strongMagnitude = SHAKE_RUMBLE_STRONG_MAGNITUDE_MAX * (0.4f + 0.0375f * (i + 1));
+			temp_effect.u.rumble.weakMagnitude = SHAKE_RUMBLE_WEAK_MAGNITUDE_MAX;
+			temp_effect.length = 17;
+			temp_effect.delay = 0;
+			id_shake_level[i] = Shake_UploadEffect(device, &temp_effect);
+		}		
+		
+	}
+	printf("Rumble initialized !\n");
+
+	rumble_init = true;
+#endif
+}
+
+void update_window_size(int w, int h, bool ntsc_fix)
+{
+	if (Config.VideoScaling != 0) return;
+#ifdef SDL_TRIPLEBUF
+	int flags = SDL_TRIPLEBUF;
+#else
+	int flags = SDL_DOUBLEBUF;
+#endif
+    flags |= SDL_HWSURFACE
+#if defined(GCW_ZERO) && defined(USE_BGR15)
+        | SDL_SWIZZLEBGR
+#endif
+        ;
+	SCREEN_WIDTH = w;
+	if (gpu_unai_config_ext.ntsc_fix && ntsc_fix) {
+		switch (h) {
+		case 240:
+		case 256: h -= 16; break;
+		case 480: h -= 32; break;
+		}
+	}
+	SCREEN_HEIGHT = h;
+
+	if (screen && SDL_MUSTLOCK(screen))
+		SDL_UnlockSurface(screen);
+
+	screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
+#if !defined(GCW_ZERO) || !defined(USE_BGR15)
+			16,
+#else
+			15,
+#endif
+			flags);
+	if (!screen) {
+		puts("SDL_SetVideoMode error");
+		exit(0);
+	}
+
+	if (SDL_MUSTLOCK(screen))
+		SDL_LockSurface(screen);
+
+	SCREEN = (Uint16 *)screen->pixels;
+
+#if !defined(GCW_ZERO) && defined(USE_BGR15)
+	screen->format->Rshift = 0;
+	screen->format->Gshift = 5;
+	screen->format->Bshift = 10;
+	screen->format->Rmask = 0x1Fu;
+	screen->format->Gmask = 0x1Fu<<5u;
+	screen->format->Bmask = 0x1Fu<<10u;
+	screen->format->Amask = 0;
+	screen->format->Ashift = 0;
+	screen->format_version++;
+#endif
+
+	video_clear_cache();
+}
 
 int main (int argc, char **argv)
 {
@@ -614,8 +965,9 @@ int main (int argc, char **argv)
 	setup_paths();
 
 	// PCSX
-	sprintf(Config.Mcd1, "%s/%s", memcardsdir, "mcd001.mcr");
-	sprintf(Config.Mcd2, "%s/%s", memcardsdir, "mcd002.mcr");
+	Config.McdSlot1 = 1;
+	Config.McdSlot2 = 2;
+	update_memcards(0);
 	strcpy(Config.PatchesDir, patchesdir);
 	strcpy(Config.BiosDir, biosdir);
 	strcpy(Config.Bios, "scph1001.bin");
@@ -625,7 +977,7 @@ int main (int argc, char **argv)
 	Config.PsxAuto=1; /* 1=autodetect system (pal or ntsc) */
 	Config.PsxType=0; /* PSX_TYPE_NTSC=ntsc, PSX_TYPE_PAL=pal */
 	Config.Cdda=0; /* 0=Enable Cd audio, 1=Disable Cd audio */
-	Config.HLE=1; /* 0=BIOS, 1=HLE */
+	Config.HLE=0; /* 0=BIOS, 1=HLE */
 #if defined (PSXREC)
 	Config.Cpu=0; /* 0=recompiler, 1=interpreter */
 #else
@@ -731,16 +1083,16 @@ int main (int argc, char **argv)
 	// gpu_unai
 #ifdef GPU_UNAI
 	gpu_unai_config_ext.ilace_force = 0;
-	gpu_unai_config_ext.pixel_skip = 1;
+	gpu_unai_config_ext.pixel_skip = 0;
 	gpu_unai_config_ext.lighting = 1;
 	gpu_unai_config_ext.fast_lighting = 1;
 	gpu_unai_config_ext.blending = 1;
 	gpu_unai_config_ext.dithering = 0;
+	gpu_unai_config_ext.ntsc_fix = 1;
 #endif
 
 	// Load config from file.
 	config_load();
-
 	// Check if LastDir exists.
 	probe_lastdir();
 
@@ -825,7 +1177,7 @@ int main (int argc, char **argv)
 
 			if (val == -1) {
 				printf("ERROR: -spuupdatefreq value must be between %d..%d\n"
-				       "(%d is once per frame)\n",
+					   "(%d is once per frame)\n",
 					   SPU_UPDATE_FREQ_MIN, SPU_UPDATE_FREQ_MAX, SPU_UPDATE_FREQ_1);
 				param_parse_error = true;
 				break;
@@ -902,6 +1254,10 @@ int main (int argc, char **argv)
 			gpu_unai_config_ext.dithering = 1;
 		}
 
+		if (strcmp(argv[i],"-ntsc_fix") == 0) {
+			gpu_unai_config_ext.ntsc_fix = 1;
+		}
+
 		if (strcmp(argv[i],"-nolight") == 0) {
 			gpu_unai_config_ext.lighting = 0;
 		}
@@ -921,25 +1277,25 @@ int main (int argc, char **argv)
 		//  (when using pixel-dropping downscaler).
 		//  Can cause visual artifacts, default is on for now (for speed)
 		if (strcmp(argv[i],"-nopixelskip") == 0) {
-			gpu_unai_config_ext.pixel_skip = 0;
+		 	gpu_unai_config_ext.pixel_skip = 0;
 		}
 
 		// Settings specific to older, non-gpulib standalone gpu_unai:
-	#ifndef USE_GPULIB
+#ifndef USE_GPULIB
 		// Progressive interlace option - See gpu_unai/gpu.h
 		// Old option left in from when PCSX4ALL ran on very slow devices.
 		if (strcmp(argv[i],"-progressive") == 0) {
 			gpu_unai_config_ext.prog_ilace = 1;
 		}
-	#endif //!USE_GPULIB
+#endif //!USE_GPULIB
 #endif //GPU_UNAI
 
 
 	// SPU
-	#ifndef SPU_NULL
+#ifndef SPU_NULL
 
 	// ----- BEGIN SPU_PCSXREARMED SECTION -----
-	#ifdef SPU_PCSXREARMED
+#ifdef SPU_PCSXREARMED
 		// No sound
 		if (strcmp(argv[i],"-silent") == 0) {
 			spu_config.iDisabled = 1;
@@ -1032,11 +1388,14 @@ int main (int argc, char **argv)
 		//  resolution mode or while underclocking), sound will stutter more instead of slowing down the music itself.
 		//  There is a new option in SPU plugin config to restore old inaccurate behavior if anyone wants it." -Notaz
 
-	#endif //SPU_PCSXREARMED
+#endif //SPU_PCSXREARMED
 	// ----- END SPU_PCSXREARMED SECTION -----
 
-	#endif //!SPU_NULL
+#endif //!SPU_NULL
 	}
+
+	update_memcards(0);
+	strcpy(BiosFile, Config.Bios);
 
 	if (param_parse_error) {
 		printf("Failed to parse command-line parameters, exiting.\n");
@@ -1044,28 +1403,50 @@ int main (int argc, char **argv)
 	}
 
 	//NOTE: spu_pcsxrearmed will handle audio initialization
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_NOPARACHUTE);
+	SDL_JoystickEventState(SDL_ENABLE);
 
 	atexit(pcsx4all_exit);
 
-#ifdef SDL_TRIPLEBUF
-	int flags = SDL_HWSURFACE | SDL_TRIPLEBUF;
-#else
-	int flags = SDL_HWSURFACE | SDL_DOUBLEBUF;
-#endif
-
-	screen = SDL_SetVideoMode(320, 240, 16, flags);
-	if (!screen) {
-		puts("NO Set VideoMode 320x240x16");
-		exit(0);
-	}
-
-	if (SDL_MUSTLOCK(screen))
-		SDL_LockSurface(screen);
-
 	SDL_WM_SetCaption("pcsx4all - SDL Version", "pcsx4all");
 
-	SCREEN = (Uint16 *)screen->pixels;
+	if (Config.VideoScaling == 1) {
+#ifdef SDL_TRIPLEBUF
+	int flags = SDL_TRIPLEBUF;
+#else
+	int flags = SDL_DOUBLEBUF;
+#endif
+    flags |= SDL_HWSURFACE
+#if defined(GCW_ZERO) && defined(USE_BGR15)
+        | SDL_SWIZZLEBGR
+#endif
+        ;
+		SCREEN_WIDTH = 320;
+		SCREEN_HEIGHT = 240;
+
+		if (screen && SDL_MUSTLOCK(screen))
+			SDL_UnlockSurface(screen);
+
+		screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
+#if !defined(GCW_ZERO) || !defined(USE_BGR15)
+			16,
+#else
+			15,
+#endif
+		flags);
+		if (!screen) {
+			puts("NO Set VideoMode 320x240x16");
+			exit(0);
+		}
+
+		if (SDL_MUSTLOCK(screen))
+			SDL_LockSurface(screen);
+
+		SCREEN = (Uint16 *) screen->pixels;
+	} else {
+		update_window_size(320, 240, false);
+	}
 
 	if (argc < 2 || cdrfilename[0] == '\0') {
 		// Enter frontend main-menu:
@@ -1075,6 +1456,7 @@ int main (int argc, char **argv)
 			exit(1);
 		}
 	}
+
 
 	if (psxInit() == -1) {
 		printf("PSX emulator couldn't be initialized.\n");
@@ -1092,29 +1474,38 @@ int main (int argc, char **argv)
 	// Initialize plugin_lib, gpulib
 	pl_init();
 
-	psxReset();
-
 	if (cdrfilename[0] != '\0') {
 		if (CheckCdrom() == -1) {
+			psxReset();
 			printf("Failed checking ISO image.\n");
 			SetIsoFile(NULL);
 		} else {
+			check_spec_bios();
+			psxReset();
 			printf("Running ISO image: %s.\n", cdrfilename);
 			if (LoadCdrom() == -1) {
 				printf("Failed loading ISO image.\n");
 				SetIsoFile(NULL);
+			} else {
+				// load cheats
+				cheat_load();
 			}
 		}
+	} else {
+		psxReset();
 	}
+
+
+	Rumble_Init();
+	joy_init();
+
 
 	if (filename[0] != '\0') {
 		if (Load(filename) == -1) {
 			printf("Failed loading executable.\n");
 			filename[0]='\0';
 		}
-	}
 
-	if (filename[0] != '\0') {
 		printf("Running executable: %s.\n",filename);
 	}
 
@@ -1216,17 +1607,21 @@ void port_printf(int x, int y, const char *text)
 		0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00,0x70,0x18,0x30,0x1C,0x30,0x18,0x70,0x00,
 		0x00,0x00,0x76,0xDC,0x00,0x00,0x00,0x00,0x10,0x28,0x10,0x54,0xAA,0x44,0x00,0x00,
 	};
-	unsigned short *screen = (SCREEN + x + y * 320);
-	for (int i = 0; i < strlen(text); i++) {
+	unsigned short *screen = (SCREEN + x + y * SCREEN_WIDTH);
+	int len = strlen(text);
+	for (int i = 0; i < len; i++) {
+		int pos = 0;
 		for (int l = 0; l < 8; l++) {
-			screen[l*320+0]=(fontdata8x8[((text[i])*8)+l]&0x80)?0xffff:0x0000;
-			screen[l*320+1]=(fontdata8x8[((text[i])*8)+l]&0x40)?0xffff:0x0000;
-			screen[l*320+2]=(fontdata8x8[((text[i])*8)+l]&0x20)?0xffff:0x0000;
-			screen[l*320+3]=(fontdata8x8[((text[i])*8)+l]&0x10)?0xffff:0x0000;
-			screen[l*320+4]=(fontdata8x8[((text[i])*8)+l]&0x08)?0xffff:0x0000;
-			screen[l*320+5]=(fontdata8x8[((text[i])*8)+l]&0x04)?0xffff:0x0000;
-			screen[l*320+6]=(fontdata8x8[((text[i])*8)+l]&0x02)?0xffff:0x0000;
-			screen[l*320+7]=(fontdata8x8[((text[i])*8)+l]&0x01)?0xffff:0x0000;
+			unsigned char data = fontdata8x8[((text[i])*8)+l];
+			if (data&0x80u) screen[pos+0] = ~screen[pos+0];
+			if (data&0x40u) screen[pos+1] = ~screen[pos+1];
+			if (data&0x20u) screen[pos+2] = ~screen[pos+2];
+			if (data&0x10u) screen[pos+3] = ~screen[pos+3];
+			if (data&0x08u) screen[pos+4] = ~screen[pos+4];
+			if (data&0x04u) screen[pos+5] = ~screen[pos+5];
+			if (data&0x02u) screen[pos+6] = ~screen[pos+6];
+			if (data&0x01u) screen[pos+7] = ~screen[pos+7];
+			pos += SCREEN_WIDTH;
 		}
 		screen += 8;
 	}

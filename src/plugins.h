@@ -187,8 +187,8 @@ long CALLBACK SPU_init(void);
 
 unsigned char PAD1_startPoll(void);
 unsigned char PAD2_startPoll(void);
-unsigned char PAD1_poll(void);
-unsigned char PAD2_poll(void);
+unsigned char PAD1_poll(unsigned char);
+unsigned char PAD2_poll(unsigned char);
 
 // ISO functions
 
@@ -198,5 +198,8 @@ boolean UsingIso(void);
 void SetCdOpenCaseTime(s64 time);
 s64 GetCdOpenCaseTime(void);
 int ReloadCdromPlugin();
+
+// Memcard functions
+const char *GetMemcardPath(int slot);
 
 #endif /* __PLUGINS_H__ */

@@ -465,7 +465,6 @@ static void gpuPolySpanFn(const gpu_unai_t &gpu_unai, u16 *pDst, u32 count)
 	//  Untextured prims can always skip this (src color MSB is always 0).
 	//  For textured prims, lighting funcs always return it unset. (bonus!)
 	const bool skip_uSrc_mask = (!CF_TEXTMODE) || CF_LIGHT;
-
 	u32 bMsk; if (CF_BLITMASK) bMsk = gpu_unai.blit_mask;
 
 	if (!CF_TEXTMODE)
